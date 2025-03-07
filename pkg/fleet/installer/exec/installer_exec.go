@@ -9,6 +9,7 @@ package exec
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -46,6 +46,8 @@ type installerCmd struct {
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
+	// Enforce the use of the installer when it is bundled with the agent.
+	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
@@ -220,32 +222,61 @@ func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	return repositories.AvailableDiskSpace()
 }
 
+// getStates retrieves the state of all packages & their configuration from disk.
+func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
+	cmd := i.newInstallerCmd(ctx, "get-states")
+	defer func() { cmd.span.Finish(err) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
+	}
+	var pkgStates *repository.PackageStates
+	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())
+	}
+
+	return pkgStates, nil
+}
+
 // State returns the state of a package.
-func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, nil)
-	return repositories.Get(pkg).GetState()
+func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
+	states, err := i.States(ctx)
+	if err != nil {
+		return repository.State{}, err
+	}
+	return states[pkg], nil
 }
 
 // States returns the states of all packages.
-func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, nil)
-	states, err := repositories.GetStates()
-	log.Debugf("repositories states: %v", states)
-	return states, err
+func (i *InstallerExec) States(ctx context.Context) (map[string]repository.State, error) {
+	allStates, err := i.getStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return allStates.States, nil
 }
 
 // ConfigState returns the state of a package's configuration.
-func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
-	return repositories.Get(pkg).GetState()
+func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
+	configStates, err := i.ConfigStates(ctx)
+	if err != nil {
+		return repository.State{}, err
+	}
+	return configStates[pkg], nil
 }
 
 // ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
-	states, err := repositories.GetStates()
-	log.Debugf("config repositories states: %v", states)
-	return states, err
+func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+	allStates, err := i.getStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return allStates.ConfigStates, nil
 }
 
 // Close cleans up any resources.

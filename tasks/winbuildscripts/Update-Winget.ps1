@@ -2,7 +2,8 @@ $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
 # Install dev tools, including invoke
-pip3 install -r requirements.txt
+pip3 install dda
+dda self dep sync -f legacy-tasks
 
 # Update the repo
 $ghCliInstallResult = Start-Process "msiexec" -ArgumentList "/qn /i https://github.com/cli/cli/releases/download/v2.44.1/gh_2.44.1_windows_amd64.msi /log install.log" -NoNewWindow -Wait -Passthru
@@ -15,7 +16,7 @@ if ($ghCliInstallResult.ExitCode -ne 0) {
     & 'C:\Program Files\GitHub CLI\gh.exe' repo sync https://github.com/robot-github-winget-datadog-agent/winget-pkgs.git --source microsoft/winget-pkgs
 }
 
-$rawAgentVersion = (inv agent.version)
+$rawAgentVersion = (dda inv agent.version)
 Write-Host "Detected agent version ${rawAgentVersion}"
 $m = [regex]::match($rawAgentVersion, "(\d+\.\d+\.\d+)(-rc.(\d+))?")
 if ($m) {

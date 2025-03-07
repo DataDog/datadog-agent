@@ -7,10 +7,10 @@ test_gitlab_configuration:
     - !reference [.on_gitlab_changes]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - inv -e linter.gitlab-ci
-    - inv -e linter.job-change-path
-    - inv -e linter.gitlab-change-paths
-    - inv -e linter.ssm-parameters
+    - dda inv -e linter.gitlab-ci
+    - dda inv -e linter.job-change-path
+    - dda inv -e linter.gitlab-change-paths
+    - dda inv -e linter.ssm-parameters
 
 test_gitlab_compare_to:
   stage: .pre
@@ -22,10 +22,12 @@ test_gitlab_compare_to:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
-    - python -m pip uninstall -y setuptools wheel
-    - python -m pip install setuptools wheel --break-system-packages
-    - python -m pip install -r tasks/requirements.txt --break-system-packages
-    - inv pipeline.compare-to-itself
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - dda self dep sync -f legacy-tasks
+    - dda inv pipeline.compare-to-itself
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
@@ -41,7 +43,7 @@ compute_gitlab_ci_config:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - mkdir -p artifacts
-    - inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+    - dda inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
   artifacts:
     when: always
     paths:
@@ -55,8 +57,8 @@ lint_gitlab_ci:
   needs: [compute_gitlab_ci_config]
   script:
     - status=0
-    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
-    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
+    - dda inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
+    - dda inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
     - |
       if [ $status != 0 ]; then
         echo "At least one linter failed, exiting..." >& 2
@@ -69,4 +71,4 @@ lint_gitlab_ci_jobs_codeowners:
   tags: ["arch:arm64"]
   needs: []
   script:
-    - inv -e linter.gitlab-ci-jobs-codeowners --all-files
+    - dda inv -e linter.gitlab-ci-jobs-codeowners --all-files

@@ -289,6 +289,13 @@ func (c *Client) TargetsCustom() ([]byte, error) {
 	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
+// TimestampExpires returns the expiry time of the current up-to-date timestamp.json
+func (c *Client) TimestampExpires() (time.Time, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.directorLocalStore.GetMetaExpires(metaTimestamp)
+}
+
 // DirectorRoot returns a director root
 func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	c.Lock()
@@ -373,14 +380,7 @@ func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
 	return files, nil
 }
 
-// TargetsMeta returns the current raw targets.json meta of this uptane client
-func (c *Client) TargetsMeta() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
-	err := c.verify()
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) unsafeTargetsMeta() ([]byte, error) {
 	metas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
 		return nil, err
@@ -390,6 +390,24 @@ func (c *Client) TargetsMeta() ([]byte, error) {
 		return nil, fmt.Errorf("empty targets meta in director local store")
 	}
 	return targets, nil
+}
+
+// TargetsMeta verifies and returns the current raw targets.json meta of this uptane client
+func (c *Client) TargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	return c.unsafeTargetsMeta()
+}
+
+// UnsafeTargetsMeta returns the current raw targets.json meta of this uptane client without verifying
+func (c *Client) UnsafeTargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetsMeta()
 }
 
 func (c *Client) pruneTargetFiles() error {

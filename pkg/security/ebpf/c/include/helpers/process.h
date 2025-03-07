@@ -39,7 +39,6 @@ void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src,
 }
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
-    copy_container_id(src->container.container_id, dst->container.container_id);
     dst->container.cgroup_context.cgroup_flags = src->container.cgroup_context.cgroup_flags;
     copy_proc_entry(&src->entry, &dst->entry);
 }
@@ -129,15 +128,15 @@ u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_stru
 
 u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
     struct pid *pid = NULL;
-    bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
+    bpf_probe_read_kernel(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
 
     u32 pid_level = 0;
-    bpf_probe_read(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
+    bpf_probe_read_kernel(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
 
     // read the namespace nr from &pid->numbers[pid_level].nr
     u32 namespace_nr = 0;
     u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
-    bpf_probe_read(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
+    bpf_probe_read_kernel(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
 
     return namespace_nr;
 }
