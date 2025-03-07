@@ -34,6 +34,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -130,6 +132,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				collector.NoneModule(),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
+				fx.Supply(option.None[logagent.Component]()),
 				fx.Supply(context.Background()),
 				getPlatformModules(),
 			)
