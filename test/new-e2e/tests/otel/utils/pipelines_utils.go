@@ -31,7 +31,9 @@ import (
 )
 
 const (
-	CalendarService              = "calendar-rest-go"
+	// CalendarService is the default service value for the calendar app
+	CalendarService = "calendar-rest-go"
+
 	telemetrygenService          = "telemetrygen-job"
 	telemetrygenTopLevelResource = "lets-go"
 	env                          = "e2e"
@@ -489,7 +491,7 @@ func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload)
 				for _, span := range chunk.Spans {
 					if len(spanMap[span.Service]) < 3 {
 						spanMap[span.Service] = append(spanMap[span.Service], span)
-						spans += 1
+						spans++
 					}
 					if spans == 12 {
 						return spanMap
@@ -510,7 +512,7 @@ func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeri
 		service := tags["service"]
 		if len(metricTagsMap[service]) < 3 {
 			metricTagsMap[service] = append(metricTagsMap[service], tags)
-			ms += 1
+			ms++
 		}
 		if ms == 12 {
 			return metricTagsMap
