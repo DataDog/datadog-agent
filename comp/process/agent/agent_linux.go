@@ -70,6 +70,12 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 				"The process-agent will be enabled as a standalone agent to collect network performance metrics.")
 		}
 		return runInCoreAgent
+	case flavor.FipsAgent:
+		if npmEnabled && runInCoreAgent {
+			l.Info("Network Performance Monitoring is not supported in the core agent. " +
+				"The process-agent will be enabled as a standalone agent to collect network performance metrics.")
+		}
+		return runInCoreAgent
 	default:
 		return false
 	}

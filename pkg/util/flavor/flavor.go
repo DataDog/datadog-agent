@@ -29,6 +29,8 @@ const (
 	TraceAgent = "trace_agent"
 	// OTelAgent is the OpenTelemetry Collector flavor
 	OTelAgent = "otel_agent"
+	// FipsAgent is the FIPS Agent flavor
+	FipsAgent = "fips_agent"
 )
 
 var agentFlavors = map[string]string{
@@ -42,6 +44,7 @@ var agentFlavors = map[string]string{
 	ProcessAgent:    "Process Agent",
 	TraceAgent:      "Trace Agent",
 	OTelAgent:       "OpenTelemetry Collector",
+	FipsAgent:       "FIPS Agent",
 }
 
 const unknownAgent = "Unknown Agent"
@@ -71,4 +74,9 @@ func GetHumanReadableFlavor() string {
 	}
 
 	return unknownAgent
+}
+
+// IsCoreAgent checks the flavor of the agent and returns true if it has a default flavor or a fips flavor
+func IsCoreAgent() bool {
+	return GetFlavor() == DefaultAgent || GetFlavor() == FipsAgent
 }
