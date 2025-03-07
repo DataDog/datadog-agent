@@ -1719,7 +1719,11 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
+			_, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			}).ObfuscateSQLString(tc.query)
 			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
