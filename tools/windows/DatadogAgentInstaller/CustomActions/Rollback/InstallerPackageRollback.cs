@@ -1,3 +1,4 @@
+using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Newtonsoft.Json;
 using System;
