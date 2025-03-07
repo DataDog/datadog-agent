@@ -1,8 +1,10 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.IO;
+using Datadog.CustomActions.Native;
 
 namespace Datadog.CustomActions
 {
@@ -12,6 +14,7 @@ namespace Datadog.CustomActions
         private readonly ISession _session;
         private readonly string _installerExecutable;
         private readonly string _site;
+        private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
         {
@@ -22,6 +25,7 @@ namespace Datadog.CustomActions
             // TODO remove me
             installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
             _installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
+            _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
 
@@ -49,6 +53,7 @@ namespace Datadog.CustomActions
 
         private (string Name, string Version) ParseVersion(string library)
         {
+            library = library.Trim();
             int index = library.IndexOf(',');
             if (index == -1)
             {
@@ -75,13 +80,10 @@ namespace Datadog.CustomActions
                 foreach (var library in libraries)
                 {
                     var libWithVersion = ParseVersion(library);
-                    if (IsPackageInstalled(libWithVersion.Name))
+                    if (!IsPackageInstalled(libWithVersion.Name))
                     {
-                        // TODO rollback should not do anything
-                    }
-                    else
-                    {
-                        // TODO rollback should uninstall the library
+                        _rollbackDataStore.Add(
+                            new InstallerPackageRollback($"remove {PackageName(libWithVersion.Name)}"));
                     }
                     InstallPackage(libWithVersion.Name, libWithVersion.Version);
                 }
@@ -126,7 +128,13 @@ namespace Datadog.CustomActions
         private void InstallPackage(string library, string version)
         {
             string ociImageName = OciImageName(library);
-            _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}");
+            using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}"))
+            {
+                if (proc.ExitCode != 0)
+                {
+                    throw new Exception($"'datadog-installer install {ociImageName}' failed with exit code: {proc.ExitCode}");
+                }
+            }
         }
 
         // private void UpdatePackage(string library, string version)
