@@ -497,7 +497,10 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
+				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
+					ObfuscationMode: Legacy,
+					ReplaceDigits:   true,
+				})
 				assert.NoError(err)
 				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -562,7 +565,11 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(Config{
+					SQL: SQLConfig{
+						ObfuscationMode: Legacy,
+					},
+				}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
