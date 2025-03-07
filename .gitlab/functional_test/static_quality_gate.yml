@@ -54,7 +54,7 @@ static_quality_gates:
     - job: iot_agent_suse-x64
       artifacts: true
   # Static Quality Gates aren't enforced until Q1
-  allow_failure: true
+  allow_failure: false
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?

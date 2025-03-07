@@ -4,6 +4,7 @@ import typing
 
 import yaml
 from invoke import task
+from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI
@@ -141,3 +142,6 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     branch = os.environ["CI_COMMIT_BRANCH"]
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
+
+    if final_state != "success":
+        raise Exit(code=1)
