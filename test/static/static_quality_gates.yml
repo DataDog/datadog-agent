@@ -47,7 +47,7 @@ static_quality_gate_agent_suse_arm64_fips:
   max_on_wire_size: "186.44 MiB"
   max_on_disk_size: "793.14 MiB"
 
-static_quality_gate_msi:
+static_quality_gate_agent_msi:
   max_on_wire_size: "205.03 MiB"
   max_on_disk_size: "801.81 MiB"
 

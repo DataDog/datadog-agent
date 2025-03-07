@@ -63,6 +63,8 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
             package_arch = "aarch64"
         elif arch == "amd64":
             package_arch = "x86_64"
+        elif arch == "armhf":
+            package_arch = "armv7hl"
 
     package_os = os
     if os == "heroku":
