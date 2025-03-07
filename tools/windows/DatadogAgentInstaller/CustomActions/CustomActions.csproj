@@ -61,6 +61,7 @@
     <Compile Include="ConfigureUserCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
+    <Compile Include="InstallOciPackages.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
     <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
@@ -86,6 +87,7 @@
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
     <Compile Include="PrerequisitesCustomActions.cs" />
+    <Compile Include="Rollback\InstallerPackageRollback.cs" />
     <Compile Include="Rollback\ServicePermissionRollbackData.cs" />
     <Compile Include="Rollback\RestoreDaclRollbackCustomAction.cs" />
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />

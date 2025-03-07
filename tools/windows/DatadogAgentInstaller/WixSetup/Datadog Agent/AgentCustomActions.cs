@@ -60,6 +60,12 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SendFlare { get; }
 
+        public ManagedAction InstallOciPackages { get; }
+
+        public ManagedAction RollbackOciPackages { get; }
+
+        public ManagedAction UninstallOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -466,6 +472,53 @@ namespace WixSetup.Datadog_Agent
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
+
+            RollbackOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackOciPackages)),
+                    CustomActions.RollbackOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR],SITE=[SITE]");
+
+            InstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(InstallOciPackages)),
+                    CustomActions.InstallOciPackages,
+                    Return.asyncWait,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "SITE=[SITE],"+
+                               "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
+                               "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+
+            UninstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(UninstallOciPackages)),
+                    CustomActions.UninstallOciPackages,
+                    Return.asyncWait,
+                    When.Before,
+                    Step.StopServices,
+                    Conditions.Uninstalling
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
+                               "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

@@ -209,5 +209,23 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallInfoCustomActions.WriteInstallInfo(session);
         }
+
+        [CustomAction]
+        public static ActionResult InstallOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.InstallPackages(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RollbackOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.UninstallPackages(session);
+        }
     }
 }
