@@ -105,7 +105,11 @@ func TestObfuscateJSON(t *testing.T) {
 				KeepValues:         s.KeepValues,
 				ObfuscateSQLValues: s.ObfuscateSQLValues,
 			}
-			out, err := newJSONObfuscator(cfg, NewObfuscator(Config{})).obfuscate([]byte(s.In))
+			out, err := newJSONObfuscator(cfg, NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			})).obfuscate([]byte(s.In))
 			if !s.DontNormalize {
 				assert.NoError(err)
 				assertEqualJSON(t, s.Out, out)
