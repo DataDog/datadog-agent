@@ -64,7 +64,12 @@ func NewSender(
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
 ) *Sender {
-	log.Infof("TEST: %s sender being constructed with min concurrency %d and max concurrency %d", componentName, minWorkerConcurrency, maxWorkerConcurrency)
+	log.Debugf(
+		"Creating a new pipeline with %d sender workers, %d min sender concurrency, and %d max sender concurrency",
+		workerCount,
+		minWorkerConcurrency,
+		maxWorkerConcurrency,
+	)
 	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("sender_mux")
 
 	var workers []*worker
@@ -79,12 +84,10 @@ func NewSender(
 	}
 
 	queues := make([]chan *message.Payload, queuesCount)
-	log.Infof("TEST: %s sender creating %d queues", componentName, len(queues))
 
 	for i := range queuesCount {
 		// create a queue
 		queues[i] = make(chan *message.Payload, workersPerQueue+1)
-		log.Infof("TEST: %s input created for pipeline %d", componentName, i)
 		// output of this queue, create workers
 		for range workersPerQueue {
 			worker := newSenderWorker(
@@ -106,7 +109,6 @@ func NewSender(
 			)
 			workers = append(workers, worker)
 		}
-		log.Infof("TEST: %s created %d senders for queue %d", componentName, workersPerQueue, i)
 	}
 
 	return &Sender{
@@ -138,7 +140,7 @@ func (s *Sender) Start() {
 
 // Stop stops all sender workers
 func (s *Sender) Stop() {
-	log.Info("shared sender stopping")
+	log.Info("sender mux stopping")
 	for _, s := range s.workers {
 		s.stop()
 	}

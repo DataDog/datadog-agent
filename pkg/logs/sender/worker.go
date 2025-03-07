@@ -135,8 +135,6 @@ func (s *worker) run() {
 	continueLoop := true
 	for continueLoop {
 		select {
-		case <-s.done:
-			continueLoop = false
 		case payload := <-s.inputChan:
 			s.utilization.Start()
 			var startInUse = time.Now()
@@ -199,6 +197,8 @@ func (s *worker) run() {
 				s.flushWg.Done()
 			}
 			s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+		case <-s.done:
+			continueLoop = false
 		}
 	}
 

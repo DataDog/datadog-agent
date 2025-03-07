@@ -95,7 +95,6 @@ func NewProvider(
 	minSenderConcurrency := numberOfPipelines
 	maxSenderConcurrency := numberOfPipelines * maxConcurrencyPerPipeline
 	if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
-		log.Infof("TEST: logs sender detected non-default value of BatchMaxConcurrentSends: %d", endpoints.BatchMaxConcurrentSend)
 		minSenderConcurrency = numberOfPipelines * endpoints.BatchMaxConcurrentSend
 		maxSenderConcurrency = minSenderConcurrency
 	}
@@ -195,6 +194,7 @@ func newProvider(
 ) Provider {
 	componentName := "logs"
 	contentType := http.JSONContentType
+
 	senderImpl := sender.NewSender(
 		cfg,
 		auditor,
