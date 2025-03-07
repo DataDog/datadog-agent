@@ -749,6 +749,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Remote tagger
 	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
 
+	// CSI driver
+	config.BindEnvAndSetDefault("csi.enabled", false)
+	config.BindEnvAndSetDefault("csi.driver", "k8s.csi.datadoghq.com")
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)

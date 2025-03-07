@@ -223,7 +223,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		return cgroupContext, true, nil
 	}
 
-	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}

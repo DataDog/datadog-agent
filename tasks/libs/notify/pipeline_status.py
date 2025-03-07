@@ -40,7 +40,7 @@ def send_message(pipeline_id, dry_run):
     # For deploy pipelines not on the main branch, send notifications in a
     # dedicated channel.
     slack_channel = PIPELINES_CHANNEL
-    pipeline_type = get_pipeline_type(pipeline)
+    pipeline_type = get_pipeline_type()
     if pipeline_type == "deploy" and pipeline.ref != get_default_branch():
         slack_channel = DEPLOY_PIPELINES_CHANNEL
 
