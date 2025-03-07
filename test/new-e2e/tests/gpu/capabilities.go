@@ -141,7 +141,7 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      jobName,
-			Namespace: "default",
+			Namespace: jobNamespace,
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
@@ -159,23 +159,27 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 		},
 	}
 
-	job, err := c.suite.Env().KubernetesCluster.Client().BatchV1().Jobs(jobNamespace).Create(context.Background(), jobSpec, metav1.CreateOptions{})
+	_, err := c.suite.Env().KubernetesCluster.Client().BatchV1().Jobs(jobNamespace).Create(context.Background(), jobSpec, metav1.CreateOptions{})
 	if err != nil {
 		return "", fmt.Errorf("error starting container workload with GPUs: %w", err)
 	}
 
 	// Now let's find the container ID
 	for retries := 0; retries < jobQueryMaxRetries; retries++ {
+		allNsPods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{})
+		fmt.Printf("Pods in namespace %s: %d. %+v\n", jobNamespace, len(allNsPods.Items), allNsPods.Items)
+
 		pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", job.Name).String(),
+			FieldSelector: fields.OneTermEqualSelector("metadata.name", jobName).String(),
 			Limit:         1,
 		})
 		if err != nil {
-			return "", fmt.Errorf("error listing pods for job %s: %w", job.Name, err)
+			return "", fmt.Errorf("error listing pods for job %s: %w", jobName, err)
 		}
 
 		if len(pods.Items) > 0 {
 			pod := pods.Items[0]
+			fmt.Printf("Found pod %s in namespace %s: %+v\n", pod.Name, jobNamespace, pod)
 			if pod.Status.Phase != corev1.PodPending {
 				return pod.Status.ContainerStatuses[0].ContainerID, nil
 			}
