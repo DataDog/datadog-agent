@@ -265,9 +265,9 @@ func (c *Collector) CleanCache() error {
 	return nil
 }
 
-// getCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
+// GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
 // only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) getCache() (CacheWithCleaner, error) {
+func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
 		c.persistentCache, err = NewCustomBoltCache(

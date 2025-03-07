@@ -73,7 +73,7 @@ func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, err := c.getCache()
+	cache, err := c.GetCache()
 	if err != nil {
 		return nil, err
 	}
