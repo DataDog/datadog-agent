@@ -28,18 +28,22 @@ import (
 	apiTypes "github.com/DataDog/datadog-agent/comp/api/api/types"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -123,6 +127,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 				authtokenimpl.Module(),
+				inventorychecksimpl.Module(),
+				collector.NoneModule(),
+				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(context.Background()),
 				getPlatformModules(),
 			)
@@ -167,6 +174,7 @@ func run(
 	config config.Component,
 	cliParams *cliParams,
 	_ authtoken.Component,
+	invChecks inventorychecks.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -227,14 +235,9 @@ func run(
 		Breakpoint: cliParams.breakPoint,
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
-	if err != nil {
-		return err
-	}
+	URL, err := getChecksURL(config)
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	// TODO fix port number
-	urlstr := fmt.Sprintf("https://%v:%v/check/run", ipcAddress, 5001)
 
 	postData, err := json.Marshal(checkRequest)
 
@@ -242,7 +245,7 @@ func run(
 		return fmt.Errorf("error marshalling request: %v", err)
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(postData))
+	r, err := util.DoPost(c, URL, "application/json", bytes.NewBuffer(postData))
 
 	result := apiTypes.CheckResponse{}
 
@@ -263,35 +266,11 @@ func run(
 		return nil
 	}
 
-	// TODO: fix hardcoded port
-	apiConfigURL := fmt.Sprintf("https://%v:%d/agent/metadata/inventory-checks",
-		ipcAddress, 5001)
-
-	r, err = util.DoGet(c, apiConfigURL, util.CloseConnection)
-
-	if err != nil {
-		return fmt.Errorf("Could not fetch metadata payload: %s", err)
-	}
-
-	inventoryChecksPayload := inventorychecksimpl.Payload{}
-
-	marshalErr = json.Unmarshal(r, &inventoryChecksPayload)
-
-	if marshalErr != nil {
-		return fmt.Errorf("error unmarshalling response: %v", marshalErr)
-	}
-
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 
 	for _, c := range result.Results {
-		inventoryData := map[string]interface{}{}
-
-		for _, metadata := range inventoryChecksPayload.Metadata[string(c.CheckID)] {
-			for k, v := range metadata {
-				inventoryData[k] = v
-			}
-		}
+		inventoryData := invChecks.GetInstanceMetadata(string(c.CheckID))
 
 		if cliParams.formatJSON {
 			// There is only one checkID per run so we'll just access that
@@ -729,4 +708,20 @@ func printMetrics(aggregatorData apiTypes.AggregatorData, checkFileOutput *bytes
 // in place for some time.
 func disableCmdPort() {
 	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+}
+
+func getChecksURL(config config.Component) (string, error) {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return "", err
+	}
+
+	var urlstr string
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		urlstr = fmt.Sprintf("https://%v:%v/check/run", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+	} else {
+		urlstr = fmt.Sprintf("https://%v:%v/agent/check/run", ipcAddress, config.GetInt("cmd_port"))
+	}
+
+	return urlstr, nil
 }
