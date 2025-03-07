@@ -62,6 +62,9 @@ const validationCommandMarker = "echo 'gpu-validation-command'"
 const defaultSysprobeConfig = `
 gpu_monitoring:
   enabled: true
+
+system_probe_config:
+  log_level: debug
 `
 
 const helmValuesTemplate = `
@@ -71,8 +74,21 @@ datadog:
   clusterName: "%s"
   gpuMonitoring:
     enabled: true
+  logLevel: DEBUG
 agents:
   useHostNetwork: true
+  volumes:
+    - name: host-root-proc
+      hostPath:
+        path: /host/proc
+  volumeMounts:
+    - name: host-root-proc
+      mountPath: /host/root/proc
+  containers:
+    systemProbe:
+      env:
+        - name: HOST_PROC
+          value: "/host/root/proc"
 `
 
 type provisionerParams struct {
@@ -188,7 +204,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 // gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
 func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
-		name := "gpuvm-k8s"
+		name := "gpu-k8s"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
