@@ -1,68 +1,43 @@
-Datadog Agent installer v{{ htmlSafe .Version }}
-{{ range $name, $version := .Packages.States -}}
-{{ $config := index $.Packages.ConfigStates $name }}
-{{ boldText $name }}
-  State: {{ if $version.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $version.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
-  Installed versions:
-  {{- if $version.Stable }}
-    {{ greenText "●" }} stable: v{{ htmlSafe $version.Stable }}
-  {{- else }}
-    ● stable: none
-  {{- end }}
-  {{- if $version.Experiment }}
-    {{ yellowText "●" }} experiment: v{{ htmlSafe $version.Experiment }}
-  {{- else }}
-    ● experiment: none
-  {{- end }}
-  {{- if $config.Stable }}
-    {{ greenText "●" }} stable config: {{ htmlSafe $config.Stable }}
-  {{- else }}
-    ● stable config: none
-  {{- end }}
-  {{- if $config.Experiment }}
-    {{ yellowText "●" }} experiment config: {{ htmlSafe $config.Experiment }}
-  {{- else }}
-    ● experiment config: none
-  {{- end }}
+{{ boldText (printf "Datadog Agent installer v%s" (htmlSafe .Version)) }}
+{{ $config := index $.Packages.ConfigStates "datadog-agent" -}}
+Config ID: {{ if and $config.Stable (ne $config.Stable "empty") -}}{{ if $config.Experiment -}}{{ yellowText $config.Experiment }} (stable is {{ greenText $config.Stable }}){{- else -}}{{ greenText $config.Stable }}{{- end -}}{{- else  -}}empty{{- end }}
 
-
-  {{- if eq $name "datadog-apm-inject" }}
-    {{ template "datadog-apm-inject" $.ApmInjectionStatus }}
-  {{- end }}
-
+Packages installed:
+{{- range $name, $version := .Packages.States }}
+  {{ if $version.Experiment }}{{ yellowText "●" }}{{- else if $version.Stable}}{{ greenText "●" }}{{- else -}}{{ redText "●" }}{{- end }} {{ boldText $name }} {{ if $version.Stable -}}{{ if $version.Experiment -}}v{{ htmlSafe $version.Experiment}} (stable is v{{ htmlSafe $version.Stable }}){{- else -}}v{{ htmlSafe $version.Stable }}{{- end -}}{{- else  -}}{{ redText "No version" }}{{- end }}
   {{- range $remoteConfig := $.RemoteConfigState }}
     {{- if eq $remoteConfig.Package $name }}
-  Remote configuration client state:
-    StableVersion: {{ $remoteConfig.StableVersion }}
-    ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
-    StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
-    ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
-    Task:
-      {{- if $remoteConfig.Task }}
+    Remote configuration client state:
+      StableVersion: {{ $remoteConfig.StableVersion }}
+      ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
+      StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
+      ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
+      Task:
+        {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.Id }}
         State: {{ $remoteConfig.Task.State }}
         {{- if $remoteConfig.Task.Error }}
-          Error: {{ $remoteConfig.Task.Error }}
-        {{- end }}
+        Error: {{ $remoteConfig.Task.Error }}
+        {{- end -}}
       {{- else }}
         No task available
-      {{- end }}
-    {{- end }}
-  {{- end }}
-{{ end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end }}
 
-{{- define "datadog-apm-inject" }}
-  Instrumentation status:
-    {{ if eq .HostInstrumented true -}}
-      {{ greenText "●" }} Host: Instrumented
-    {{- else -}}
-      {{ redText "●" }} Host: Not instrumented
-    {{- end }}
-    {{ if eq .DockerInstalled false -}}
-      {{ italicText "●" }} Docker: {{ italicText "not installed" }}
-    {{- else if eq .DockerInstrumented true -}}
-      {{ greenText "●" }} Docker: Instrumented
-    {{- else -}}
-      {{ redText "●" }} Docker: Not instrumented
-    {{- end }}
+{{ with index .Packages.States "datadog-apm-inject" -}}
+APM SSI is installed. Instrumentation status:
+{{- if eq $.ApmInjectionStatus.HostInstrumented true }}
+    {{ greenText "●" }} Host: Instrumented
+{{- else }}
+    {{ redText "●" }} Host: Not instrumented
+{{- end -}}
+{{ if eq $.ApmInjectionStatus.DockerInstalled false }}
+    {{ italicText "●" }} Docker: {{ italicText "not installed" }}
+{{- else if eq $.ApmInjectionStatus.DockerInstrumented true }}
+    {{ greenText "●" }} Docker: Instrumented
+{{- else }}
+    {{ redText "●" }} Docker: Not instrumented
+{{- end -}}
 {{- end }}
