@@ -739,10 +739,9 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     if milestone:
         milestone_name = milestone
     else:
-        # The milestone name is always using the .0 patch version (at least for now)
-        # Unless we pass explicitly the name, we use the version and force the patch version
-        milestone_name = str(version)
-        milestone_name = re.sub('.[0-9]+$', '.0', milestone_name)
+        from tasks.libs.releasing.json import get_current_milestone
+
+        milestone_name = get_current_milestone()
 
     labels = [
         "team/agent-delivery",
