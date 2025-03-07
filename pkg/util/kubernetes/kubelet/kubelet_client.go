@@ -30,6 +30,8 @@ import (
 	"k8s.io/client-go/transport"
 )
 
+const apiServerQuery = "%s/api/v1/pods?fieldSelector=spec.nodeName=%s"
+
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
 	ipv6Re        = regexp.MustCompile(`^[0-9a-f:]+$`)
@@ -134,8 +136,7 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	// Redirect pod list requests to the API server when `useAPIServer` is enabled
 	if kc.config.useAPIServer && path == kubeletPodPath {
-		fullURL = fmt.Sprintf("%s/api/v1/pods?fieldSelector=spec.nodeName=%s",
-			kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
+		fullURL = fmt.Sprintf(apiServerQuery, kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
 	} else {
 		fullURL = fmt.Sprintf("%s%s", kc.kubeletURL, path)
 	}
@@ -215,7 +216,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	if kubeletUseAPIServer {
 		apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
-		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT")
+		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS")
 		if apiServerHost == "" || apiServerPort == "" {
 			return nil, fmt.Errorf("failed to determine API server host/port")
 		}

@@ -179,6 +179,9 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	if ku.useAPIServer {
+		if ku.kubeletClient.config.nodeName != "" {
+			return ku.kubeletClient.config.nodeName, nil
+		}
 		stats, err := ku.GetLocalStatsSummary(ctx)
 		if err == nil && stats.Node.NodeName != "" {
 			return stats.Node.NodeName, nil
