@@ -160,7 +160,15 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     int remaining_bytes = len - sizeof(struct dnshdr);
 
-    if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+    if (remaining_bytes <= 0) {
+        return ACT_OK;
+    }
+
+    if(pkt->offset <= 0) {
+        return ACT_OK;
+    }
+
+    if (remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
         return ACT_OK;
     }
 
