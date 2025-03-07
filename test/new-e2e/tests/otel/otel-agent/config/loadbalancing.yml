@@ -51,8 +51,6 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${env:DD_API_KEY}
-  debug:
-    verbosity: detailed
   loadbalancing:
     routing_key: "service"
     protocol:
@@ -76,19 +74,19 @@ service:
     traces/backend-1:
       receivers: [otlp/backend-1]
       processors: [resource/1]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     traces/backend-2:
       receivers: [otlp/backend-2]
       processors: [resource/2]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     traces/backend-3:
       receivers: [otlp/backend-3]
       processors: [resource/3]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     traces/backend-4:
       receivers: [otlp/backend-4]
       processors: [resource/4]
-      exporters: [debug, datadog]
+      exporters: [datadog]
 
     metrics/loadbalancer:
       receivers: [otlp/loadbalancer]
@@ -97,19 +95,19 @@ service:
     metrics/backend-1:
       receivers: [otlp/backend-1]
       processors: [resource/1]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     metrics/backend-2:
       receivers: [otlp/backend-2]
       processors: [resource/2]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     metrics/backend-3:
       receivers: [otlp/backend-3]
       processors: [resource/3]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     metrics/backend-4:
       receivers: [otlp/backend-4]
       processors: [resource/4]
-      exporters: [debug, datadog]
+      exporters: [datadog]
 
     logs/loadbalancer:
       receivers: [otlp/loadbalancer]
@@ -118,16 +116,16 @@ service:
     logs/backend-1:
       receivers: [otlp/backend-1]
       processors: [resource/1]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     logs/backend-2:
       receivers: [otlp/backend-2]
       processors: [resource/2]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     logs/backend-3:
       receivers: [otlp/backend-3]
       processors: [resource/3]
-      exporters: [debug, datadog]
+      exporters: [datadog]
     logs/backend-4:
       receivers: [otlp/backend-4]
       processors: [resource/4]
-      exporters: [debug, datadog]
+      exporters: [datadog]
