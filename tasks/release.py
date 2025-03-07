@@ -742,7 +742,7 @@ def create_release_branches(
     """Create and push release branches in Agent repositories and update them.
 
     That includes:
-        - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+        - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
         - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
