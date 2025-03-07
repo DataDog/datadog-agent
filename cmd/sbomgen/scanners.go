@@ -28,7 +28,7 @@ func runScanFS(path string, analyzers []string, fast bool) error {
 	report, err := collector.ScanFilesystem(ctx, path, sbom.ScanOptions{
 		Analyzers: analyzers,
 		Fast:      fast,
-	})
+	}, false)
 	if err != nil {
 		return err
 	}

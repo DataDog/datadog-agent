@@ -312,7 +312,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions)
+	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions, false)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
 	}

@@ -48,7 +48,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	path := request.ID() // for host request, ID == path
 	log.Infof("host scan request [%v]", path)
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,

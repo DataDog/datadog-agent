@@ -469,14 +469,16 @@ func (c *persistentCache) collectTelemetry() {
 }
 
 func newMemoryCache() *memoryCache {
-	return &memoryCache{}
+	return &memoryCache{
+		blobs:     make(map[string]types.BlobInfo),
+		artifacts: make(map[string]types.ArtifactInfo),
+	}
 }
 
 type memoryCache struct {
-	blobInfo     *types.BlobInfo
-	blobID       string
-	artifactInfo *types.ArtifactInfo
-	artifactID   string
+	blobs     map[string]types.BlobInfo
+	artifacts map[string]types.ArtifactInfo
+	blobID    string
 }
 
 func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
@@ -494,45 +496,42 @@ func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missing
 }
 
 func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) (err error) {
-	c.artifactInfo = &artifactInfo
-	c.artifactID = artifactID
+	c.artifacts[artifactID] = artifactInfo
 	return nil
 }
 
 func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) (err error) {
-	c.blobInfo = &blobInfo
+	c.blobs[blobID] = blobInfo
 	c.blobID = blobID
 	return nil
 }
 
 func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
-	if c.blobInfo != nil {
-		for _, blobID := range blobIDs {
-			if blobID == c.blobID {
-				c.blobInfo = nil
-			}
-		}
+	for _, id := range blobIDs {
+		delete(c.blobs, id)
 	}
 	return nil
 }
 
 func (c *memoryCache) GetArtifact(artifactID string) (artifactInfo types.ArtifactInfo, err error) {
-	if c.artifactInfo != nil && c.artifactID == artifactID {
-		return *c.artifactInfo, nil
+	art, ok := c.artifacts[artifactID]
+	if !ok {
+		return types.ArtifactInfo{}, errors.New("not found")
 	}
-	return types.ArtifactInfo{}, nil
+	return art, nil
 }
 
 func (c *memoryCache) GetBlob(blobID string) (blobInfo types.BlobInfo, err error) {
-	if c.blobInfo != nil && c.blobID == blobID {
-		return *c.blobInfo, nil
+	b, ok := c.blobs[blobID]
+	if !ok {
+		return types.BlobInfo{}, errors.New("not found")
 	}
-	return types.BlobInfo{}, errors.New("not found")
+	return b, nil
 }
 
 func (c *memoryCache) Close() (err error) {
-	c.artifactInfo = nil
-	c.blobInfo = nil
+	c.artifacts = nil
+	c.blobs = nil
 	return nil
 }
 
