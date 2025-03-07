@@ -269,8 +269,8 @@ set -x
 echo Reset path for custom homebrew
 
 # Homebrew
-paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
-# TODO A: Isolate export PATH=
+paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin" "$HOME/.rbenv/shims" "/System/Cryptexes/App/usr/bin" "/Library/Apple/usr/bin" "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin" "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin" "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin")
+export PATH=
 for path in "${paths[@]}"; do
     export PATH="$PATH:$path"
 done
