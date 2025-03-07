@@ -7,10 +7,10 @@ package ec2
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 // GetAccountID returns the account ID of the current AWS instance
@@ -29,24 +29,9 @@ func GetAccountID(ctx context.Context) (string, error) {
 
 // EC2Identity holds the instances identity document
 // nolint: revive
-type EC2Identity struct {
-	Region     string
-	InstanceID string
-	AccountID  string
-}
+type EC2Identity = ec2internal.EC2Identity
 
 // GetInstanceIdentity returns the instance identity document for the current instance
 func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
-	instanceIdentity := &EC2Identity{}
-	res, err := doHTTPRequest(ctx, instanceIdentityURL, useIMDSv2(), true)
-	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
-	}
-
-	err = json.Unmarshal([]byte(res), &instanceIdentity)
-	if err != nil {
-		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %s", err)
-	}
-
-	return instanceIdentity, nil
+	return ec2internal.GetInstanceIdentity(ctx)
 }

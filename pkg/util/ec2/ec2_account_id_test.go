@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 func TestGetInstanceIdentity(t *testing.T) {
@@ -28,7 +29,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 		w.Write(content)
 	}))
 	defer ts.Close()
-	instanceIdentityURL = ts.URL
+	ec2internal.InstanceIdentityURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 

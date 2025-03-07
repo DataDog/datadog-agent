@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-package ec2
+package tags
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 func TestGetIAMRole(t *testing.T) {
@@ -36,7 +37,7 @@ func TestGetIAMRole(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
@@ -61,7 +62,7 @@ func TestGetSecurityCreds(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
@@ -90,7 +91,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 	conf.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
@@ -109,7 +110,7 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 

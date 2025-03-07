@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-package ec2
+package tags
 
 import (
 	"context"
@@ -21,13 +21,16 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
 var (
-	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
-	tagsCacheKey        = cache.BuildAgentKey("ec2", "GetTags")
+	tagsCacheKey = cache.BuildAgentKey("ec2", "GetTags")
+
+	// This is used in ec2_tags.go which is behind the 'ec2' build flag
+	imdsTags = "/tags/instance" //nolint:unused
 )
 
 func isTagExcluded(tag string) bool {
@@ -56,7 +59,7 @@ func fetchEc2Tags(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
-	keysStr, err := getMetadataItem(ctx, imdsTags, useIMDSv2(), true)
+	keysStr, err := ec2internal.GetMetadataItem(ctx, imdsTags, ec2internal.UseIMDSv2(), true)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +76,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
 		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
 		// > /, or the reserved names ., .., or _index.
-		val, err := getMetadataItem(ctx, imdsTags+"/"+key, useIMDSv2(), true)
+		val, err := ec2internal.GetMetadataItem(ctx, imdsTags+"/"+key, ec2internal.UseIMDSv2(), true)
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +91,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
-	instanceIdentity, err := GetInstanceIdentity(ctx)
+	instanceIdentity, err := ec2internal.GetInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +117,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
+func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
 	connection := ec2.New(ec2.Options{
 		Region:      instanceIdentity.Region,
 		Credentials: awsCreds,
@@ -155,7 +158,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, awsCre
 var fetchTags = fetchEc2Tags
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
@@ -197,7 +200,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, useIMDSv2(), true)
+	res, err := ec2internal.GetMetadataItem(ctx, "/iam/security-credentials/"+iamRole, ec2internal.UseIMDSv2(), true)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
@@ -210,7 +213,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", useIMDSv2(), true)
+	res, err := ec2internal.GetMetadataItem(ctx, "/iam/security-credentials/", ec2internal.UseIMDSv2(), true)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}
