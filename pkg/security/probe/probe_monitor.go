@@ -118,8 +118,10 @@ func (m *EBPFMonitors) SendStats() error {
 			}
 		}
 
-		if err := resolvers.DNSResolver.SendStats(); err != nil {
-			return fmt.Errorf("failed to send process_resolver stats: %w", err)
+		if m.ebpfProbe.config.Probe.DNSResolutionEnabled {
+			if err := resolvers.DNSResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send process_resolver stats: %w", err)
+			}
 		}
 	}
 

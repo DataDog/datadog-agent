@@ -200,7 +200,7 @@ func NewConfig() (*Config, error) {
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
-		DNSResolverCacheSize:        getInt("dns_resolver_cache_size"),
+		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
 		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// event server
