@@ -272,12 +272,12 @@ echo Reset path for custom homebrew
 
 # Homebrew
 paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
-# export PATH="/opt/codecov/bin:/opt/datadog-ci/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.rbenv/shims:/usr/local/Cellar/pyenv-virtualenv/1.2.4/shims:/Users/ec2-user/.pyenv/shims:/usr/local/bin/:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
-export PATH="/opt/codecov/bin:/opt/datadog-ci/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.cargo/bin:/usr/local/Cellar/pyenv-virtualenv/1.2.4/shims:/Users/ec2-user/.pyenv/shims:/usr/local/sbin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin" # Removed /usr/local/bin, /Users/ec2-user/.rbenv/shims
-# export PATH=
+export PATH=
 for path in "${paths[@]}"; do
     export PATH="$PATH:$path"
 done
+# export PATH="$PATH:/opt/codecov/bin:/opt/datadog-ci/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.rbenv/shims:/usr/local/Cellar/pyenv-virtualenv/1.2.4/shims:/Users/ec2-user/.pyenv/shims:/usr/local/bin/:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
+export PATH="$PATH:/opt/codecov/bin:/opt/datadog-ci/bin:/Users/ec2-user/.cargo/bin:/Users/ec2-user/.cargo/bin:/usr/local/Cellar/pyenv-virtualenv/1.2.4/shims:/Users/ec2-user/.pyenv/shims:/usr/local/sbin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Library/Apple/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin" # Removed /usr/local/bin, /Users/ec2-user/.rbenv/shims
 echo "Initial PATH: $PATH"
 
 # Python
