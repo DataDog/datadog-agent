@@ -60,6 +60,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction InstallOciPackages { get; }
 
+        public ManagedAction RollbackOciPackages { get; }
+
         public ManagedAction UninstallOciPackages { get; }
 
         public ManagedAction WriteInstallInfo { get; }
@@ -455,13 +457,27 @@ namespace WixSetup.Datadog_Agent
                 Sequence = Sequence.NotInSequence
             };
 
+            RollbackOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackOciPackages)),
+                    CustomActions.RollbackOciPackages,
+                    Return.asyncWait,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR]")
+
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
                     CustomActions.InstallOciPackages,
                     Return.asyncWait,
                     When.Before,
                     Step.StartServices,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
                 {
                     Execute = Execute.deferred,

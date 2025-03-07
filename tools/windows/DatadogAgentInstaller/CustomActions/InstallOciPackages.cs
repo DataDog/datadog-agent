@@ -85,14 +85,20 @@ namespace Datadog.CustomActions
                         _rollbackDataStore.Add(
                             new InstallerPackageRollback($"remove {PackageName(libWithVersion.Name)}"));
                     }
+
                     InstallPackage(libWithVersion.Name, libWithVersion.Version);
                 }
+
                 return ActionResult.Success;
             }
             catch (Exception ex)
             {
                 _session.Log("Error while installing oci package: " + ex.Message);
                 return ActionResult.Failure;
+            }
+            finally
+            {
+                _rollbackDataStore.Store();
             }
         }
 
@@ -118,6 +124,12 @@ namespace Datadog.CustomActions
                 }
             }
             return ActionResult.Success;
+        }
+
+        private ActionResult RollbackState()
+        {
+            _rollbackDataStore.Load();
+            _rollbackDataStore.Restore();
         }
 
         private bool IsPackageInstalled(string library)
@@ -170,6 +182,11 @@ namespace Datadog.CustomActions
         public static ActionResult UninstallPackages(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).UninstallPackages();
+        }
+
+        public static ActionResult RollbackActions(Session session)
+        {
+            return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
         }
     }
 }
