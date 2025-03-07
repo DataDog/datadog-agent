@@ -122,6 +122,7 @@ case "$*" in
         remove_persist_integration_files
         rm "$CONFIG_DIR/install_info" || true
         rm "$CONFIG_DIR/install.json" || true
+        rm -f "/usr/bin/datadog-agent"
     ;;
     1)
         # We're upgrading.
