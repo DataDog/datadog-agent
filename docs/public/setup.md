@@ -6,63 +6,63 @@
 
 === "macOS"
     === "GUI installer"
-        1. In your browser, download the `.pkg` file: [deva-universal.pkg](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-universal.pkg)
+        1. In your browser, download the `.pkg` file: [dda-universal.pkg](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-universal.pkg)
         2. Run your downloaded file and follow the on-screen instructions.
         3. Restart your terminal.
         4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
 
             ```
-            $ deva --version
-            <DEVA_LATEST_VERSION>
+            $ dda --version
+            <DDA_LATEST_VERSION>
             ```
     === "Command line installer"
-        1. Download the file using the `curl` command. The `-o` option specifies the file name that the downloaded package is written to. In this example, the file is written to `deva-universal.pkg` in the current directory.
+        1. Download the file using the `curl` command. The `-o` option specifies the file name that the downloaded package is written to. In this example, the file is written to `dda-universal.pkg` in the current directory.
 
             ```
-            curl -Lo deva-universal.pkg https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-universal.pkg
+            curl -Lo dda-universal.pkg https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-universal.pkg
             ```
         2. Run the standard macOS [`installer`](https://ss64.com/osx/installer.html) program, specifying the downloaded `.pkg` file as the source. Use the `-pkg` parameter to specify the name of the package to install, and the `-target /` parameter for the drive in which to install the package. The files are installed to `/usr/local/deva`, and an entry is created at `/etc/paths.d/deva` that instructs shells to add the `/usr/local/deva` directory to. You must include sudo on the command to grant write permissions to those folders.
 
             ```
-            sudo installer -pkg ./deva-universal.pkg -target /
+            sudo installer -pkg ./dda-universal.pkg -target /
             ```
         3. Restart your terminal.
         4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
 
             ```
-            $ deva --version
-            <DEVA_LATEST_VERSION>
+            $ dda --version
+            <DDA_LATEST_VERSION>
             ```
 
 === "Windows"
     === "GUI installer"
         1. In your browser, download one the `.msi` files:
-              - [deva-x64.msi](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x64.msi)
+              - [dda-x64.msi](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x64.msi)
         2. Run your downloaded file and follow the on-screen instructions.
         3. Restart your terminal.
         4. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
 
             ```
-            $ deva --version
-            <DEVA_LATEST_VERSION>
+            $ dda --version
+            <DDA_LATEST_VERSION>
             ```
     === "Command line installer"
         1. Download and run the installer using the standard Windows [`msiexec`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec) program, specifying one of the `.msi` files as the source. Use the `/passive` and `/i` parameters to request an unattended, normal installation.
 
             === "x64"
                 ```
-                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x64.msi
+                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x64.msi
                 ```
             === "x86"
                 ```
-                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86.msi
+                msiexec /passive /i https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86.msi
                 ```
         2. Restart your terminal.
         3. To verify that the shell can find and run the `deva` command in your `PATH`, use the following command.
 
             ```
-            $ deva --version
-            <DEVA_LATEST_VERSION>
+            $ dda --version
+            <DDA_LATEST_VERSION>
             ```
 
 ### Standalone binaries
@@ -70,25 +70,25 @@
 After downloading the archive corresponding to your platform and architecture, extract the binary to a directory that is on your PATH and rename to `deva`.
 
 === "macOS"
-    - [deva-aarch64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-aarch64-apple-darwin.tar.gz)
-    - [deva-x86_64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-apple-darwin.tar.gz)
+    - [dda-aarch64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-aarch64-apple-darwin.tar.gz)
+    - [dda-x86_64-apple-darwin.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86_64-apple-darwin.tar.gz)
 
 === "Windows"
-    - [deva-x86_64-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-pc-windows-msvc.zip)
-    - [deva-i686-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-i686-pc-windows-msvc.zip)
+    - [dda-x86_64-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86_64-pc-windows-msvc.zip)
+    - [dda-i686-pc-windows-msvc.zip](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-i686-pc-windows-msvc.zip)
 
 === "Linux"
-    - [deva-aarch64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-aarch64-unknown-linux-gnu.tar.gz)
-    - [deva-x86_64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-unknown-linux-gnu.tar.gz)
-    - [deva-x86_64-unknown-linux-musl.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-x86_64-unknown-linux-musl.tar.gz)
-    - [deva-powerpc64le-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/deva-powerpc64le-unknown-linux-gnu.tar.gz)
+    - [dda-aarch64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-aarch64-unknown-linux-gnu.tar.gz)
+    - [dda-x86_64-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86_64-unknown-linux-gnu.tar.gz)
+    - [dda-x86_64-unknown-linux-musl.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86_64-unknown-linux-musl.tar.gz)
+    - [dda-powerpc64le-unknown-linux-gnu.tar.gz](https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-powerpc64le-unknown-linux-gnu.tar.gz)
 
 ### pip
 
-deva is available on PyPI and can be installed with [pip](https://github.com/pypa/pip).
+dda is available on PyPI and can be installed with [pip](https://github.com/pypa/pip).
 
 ```
-pip install datadog-agent-dev
+pip install dda
 ```
 
 !!! warning
@@ -221,7 +221,7 @@ pre-commit install
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:
 
 ```sh
-deva install-shellcheck --destination <path>
+dda inv install-shellcheck --destination <path>
 ```
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).

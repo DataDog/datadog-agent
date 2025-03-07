@@ -14,7 +14,7 @@ for file in $junit_files; do
         echo "Issue with junit file: $file"
         continue
     fi
-    inv -e junit-upload --tgz-path "$file" || error=1
+    dda inv -e junit-upload --tgz-path "$file" || error=1
 done
 unset DATADOG_API_KEY
 # Never fail on Junit upload failure since it would prevent the other after scripts to run.

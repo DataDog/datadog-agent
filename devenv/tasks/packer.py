@@ -18,7 +18,7 @@ def build(ctx, os="windows-10", provider="virtualbox-iso"):
     Build the Vagrant box
 
     Example invokation:
-        inv packer.build --os=windows-10
+        dda inv packer.build --os=windows-10
     """
 
     if provider not in DEFAULT_BUILDERS:

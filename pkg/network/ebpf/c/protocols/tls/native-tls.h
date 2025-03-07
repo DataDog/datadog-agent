@@ -122,7 +122,6 @@ static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
     conn_tuple_t copy = {0};
@@ -131,7 +130,7 @@ static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, len, tags);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -182,7 +181,7 @@ static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+
     conn_tuple_t copy = {0};
     bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
@@ -191,7 +190,7 @@ static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
     normalize_tuple(&copy);
     flip_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, write_len, flags);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -261,7 +260,6 @@ static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
     conn_tuple_t copy = {0};
@@ -270,7 +268,7 @@ static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
@@ -331,7 +329,6 @@ static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     conn_tuple_t copy = {0};
     bpf_memcpy(&copy, conn_tuple, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
@@ -340,7 +337,7 @@ static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     normalize_tuple(&copy);
     flip_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
@@ -461,7 +458,6 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_recv, ssize_t read_len) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
     conn_tuple_t copy = {0};
@@ -470,7 +466,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_recv, ssize_t read_len) {
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, read_len, LIBGNUTLS);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
@@ -507,7 +503,6 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_send, ssize_t write_len) {
     }
 
     char *buffer_ptr = args->buf;
-    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     conn_tuple_t copy = {0};
     bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
@@ -516,7 +511,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_send, ssize_t write_len) {
     normalize_tuple(&copy);
     flip_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, write_len, LIBGNUTLS);
-    return 0;
+
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
@@ -554,7 +549,31 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
+    return 0;
+}
 
+static __always_inline void delete_pid_in_maps() {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
+}
+
+SEC("tracepoint/sched/sched_process_exit")
+int tracepoint__sched__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_exit")
+int raw_tracepoint__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
     return 0;
 }
 

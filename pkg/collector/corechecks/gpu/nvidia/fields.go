@@ -20,14 +20,12 @@ import (
 
 type fieldsCollector struct {
 	device       nvml.Device
-	tags         []string
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(device nvml.Device, tags []string) (Collector, error) {
+func newFieldsCollector(device nvml.Device) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
-		tags:   tags,
 	}
 	c.fieldMetrics = append(c.fieldMetrics, metricNameToFieldID...) // copy all metrics to avoid modifying the original slice
 
@@ -103,7 +101,11 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		metrics = append(metrics, Metric{Name: name, Value: value, Tags: c.tags, Type: metricNameToFieldID[i].metricType})
+		metrics = append(metrics, Metric{
+			Name:  name,
+			Value: value,
+			Type:  metricNameToFieldID[i].metricType},
+		)
 	}
 
 	return metrics, err
