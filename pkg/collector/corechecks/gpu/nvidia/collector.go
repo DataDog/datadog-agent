@@ -113,7 +113,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	return collectors, nil
 }
 
-// GetDeviceTagsMapping returns the tags associated with the given NVML device identified by its UUID.
+// GetDeviceTagsMapping returns the mapping of tags per GPU device.
 func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[string][]string {
 	devCount, ret := lib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
