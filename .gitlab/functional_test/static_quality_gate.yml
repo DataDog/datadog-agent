@@ -1,8 +1,8 @@
 static_quality_gates:
   stage: functional_test
   rules:
-    - !reference [.not_on_release_branch_or_tagged_commit]
-    - !reference [.except_mergequeue]
+    - !reference [.on_main]
+    - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -64,4 +64,5 @@ static_quality_gates:
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - export DD_API_KEY="$DATADOG_API_KEY"
     - !reference [ .setup_agent_github_app ]
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - inv quality-gates.parse-and-trigger-gates

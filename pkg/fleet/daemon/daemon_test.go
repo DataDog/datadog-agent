@@ -8,6 +8,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -215,10 +216,13 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
 	daemon := newDaemon(
 		rc,
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
+		taskDB,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,

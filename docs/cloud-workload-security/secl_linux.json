@@ -1332,6 +1332,11 @@
           "property_doc_link": "accept-addr-family-doc"
         },
         {
+          "name": "accept.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
           "name": "accept.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -1878,6 +1883,11 @@
           "name": "connect.addr.family",
           "definition": "Address family",
           "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "connect-addr-hostname-doc"
         },
         {
           "name": "connect.addr.ip",
@@ -9776,6 +9786,18 @@
       "examples": []
     },
     {
+      "name": "accept.addr.hostname",
+      "link": "accept-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
@@ -10068,6 +10090,18 @@
       "link": "connect-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.hostname",
+      "link": "connect-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
       "prefixes": [
         "connect"
       ],
