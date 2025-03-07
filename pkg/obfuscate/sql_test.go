@@ -1621,7 +1621,11 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
+		oq, err := NewObfuscator(Config{
+			SQL: SQLConfig{
+				ObfuscationMode: Legacy,
+			},
+		}).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
 		assert.Equal(tc.expected, oq.Query)
 	}
