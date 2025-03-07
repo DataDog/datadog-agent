@@ -737,7 +737,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
 
-				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
+				oq, err = NewObfuscator(Config{
+					SQL: SQLConfig{
+						ObfuscationMode: Legacy,
+					},
+				}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
 					TableNames:    true,
 					ReplaceDigits: true,
 				})
