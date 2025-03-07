@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/container.h"
 #include "helpers/process.h"
+#include "helpers/utils.h"
 
 #include "maps.h"
 
@@ -22,13 +23,7 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     }
 
     // reset event
-    evt->action = SYSCTL_UNKNOWN;
-    evt->file_position = 0;
-    evt->name_len = 0;
-    evt->old_value_len = 0;
-    evt->new_value_len = 0;
-    evt->flags = 0;
-    evt->sysctl_buffer[0] = 0;
+    simple_memset_zero(evt, sizeof(*evt));
 
     // process, container, span contexts
     struct proc_cache_t *entry = fill_process_context(&evt->process);

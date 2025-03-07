@@ -226,7 +226,7 @@ enum selinux_event_kind_t
 
 enum sysctl_action_t
 {
-    SYSCTL_UNKNOWN,
+    SYSCTL_UNKNOWN, // needs to be 0 for `reset_sysctl_event`
     SYSCTL_READ,
     SYSCTL_WRITE,
 };
