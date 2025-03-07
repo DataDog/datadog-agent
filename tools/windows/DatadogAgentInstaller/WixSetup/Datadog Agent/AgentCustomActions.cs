@@ -460,7 +460,7 @@ namespace WixSetup.Datadog_Agent
             RollbackOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackOciPackages)),
                     CustomActions.RollbackOciPackages,
-                    Return.asyncWait,
+                    Return.ignore,
                     When.Before,
                     Step.StartServices,
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
