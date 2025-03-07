@@ -33,7 +33,7 @@ type senderPool struct {
 	virtualLatency           time.Duration
 	shouldBackoff            bool
 	inUseWorkers             int
-	targetVirtualLatency     time.Duration
+	targetLatencyPerWorker   time.Duration
 	minWorkers               int
 	maxWorkers               int
 	virtualLatencyLastSample time.Time
@@ -47,22 +47,23 @@ type senderPool struct {
 
 // NewSenderPool returns a new senderPool implementation that limits the number of concurrent senders.
 func NewSenderPool(minWorkers int, maxWorkers int, destMeta *client.DestinationMetadata) SenderPool {
-	return newSenderPool(concurrentSendersEwmaSampleInterval, ewmaAlpha, minWorkers, maxWorkers, targetLatency/time.Duration(minWorkers), destMeta)
+	return newSenderPool(concurrentSendersEwmaSampleInterval, ewmaAlpha, minWorkers, maxWorkers, targetLatency, destMeta)
 }
 
-func newSenderPool(ewmaSampleInterval time.Duration, alpha float64, minWorkers int, maxWorkers int, targetLatencyPerWorker time.Duration, destMeta *client.DestinationMetadata) *senderPool {
+func newSenderPool(ewmaSampleInterval time.Duration, alpha float64, minWorkers int, maxWorkers int, targetLatency time.Duration, destMeta *client.DestinationMetadata) *senderPool {
 	if minWorkers <= 0 {
 		minWorkers = 1
 	}
 	if maxWorkers < minWorkers {
 		maxWorkers = minWorkers
 	}
+	targetLatencyPerWorker := targetLatency / time.Duration(minWorkers)
 
 	sp := &senderPool{
 		pool:                     make(chan struct{}, maxWorkers),
 		minWorkers:               minWorkers,
 		maxWorkers:               maxWorkers,
-		targetVirtualLatency:     targetLatencyPerWorker,
+		targetLatencyPerWorker:   targetLatencyPerWorker,
 		virtualLatencyLastSample: time.Now(),
 		inUseWorkers:             minWorkers,
 		destMeta:                 destMeta,
@@ -107,6 +108,7 @@ func (l *senderPool) Run(doWork func() destinationResult) {
 // If Latency is above the target, more workers are added to the pool until the virtual latency is reached.
 // This ensures the payload egress rate remains fair no matter how long the HTTP transaction takes
 // (up to maxWorkers)
+// This function is not concurrency safe.
 func (l *senderPool) resize() {
 	if l.maxWorkers == l.minWorkers {
 		return
@@ -128,7 +130,7 @@ func (l *senderPool) resize() {
 			l.virtualLatencyLastSample = time.Now()
 		}
 
-		targetWorkers := int(math.Ceil(float64(l.virtualLatency) / float64(l.targetVirtualLatency)))
+		targetWorkers := int(math.Ceil(float64(l.virtualLatency) / float64(l.targetLatencyPerWorker)))
 
 		if shouldBackoff {
 			log.Debugf("Backing off sender pool workers in response to transient connection issues with destination.")
