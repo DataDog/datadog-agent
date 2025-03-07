@@ -31,8 +31,10 @@ namespace Datadog.CustomActions.Rollback
             {
                 if (proc.ExitCode != 0)
                 {
-                    session.Log($"error running rollback command {installerExecutable} {_installerCommand} failed with exit code {proc.ExitCode}");
+                    session.Log(
+                        $"error running rollback command {installerExecutable} {_installerCommand} failed with exit code {proc.ExitCode}");
                 }
             }
         }
     }
+}
