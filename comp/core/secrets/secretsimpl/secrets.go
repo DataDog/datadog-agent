@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -407,11 +408,24 @@ var (
 		"additional_endpoints",
 	}
 	// tests override this to test refresh logic
-	allowlistEnabled = true
+	// Using uint32 for atomic operations
+	allowlistEnabledAtomic uint32 = 1 // Default to true
 )
 
+func isAllowlistEnabled() bool {
+	return atomic.LoadUint32(&allowlistEnabledAtomic) == 1
+}
+
+func setAllowlistEnabled(value bool) {
+	var intValue uint32
+	if value {
+		intValue = 1
+	}
+	atomic.StoreUint32(&allowlistEnabledAtomic, intValue)
+}
+
 func secretMatchesAllowlist(secretCtx secretContext) bool {
-	if !allowlistEnabled {
+	if !isAllowlistEnabled() {
 		return true
 	}
 	for _, allowedKey := range allowlistPaths {
@@ -426,7 +440,7 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 // handle appears at against the allowlist
 func (r *secretResolver) matchesAllowlist(handle string) bool {
 	// if allowlist is disabled, consider every handle a match
-	if !allowlistEnabled {
+	if !isAllowlistEnabled() {
 		return true
 	}
 	for _, secretCtx := range r.origin[handle] {
@@ -492,7 +506,7 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
-	if allowlistEnabled {
+	if isAllowlistEnabled() {
 		filteredHandles := make([]string, 0, len(newHandles))
 		for _, handle := range newHandles {
 			if r.matchesAllowlist(handle) {

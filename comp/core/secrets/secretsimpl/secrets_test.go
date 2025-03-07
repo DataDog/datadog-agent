@@ -587,8 +587,11 @@ func TestResolveCached(t *testing.T) {
 
 func TestResolveThenRefresh(t *testing.T) {
 	// disable the allowlist for the test, let any secret changes happen
-	allowlistEnabled = false
-	defer func() { allowlistEnabled = true }()
+	originalValue := isAllowlistEnabled()
+	setAllowlistEnabled(false)
+	defer func() {
+		setAllowlistEnabled(originalValue)
+	}()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	resolver := newEnabledSecretResolver(tel)
@@ -836,10 +839,11 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
 			resolver := newEnabledSecretResolver(tel)
-			defer func(resetValue bool) {
-				allowlistEnabled = resetValue
-			}(allowlistEnabled)
-			allowlistEnabled = false
+			originalValue := isAllowlistEnabled()
+			setAllowlistEnabled(false)
+			defer func() {
+				setAllowlistEnabled(originalValue)
+			}()
 
 			resolver.refreshInterval = 10 * time.Second
 			resolver.refreshIntervalScatter = tc.scatter
