@@ -469,7 +469,7 @@ namespace WixSetup.Datadog_Agent
                     Execute = Execute.rollback,
                     Impersonate = false
                 }
-                .SetProperties("INSTALLDIR=[INSTALLDIR]")
+                .SetProperties("INSTALLDIR=[INSTALLDIR]");
 
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
