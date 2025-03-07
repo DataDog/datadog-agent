@@ -14,26 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
-func TestDestination429(t *testing.T) {
-
-}
-
-func TestDestination500(t *testing.T) {
-
-}
-
-func TestMaxWorkerLimit(t *testing.T) {
-
-}
-
-func TestWorkerCounts(t *testing.T) {
-
-}
-
-func TestVirtualLatencyCalculations(t *testing.T) {
-
-}
-
 func TestLatencyThrottledSenderLowLatencyOneWorker(t *testing.T) {
 	pool := newSenderPool(0, 0.064, 1, 10, 10*time.Millisecond, client.NewNoopDestinationMetadata())
 
