@@ -7,6 +7,25 @@ package sample
 
 import "io"
 
+type tierA struct {
+	a int
+	b tierB
+}
+
+type tierB struct {
+	c int
+	d tierC
+}
+
+type tierC struct {
+	e int
+	f tierD
+}
+
+type tierD struct {
+	g int
+}
+
 type outer struct {
 	A *middle
 }
@@ -20,6 +39,10 @@ type inner struct {
 	D byte
 	E string
 }
+
+//go:noinline
+//nolint:all
+func test_multiple_struct_tiers(a tierA) {}
 
 //nolint:all
 //go:noinline
@@ -62,6 +85,18 @@ func ExecuteComplexFuncs() {
 		x:      s,
 		z:      5,
 		writer: io.Discard,
+	})
+
+	test_multiple_struct_tiers(tierA{
+		a: 1,
+		b: tierB{
+			c: 2,
+			d: tierC{
+				e: 3, f: tierD{
+					g: 4,
+				},
+			},
+		},
 	})
 	test_multiple_dereferences(o)
 
