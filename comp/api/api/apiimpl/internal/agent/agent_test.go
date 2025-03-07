@@ -100,7 +100,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 	SetupHandlers(
 		router,
 		deps.Wmeta,
-		deps.LogsAgent,
 		sender,
 		deps.SecretResolver,
 		deps.Collector,

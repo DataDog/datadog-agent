@@ -109,7 +109,6 @@ func (server *apiServer) startCMDServer(
 			agent.SetupHandlers(
 				agentMux,
 				server.wmeta,
-				server.logsAgentComp,
 				server.senderManager,
 				server.secretResolver,
 				server.collector,
