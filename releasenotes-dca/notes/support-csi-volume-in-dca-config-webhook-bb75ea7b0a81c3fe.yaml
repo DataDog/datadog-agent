@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    [BETA] Add support for mounting Datadog CSI Volumes instead of hostpath 
-    volumes in the admission controller config webhook. This applies
-    to mounting Dogstatsd and Tracing UDS sockets onto user applications.
-    This requires datadog CSI driver to be installed and running on the cluster. 
+    [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath 
+    volumes in the admission controller config webhook for sharing  DogStatsD 
+    and APM UDS sockets with user applications. This requires the Datadog 
+    CSI driver to be installed and running on the cluster. 
