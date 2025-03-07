@@ -65,6 +65,7 @@ def extract_rpm_package(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
         ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null")
 
+
 def extract_zip_archive(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
         ctx.run(f"unzip {package_path}")
