@@ -135,19 +135,12 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 	// 4. Install the agent systemd units
-	useAgentDaemon := os.Getenv("DD_USE_AGENT_DAEMON") != ""
 	for _, unit := range stableUnits {
-		if !useAgentDaemon && unit == installerAgentUnit {
-			continue
-		}
 		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
 	for _, unit := range experimentalUnits {
-		if !useAgentDaemon && unit == installerAgentExp {
-			continue
-		}
 		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
