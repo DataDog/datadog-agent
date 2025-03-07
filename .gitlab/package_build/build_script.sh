@@ -270,7 +270,7 @@ echo Reset path for custom homebrew
 
 # Homebrew
 paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
-export PATH=
+# TODO A: Isolate export PATH=
 for path in "${paths[@]}"; do
     export PATH="$PATH:$path"
 done
@@ -304,11 +304,10 @@ cargo --version || true
 # # TODO A: sudo xcodes select 15.2
 # sudo xcodes select 14.2
 
-setup_xcode
-
-ls "/Applications/Xcode-15.2.0.app/Contents/Developer"
-ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools"
-ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools/usr/bin"
+# setup_xcode
+# ls "/Applications/Xcode-15.2.0.app/Contents/Developer"
+# ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools"
+# ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools/usr/bin"
 
 echo "Full PATH: $PATH"
 set +x
