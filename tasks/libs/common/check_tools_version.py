@@ -77,7 +77,7 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
             'expected_v': custom_golangci_v(expected_golangci_lint_repo_v(ctx)),
             'debug': '' if not debug else current_golangci_lint_v(ctx, debug=debug),
             'exit_on_error': True,
-            'error_msg': "Error: The golanci-lint version you are using is not the correct one. Please run inv -e setup to install the correct version.",
+            'error_msg': "Error: The golanci-lint version you are using is not the correct one. Please run dda inv -e setup to install the correct version.",
         },
     }
     for tool in tools_list:
@@ -94,7 +94,7 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
             if current_v != expected_v:
                 print(
                     color_message(
-                        f"Expecting {tool} '{expected_v}' but you have {tool} '{current_v}'. Please run inv -e install-tools to fix this as you might encounter issues using the tooling.",
+                        f"Expecting {tool} '{expected_v}' but you have {tool} '{current_v}'. Please run dda inv -e install-tools to fix this as you might encounter issues using the tooling.",
                         Color.RED,
                     ),
                     file=sys.stderr,

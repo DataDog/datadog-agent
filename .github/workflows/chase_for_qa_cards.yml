@@ -24,10 +24,10 @@ jobs:
       with:
         python-version-file: .python-version
         cache: "pip"
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
+    - name: Install dda
+      uses: ./.github/actions/install-dda
+      with:
+        features: legacy-tasks legacy-github legacy-release
     - name: Chase for QA cards
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
@@ -35,4 +35,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
       run: |
-        inv -e release.chase-for-qa-cards -v "$VERSION"
+        dda inv -e release.chase-for-qa-cards -v "$VERSION"

@@ -223,7 +223,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		return cgroupContext, true, nil
 	}
 
-	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}
@@ -254,11 +254,6 @@ func (r *EBPFResolvers) Snapshot() error {
 
 	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
-	}
-
-	// snapshot sockets
-	if err := r.snapshotBoundSockets(); err != nil {
-		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
 	}
 
 	return nil
@@ -324,6 +319,7 @@ func (r *EBPFResolvers) snapshot() error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (r *EBPFResolvers) snapshotBoundSockets() error {
 	processes, err := utils.GetProcesses()
 	if err != nil {

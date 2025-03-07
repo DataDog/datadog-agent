@@ -123,16 +123,17 @@ func TestGetPayload(t *testing.T) {
 		},
 	}
 
-	p := gh.getPayload().(*Payload)
+	p, ok := gh.getPayload().(*Payload)
+	assert.True(t, ok)
 	assert.Equal(t, expectedMetadata, p.Metadata)
 }
 
-func TestGetPayloadError(t *testing.T) {
+func TestGetEmptyPayload(t *testing.T) {
 	gh := getTestInventoryHost(t)
 	gh.wmeta = &wmsErrorMock{}
 
-	p := gh.getPayload().(*Payload)
-	assert.Equal(t, &hostGPUMetadata{}, p.Metadata)
+	p := gh.getPayload()
+	assert.Nil(t, p)
 }
 
 func TestFlareProviderFilename(t *testing.T) {

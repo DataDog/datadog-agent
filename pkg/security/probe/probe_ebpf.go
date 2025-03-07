@@ -2343,6 +2343,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		return nil, err
 	}
 
+	p.initCgroup2MountPath()
+
 	if err := p.sanityChecks(); err != nil {
 		return nil, err
 	}
@@ -2358,7 +2360,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.selectFentryMode()
 	p.selectRingBuffersMode()
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
-	p.initCgroup2MountPath()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 
