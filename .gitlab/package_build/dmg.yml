@@ -333,23 +333,23 @@ new-agent_dmg-x64-a7:
     # - python3 --version
     # - rustup --version || true
     # - cargo --version || true
+    # - |
+    #   debugruby()
+    #   {
+    #     (
+    #       set +e
+    #       echo "=== mkmf.log ==="
+    #       cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/mkmf.log
+    #       echo "=== gem_make.out ==="
+    #       cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/gem_make.out
+    #       echo "=== END DEBUG (see above for specific error) ==="
+    #     )
+    #   }
 
     # +=========================+
     # +--------- BUILD ---------+
     # +=========================+
-    - |
-      debugend()
-      {
-        (
-          set +e
-          echo "=== mkmf.log ==="
-          cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/mkmf.log
-          echo "=== gem_make.out ==="
-          cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/gem_make.out
-          echo "=== END DEBUG (see above for specific error) ==="
-        )
-      }
-    - bash .gitlab/package_build/build_script.sh || debugend
+    - bash .gitlab/package_build/build_script.sh
     - exit 1
     # TODO: Other things...
 
