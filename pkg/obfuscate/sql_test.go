@@ -431,7 +431,11 @@ func TestSQLUTF8(t *testing.T) {
 		},
 	} {
 		t.Run("", func(_ *testing.T) {
-			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
