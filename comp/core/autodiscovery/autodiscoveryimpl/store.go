@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -157,9 +158,7 @@ func (s *store) setIDsOfChecksWithSecrets(checkIDs map[checkid.ID]checkid.ID) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	for idWithResolvedSecrets, idWithEncryptedSecrets := range checkIDs {
-		s.idsOfChecksWithSecrets[idWithResolvedSecrets] = idWithEncryptedSecrets
-	}
+	maps.Copy(s.idsOfChecksWithSecrets, checkIDs)
 }
 
 func (s *store) getIDOfCheckWithEncryptedSecrets(idCheckWithResolvedSecrets checkid.ID) checkid.ID {

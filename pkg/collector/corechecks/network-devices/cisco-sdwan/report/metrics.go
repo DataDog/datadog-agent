@@ -8,6 +8,7 @@ package report
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -345,9 +346,7 @@ func setNewSentTimestamp(newTimestamps map[string]float64, key string, ts float6
 }
 
 func (ms *SDWanSender) updateTimestamps(newTimestamps map[string]float64) {
-	for key, ts := range newTimestamps {
-		ms.lastTimeSent[key] = ts
-	}
+	maps.Copy(ms.lastTimeSent, newTimestamps)
 }
 
 func (ms *SDWanSender) expireTimeSent() {

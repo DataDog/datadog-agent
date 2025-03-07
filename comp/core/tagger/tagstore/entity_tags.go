@@ -7,6 +7,7 @@ package tagstore
 
 import (
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -227,7 +228,7 @@ func (e *EntityTagsWithMultipleSources) tagsBySource() map[string][]string {
 	tagsBySource := make(map[string][]string)
 
 	for source, tags := range e.sourceTags {
-		allTags := append([]string{}, tags.lowCardTags...)
+		allTags := slices.Clone(tags.lowCardTags)
 		allTags = append(allTags, tags.orchestratorCardTags...)
 		allTags = append(allTags, tags.highCardTags...)
 		tagsBySource[source] = allTags

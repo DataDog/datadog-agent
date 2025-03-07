@@ -6,11 +6,11 @@
 package marshal
 
 import (
+	"maps"
 	"math"
 
-	"github.com/twmb/murmur3"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -42,9 +42,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 			out = tags
 			continue
 		}
-		for k, v := range tags {
-			out[k] = v
-		}
+		maps.Copy(out, tags)
 	}
 	return
 }

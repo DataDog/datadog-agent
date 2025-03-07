@@ -8,6 +8,7 @@ package file
 
 import (
 	"regexp"
+	"slices"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -258,7 +259,7 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
-			s.activeSources = append(s.activeSources[:i], s.activeSources[i+1:]...)
+			s.activeSources = slices.Delete(s.activeSources, i, i+1)
 			break
 		}
 	}

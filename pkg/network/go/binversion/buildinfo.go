@@ -182,10 +182,7 @@ type elfExe struct {
 func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
 	for _, prog := range x.f.Progs {
 		if prog.Vaddr <= addr && addr <= prog.Vaddr+prog.Filesz-1 {
-			n := prog.Vaddr + prog.Filesz - addr
-			if n > size {
-				n = size
-			}
+			n := min(prog.Vaddr+prog.Filesz-addr, size)
 			data := make([]byte, n)
 			_, err := prog.ReadAt(data, int64(addr-prog.Vaddr))
 			if err != nil {
@@ -202,10 +199,7 @@ func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
 func (x *elfExe) ReadDataWithPool(addr uint64, data []byte) error {
 	for _, prog := range x.f.Progs {
 		if prog.Vaddr <= addr && addr <= prog.Vaddr+prog.Filesz-1 {
-			expectedSizeToRead := prog.Vaddr + prog.Filesz - addr
-			if expectedSizeToRead > uint64(len(data)) {
-				expectedSizeToRead = uint64(len(data))
-			}
+			expectedSizeToRead := min(prog.Vaddr+prog.Filesz-addr, uint64(len(data)))
 			readSize, err := prog.ReadAt(data, int64(addr-prog.Vaddr))
 			// If there is an error, and the error is not "EOF" caused due to the fact we tried to read too much,
 			// then report an error.

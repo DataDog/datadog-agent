@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -193,9 +194,7 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			property := &properties[i]
 			if propertyDoc, exists := cachedDocumentation[property.PropertyKey]; exists {
 				property.DocLink = propertyDoc.Link
-				sort.Slice(propertyDoc.Prefixes, func(i, j int) bool {
-					return propertyDoc.Prefixes[i] < propertyDoc.Prefixes[j]
-				})
+				slices.Sort(propertyDoc.Prefixes)
 			}
 		}
 

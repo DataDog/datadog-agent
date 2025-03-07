@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net/http"
@@ -458,9 +459,7 @@ func newPayload(headers map[string]string) *payload {
 
 func (p *payload) clone() *payload {
 	headers := make(map[string]string, len(p.headers))
-	for k, v := range p.headers {
-		headers[k] = v
-	}
+	maps.Copy(headers, p.headers)
 	clone := newPayload(headers)
 	if _, err := clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes())); err != nil {
 		log.Errorf("Error cloning writer payload: %v", err)

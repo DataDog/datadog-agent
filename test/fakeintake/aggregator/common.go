@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,8 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/zstd"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 var generateFixture = flag.Bool("generate", false, "generate fixture")
@@ -192,9 +194,7 @@ func (agg *Aggregator[P]) replace(payloadsByName map[string][]P) {
 	agg.mutex.Lock()
 	defer agg.mutex.Unlock()
 	agg.unsafeReset()
-	for name, payloads := range payloadsByName {
-		agg.payloadsByName[name] = payloads
-	}
+	maps.Copy(agg.payloadsByName, payloadsByName)
 }
 
 // FilterByTags return the payloads that match all the tags

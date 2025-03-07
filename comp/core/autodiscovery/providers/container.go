@@ -10,6 +10,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -113,9 +114,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 			}
 
 			configsToUnschedule := make(map[string]integration.Config)
-			for digest, config := range configCache {
-				configsToUnschedule[digest] = config
-			}
+			maps.Copy(configsToUnschedule, configCache)
 
 			for _, config := range configs {
 				digest := config.Digest()
@@ -282,9 +281,7 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 
 	errors := make(map[string]ErrorMsgSet, len(k.configErrors))
 
-	for entity, errset := range k.configErrors {
-		errors[entity] = errset
-	}
+	maps.Copy(errors, k.configErrors)
 
 	return errors
 }
