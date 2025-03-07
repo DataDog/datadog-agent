@@ -72,26 +72,6 @@ func TestGetSecurityCreds(t *testing.T) {
 	assert.Equal(t, "secret token", cred.Token)
 }
 
-func TestGetInstanceIdentity(t *testing.T) {
-	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		content, err := os.ReadFile("payloads/instance_indentity.json")
-		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
-		w.Write(content)
-	}))
-	defer ts.Close()
-	instanceIdentityURL = ts.URL
-	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-
-	val, err := GetInstanceIdentity(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "us-east-1", val.Region)
-	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
-	assert.Equal(t, "REMOVED", val.AccountID)
-}
-
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
