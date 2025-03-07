@@ -374,6 +374,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 		},
 	} {
 		t.Run("", func(_ *testing.T) {
+			tt.cfg.ObfuscationMode = Legacy
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
