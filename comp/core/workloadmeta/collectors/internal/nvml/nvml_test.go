@@ -9,6 +9,7 @@ package nvml
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -43,8 +44,8 @@ func TestPull(t *testing.T) {
 		foundIDs[gpu.ID] = true
 		require.Equal(t, testutil.DefaultNvidiaDriverVersion, gpu.DriverVersion)
 		require.Equal(t, nvidiaVendor, gpu.Vendor)
-		require.Equal(t, testutil.DefaultGPUName, gpu.Name)
-		require.Equal(t, testutil.DefaultGPUName, gpu.Device)
+		require.Equal(t, strings.ToLower(testutil.DefaultGPUName), gpu.Name)
+		require.Equal(t, strings.ToLower(testutil.DefaultGPUName), gpu.Device)
 		require.Equal(t, "hopper", gpu.Architecture)
 		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
@@ -55,7 +56,7 @@ func TestPull(t *testing.T) {
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
-		require.True(t, foundIDs[uuid], "GPU with UUID %s not found", uuid)
+		require.True(t, foundIDs[strings.ToLower(uuid)], "GPU with UUID %s not found", uuid)
 	}
 }
 
