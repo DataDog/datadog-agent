@@ -11,8 +11,7 @@
 
 cws_instrumentation-build_amd64:
   extends: .cws_instrumentation-build_common
-  rules:
-    !reference [.on_tag_or_a7]
+  rules: !reference [.on_tag]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
@@ -23,8 +22,7 @@ cws_instrumentation-build_amd64:
 
 cws_instrumentation-build_arm64:
   extends: .cws_instrumentation-build_common
-  rules:
-    !reference [.on_tag_or_a7]
+  rules: !reference [.on_tag]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]

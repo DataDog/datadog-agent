@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch, is_agent6
-from tasks.libs.releasing.documentation import _stringify_config, nightly_entry_for, release_entry_for
+from tasks.libs.releasing.documentation import _stringify_config
 from tasks.libs.releasing.version import (
     VERSION_RE,
     _fetch_dependency_repo_version,
@@ -125,10 +125,7 @@ def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_fir
     """
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
+    previous_release_json_version = "nightly-a7" if is_first_rc else "release-a7"
 
     print(f"Using '{previous_release_json_version}' values")
 
@@ -302,7 +299,7 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = load_release_json()
 
-    release_entry = release_entry_for(new_version.major)
+    release_entry = f"release-a{new_version.major}"
     print(f"Updating {release_entry} for {new_version}")
 
     # Update release.json object with the entry for the new version
