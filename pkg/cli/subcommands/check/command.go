@@ -237,6 +237,10 @@ func run(
 
 	URL, err := getChecksURL(config)
 
+	if err != nil {
+		return err
+	}
+
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	postData, err := json.Marshal(checkRequest)
