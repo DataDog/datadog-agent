@@ -430,9 +430,6 @@ workflow:
   - <<: *if_main_branch
     when: always
 
-.on_tag:
-  - <<: *if_tagged_commit
-
 .on_deploy:
   - <<: *if_deploy
 
