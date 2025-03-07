@@ -1214,7 +1214,11 @@ LIMIT 1
 			expected: `USING - SELECT`,
 		},
 	}
-	o := NewObfuscator(Config{})
+	o := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	})
 	for _, c := range cases {
 		t.Run(c.query, func(t *testing.T) {
 			oq, err := o.ObfuscateSQLString(c.query)
@@ -1767,7 +1771,11 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewObfuscator(Config{})
+			o := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			})
 			o.setSQLLiteralEscapes(c.initial)
 			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
@@ -1978,7 +1986,11 @@ func TestCassQuantizer(t *testing.T) {
 		},
 	}
 
-	o := NewObfuscator(Config{})
+	o := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	})
 	for _, testCase := range queryToExpected {
 		oq, err := o.ObfuscateSQLString(testCase.in)
 		assert.NoError(err)
