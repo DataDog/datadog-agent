@@ -21,9 +21,7 @@ type testDotnetLibraryInstallSuiteWithoutIIS struct {
 // TestDotnetInstalls tests the usage of the Datadog installer to install the apm-library-dotnet-package package.
 func TestDotnetLibraryInstallsWithoutIIS(t *testing.T) {
 	e2e.Run(t, &testDotnetLibraryInstallSuiteWithoutIIS{},
-		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake(
-			winawshost.WithInstaller(),
-		)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallDotnetLibraryPackageWithoutIIS tests installing the Datadog APM Library for .NET using the Datadog installer without IIS installed.

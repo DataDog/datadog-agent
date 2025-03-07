@@ -34,9 +34,7 @@ type testDotnetLibraryInstallSuite struct {
 func TestDotnetLibraryInstalls(t *testing.T) {
 	e2e.Run(t, &testDotnetLibraryInstallSuite{},
 		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+			winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 func (s *testDotnetLibraryInstallSuite) SetupSuite() {
