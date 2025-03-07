@@ -66,7 +66,7 @@ func TestDaemonSuite(t *testing.T) {
 // This does not instantiate any component and merely validates the
 // dependency graph.
 func (s *daemonTestSuite) TestRunCommand() {
-	s.Require().NoError(fx.ValidateApp(getFxOptions(&command.GlobalParams{})...))
+	s.Require().NoError(fx.ValidateApp(getFxOptions(&command.GlobalParams{}, &windowsService{})...))
 }
 
 // TestAppStartsAndStops creates a new app with our dependency graph and verify that we can start and stop it.
@@ -79,11 +79,11 @@ func (s *daemonTestSuite) TestAppStartsAndStops() {
 	tempfile, err := os.CreateTemp("", "test-*.yaml")
 	require.NoError(s.T(), err, "failed to create temporary file")
 	defer os.Remove(tempfile.Name())
-	testApp := &windowsService{
-		App: fx.New(getFxOptions(&command.GlobalParams{
-			ConfFilePath: tempfile.Name(),
-		})...),
-	}
+	testApp := &windowsService{}
+	testApp.App = fx.New(getFxOptions(
+		&command.GlobalParams{ConfFilePath: tempfile.Name()},
+		testApp,
+	)...)
 	s.Require().NoError(testApp.Start())
 	s.Require().NoError(testApp.Stop())
 }
