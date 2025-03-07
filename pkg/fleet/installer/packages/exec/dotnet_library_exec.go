@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package exec provides wrappers to external executables
 package exec
 
 import (
