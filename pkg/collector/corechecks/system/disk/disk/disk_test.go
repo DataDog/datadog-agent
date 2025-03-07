@@ -2,247 +2,2206 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
-package disk
+package disk_test
 
 import (
-	"regexp"
+	"bufio"
+	"bytes"
+	"errors"
 	"testing"
 
-	"github.com/shirou/gopsutil/v4/disk"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-var (
-	diskSamples = []disk.PartitionStat{
-		{
-			Device:     "/dev/sda2",
-			Mountpoint: "/",
-			Fstype:     "ext4",
-			Opts:       []string{"rw,relatime,errors=remount-ro,data=ordered"},
-		},
-		{
-			Device:     "/dev/sda1",
-			Mountpoint: "/boot/efi",
-			Fstype:     "vfat",
-			Opts:       []string{"rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro"},
-		},
+var partitionsTrue = []gopsutil_disk.PartitionStat{
+	{
+		Device:     "/dev/sda1",
+		Mountpoint: "/",
+		Fstype:     "ext4",
+		Opts:       []string{"rw", "relatime"},
+	},
+	{
+		Device:     "/dev/sda2",
+		Mountpoint: "/home",
+		Fstype:     "ext4",
+		Opts:       []string{"rw", "relatime"},
+	},
+	{
+		Device:     "tmpfs",
+		Mountpoint: "/run",
+		Fstype:     "tmpfs",
+		Opts:       []string{"nosuid", "nodev", "relatime"},
+	},
+	{
+		Device:     "shm",
+		Mountpoint: "/dev/shm",
+		Fstype:     "tmpfs",
+		Opts:       []string{"ro", "nosuid", "nodev"},
+	},
+}
+var partitionsFalse = []gopsutil_disk.PartitionStat{
+	{
+		Device:     "/dev/sda1",
+		Mountpoint: "/",
+		Fstype:     "ext4",
+		Opts:       []string{"rw", "relatime"},
+	},
+	{
+		Device:     "/dev/sda2",
+		Mountpoint: "/home",
+		Fstype:     "ext4",
+		Opts:       []string{"rw", "relatime"},
+	},
+}
+var usageData = map[string]*gopsutil_disk.UsageStat{
+	"/": {
+		Path:              "/",
+		Fstype:            "ext4",
+		Total:             100000000000, // 100 GB
+		Free:              30000000000,  // 30 GB
+		Used:              70000000000,  // 70 GB
+		UsedPercent:       70.0,
+		InodesTotal:       1000000,
+		InodesUsed:        500000,
+		InodesFree:        500000,
+		InodesUsedPercent: 50.0,
+	},
+	"/home": {
+		Path:              "/home",
+		Fstype:            "ext4",
+		Total:             50000000000, // 50 GB
+		Free:              20000000000, // 20 GB
+		Used:              30000000000, // 30 GB
+		UsedPercent:       60.0,
+		InodesTotal:       500000,
+		InodesUsed:        200000,
+		InodesFree:        300000,
+		InodesUsedPercent: 40.0,
+	},
+	"/run": {
+		Path:              "/run",
+		Fstype:            "tmpfs",
+		Total:             2000000000, // 2 GB
+		Free:              1500000000, // 1.5 GB
+		Used:              500000000,  // 0.5 GB
+		UsedPercent:       25.0,
+		InodesTotal:       10000,
+		InodesUsed:        5000,
+		InodesFree:        5000,
+		InodesUsedPercent: 50.0,
+	},
+	"/dev/shm": {
+		Path:              "/dev/shm",
+		Fstype:            "tmpfs",
+		Total:             8000000000, // 8 GB
+		Free:              7000000000, // 7 GB
+		Used:              1000000000, // 1 GB
+		UsedPercent:       12.5,
+		InodesTotal:       20000,
+		InodesUsed:        1000,
+		InodesFree:        19000,
+		InodesUsedPercent: 5.0,
+	},
+}
+var ioCountersData = map[string]gopsutil_disk.IOCountersStat{
+	"/dev/sda1": {
+		Name:       "/dev/sda1",
+		ReadCount:  100,
+		WriteCount: 200,
+		ReadBytes:  1048576,
+		WriteBytes: 2097152,
+		ReadTime:   300,
+		WriteTime:  450,
+	},
+	"/dev/sda2": {
+		Name:       "/dev/sda2",
+		ReadCount:  50,
+		WriteCount: 75,
+		ReadBytes:  524288,
+		WriteBytes: 1048576,
+		ReadTime:   500,
+		WriteTime:  150,
+	},
+}
+
+const LsblkData = string(`
+sda1 MYLABEL1
+sda2 MYLABEL2
+
+sda3
+`)
+const blkidCacheData = string(`
+<device DEVNO="0x0801" LABEL="MYLABEL" UUID="1234-5678" TYPE="ext4">/dev/sda1</device>
+<device DEVNO="0x0802" LABEL="BACKUP" UUID="8765-4321" TYPE="ext4">/dev/sda2</device>
+<device DEVNO="0x0811" LABEL="USB_DRIVE" UUID="abcd-efgh" TYPE="vfat">/dev/sdb1</device>
+<device DEVNO="0x0812" LABEL="DATA_DISK" UUID="ijkl-mnop" TYPE="ntfs">/dev/sdb2</device>
+`)
+const blkidData = string(`
+/dev/sda1: UUID="abc-123" LABEL="MYLABEL1"
+/dev/sda2: UUID=\"def-456\" LABEL="MYLABEL2"
+/dev/sda3: UUID=\"def-789\"
+
+/dev/sda4:
+/dev/sda5
+`)
+
+func setupDefaultMocks() {
+	disk.DiskPartitions = func(all bool) ([]gopsutil_disk.PartitionStat, error) {
+		if all {
+			return partitionsTrue, nil
+		}
+		return partitionsFalse, nil
 	}
-	diskUsageSamples = map[string]*disk.UsageStat{
-		"/boot/efi": {
-			Path:              "/boot/efi",
-			Fstype:            "msdos",
-			Total:             535805952,
-			Free:              530948096,
-			Used:              4857856,
-			UsedPercent:       0.9066446503378894,
+	disk.DiskUsage = func(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+		return usageData[mountpoint], nil
+	}
+	disk.DiskIOCounters = func(_names ...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return ioCountersData, nil
+	}
+	disk.LsblkCommand = func() (string, error) {
+		return LsblkData, nil
+	}
+	disk.BlkidCacheCommand = func(_blkidCacheFile string) (string, error) {
+		return blkidCacheData, nil
+	}
+	disk.BlkidCommand = func() (string, error) {
+		return blkidData, nil
+	}
+	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+		return nil
+	}
+}
+
+func createCheck() check.Check {
+	diskCheckOpt := disk.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	return diskCheck
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckAndStoppedSender(t *testing.T) {
+	stoppedSenderError := errors.New("demultiplexer is stopped")
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
+	err := diskCheck.Run()
+
+	assert.Equal(t, stoppedSenderError, err)
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return nil, errors.New("error calling disk.DiskPartitions")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturnsError_ThenNoUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return nil, errors.New("error calling diskUsage")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	w.Flush()
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /home: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /run: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+	assert.Contains(t, b.String(), "Unable to get disk metrics for /dev/shm: error calling diskUsage. You can exclude this mountpoint in the settings if it is invalid.")
+
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorIsReturnedAndNoUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskIOCounters = func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return nil, errors.New("error calling diskIOCounters")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.NotNil(t, err)
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.read_time", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "MonotonicCount", "system.disk.write_time", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Rate", "system.disk.read_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("include_all_devices: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenOnlyPhysicalDevicesUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("include_all_devices: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:/dev/sda1", "device_name:/dev/sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:/dev/sda1", "device_name:/dev/sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:/dev/sda1", "device_name:/dev/sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:/dev/sda1", "device_name:/dev/sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:/dev/sda2", "device_name:/dev/sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:/dev/sda2", "device_name:/dev/sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:/dev/sda2", "device_name:/dev/sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:/dev/sda2", "device_name:/dev/sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+file_system_global_blacklist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`file_system_global_blacklist` is deprecated and will be removed in a future release. Please use `file_system_global_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithDeviceGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+device_global_blacklist:
+  - shm
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`device_global_blacklist` is deprecated and will be removed in a future release. Please use `device_global_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithMountpointGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+mount_point_global_blacklist:
+  - /dev/shm
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`mount_point_global_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_global_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_whitelist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`file_system_whitelist` is deprecated and will be removed in a future release. Please use `file_system_include` instead.")
+}
+
+func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_blacklist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`file_system_blacklist` is deprecated and will be removed in a future release. Please use `file_system_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_whitelist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`device_whitelist` is deprecated and will be removed in a future release. Please use `device_include` instead.")
+}
+
+func TestGivenADiskCheckWithDeviceBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_blacklist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`device_blacklist` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithMountPointWhiteListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_whitelist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`mount_point_whitelist` is deprecated and will be removed in a future release. Please use `mount_point_include` instead.")
+}
+
+func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_blacklist:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`mount_point_blacklist` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_mountpoint_re:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`excluded_mountpoint_re` is deprecated and will be removed in a future release. Please use `mount_point_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_filesystems:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`excluded_filesystems` is deprecated and will be removed in a future release. Please use `file_system_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithExcludedDisksConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_disks:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`excluded_disks` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithExcludedDisksReConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_disk_re:
+  - ext4
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	_ = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	w.Flush()
+	assert.Contains(t, b.String(), "`excluded_disk_re` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+}
+
+func TestGivenADiskCheckWithAllPartitionsFalseConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+}
+
+func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("all_partitions: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+}
+
+func TestGivenADiskCheckWithDeviceGlobalExcludeAndDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+device_global_exclude:
+  - /dev/sda1
+`))
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda2
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceGlobalBlackListAndDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+device_global_blacklist:
+  - /dev/sda1
+`))
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda2
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+device_global_exclude:
+  - /dev/sda(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_blacklist:
+  - /dev/sda.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithExcludedDisksConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_disks:
+  - /dev/sda.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_exclude:
+  - /dev/sda(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithExcludedDiskReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("excluded_disk_re: /dev/sda.*"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithExcludedDiskReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("excluded_disk_re: /dev/sda(.*"))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_include:
+  - /dev/sda.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_whitelist:
+  - /dev/sda.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_include:
+  - /dev/sda(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithFileSystemGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+file_system_global_exclude:
+  - tmpfs
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+file_system_global_blacklist:
+  - tmpfs
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+file_system_global_exclude:
+  - tmp(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_exclude:
+  - tmp.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_blacklist:
+  - tmp.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_filesystems:
+  - tmp.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_exclude:
+  - tmp(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithFileSystemIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_include:
+  - ext.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_whitelist:
+  - ext.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithFileSystemIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+file_system_include:
+  - ext(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithMountPointGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+mount_point_global_exclude:
+  - /dev/shm
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+mount_point_global_blacklist:
+  - /dev/shm
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointGlobalExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+mount_point_global_exclude:
+  - /dev/shm(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_exclude:
+  - /dev/.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_blacklist:
+  - /dev/.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_exclude:
+  - /dev/(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("excluded_mountpoint_re: /dev/.*"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithExcludedMountPointReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("excluded_mountpoint_re: /dev/(.*"))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithMountPointIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseMountPointsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_include:
+  - /dev/.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseMountPointsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_whitelist:
+  - /dev/.*
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:/dev/sda1", "device_name:sda1"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(488281.25), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(1464843.75), "", []string{"device:tmpfs", "device_name:tmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(976562.5), "", []string{"device:shm", "device_name:shm"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithMountPointIncludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+mount_point_include:
+  - /dev/(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWithZeroTotal_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
+	}
+	disk.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/dev/shm",
+			Fstype:            "tmpfs",
+			Total:             0,
+			Free:              0,
+			Used:              0,
+			UsedPercent:       0,
 			InodesTotal:       0,
 			InodesUsed:        0,
 			InodesFree:        0,
 			InodesUsedPercent: 0,
+		}, nil
+	}
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
+func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith10Total_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
+	}
+	disk.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/dev/shm",
+			Fstype:            "tmpfs",
+			Total:             10,
+			Free:              10,
+			Used:              0,
+			UsedPercent:       0,
+			InodesTotal:       0,
+			InodesUsed:        0,
+			InodesFree:        0,
+			InodesUsedPercent: 0,
+		}, nil
+	}
+	config := integration.Data([]byte(`min_disk_size: 100`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "info")
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	w.Flush()
+	assert.Contains(t, b.String(), "Excluding partition: [device: shm] [mountpoint: /dev/shm] [fstype: tmpfs] with total disk size 10")
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+}
+
+func TestGivenADiskCheckWithTagByFileSystemFalseConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("tag_by_filesystem: false"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"ext4", "filesystem:ext4"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"tmpfs", "filesystem:tmpfs"})
+}
+
+func TestGivenADiskCheckWithTagByFileSystemTrueConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithFileSystemTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("tag_by_filesystem: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "ext4", "filesystem:ext4"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:tmpfs", "device_name:tmpfs", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:shm", "device_name:shm", "tmpfs", "filesystem:tmpfs"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithMountPointTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/shm", "device_name:shm"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/shm", "device_name:shm"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithMountPointTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte("use_mount: true"))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/", "device_name:sda1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/home", "device_name:sda2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/run", "device_name:tmpfs"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/shm", "device_name:shm"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/shm", "device_name:shm"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceTagReConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithTheseTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_tag_re:
+  /dev/sda.*: role:primary
+  tmp.*: role:tmp
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "role:primary"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs", "device_name:tmpfs", "role:tmp"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:tmpfs", "device_name:tmpfs", "role:tmp"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:tmpfs", "device_name:tmpfs", "role:tmp"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm", "device_name:shm"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:shm", "device_name:shm"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithDeviceTagReIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+device_tag_re:
+  /dev/sda.*: role:primary
+  tmp.(*: role:tmp
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithUseLsblkAndBlkidCacheFileConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+use_lsblk: true
+blkid_cache_file: /run/blkid/blkid.tab
+`))
+	expectedError := "only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time"
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.EqualError(t, err, expectedError)
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_label: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithTagByLabelConfiguredFalse_WhenCheckRuns_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_label: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	disk.BlkidCommand = func() (string, error) {
+		return "", errors.New("error calling blkid")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_label: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithUseLsblkConfiguredTrue_WhenCheckRuns_ThenLsblkLabelsAreReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+use_lsblk: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithTagByLabelConfiguredTrueAndUseLsblk_WhenCheckRuns_ThenLsblkLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_label: true
+use_lsblk: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithTagByLabelConfiguredFalseAndUseLsblk_WhenCheckRuns_ThenLsblkLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+tag_by_label: false
+use_lsblk: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithUseLsblkConfiguredTrue_WhenLsblkReturnsError_ThenLsblkLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	disk.LsblkCommand = func() (string, error) {
+		return "", errors.New("error calling lsblk")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+use_lsblk: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL1", "device_label:MYLABEL1"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenCheckRuns_ThenBlkidCacheFileLabelsAreReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	var actualBlkidCacheFile string
+	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+		actualBlkidCacheFile = blkidCacheFile
+		return blkidCacheData, nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+blkid_cache_file: /run/blkid/blkid.tab
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, "/run/blkid/blkid.tab", actualBlkidCacheFile)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:BACKUP", "device_label:BACKUP"})
+}
+
+func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheReturnsError_ThenBlkidCacheLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	var actualBlkidCacheFile string
+	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+		actualBlkidCacheFile = blkidCacheFile
+		return "", errors.New("error calling blkid cache")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+blkid_cache_file: /run/blkid/blkid.tab
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, "/run/blkid/blkid.tab", actualBlkidCacheFile)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:BACKUP", "device_label:BACKUP"})
+}
+
+func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheHasWrongLines_ThenBlkidCacheLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	var actualBlkidCacheFile string
+	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+		actualBlkidCacheFile = blkidCacheFile
+		return string(`
+<device DEVNO="0x0801" LABEL="MYLABEL" UUID="1234-5678" TYPE="ext4">/dev/sda1</device>
+
+<device DEVNO="0x0802" LABEL="BACKUP" UUID="8765-4321" TYPE="ext4">/dev/sda2</device
+<device DEVNO="0x0811" LABEL="USB_DRIVE" UUID="abcd-efgh" TYPE="vfat">/dev/sdb1</device>
+<device DEVNO="0x0812" LABEL="DATA_DISK" UUID="ijkl-mnop" TYPE="ntfs">/dev/sdb2</device>
+`), nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+blkid_cache_file: /run/blkid/blkid.tab
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, "/run/blkid/blkid.tab", actualBlkidCacheFile)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL", "device_label:MYLABEL"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"label:BACKUP", "device_label:BACKUP"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"label:BACKUP", "device_label:BACKUP"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenReadWriteServiceCheckNotReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "ServiceCheck", "disk.read_write", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+}
+
+func TestGivenADiskCheckWithServiceCheckRwFalseConfigured_WhenCheckRuns_ThenReadWriteServiceCheckNotReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+service_check_rw: false
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "ServiceCheck", "disk.read_write", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+}
+
+func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+service_check_rw: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{"device:/dev/sda1", "device_name:sda1"}, "")
+	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckOK, "", []string{"device:/dev/sda2", "device_name:sda2"}, "")
+	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckUnknown, "", []string{"device:tmpfs", "device_name:tmpfs"}, "")
+	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckCritical, "", []string{"device:shm", "device_name:shm"}, "")
+}
+
+type NetAddConnectionCall struct {
+	Name string
+	Args []string
+}
+
+func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "p:"
+  host: smbserver
+  share: space
+- mountpoint: "s:"
+  user: auser
+  password: "somepassword"
+  host: smbserver
+  share: space
+  type: smb
+- mountpoint: "n:"
+  host: nfsserver
+  share: /mnt/nfs_share
+  type: nfs
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(netAddConnectionCalls))
+	expectedNetAddConnectionCalls := []NetAddConnectionCall{
+		{
+			Name: "mount",
+			Args: []string{"-t", "SMB", `\\smbserver\space`, "p:"},
 		},
-		"/": {
-			Path:              "/",
-			Fstype:            "ext2/ext3",
-			Total:             52045545472,
-			Free:              39085445120,
-			Used:              10285920256,
-			UsedPercent:       19.763305702182958,
-			InodesTotal:       3244032,
-			InodesUsed:        290872,
-			InodesFree:        2953160,
-			InodesUsedPercent: 8.9663727114899,
+		{
+			Name: "mount",
+			Args: []string{"-t", "SMB", `\\auser:somepassword@smbserver\space`, "s:"},
+		},
+		{
+			Name: "mount",
+			Args: []string{"-t", "NFS", `nfsserver:/mnt/nfs_share`, "n:"},
 		},
 	}
-	diskIoSamples = map[string]disk.IOCountersStat{
-		"sda": {
-			ReadCount:        443071,
-			MergedReadCount:  104744,
-			WriteCount:       10412454,
-			MergedWriteCount: 310860,
-			ReadBytes:        849293 * io.SectorSize,
-			WriteBytes:       1406995 * io.SectorSize,
-			ReadTime:         19699308,
-			WriteTime:        418600,
-			IopsInProgress:   0,
-			IoTime:           343324,
-			WeightedIO:       727464,
-			Name:             "sda",
-			SerialNumber:     "123456789WD",
-		},
+	for i, mountCall := range netAddConnectionCalls {
+		assert.Equal(t, expectedNetAddConnectionCalls[i], mountCall)
 	}
-)
-
-//nolint:revive // TODO(PLINT) Fix revive linter
-func diskSampler(_ bool) ([]disk.PartitionStat, error) {
-	return diskSamples, nil
 }
 
-func diskUsageSampler(mountpoint string) (*disk.UsageStat, error) {
-	return diskUsageSamples[mountpoint], nil
+func TestGivenADiskCheckWithCreateMountsConfiguredWithBadType_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "n:"
+  host: smbserver
+  share: /mnt/nfs_share
+  type: 12
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(netAddConnectionCalls))
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func diskIoSampler(_ ...string) (map[string]disk.IOCountersStat, error) {
-	return diskIoSamples, nil
+func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "n:"
+  share: /mnt/nfs_share
+  type: nfs
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	err = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(netAddConnectionCalls))
+	w.Flush()
+	assert.Contains(t, b.String(), "Invalid configuration. Drive mount requires remote machine and share point")
 }
 
-func TestDiskCheck(t *testing.T) {
-	diskPartitions = diskSampler
-	diskUsage = diskUsageSampler
-	ioCounters = diskIoSampler
-	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+		return errors.New("error calling NetAddConnection")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "p:"
+  host: smbserver
+  share: space
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
 
-	expectedMonoCounts := 2
-	expectedRates := 2
-	expectedGauges := 16
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
 
-	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
-
-	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
-
-	mock.On("MonotonicCount", "system.disk.read_time", 19699308.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("MonotonicCount", "system.disk.write_time", 418600.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Commit").Return().Times(1)
-	diskCheck.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "MonotonicCount", expectedMonoCounts)
-	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
-	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
-	diskPartitions = diskSampler
-	diskUsage = diskUsageSampler
-	ioCounters = diskIoSampler
-	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	diskCheck.cfg.excludedFilesystems = []string{"vfat"}
-	diskCheck.cfg.excludedDisks = []string{"/dev/sda2"}
-
-	expectedMonoCounts := 2
-	expectedGauges := 0
-	expectedRates := 2
-
-	mock.On("MonotonicCount", "system.disk.read_time", 19699308.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("MonotonicCount", "system.disk.write_time", 418600.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Commit").Return().Times(1)
-	diskCheck.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "MonotonicCount", expectedMonoCounts)
-	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
-	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-func TestDiskCheckExcludedRe(t *testing.T) {
-	diskPartitions = diskSampler
-	diskUsage = diskUsageSampler
-	ioCounters = diskIoSampler
-	diskCheck := new(Check)
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
-	diskCheck.cfg.excludedMountpointRe = regexp.MustCompile("/boot/efi")
-	diskCheck.cfg.excludedDiskRe = regexp.MustCompile("/dev/sda2")
-
-	expectedMonoCounts := 2
-	expectedGauges := 0
-	expectedRates := 2
-
-	mock.On("MonotonicCount", "system.disk.read_time", 19699308.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("MonotonicCount", "system.disk.write_time", 418600.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Commit").Return().Times(1)
-	diskCheck.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "MonotonicCount", expectedMonoCounts)
-	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
-	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-func TestDiskCheckTags(t *testing.T) {
-	diskPartitions = diskSampler
-	diskUsage = diskUsageSampler
-	ioCounters = diskIoSampler
-	diskCheck := new(Check)
-
-	config := integration.Data([]byte("use_mount: true\ntag_by_filesystem: true\nall_partitions: true\ndevice_tag_re:\n  /boot/efi: role:esp\n  /dev/sda2: device_type:sata,disk_size:large"))
-
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-
-	expectedMonoCounts := 2
-	expectedGauges := 16
-	expectedRates := 2
-
-	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
-
-	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
-
-	mock.On("MonotonicCount", "system.disk.read_time", 19699308.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("MonotonicCount", "system.disk.write_time", 418600.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
-
-	mock.On("Commit").Return().Times(1)
-	diskCheck.Run()
-
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "MonotonicCount", expectedMonoCounts)
-	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
-	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	assert.Nil(t, err)
+	w.Flush()
+	assert.Contains(t, b.String(), `Failed to mount p: on \\smbserver\space`)
 }
