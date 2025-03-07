@@ -110,8 +110,9 @@ new-agent_dmg-x64-a7:
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
     - |
-      if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -f ~/rust/cargo ]; then
+      if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -d ~/rust/cargo ]; then
         echo "WARNING: Doing setup again"
+        echo "home: $(ls ~)"
         rm -rf ~/bin ~/homebrew ~/rust
         export BUILD_SCRIPT="$PWD/.gitlab/package_build/build_script.sh"
         ( cd ~ && bash "$BUILD_SCRIPT" SETUP_RUNNER )

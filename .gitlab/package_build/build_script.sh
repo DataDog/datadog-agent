@@ -105,7 +105,7 @@ if [ "$1" = SETUP_RUNNER ]; then
         ln -s "$(which $binary)" bin/$binary
     done
 
-    setup_xcode
+    # setup_xcode
 
     echo Setup homebrew
     mkdir homebrew
