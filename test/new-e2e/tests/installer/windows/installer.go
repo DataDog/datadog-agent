@@ -168,7 +168,7 @@ func (d *DatadogInstaller) createInstallerFolders() {
 	}
 }
 
-// Install will attempt to install the Datadog Installer on the remote host.
+// Install will attempt to install the Datadog Agent on the remote host.
 // By default, it will use the installer from the current pipeline.
 func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	params := MsiParams{
@@ -193,7 +193,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 		d.env.RemoteHost.CopyFile(localMSIPath, msiPath)
 	} else if params.installerURL == "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
+			return strings.Contains(artifact, "datadog-agent") && strings.HasSuffix(artifact, ".msi")
 		})
 		if err != nil {
 			return err
@@ -206,6 +206,10 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	if _, err := os.Stat(logPath); err == nil {
 		return fmt.Errorf("log file %s already exists", logPath)
 	}
+	msiArgList := params.msiArgs[:]
+	if params.agentUser != "" {
+		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
+	}
 	msiArgs := ""
 	if params.msiArgs != nil {
 		msiArgs = strings.Join(params.msiArgs, " ")
@@ -213,7 +217,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
 }
 
-// Uninstall will attempt to uninstall the Datadog Installer on the remote host.
+// Uninstall will attempt to uninstall the Datadog Agent on the remote host.
 func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
 	params := MsiParams{
 		msiLogFilename: "uninstall.log",
@@ -223,7 +227,7 @@ func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
 		return err
 	}
 
-	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
+	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Agent")
 	if err != nil {
 		return err
 	}

@@ -31,11 +31,10 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer              *DatadogInstaller
-	installScript          *DatadogInstallScript
-	currentAgentVersion    agentVersion.Version
-	stableInstallerVersion PackageVersion
-	stableAgentVersion     PackageVersion
+	installer           *DatadogInstaller
+	installScript       *DatadogInstallScript
+	currentAgentVersion agentVersion.Version
+	stableAgentVersion  PackageVersion
 }
 
 // Installer The Datadog Installer for testing.
@@ -63,11 +62,6 @@ func (s *BaseSuite) CurrentAgentVersion() *agentVersion.Version {
 	return &s.currentAgentVersion
 }
 
-// StableInstallerVersion the version of the last published stable installer
-func (s *BaseSuite) StableInstallerVersion() PackageVersion {
-	return s.stableInstallerVersion
-}
-
 // StableAgentVersion the version of the last published stable agent
 func (s *BaseSuite) StableAgentVersion() PackageVersion {
 	return s.stableAgentVersion
@@ -85,11 +79,6 @@ func (s *BaseSuite) SetupSuite() {
 	var err error
 	s.currentAgentVersion, err = agentVersion.New(os.Getenv("CURRENT_AGENT_VERSION"), "")
 	s.Require().NoError(err, "Agent version was in an incorrect format")
-
-	s.stableInstallerVersion = newVersionFromPackageVersion(os.Getenv("STABLE_INSTALLER_VERSION_PACKAGE"))
-	if s.stableInstallerVersion.PackageVersion() == "" {
-		s.FailNow("STABLE_INSTALLER_VERSION_PACKAGE was not set")
-	}
 
 	s.stableAgentVersion = newVersionFromPackageVersion(os.Getenv("STABLE_AGENT_VERSION_PACKAGE"))
 	if s.stableAgentVersion.PackageVersion() == "" {
