@@ -37,7 +37,7 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 
 func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", consts.ConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_enabled", consts.ConfigPath)
 
 	// Act
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
