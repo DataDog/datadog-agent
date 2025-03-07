@@ -614,7 +614,6 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
     prefixes = [
         "./test/integration/config_providers/...",
         "./test/integration/listeners/...",
-        "./test/integration/util/kubelet/...",
     ]
 
     for prefix in prefixes:
