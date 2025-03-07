@@ -54,6 +54,13 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult SetupInstaller(Session session)
+        {
+            return Datadog.CustomActions.SetupInstallerCustomAction.SetupInstaller(session);
+        }
+
+
+        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
