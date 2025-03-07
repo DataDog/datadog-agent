@@ -443,9 +443,19 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	assert.NoError(t, err)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, newConfig.ConfigStatus)
 
+	clock.Set(time.Now().Add(2 * time.Hour))
+	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(t, err)
+	assert.Nil(t, newConfig.TargetFiles)
+	assert.Nil(t, newConfig.ClientConfigs)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
+
+	clock.Set(time.Now().Add(20 * time.Minute))
 	service.firstUpdate = false
 	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
+	assert.Nil(t, newConfig.TargetFiles)
+	assert.Nil(t, newConfig.ClientConfigs)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
 }
 
