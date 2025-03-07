@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix issue with FIPS image where some build tags were missing for the the process
+    Fix issue with FIPS image where some build tags were missing for the process
     and trace agents during packaging.
