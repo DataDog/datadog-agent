@@ -32,6 +32,7 @@ import (
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
@@ -47,7 +48,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	assert.Equal(t, expected, s.jsonExtraHeaders)
 
 	expected = make(http.Header)
-	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 	expected.Set("Content-Type", protobufContentType)
 	assert.Equal(t, expected, s.protobufExtraHeaders)
 
@@ -60,7 +61,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set("Content-Encoding", "identity")
-	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 	assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 }
 
@@ -86,7 +87,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 
 			expected = make(http.Header)
 			expected.Set("Content-Type", protobufContentType)
-			expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+			expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 			assert.Equal(t, expected, s.protobufExtraHeaders)
 
 			// "Content-Encoding" header present with correct value
@@ -98,7 +99,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 			expected = make(http.Header)
 			expected.Set("Content-Type", protobufContentType)
 			expected.Set("Content-Encoding", tc.expectedEncoding)
-			expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+			expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 			assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 		})
 
@@ -106,7 +107,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 }
 
 func TestAgentPayloadVersion(t *testing.T) {
-	assert.NotEmpty(t, AgentPayloadVersion, "AgentPayloadVersion is empty, indicates that the package was not built correctly")
+	assert.NotEmpty(t, version.AgentPayloadVersion, "version.AgentPayloadVersion is empty, indicates that the package was not built correctly")
 }
 
 var (

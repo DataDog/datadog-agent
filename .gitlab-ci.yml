@@ -426,20 +426,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.except_no_a7:
-  - !reference [.except_mergequeue]
-  - <<: *if_not_version_7
-    when: never
-
-.on_dev_branch_manual:
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - when: manual
-    allow_failure: true
-
 .on_main:
   - <<: *if_main_branch
 
@@ -576,12 +562,6 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_nightly_repo_branch_always:
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: always
-
 .on_deploy_stable_or_beta_repo_branch:
   - !reference [.except_mergequeue]
   - <<: *if_not_stable_or_beta_repo_branch
@@ -628,22 +608,21 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.not_on_release_branch_or_tagged_commit:
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-
 .only_main:
   - <<: *if_not_main_branch
     when: never
 
-.except_main_or_release_branch:
+.except_main_release_or_mq:
   - <<: *if_main_branch
     when: never
   - <<: *if_release_branch
     when: never
   - !reference [.except_mergequeue]
+
+.on_dev_branches:
+  - !reference [.except_main_release_or_mq]
+  - <<: *if_tagged_commit
+    when: never
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

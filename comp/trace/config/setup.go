@@ -637,6 +637,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
 	}
+	if k := "ol_proxy_config.enabled"; core.IsSet(k) {
+		c.OpenLineageProxy.Enabled = core.GetBool(k)
+	}
+	if k := "ol_proxy_config.dd_url"; core.IsSet(k) {
+		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if k := "ol_proxy_config.api_key"; core.IsSet(k) {
+		c.OpenLineageProxy.APIKey = core.GetString(k)
+	}
+	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
+		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }

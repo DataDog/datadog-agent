@@ -104,7 +104,7 @@ type setValueKeyArgs struct {
 	capturedData             []byte
 	previousDataType         uint32
 	previousDataSize         uint32
-	capturedPreviousDataSize uint16 //nolint:golint,unused
+	capturedPreviousDataSize uint16
 	previousData             []byte
 	computedFullPath         string
 }
@@ -336,7 +336,10 @@ func (wp *WindowsProbe) parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs
 	sv.previousDataSize = data.GetUint32(nextOffset)
 	nextOffset += 4
 
-	sv.previousData = data.Bytes(nextOffset, int(sv.previousDataSize))
+	sv.capturedPreviousDataSize = data.GetUint16(nextOffset)
+	nextOffset += 2
+
+	sv.previousData = data.Bytes(nextOffset, int(sv.capturedPreviousDataSize))
 
 	if s, ok := wp.regPathResolver.Get(sv.keyObject); ok {
 		sv.computedFullPath = s
