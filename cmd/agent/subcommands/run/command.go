@@ -8,8 +8,10 @@ package run
 
 import (
 	"context"
+	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	gonet "net"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -540,6 +542,35 @@ func startAgent(
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
+	if s := pkgconfigsetup.Datadog().GetString("internal_telemetry.unix_path"); len(s) > 0 {
+		// Clear out old Unix socket file if it exists
+		if err := os.Remove(s); err != nil && !os.IsNotExist(err) {
+			log.Warnf("Failed to remove existing Unix socket file: %s", err)
+		}
+
+		ln, err := gonet.Listen("unix", s)
+		if err != nil {
+			return err
+		}
+
+		// Set proper permissions on socket file
+		if err := os.Chmod(s, 0660); err != nil {
+			log.Warnf("Failed to set permissions on Unix socket file: %s", err)
+		}
+
+		// Create an HTTP server with the telemetry handler
+		server := &http.Server{
+			Handler: telemetry.Handler(),
+		}
+
+		// Serve HTTP over the Unix socket
+		go func() {
+			if err := server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Errorf("Unix socket HTTP server error: %s", err)
+			}
+		}()
+
+	}
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
