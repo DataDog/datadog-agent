@@ -7,7 +7,7 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import add_fips_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -55,7 +55,6 @@ def build(
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="cws-instrumentation")
-    build_tags = add_fips_tags(build_tags, fips_mode)
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
