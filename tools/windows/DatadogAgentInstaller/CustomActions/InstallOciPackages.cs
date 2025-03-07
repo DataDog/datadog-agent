@@ -130,6 +130,7 @@ namespace Datadog.CustomActions
         {
             _rollbackDataStore.Load();
             _rollbackDataStore.Restore();
+            return ActionResult.Success;
         }
 
         private bool IsPackageInstalled(string library)
