@@ -6,18 +6,24 @@
 package configrefresh
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type linuxAPIKeyRefreshSuite struct {
@@ -73,4 +79,115 @@ api_key: ENC[api_key]
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	assert.NoError(v.T(), err)
 	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+}
+
+func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
+	// Define the API keys before and after refresh
+	oldEnding := "12345"
+	initialAPIKeys := map[string]string{
+		"api_key": "key1old" + oldEnding,
+		"apikey2": "key2old" + oldEnding,
+		"apikey3": "key3old" + oldEnding,
+		"apikey4": "key4old" + oldEnding,
+	}
+
+	updatedEnding := "54321"
+	updatedAPIKeys := map[string]string{
+		"api_key": "key1new" + updatedEnding,
+		"apikey2": "key2new" + updatedEnding,
+		"apikey3": "key3new" + updatedEnding,
+		"apikey4": "key4new" + updatedEnding,
+	}
+
+	// Define the agent config with additional endpoints
+	config := `secret_backend_command: /tmp/secret.py
+secret_backend_arguments:
+  - /tmp
+api_key: ENC[api_key]
+additional_endpoints:
+  "https://app.datadoghq.com":
+    - ENC[apikey2]
+    - ENC[apikey3]
+  "https://app.datadoghq.eu":
+    - ENC[apikey4]
+`
+
+	// Create a secret client to manage secrets
+	secretClient := secrets.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+
+	// Set initial secrets in the backend
+	for key, value := range initialAPIKeys {
+		secretClient.SetSecret(key, value)
+	}
+
+	// Deploy the agent with the initial secrets
+	v.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				secrets.WithUnixSetupScript("/tmp/secret.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+				agentparams.WithAgentConfig(config),
+			),
+		),
+	)
+
+	// Verify initial API keys in status
+	status := v.Env().Agent.Client.Status()
+	assert.Contains(v.T(), status.Content, "API key ending with 12345")
+	assert.Contains(v.T(), status.Content, "API key ending with 12345")
+
+	// Update secrets in the backend
+	for key, value := range updatedAPIKeys {
+		secretClient.SetSecret(key, value)
+	}
+
+	// Refresh secrets in the agent
+	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(v.T(), secretRefreshOutput, "api_key")
+
+	// Verify that the new API keys appear in status
+	status = v.Env().Agent.Client.Status()
+	fmt.Println("WACKTEST99", status, "WACKTEST77")
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assert.Contains(t, status.Content, `https://app.datadoghq.com - API Keys ending with:
+      - 54321
+      - 54321
+  https://app.datadoghq.eu - API Key ending with:
+      - 54321`)
+	}, 1*time.Minute, 10*time.Second)
+
+	endpoints := []string{
+		"https://app.datadoghq.com",
+		"https://app.datadoghq.eu",
+	}
+
+	for _, endpoint := range endpoints {
+		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", v.Env().FakeIntake.Client().URL(), endpoint)
+
+		resp, err := http.Get(url) // Using http.Get() like GetLastAPIKey
+		require.NoError(v.T(), err, "Failed to fetch FakeIntake payloads for %s", endpoint)
+		defer resp.Body.Close()
+		require.Equal(v.T(), http.StatusOK, resp.StatusCode, "Unexpected response code from FakeIntake for %s", endpoint)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(v.T(), err, "Failed to read FakeIntake response body for %s", endpoint)
+
+		// Parse JSON response into a slice of payloads
+		var payloads []map[string]interface{}
+		err = json.Unmarshal(body, &payloads)
+		require.NoError(v.T(), err, "Failed to decode FakeIntake JSON response for %s", endpoint)
+
+		// Collect all API keys seen in payloads
+		foundAPIKeys := map[string]bool{}
+		for _, payload := range payloads {
+			if apiKey, exists := payload["api_key"].(string); exists {
+				foundAPIKeys[strings.TrimSpace(apiKey)] = true
+			}
+		}
+
+		// Ensure every updated API key is present in the FakeIntake history
+		for _, updatedKey := range updatedAPIKeys {
+			assert.True(v.T(), foundAPIKeys[updatedKey], "API Key %s not found in FakeIntake history", updatedKey)
+		}
+	}
 }
