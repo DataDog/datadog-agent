@@ -135,18 +135,16 @@ type ObfuscationConfig struct {
 	Cache obfuscate.CacheConfig `mapstructure:"cache"`
 }
 
-func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
-	if conf.SQLObfuscationMode != "" {
-		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
-			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
-		}
-		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
-		return ""
-	}
-	if sqllexerEnabled {
+func obfuscationMode(conf *AgentConfig) obfuscate.ObfuscationMode {
+	switch conf.SQLObfuscationMode {
+	case string(obfuscate.ObfuscateOnly):
 		return obfuscate.ObfuscateOnly
+	case string(obfuscate.ObfuscateAndNormalize):
+		return obfuscate.ObfuscateAndNormalize
+	case string(obfuscate.Legacy):
+		return obfuscate.Legacy
 	}
-	return ""
+	return obfuscate.ObfuscateAndNormalize
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -157,7 +155,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  obfuscationMode(conf),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,

@@ -2968,3 +2968,46 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 
 }
+
+func TestObfuscationMode(t *testing.T) {
+	in := `select "c"."t" from table t`
+	tests := []struct {
+		mode ObfuscationMode
+		out  string
+	}{
+		{
+			mode: Legacy,
+			out:  "select c . t from table t",
+		},
+		{
+			mode: "",
+			out:  in,
+		},
+		{
+			mode: ObfuscateOnly,
+			out:  in,
+		},
+		{
+			mode: NormalizeOnly,
+			out:  in,
+		},
+		{
+			mode: ObfuscateAndNormalize,
+			out:  in,
+		},
+		{
+			mode: "invalid",
+			out:  in,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.mode), func(t *testing.T) {
+			obfuscator := NewObfuscator(Config{
+				SQL: SQLConfig{},
+			})
+			out, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode})
+			require.NoError(t, err)
+			assert.Equal(t, out.Query, tt.out)
+		})
+	}
+}

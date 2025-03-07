@@ -288,7 +288,7 @@ func (f *groupingFilter) Reset() {
 }
 
 func isSQLLexer(obfuscationMode ObfuscationMode) bool {
-	return obfuscationMode != ""
+	return obfuscationMode == ObfuscateOnly || obfuscationMode == NormalizeOnly || obfuscationMode == ObfuscateAndNormalize
 }
 
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
@@ -318,12 +318,10 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (
 	var oq *ObfuscatedQuery
 	var err error
 
-	if opts.ObfuscationMode != "" {
-		// If obfuscation mode is specified, we will use go-sqllexer pkg
-		// to obfuscate (and normalize) the query.
-		oq, err = o.ObfuscateWithSQLLexer(in, opts)
-	} else {
+	if opts.ObfuscationMode == Legacy {
 		oq, err = o.obfuscateSQLString(in, opts)
+	} else {
+		oq, err = o.ObfuscateWithSQLLexer(in, opts)
 	}
 
 	if err != nil {
@@ -454,7 +452,7 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 // ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
 // If ObfuscationMode is set to ObfuscateOnly, the query will be obfuscated without normalizing it.
 func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	if opts.ObfuscationMode != NormalizeOnly && opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize {
+	if opts.ObfuscationMode != NormalizeOnly && opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize && opts.ObfuscationMode != Legacy {
 		return nil, fmt.Errorf("invalid obfuscation mode: %s", opts.ObfuscationMode)
 	}
 
