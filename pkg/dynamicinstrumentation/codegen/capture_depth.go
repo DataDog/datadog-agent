@@ -19,7 +19,37 @@ type captureDepthItem struct {
 	parameter *ditypes.Parameter
 }
 
-func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
+func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) []*ditypes.Parameter {
+	setDoNotCapture(params, targetDepth)
+	params = pruneDoNotCaptureParams(params)
+	correctStructSizes(params)
+	return params
+}
+
+// pruneDoNotCaptureParams removes any parameters with DoNotCapture set to true from the parameter tree
+func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
+	if len(params) == 0 {
+		return params
+	}
+
+	result := []*ditypes.Parameter{}
+	for _, param := range params {
+		if param == nil || param.DoNotCapture {
+			continue
+		}
+
+		// Recursively prune child parameters
+		if len(param.ParameterPieces) > 0 {
+			param.ParameterPieces = pruneDoNotCaptureParams(param.ParameterPieces)
+		}
+
+		result = append(result, param)
+	}
+
+	return result
+}
+
+func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 	queue := []*captureDepthItem{}
 	for i := range params {
 		if params[i] == nil {
@@ -44,8 +74,12 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 		}
 
 		if top.parameter.Kind == uint(reflect.Struct) || top.parameter.Kind == uint(reflect.Array) {
+			if top.depth+1 > targetDepth {
+				top.parameter.DoNotCapture = true
+				top.parameter.NotCaptureReason = ditypes.CaptureDepthReached
+			}
 			for _, child := range top.parameter.ParameterPieces {
-				queue = append(queue, &captureDepthItem{depth: top.depth, parameter: child})
+				queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
 			}
 
 		} else if top.parameter.Kind == uint(reflect.Slice) {
@@ -56,6 +90,10 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 				len(top.parameter.ParameterPieces[0].ParameterPieces) == 0 ||
 				top.parameter.ParameterPieces[0].ParameterPieces[0] == nil {
 				continue
+			}
+			if top.depth+1 > targetDepth {
+				top.parameter.DoNotCapture = true
+				top.parameter.NotCaptureReason = ditypes.CaptureDepthReached
 			}
 			elementType := top.parameter.ParameterPieces[0].ParameterPieces[0]
 			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: elementType})
@@ -89,5 +127,25 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 				queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
 			}
 		}
+	}
+}
+
+// correctStructSizes sets the size of all passed struct parameters to the number of fields in the struct
+func correctStructSizes(params []*ditypes.Parameter) {
+	for i := range params {
+		correctStructSize(params[i])
+	}
+}
+
+// correctStructSize sets the size of struct parameters to the number of fields in the struct
+func correctStructSize(param *ditypes.Parameter) {
+	if param == nil || len(param.ParameterPieces) == 0 {
+		return
+	}
+	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
+		param.TotalSize = int64(len(param.ParameterPieces))
+	}
+	for i := range param.ParameterPieces {
+		correctStructSize(param.ParameterPieces[i])
 	}
 }

@@ -1453,3 +1453,137 @@ func TestApplyCaptureDepth(t *testing.T) {
 		})
 	}
 }
+
+func TestPruneDoNotCaptureParams(t *testing.T) {
+	tests := []struct {
+		name           string
+		parameters     []*ditypes.Parameter
+		targetDepth    int
+		expectedResult []*ditypes.Parameter
+	}{
+		{
+			name: "two layers",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:             "a",
+					ID:               "",
+					Type:             "int",
+					TotalSize:        8,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "a",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							DoNotCapture:     true,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:             "a",
+					ID:               "",
+					Type:             "int",
+					TotalSize:        8,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces:  []*ditypes.Parameter{},
+				},
+			},
+		},
+		{
+			name: "multi-tiered layers",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:             "a",
+					ID:               "",
+					Type:             "int",
+					TotalSize:        8,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "b",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "d",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									DoNotCapture:     true,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  []*ditypes.Parameter{},
+								},
+								{
+									Name:             "e",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									DoNotCapture:     true,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  []*ditypes.Parameter{},
+								},
+							},
+						},
+						{
+							Name:             "c",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  []*ditypes.Parameter{},
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:             "a",
+					ID:               "",
+					Type:             "int",
+					TotalSize:        8,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "b",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  []*ditypes.Parameter{},
+						},
+						{
+							Name:             "c",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  []*ditypes.Parameter{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p := pruneDoNotCaptureParams(test.parameters)
+			assert.Equal(t, test.expectedResult, p)
+		})
+	}
+}
