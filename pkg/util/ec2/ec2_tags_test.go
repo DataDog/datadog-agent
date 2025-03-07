@@ -9,6 +9,7 @@ package ec2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,11 +17,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetIAMRole(t *testing.T) {
@@ -204,4 +207,113 @@ func TestGetTagsFullWorkflow(t *testing.T) {
 	tags, err = GetTags(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
+}
+
+// Mock implementation of ec2ClientInterface
+type mockEC2Client struct {
+	DescribeTagsFunc func(ctx context.Context, params *ec2.DescribeTagsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error)
+}
+
+func (m *mockEC2Client) DescribeTags(ctx context.Context, params *ec2.DescribeTagsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
+	return m.DescribeTagsFunc(ctx, params, optFns...)
+}
+
+// Helper function to compare slices of strings
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aMap := make(map[string]struct{}, len(a))
+	for _, v := range a {
+		aMap[v] = struct{}{}
+	}
+	for _, v := range b {
+		if _, ok := aMap[v]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func TestGetTagsWithCreds(t *testing.T) {
+	tests := []struct {
+		name             string
+		instanceIdentity *EC2Identity
+		mockEC2Client    ec2ClientInterface
+		expectedTags     []string
+		expectedError    assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Successful retrieval of tags",
+			instanceIdentity: &EC2Identity{
+				InstanceID: "i-1234567890abcdef0",
+			},
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: []types.TagDescription{
+					{Key: aws.String("Name"), Value: aws.String("TestInstance")},
+					{Key: aws.String("Env"), Value: aws.String("Production")},
+				}}, nil),
+			expectedTags:  []string{"Name:TestInstance", "Env:Production"},
+			expectedError: assert.NoError,
+		},
+		{
+			name: "Excluded tags are filtered out",
+			instanceIdentity: &EC2Identity{
+				InstanceID: "i-1234567890abcdef0",
+			},
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: []types.TagDescription{
+					{Key: aws.String("Name"), Value: aws.String("TestInstance")},
+					{Key: aws.String("aws:cloudformation:stack-name"), Value: aws.String("MyStack")},
+				}}, nil),
+			expectedTags:  []string{"Name:TestInstance", "aws:cloudformation:stack-name:MyStack"},
+			expectedError: assert.NoError,
+		},
+		{
+			name: "DescribeTags returns an error",
+			instanceIdentity: &EC2Identity{
+				InstanceID: "i-1234567890abcdef0",
+			},
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: nil,
+			}, errors.New("DescribeTags failed")),
+			expectedTags:  nil,
+			expectedError: assert.Error,
+		},
+		{
+			name: "ec2 config failure, connection is nil",
+			instanceIdentity: &EC2Identity{
+				InstanceID: "i-1234567890abcdef0",
+			},
+			mockEC2Client: nil,
+			expectedTags:  nil,
+			expectedError: assert.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a background context
+			ctx := context.Background()
+
+			// Call the function under test
+			tags, err := getTagsWithCreds(ctx, tt.instanceIdentity, tt.mockEC2Client)
+
+			// Validate the error
+			tt.expectedError(t, err)
+			// Validate the tags
+			if !equalStringSlices(tags, tt.expectedTags) {
+				t.Fatalf("Expected tags '%v', got '%v'", tt.expectedTags, tags)
+			}
+		})
+	}
+}
+
+func setupMockEC2Client(mockOutput *ec2.DescribeTagsOutput, mockError error) *mockEC2Client {
+	return &mockEC2Client{
+		DescribeTagsFunc: func(_ context.Context, _ *ec2.DescribeTagsInput, _ ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
+			return mockOutput, mockError
+		},
+	}
+
 }
