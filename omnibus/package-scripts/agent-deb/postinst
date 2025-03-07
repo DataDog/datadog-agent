@@ -65,10 +65,6 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
-    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
-fi
-
 set +e 
 generate_install_id()
 {
@@ -97,9 +93,15 @@ if [ ! -f "$CONFIG_DIR/install.json" ]; then
     install_time=$(date +%s)
     install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
     echo "$install_signature" > $CONFIG_DIR/install.json
-    chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
 set -e
+
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/post.py" "${INSTALL_DIR}" || true
+fi
+if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
+    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+fi
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
@@ -127,6 +129,7 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
 fi
 
 # Make the system-probe and security-agent binaries and eBPF programs owned by root
+# Those files are not present on datadog-heroku-agent dpkg package, hence the presence check
 if [ -f "$INSTALL_DIR/embedded/bin/system-probe" ]; then
     chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
 fi
@@ -141,7 +144,6 @@ fi
 
 if [ -d "$INSTALL_DIR/embedded/share/system-probe/java" ]; then
     chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
-
 fi
 
 # Enable and restart the agent service here on Debian platforms
@@ -151,9 +153,6 @@ echo "Enabling service $SERVICE_NAME"
 if command -v systemctl >/dev/null 2>&1; then
     # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
     SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with systemctl"
-    SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-process || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with systemctl"
-    SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-trace || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with systemctl"
-    SYSTEMCTL_SKIP_SYSV=true systemctl enable $SERVICE_NAME-security || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-security with systemctl"
 elif command -v initctl >/dev/null 2>&1; then
     # Nothing to do, this is defined directly in the upstart job file
     :
@@ -184,10 +183,6 @@ else
     # No datadog.yaml file is present. This is probably a clean install made with the
     # step-by-step instructions/an automation tool, and the config file will be added next.
     echo "No datadog.yaml file detected, not starting the agent"
-fi
-
-if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/post.py" "${INSTALL_DIR}" || true
 fi
 
 exit 0

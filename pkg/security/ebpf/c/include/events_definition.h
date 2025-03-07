@@ -209,6 +209,12 @@ struct dns_event_t {
     char name[DNS_MAX_LENGTH];
 };
 
+struct dns_response_event_t {
+    struct kevent_t event;
+    struct dnshdr header;
+    char data[DNS_RECEIVE_MAX_LENGTH];
+};
+
 struct imds_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -476,6 +482,21 @@ struct network_flow_monitor_event_t {
 
     u64 flows_count; // keep as u64 to prevent inconsistent verifier output on bounds checks
     struct flow_stats_t flows[ACTIVE_FLOWS_MAX_SIZE];
+};
+
+struct sysctl_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u32 action;
+    u32 file_position;
+    u16 name_len;
+    u16 old_value_len;
+    u16 new_value_len;
+    u16 flags;
+    char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];
 };
 
 #endif

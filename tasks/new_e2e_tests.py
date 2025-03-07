@@ -48,7 +48,7 @@ class TestState:
     help={
         'profile': 'Override auto-detected runner profile (local or CI)',
         'tags': 'Build tags to use',
-        'targets': 'Target packages (same as inv test)',
+        'targets': 'Target packages (same as dda inv test)',
         'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
@@ -195,7 +195,7 @@ def run(
             if args.get(param_key):
                 params.append(f'-{args[param_key]}')
 
-        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} dda inv -e new-e2e-tests.run {' '.join(params)}"
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'

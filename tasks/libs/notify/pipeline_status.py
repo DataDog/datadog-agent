@@ -6,7 +6,7 @@ from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import Color, color_message
 from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME, get_pipeline_type
-from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.data import get_failed_jobs, get_jobs_skipped_on_pr
 from tasks.libs.pipeline.notifications import (
     base_message,
     get_failed_tests,
@@ -40,7 +40,7 @@ def send_message(pipeline_id, dry_run):
     # For deploy pipelines not on the main branch, send notifications in a
     # dedicated channel.
     slack_channel = PIPELINES_CHANNEL
-    pipeline_type = get_pipeline_type(pipeline)
+    pipeline_type = get_pipeline_type()
     if pipeline_type == "deploy" and pipeline.ref != get_default_branch():
         slack_channel = DEPLOY_PIPELINES_CHANNEL
 
@@ -52,8 +52,9 @@ def send_message(pipeline_id, dry_run):
     elif pipeline_type == "trigger":
         header = f"{header_icon} :arrow_forward: datadog-agent triggered"
 
-    message = SlackMessage(jobs=failed_jobs)
-    message.base_message = base_message(PROJECT_NAME, pipeline, commit, header, state)
+    skipped_jobs, pr_pipeline_url = get_jobs_skipped_on_pr(pipeline, failed_jobs)
+    message = SlackMessage(jobs=failed_jobs, skipped=skipped_jobs)
+    message.base_message = base_message(PROJECT_NAME, pipeline, commit, header, state, pr_pipeline_url)
 
     for job in failed_jobs.all_non_infra_failures():
         for test in get_failed_tests(PROJECT_NAME, job):

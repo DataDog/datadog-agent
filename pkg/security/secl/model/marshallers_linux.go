@@ -73,22 +73,23 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 // MarshalProcCache marshals a binary representation of itself
 func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
-	if len(data) < ContainerIDLen {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughSpace
 	}
 
-	copy(data[0:ContainerIDLen], []byte(e.ContainerID))
-	binary.NativeEndian.PutUint64(data[ContainerIDLen:ContainerIDLen+8], uint64(e.CGroup.CGroupFlags))
+	binary.NativeEndian.PutUint64(data[0:8], uint64(e.CGroup.CGroupFlags))
+	written := 8
 
-	written := ContainerIDLen + 8
+	// process without cgroup should be mainly pid 1
+	if !e.CGroup.CGroupFile.IsNull() {
+		toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
+		if err != nil {
+			return 0, err
+		}
 
-	toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
-	if err != nil {
-		return 0, err
+		copy(data[written:written+len(toAdd)], toAdd)
+		written += len(toAdd)
 	}
-
-	copy(data[written:written+len(toAdd)], toAdd)
-	written += len(toAdd)
 
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {

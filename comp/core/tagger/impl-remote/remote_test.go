@@ -28,7 +28,11 @@ import (
 )
 
 func TestStart(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+	if os.Getenv("CI") != "true" {
+		t.Skip("Not run this test locally because it fails when there is already a running Agent")
+	}
+
+	if runtime.GOOS == "darwin" {
 		t.Skip("TestStart is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	grpcServer, authToken, err := grpc.NewMockGrpcSecureServer("5001")

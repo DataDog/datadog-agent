@@ -90,6 +90,11 @@ func (m *mockLongRunningCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
+func (m *mockLongRunningCheck) IsHASupported() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 func (m *mockLongRunningCheck) GetSender() (sender.Sender, error) {
 	args := m.Called()
 	s := args.Get(0)
