@@ -160,28 +160,27 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     if remaining_allowed_size > BUFFER_SIZE:
         saved_amount = remaining_allowed_size - BUFFER_SIZE
         gate_limit -= saved_amount
-        metric_handler.total_size_saved += saved_amount
-    return gate_limit
+    return gate_limit, saved_amount
 
 
 def generate_new_quality_gate_config(file_descriptor, metric_handler):
     config_content = yaml.safe_load(file_descriptor)
+    total_saved_amount = 0
     for gate in config_content.keys():
-        config_content[gate]["max_on_wire_size"] = byte_to_string(
-            get_gate_new_limit_threshold(gate, "current_on_wire_size", "max_on_wire_size", metric_handler)
-        )
-        config_content[gate]["max_on_disk_size"] = byte_to_string(
-            get_gate_new_limit_threshold(gate, "current_on_disk_size", "max_on_disk_size", metric_handler)
-        )
-    return config_content
+        on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(gate, "current_on_wire_size", "max_on_wire_size", metric_handler)
+        config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
+        on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(gate, "current_on_disk_size", "max_on_disk_size", metric_handler)
+        config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
+        total_saved_amount += wire_saved_amount + disk_saved_amount
+    return config_content, total_saved_amount
 
 
 def update_quality_gates_threshold(ctx, metric_handler, github):
     # Update quality gates threshold config
     with open("test/static/static_quality_gates.yml") as f:
-        file_content = generate_new_quality_gate_config(f, metric_handler)
+        file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler)
 
-    if metric_handler.total_size_saved == 0:
+    if total_size_saved == 0:
         return
 
     # Create new branch
