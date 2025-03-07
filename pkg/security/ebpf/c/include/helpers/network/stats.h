@@ -3,6 +3,7 @@
 
 #include "context.h"
 #include "utils.h"
+#include "helpers/utils.h"
 
 __attribute__((always_inline)) struct network_flow_monitor_event_t *get_network_flow_monitor_event() {
     u32 key = 0;
@@ -171,6 +172,7 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
             // should never happen, ignore
             return;
         }
+        simple_memset_zero(zero, sizeof(*zero));
         zero->netns = ns_flow.netns;
         zero->ifindex = skb->ifindex;
         zero->last_sent = now;
