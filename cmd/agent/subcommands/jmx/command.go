@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -56,7 +57,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -131,9 +131,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(params),
 			core.Bundle(),
 			diagnosesendermanagerimpl.Module(),
-			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
-				return diagnoseSenderManager.LazyGetSenderManager()
-			}),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
@@ -152,6 +149,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[logsAgent.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
+			fx.Provide(func() demultiplexer.Component { return nil }),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
