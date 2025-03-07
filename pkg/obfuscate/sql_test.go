@@ -1634,7 +1634,11 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(Config{}).ObfuscateSQLString(input)
+	_, err := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	}).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
