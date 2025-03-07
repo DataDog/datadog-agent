@@ -733,8 +733,6 @@ func (p *EBPFProbe) SendStats() error {
 		metrics.SegmentResolutionTag,
 	}
 
-	fmt.Println("DNS SendStats()")
-	
 	num := p.DNSResponsesFilteredOnKernelMetric.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricRepeatedDNSResponsesFilteredOnKernel, num, tags, 1.0); err != nil {
 		seclog.Tracef("couldn't set MetricRepeatedDNSResponsesFilteredOnKernel metric: %s", err)

@@ -171,14 +171,16 @@ int classifier_dns_response(struct __sk_buff *skb) {
     }
 
     u64 current_timestamp = bpf_ktime_get_ns();
+    u64 * stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &evt->header.id);
 
     if (stored_timestamp != NULL &&  *stored_timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
-        struct kevent_t evt;
-        evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
-        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
+        //struct kevent_t evt;
+        //evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
+        //send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
         return ACT_OK;
     }
 
+    bpf_map_update_elem(&dns_responses_sent_to_userspace, &evt->header.id, &current_timestamp, BPF_ANY);
     send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;
