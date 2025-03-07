@@ -5,8 +5,8 @@ golang_deps_diff:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules: # this should only run on dev branches
-    - !reference [ .except_main_or_release_branch ]
+  rules:
+    - !reference [.on_dev_branches]
     - when: on_success
   needs: ["go_deps"]
   variables:
@@ -26,9 +26,8 @@ golang_deps_commenter:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
   tags: ["arch:amd64"]
-  rules: # this should only run on dev branches
-    - !reference [.except_main_or_release_branch]
-    - !reference [.except_deploy]
+  rules:
+    - !reference [.on_dev_branches]
     - when: on_success
   needs: ["golang_deps_diff"]
   variables:
@@ -57,8 +56,6 @@ golang_deps_send_count_metrics:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules:
-    - when: on_success
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]

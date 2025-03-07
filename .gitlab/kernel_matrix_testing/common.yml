@@ -299,8 +299,7 @@ notify_ebpf_complexity_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_main_or_release_branch]
+    - !reference [.except_main_release_or_mq]
     - !reference [.except_no_tests_no_deploy]
     - !reference [.except_deploy]
     - !reference [.on_system_probe_or_e2e_changes_or_manual]

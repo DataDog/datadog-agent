@@ -85,8 +85,7 @@ check_pkg_size:
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success
       allow_failure: true
-    - !reference [.not_on_release_branch_or_tagged_commit]
-    - !reference [.except_mergequeue]
+    - !reference [.on_dev_branches]
     - when: on_success
   needs:
     - agent_deb-x64-a7
