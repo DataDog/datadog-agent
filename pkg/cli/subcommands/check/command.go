@@ -197,6 +197,14 @@ func run(
 		return nil
 	}
 
+	checkRequest := apiTypes.CheckRequest{
+		Name:       cliParams.checkName,
+		Times:      cliParams.checkTimes,
+		Pause:      cliParams.checkPause,
+		Delay:      cliParams.checkDelay,
+		Breakpoint: cliParams.breakPoint,
+	}
+
 	if cliParams.profileMemory {
 		// If no directory is specified, make a temporary one
 		var err error
@@ -212,27 +220,22 @@ func run(
 					fmt.Printf("%s\n", cleanupErr)
 				}
 			}()
-		}
-	}
 
-	checkRequest := apiTypes.CheckRequest{
-		Name:  cliParams.checkName,
-		Times: cliParams.checkTimes,
-		Pause: cliParams.checkPause,
-		Delay: cliParams.checkDelay,
-		ProfileConfig: apiTypes.MemoryProfileConfig{
-			Dir:     cliParams.profileMemoryDir,
-			Frames:  cliParams.profileMemoryFrames,
-			GC:      cliParams.profileMemoryGC,
-			Combine: cliParams.profileMemoryCombine,
-			Sort:    cliParams.profileMemorySort,
-			Limit:   cliParams.profileMemoryLimit,
-			Diff:    cliParams.profileMemoryDiff,
-			Filters: cliParams.profileMemoryFilters,
-			Unit:    cliParams.profileMemoryUnit,
-			Verbose: cliParams.profileMemoryVerbose,
-		},
-		Breakpoint: cliParams.breakPoint,
+			profileConfg := apiTypes.MemoryProfileConfig{
+				Dir:     cliParams.profileMemoryDir,
+				Frames:  cliParams.profileMemoryFrames,
+				GC:      cliParams.profileMemoryGC,
+				Combine: cliParams.profileMemoryCombine,
+				Sort:    cliParams.profileMemorySort,
+				Limit:   cliParams.profileMemoryLimit,
+				Diff:    cliParams.profileMemoryDiff,
+				Filters: cliParams.profileMemoryFilters,
+				Unit:    cliParams.profileMemoryUnit,
+				Verbose: cliParams.profileMemoryVerbose,
+			}
+
+			checkRequest.ProfileConfig = profileConfg
+		}
 	}
 
 	URL, err := getChecksURL(config)
