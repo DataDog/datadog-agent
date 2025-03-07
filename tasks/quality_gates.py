@@ -157,6 +157,7 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
+    saved_amount = 0
     if remaining_allowed_size > BUFFER_SIZE:
         saved_amount = remaining_allowed_size - BUFFER_SIZE
         gate_limit -= saved_amount

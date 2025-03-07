@@ -18,7 +18,7 @@ class MockMetricHandler:
 class TestQualityGatesConfigUpdate(unittest.TestCase):
     def test_one_gate_update(self):
         with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
-            new_config = generate_new_quality_gate_config(
+            new_config, saved_amount = generate_new_quality_gate_config(
                 f,
                 MockMetricHandler(
                     {
