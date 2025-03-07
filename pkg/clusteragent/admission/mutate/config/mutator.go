@@ -15,14 +15,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/aws/smithy-go/ptr"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // MutatorConfig contains the settings for the config injector.
@@ -271,7 +270,7 @@ func buildCSIVolume(volumeName, path string, injectionMode csiInjectionMode, rea
 		VolumeSource: corev1.VolumeSource{
 			CSI: &corev1.CSIVolumeSource{
 				Driver:   csiDriver,
-				ReadOnly: ptr.Bool(readOnly),
+				ReadOnly: pointer.Ptr(readOnly),
 				VolumeAttributes: map[string]string{
 					"mode": string(injectionMode),
 					"path": path,

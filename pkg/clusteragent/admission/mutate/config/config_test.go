@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/smithy-go/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -351,7 +350,7 @@ func TestInjectSocket(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:   "k8s.csi.datadoghq.com",
-							ReadOnly: ptr.Bool(true),
+							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
 								"path": "/var/run/datadog",
 								"mode": "local",
@@ -451,7 +450,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:   "k8s.csi.datadoghq.com",
-							ReadOnly: ptr.Bool(true),
+							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
 								"path": "/var/run/datadog/dsd.socket",
 								"mode": "socket",
@@ -464,7 +463,7 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
 							Driver:   "k8s.csi.datadoghq.com",
-							ReadOnly: ptr.Bool(true),
+							ReadOnly: pointer.Ptr(true),
 							VolumeAttributes: map[string]string{
 								"path": "/var/run/datadog/apm.socket",
 								"mode": "socket",
