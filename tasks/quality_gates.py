@@ -189,7 +189,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         return
 
     # Create new branch
-    branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"
+    branch_name = f"static_quality_gates/threshold_update_{os.environ['CI_COMMIT_SHORT_SHA']}"
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
     github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
 
