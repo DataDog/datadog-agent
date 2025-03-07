@@ -10,6 +10,7 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -46,7 +47,8 @@ func (c *collector) getDeviceInfo(device nvml.Device) (string, string, error) {
 	if ret != nvml.SUCCESS {
 		return "", "", fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 	}
-	return uuid, name, nil
+	// we always want to return the lower case version as tags are being hashed when stored in cache in the Tagger component
+	return strings.ToLower(uuid), strings.ToLower(name), nil
 }
 
 // getMigProfileName() returns the canonical name of the MIG device
