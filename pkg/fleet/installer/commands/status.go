@@ -150,13 +150,13 @@ type remoteConfigPackageState struct {
 	Package                 string                   `json:"package"`
 	StableVersion           string                   `json:"stable_version,omitempty"`
 	ExperimentVersion       string                   `json:"experiment_version,omitempty"`
-	Task                    *remoteConfigPackageTask `json:"remote_config_state"`
+	Task                    *remoteConfigPackageTask `json:"task,omitempty"`
 	StableConfigVersion     string                   `json:"stable_config_version,omitempty"`
 	ExperimentConfigVersion string                   `json:"experiment_config_version,omitempty"`
 }
 
 type remoteConfigPackageTask struct {
-	Id    string         `json:"id,omitempty"`
+	ID    string         `json:"id,omitempty"`
 	State int32          `json:"state,omitempty"`
 	Error *errorWithCode `json:"error,omitempty"`
 }
@@ -181,7 +181,7 @@ func getRCStatus() (remoteConfigState, error) {
 	cmd.Stderr = stderr
 	err = cmd.Run()
 	if err != nil {
-		return response, fmt.Errorf("error running \"daemon rc-status\" (is the daemon running?): %s", stderr.String())
+		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
 	}
 
 	err = json.Unmarshal(stdout.Bytes(), &response)

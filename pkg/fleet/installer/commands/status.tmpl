@@ -14,7 +14,7 @@ Packages installed:
       ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
       Task:
         {{- if $remoteConfig.Task }}
-        Id: {{ $remoteConfig.Task.Id }}
+        Id: {{ $remoteConfig.Task.ID }}
         State: {{ $remoteConfig.Task.State }}
         {{- if $remoteConfig.Task.Error }}
         Error: {{ $remoteConfig.Task.Error }}

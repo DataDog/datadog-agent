@@ -284,7 +284,7 @@ func remove(params *cliParams, client localapiclient.Component) error {
 	}
 	return nil
 }
-func status(params *cliParams, client localapiclient.Component) error {
+func status(_ *cliParams, client localapiclient.Component) error {
 	status, err := client.Status()
 	if err != nil {
 		fmt.Println("Error getting status:", err)
