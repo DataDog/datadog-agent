@@ -57,6 +57,28 @@ class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
+    @patch('builtins.print')
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    def test_merge_ddci(self, api_mock, print_mock):
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        repo_mock.pipelines.get.return_value.ref = "test"
+        repo_mock.pipelines.get.return_value.source = "api"
+        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
+        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
+        list_mock = repo_mock.pipelines.get.return_value.jobs.list
+        list_mock.side_effect = [get_fake_jobs(), []]
+        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coin'}, clear=True):
+            notify.send_message(MockContext(), "42", dry_run=True)
+        list_mock.assert_called()
+        repo_mock.pipelines.get.assert_called_with("42")
+        self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
+        repo_mock.jobs.get.assert_called()
+
+    @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
+    @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('tasks.libs.notify.pipeline_status.get_failed_jobs')
     @patch('builtins.print')
@@ -264,6 +286,7 @@ class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'miaou', 'TRIGGERED_PIPELINE': 'true'}, clear=True)
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     def test_trigger_with_get_failed_call(self, print_mock, api_mock):
@@ -279,8 +302,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
         repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
 
-        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'miaou'}, clear=True):
-            notify.send_message(MockContext(), "42", dry_run=True)
+        notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
         self.assertTrue("[:hourglass: 60 min]" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()

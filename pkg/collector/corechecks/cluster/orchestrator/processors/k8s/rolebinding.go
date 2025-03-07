@@ -33,6 +33,16 @@ func (h *RoleBindingHandlers) AfterMarshalling(ctx processors.ProcessorContext, 
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleBindingHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*rbacv1.RoleBinding)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *RoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {

@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -295,7 +296,7 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
-			params := exportertest.NewNopSettings()
+			params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 			f := NewFactory(testChannel)
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,

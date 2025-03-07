@@ -130,6 +130,7 @@ func secureCreateDirectory(path string, sddl string) error {
 // Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
 func IsInstallerDataDirSecure() error {
 	targetDir := datadogInstallerData
+	log.Infof("Checking if installer data directory is secure: %s", targetDir)
 	return isDirSecure(targetDir)
 }
 
@@ -142,7 +143,7 @@ func isDirSecure(targetDir string) error {
 	// get security info
 	sd, err := windows.GetNamedSecurityInfo(targetDir, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
 	if err != nil {
-		return fmt.Errorf("failed to get security info: %w", err)
+		return fmt.Errorf("failed to get security info for dir \"%s\": %w", targetDir, err)
 	}
 	// ensure owner is admin or system
 	owner, _, err := sd.Owner()
@@ -335,4 +336,19 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 	}
 	path = val
 	return
+}
+
+// SetRepositoryPermissions sets the permissions on the repository directory
+// It needs to be world readable so that user processes can load installed libraries
+func SetRepositoryPermissions(path string) error {
+	// Desired permissions:
+	// - OWNER: Administrators
+	// - GROUP: Administrators
+	// - SYSTEM: Full Control (propagates to children)
+	// - Administrators: Full Control (propagates to children)
+	// - Everyone: 0x1200A9 Read and execute (propagates to children)
+	// - PROTECTED: does not inherit permissions from parent
+	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
+
+	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
 }

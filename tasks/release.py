@@ -63,6 +63,7 @@ from tasks.libs.releasing.json import (
     _save_release_json,
     generate_repo_data,
     load_release_json,
+    set_current_milestone,
     set_new_release_branch,
     update_release_json,
 )
@@ -116,7 +117,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         verify: Checks for correctness on the Agent Version (on by default).
 
     Examples:
-        $ inv -e release.update-modules 7.27.x
+        $ dda inv -e release.update-modules 7.27.x
     """
 
     assert release_branch or version
@@ -187,9 +188,9 @@ def tag_modules(
         devel: Will create -devel tags (used after creation of the release branch).
 
     Examples:
-        $ inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
-        $ inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
-        $ inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
+        $ dda inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
+        $ dda inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -238,9 +239,9 @@ def tag_version(
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
-        $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ dda inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -303,6 +304,14 @@ def finish(ctx, release_branch, upstream="origin"):
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
+
+        next_milestone = next_final_version(ctx, release_branch, True)
+        next_milestone = next_milestone.next_version(bump_patch=True)
+        print(f"Creating the {next_milestone} milestone...")
+
+        gh = GithubAPI()
+        gh.create_milestone(str(next_milestone), exist_ok=True)
+        set_current_milestone(str(next_milestone))
 
         # Step 2: Update internal module dependencies
 
@@ -391,11 +400,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
     If the previous version of the Agent was an RC, updates the release entries for RC + 1.
 
     Examples:
-        If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+        If the latest tag on the branch is 7.31.0, and dda inv release.create-rc --patch-version
         is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
         will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
 
-        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and dda inv release.create-rc
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
@@ -992,7 +1001,7 @@ def update_build_links(_, new_version, patch_version=False):
     if username is None or password is None:
         raise Exit(
             color_message(
-                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
                 "red",
             ),
             code=1,
@@ -1308,9 +1317,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
+        set_current_milestone(next)
         # Commit release.json
         ctx.run("git add release.json")
         ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
