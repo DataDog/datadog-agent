@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // TODO(components):
 // * Lifecycle can't be used atm because:

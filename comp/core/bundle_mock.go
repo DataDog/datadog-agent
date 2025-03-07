@@ -16,16 +16,17 @@
 package core
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
 func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
