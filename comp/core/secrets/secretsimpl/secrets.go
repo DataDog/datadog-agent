@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdmaps "maps"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -405,13 +406,7 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 	if !allowlistEnabled {
 		return true
 	}
-	for _, secretCtx := range r.origin[handle] {
-		if secretMatchesAllowlist(secretCtx) {
-			return true
-		}
-	}
-	// the handle does not appear for a setting that is in the allowlist
-	return false
+	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
@@ -451,9 +446,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
 	// add results to the cache
-	for handle, secretValue := range secretResponse {
-		r.cache[handle] = secretValue
-	}
+	stdmaps.Copy(r.cache, secretResponse)
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
 		return handleInfoList[i].Name < handleInfoList[j].Name

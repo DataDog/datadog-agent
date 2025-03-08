@@ -8,6 +8,7 @@ package tags
 
 import (
 	"fmt"
+	"maps"
 	"math/bits"
 
 	"go.uber.org/atomic"
@@ -131,9 +132,7 @@ func (tc *Store) Shrink() {
 	if len(tc.tagsByKey) < tc.cap/2 {
 		//nolint:revive // TODO(AML) Fix revive linter
 		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
-		for k, v := range tc.tagsByKey {
-			new[k] = v
-		}
+		maps.Copy(new, tc.tagsByKey)
 		tc.cap = len(new)
 		tc.tagsByKey = new
 	}

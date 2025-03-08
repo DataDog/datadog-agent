@@ -247,10 +247,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 func serviceNameInjected(envs envs.Variables) bool {
 	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		values := strings.Split(env, ",")
-		for _, v := range values {
-			if v == "service_name" {
-				return true
-			}
+		if slices.Contains(values, "service_name") {
+			return true
 		}
 	}
 	return false

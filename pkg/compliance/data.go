@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -386,12 +387,7 @@ func (r *Rule) IsXCCDF() bool {
 
 // HasScope tests if the rule has the given scope.
 func (r *Rule) HasScope(scope RuleScope) bool {
-	for _, s := range r.Scopes {
-		if s == scope {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Scopes, scope)
 }
 
 // Valid is a validation check required for InputSpec to be executed.

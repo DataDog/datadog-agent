@@ -9,6 +9,7 @@ package autoscalers
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"sort"
@@ -16,9 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
+	"golang.org/x/sync/errgroup"
 
 	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
@@ -212,9 +212,7 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 					responses[q] = Point{Error: err}
 				}
 			} else {
-				for k, v := range resp {
-					responses[k] = v
-				}
+				maps.Copy(responses, resp)
 			}
 			return nil
 		})

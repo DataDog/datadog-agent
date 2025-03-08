@@ -177,11 +177,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		// - one per aggregation pipeline (time sampler)
 		// - the rest for workers
 		// But we want at minimum 2 workers.
-		dsdWorkerCount = vCPUs - 1 - pipelineCount
-
-		if dsdWorkerCount < 2 {
-			dsdWorkerCount = 2
-		}
+		dsdWorkerCount = max(vCPUs-1-pipelineCount, 2)
 	} else if autoAdjustStrategy == AutoAdjustStrategyMaxThroughput {
 		// we will auto-adjust the pipeline and workers count to maximize throughput
 		//
@@ -197,10 +193,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		//  - half the amount of vCPUS - 1 for the amount of pipeline routines
 		//  - this last routine for the listener routine
 
-		dsdWorkerCount = vCPUs / 2
-		if dsdWorkerCount < 2 { // minimum 2 workers
-			dsdWorkerCount = 2
-		}
+		dsdWorkerCount = max(vCPUs/2, 2)
 
 		pipelineCount = dsdWorkerCount - 1
 		if pipelineCount <= 0 { // minimum 1 pipeline
@@ -219,10 +212,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 		// This also has the benefit of increasing compression efficiency by having
 		// similarly tagged metrics flushed together.
 
-		dsdWorkerCount = vCPUs / 2
-		if dsdWorkerCount < 2 {
-			dsdWorkerCount = 2
-		}
+		dsdWorkerCount = max(vCPUs/2, 2)
 
 		pipelineCount = pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes

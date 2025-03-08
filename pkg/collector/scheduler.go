@@ -9,11 +9,13 @@ package collector
 import (
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -26,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -145,11 +145,9 @@ func (s *CheckScheduler) Stop() {}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
-	for _, l := range s.loaders {
-		if l == loader {
-			log.Warnf("Loader %s was already added, skipping...", loader)
-			return
-		}
+	if slices.Contains(s.loaders, loader) {
+		log.Warnf("Loader %s was already added, skipping...", loader)
+		return
 	}
 	s.loaders = append(s.loaders, loader)
 }

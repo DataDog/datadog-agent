@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -269,8 +270,6 @@ func (i *inventoryotel) Get() otelMetadata {
 	defer i.m.Unlock()
 
 	data := otelMetadata{}
-	for k, v := range i.data {
-		data[k] = v
-	}
+	maps.Copy(data, i.data)
 	return data
 }

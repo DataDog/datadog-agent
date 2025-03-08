@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -251,9 +252,7 @@ func mergeConfig(base interface{}, override interface{}) (interface{}, error) {
 
 func mergeMap(base, override map[string]interface{}) (map[string]interface{}, error) {
 	merged := make(map[string]interface{})
-	for k, v := range base {
-		merged[k] = v
-	}
+	maps.Copy(merged, base)
 	for k := range override {
 		v, err := mergeConfig(base[k], override[k])
 		if err != nil {
