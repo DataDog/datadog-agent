@@ -22,22 +22,22 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// StatusProvider implements the status provider interface
-type StatusProvider struct {
+// Provider implements the status provider interface
+type Provider struct {
 	Config config.Component
 }
 
 // Name returns the name
-func (p StatusProvider) Name() string {
+func (p Provider) Name() string {
 	return "Hostname"
 }
 
 // Index returns the index
-func (p StatusProvider) Index() int {
+func (p Provider) Index() int {
 	return 1
 }
 
-func (p StatusProvider) getStatusInfo() map[string]interface{} {
+func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	p.populateStatus(stats)
@@ -45,7 +45,7 @@ func (p StatusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
-func (p StatusProvider) populateStatus(stats map[string]interface{}) {
+func (p Provider) populateStatus(stats map[string]interface{}) {
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
@@ -71,18 +71,18 @@ func (p StatusProvider) populateStatus(stats map[string]interface{}) {
 }
 
 // JSON populates the status map
-func (p StatusProvider) JSON(_ bool, stats map[string]interface{}) error {
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	p.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (p StatusProvider) Text(_ bool, buffer io.Writer) error {
+func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return status.RenderText(templatesFS, "host.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
-func (p StatusProvider) HTML(_ bool, buffer io.Writer) error {
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "hostHTML.tmpl", buffer, p.getStatusInfo())
 }

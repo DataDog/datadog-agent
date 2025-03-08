@@ -51,7 +51,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	hostStatus "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/status"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -166,7 +166,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					},
 				),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+					return status.NewHeaderInformationProvider(hostStatus.Provider{
 						Config: config,
 					})
 				}),
