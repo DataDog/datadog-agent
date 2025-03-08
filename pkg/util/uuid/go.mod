@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/shirou/gopsutil/v4 v4.25.2
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.31.0
 )
 
 require (
@@ -18,8 +18,8 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/tklauser/go-sysconf v0.3.14 // indirect
-	github.com/tklauser/numcpus v0.9.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.15 // indirect
+	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

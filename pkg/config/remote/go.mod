@@ -82,8 +82,8 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.2 // indirect
-	github.com/tklauser/go-sysconf v0.3.14 // indirect
-	github.com/tklauser/numcpus v0.9.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.15 // indirect
+	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/collector/component v1.27.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.27.0 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99 // indirect

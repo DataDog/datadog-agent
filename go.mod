@@ -190,7 +190,7 @@ require (
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/net v0.35.0
 	golang.org/x/sync v0.11.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.31.0
 	golang.org/x/text v0.22.0
 	golang.org/x/time v0.10.0
 	golang.org/x/tools v0.30.0
@@ -367,8 +367,8 @@ require (
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.14
-	github.com/tklauser/numcpus v0.9.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.15
+	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/twmb/franz-go v1.17.0
