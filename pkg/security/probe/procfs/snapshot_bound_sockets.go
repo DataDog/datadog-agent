@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
@@ -65,14 +66,22 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 	if err != nil {
 		seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
-	// looking for AF_INET6 sockets
-	TCP6, err := parseNetIP(p.Pid, "net/tcp6")
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
-	}
-	UDP6, err := parseNetIP(p.Pid, "net/udp6")
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+
+	var (
+		TCP6 []netIPEntry
+		UDP6 []netIPEntry
+	)
+
+	if ipv6exists() {
+		// looking for AF_INET6 sockets
+		TCP6, err = parseNetIP(p.Pid, "net/tcp6")
+		if err != nil {
+			seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
+		}
+		UDP6, err = parseNetIP(p.Pid, "net/udp6")
+		if err != nil {
+			seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+		}
 	}
 
 	// searching for socket inode
@@ -106,6 +115,21 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 
 	return boundSockets, nil
 }
+
+var ipv6exists = sync.OnceValue(func() bool {
+	// the existence of this path is gated on the kernel module being loaded
+	// we can expect that if this path exists for the current process,
+	// then it will exist for all other processes
+	const ipv6Path = "/proc/self/net/tcp6"
+	_, err := os.Stat("/proc/self/net/tcp6")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			seclog.Warnf("error while checking for %s: %s", ipv6Path, err)
+		}
+		return false
+	}
+	return true
+})
 
 type netIPEntry struct {
 	ip    net.IP
