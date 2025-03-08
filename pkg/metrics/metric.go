@@ -5,7 +5,11 @@
 
 package metrics
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+)
 
 // APIMetricType represents an API metric type
 type APIMetricType int
@@ -58,7 +62,7 @@ func (a *APIMetricType) UnmarshalText(buf []byte) error {
 // Metric is the interface of all metric types
 type Metric interface {
 	addSample(sample *MetricSample, timestamp float64)
-	flush(timestamp float64) ([]*Serie, error)
+	flush(timestamp float64) ([]SerieData, error)
 	// isStateful() indicates that metric preserves information between flushes, which is
 	// required for correct operation (e.g. monotonic count keeps previous value).
 	isStateful() bool
@@ -70,4 +74,11 @@ type NoSerieError struct{}
 
 func (e NoSerieError) Error() string {
 	return "Not enough samples to generate points"
+}
+
+type SerieData struct {
+	ContextKey ckey.ContextKey
+	Point      Point
+	MType      APIMetricType
+	NameSuffix string
 }

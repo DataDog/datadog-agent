@@ -64,12 +64,11 @@ func TestFlushAndClear(t *testing.T) {
 	requireSerie(require, seriesCollection[3], 400, 7)
 }
 
-func requireSerie(require *require.Assertions, series []*Serie, contextKey ckey.ContextKey, expectedValues ...float64) {
+func requireSerie(require *require.Assertions, series []SerieData, contextKey ckey.ContextKey, expectedValues ...float64) {
 	require.Len(series, len(expectedValues))
 	for i, serie := range series {
 		require.Equal(contextKey, serie.ContextKey)
-		require.Len(serie.Points, 1)
-		require.Equal(expectedValues[i], serie.Points[0].Value)
+		require.Equal(expectedValues[i], serie.Point.Value)
 	}
 }
 
@@ -81,11 +80,11 @@ func addMetricSample(contextMetrics ContextMetrics, contextKey int, value float6
 	contextMetrics.AddSample(ckey.ContextKey(contextKey), &mSample, 1, 10, nil, c)
 }
 
-func flushAndClear(require *require.Assertions, flusher *ContextMetricsFlusher) [][]*Serie {
-	var seriesCollection [][]*Serie
-	flusher.FlushAndClear(func(s []*Serie) {
+func flushAndClear(require *require.Assertions, flusher *ContextMetricsFlusher) [][]SerieData {
+	var seriesCollection [][]SerieData
+	flusher.FlushAndClear(func(s []SerieData) {
 		// Clone `s` as it is reused at each call
-		series := make([]*Serie, len(s))
+		series := make([]SerieData, len(s))
 		copy(series, s)
 		seriesCollection = append(seriesCollection, series)
 	})
