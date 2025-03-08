@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -65,14 +66,22 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 	if err != nil {
 		seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
-	// looking for AF_INET6 sockets
-	TCP6, err := parseNetIP(p.Pid, "net/tcp6")
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
-	}
-	UDP6, err := parseNetIP(p.Pid, "net/udp6")
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+
+	var (
+		TCP6 []netIPEntry
+		UDP6 []netIPEntry
+	)
+
+	if nettest.SupportsIPv6() {
+		// looking for AF_INET6 sockets
+		TCP6, err = parseNetIP(p.Pid, "net/tcp6")
+		if err != nil {
+			seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
+		}
+		UDP6, err = parseNetIP(p.Pid, "net/udp6")
+		if err != nil {
+			seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+		}
 	}
 
 	// searching for socket inode
