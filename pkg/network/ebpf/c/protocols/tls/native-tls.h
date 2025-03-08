@@ -559,6 +559,10 @@ static __always_inline void delete_pid_in_maps() {
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    void **ssl_ctx_map_val = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    if (ssl_ctx_map_val != NULL) {
+        bpf_map_delete_elem(&ssl_sock_by_ctx, ssl_ctx_map_val);
+    }
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
 }
