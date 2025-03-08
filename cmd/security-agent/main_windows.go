@@ -43,7 +43,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	hostStatus "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/status"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -157,7 +157,7 @@ func (s *service) Run(svcctx context.Context) error {
 			},
 		),
 		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-			return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+			return status.NewHeaderInformationProvider(hostStatus.Provider{
 				Config: config,
 			})
 		}),
