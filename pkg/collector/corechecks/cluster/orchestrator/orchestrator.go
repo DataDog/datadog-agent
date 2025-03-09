@@ -171,12 +171,14 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)
 
-	// Initialize collectors.
-	return o.collectorBundle.Initialize()
+	return nil
 }
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	// Initialize collectors
+	o.collectorBundle.Initialize()
+
 	// access serializer
 	sender, err := o.GetSender()
 	if err != nil {

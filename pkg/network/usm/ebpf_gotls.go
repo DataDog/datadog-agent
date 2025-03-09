@@ -175,11 +175,13 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		if !usmconfig.TLSSupported(c) {
-			return nil, errors.New("goTLS not supported by this platform")
+			log.Warn("goTLS not supported by this platform")
+			return nil, nil
 		}
 
 		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			log.Warn("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			return nil, nil
 		}
 
 		return &goTLSProgram{
