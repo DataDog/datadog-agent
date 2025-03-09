@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,19 +39,22 @@ type ciliumLBConntrackerTestSuite struct {
 }
 
 func TestCiliumLBConntracker(t *testing.T) {
-	versionsToTest := []string{"1.16.7", "1.17.1"}
+	versionsToTest := []string{"1.15.14", "1.16.7", "1.17.1"}
 	for _, v := range versionsToTest {
-		t.Run(fmt.Sprintf("version %s", v), func(_ *testing.T) {
+		v := v
+		t.Run(fmt.Sprintf("version %s", v), func(_t *testing.T) {
+			_t.Parallel()
+
 			testCiliumLBConntracker(t, v)
 		})
 	}
-
 }
 
 func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 	t.Helper()
 
 	suite := &ciliumLBConntrackerTestSuite{}
+
 	httpBinServiceInstall := func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 		var err error
 		suite.httpBinService, err = istio.NewHttpbinServiceInstallation(e, pulumi.Provider(kubeProvider))
@@ -75,10 +79,12 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 		},
 	}
 
+	name := strings.ReplaceAll(fmt.Sprintf("cilium-lb-%s", ciliumVersion), ".", "-")
 	e2e.Run(t, suite,
-		e2e.WithStackName(fmt.Sprintf("cilium-lb-%s", ciliumVersion)),
+		e2e.WithStackName(fmt.Sprintf("stack-%s", name)),
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
+				awskubernetes.WithName(name),
 				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
 				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigWithCiliumLB)),
 				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
