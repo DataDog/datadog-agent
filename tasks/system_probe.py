@@ -82,8 +82,8 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION_RUNTIME = "12.0.1"
-CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+CLANG_VERSION_RUNTIME = "18.1.3"
+CLANG_VERSION_SYSTEM_PREFIX = "18.1"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
