@@ -17,12 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
+	"github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/spf13/cobra"
 )
 
 var agents = map[string]func() *cobra.Command{}
 
 func registerAgent(names []string, getCommand func() *cobra.Command) {
+	if fipsEnabled, err := fips.Enabled(); fipsEnabled && err == nil {
+		flavor.SetFlavor(flavor.FipsAgent)
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to determine FIPS mode: %s\n", err)
+	}
 	for _, name := range names {
 		agents[name] = getCommand
 	}
