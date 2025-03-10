@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -50,7 +49,6 @@ type apiServer struct {
 	authToken           authtoken.Component
 	taggerComp          tagger.Component
 	autoConfig          autodiscovery.Component
-	logsAgentComp       option.Option[logsAgent.Component]
 	wmeta               workloadmeta.Component
 	collector           option.Option[collector.Component]
 	senderManager       diagnosesendermanager.Component
@@ -75,7 +73,6 @@ type dependencies struct {
 	Tagger                tagger.Component
 	Cfg                   config.Component
 	AutoConfig            autodiscovery.Component
-	LogsAgentComp         option.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
 	Collector             option.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
@@ -99,7 +96,6 @@ func newAPIServer(deps dependencies) api.Component {
 		taggerComp:          deps.Tagger,
 		cfg:                 deps.Cfg,
 		autoConfig:          deps.AutoConfig,
-		logsAgentComp:       deps.LogsAgentComp,
 		wmeta:               deps.WorkloadMeta,
 		collector:           deps.Collector,
 		senderManager:       deps.DiagnoseSenderManager,
