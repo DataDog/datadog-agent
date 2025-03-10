@@ -23,17 +23,19 @@ import (
 
 func statusCommand() *cobra.Command {
 	var debug bool
+	var jsonOutput bool
 
 	statusCmd := &cobra.Command{
 		Use:     "status",
 		Short:   "Print the installer status",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return status(debug)
+			return status(debug, jsonOutput)
 		},
 	}
 
 	statusCmd.Flags().BoolVar(&debug, "debug", false, "Enable debug mode")
+	statusCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
 	return statusCmd
 }
 
@@ -65,7 +67,7 @@ type apmInjectionStatus struct {
 	DockerInstrumented bool `json:"docker_instrumented"`
 }
 
-func status(debug bool) error {
+func status(debug bool, jsonOutput bool) error {
 	tmpl, err := template.New("status").Funcs(functions).Parse(string(statusTmpl))
 	if err != nil {
 		return fmt.Errorf("error parsing status template: %w", err)
@@ -97,9 +99,17 @@ func status(debug bool) error {
 		status.RemoteConfigState = remoteConfigStatus.PackageStates
 	}
 
-	err = tmpl.Execute(os.Stdout, status)
-	if err != nil {
-		return fmt.Errorf("error executing status template: %w", err)
+	if !jsonOutput {
+		err = tmpl.Execute(os.Stdout, status)
+		if err != nil {
+			return fmt.Errorf("error executing status template: %w", err)
+		}
+	} else {
+		rawResult, err := json.Marshal(status)
+		if err != nil {
+			return fmt.Errorf("error marshalling status response: %w", err)
+		}
+		fmt.Println(string(rawResult))
 	}
 	return nil
 }
