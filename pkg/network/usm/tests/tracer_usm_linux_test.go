@@ -2621,6 +2621,12 @@ var (
 	httpURL = "http://" + httpServerAddr + "/200/request-0"
 )
 
+func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion kernel.Version) {
+	if kv < minimalKernelVersion {
+		t.Skipf("skipping test, kernel version %s is not supported", kv)
+	}
+}
+
 func testHTTPSketches(t *testing.T, tr *tracer.Tracer) {
 	srvDoneFn := testutil.HTTPServer(t, httpServerAddr, testutil.Options{
 		EnableKeepAlive: true,
@@ -2638,6 +2644,7 @@ func testHTTPSketches(t *testing.T, tr *tracer.Tracer) {
 }
 
 func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, usmhttp2.MinimumKernelVersion)
 	srvDoneFn := usmhttp2.StartH2CServer(t, httpServerAddr, false)
 	t.Cleanup(srvDoneFn)
 
@@ -2793,6 +2800,8 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
+	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
+
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
