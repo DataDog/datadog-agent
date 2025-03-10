@@ -94,6 +94,10 @@ func TestFIMPermError(t *testing.T) {
 			ID:         "test_perm_chmod_rule",
 			Expression: `chmod.file.path == "{{.Root}}/test-file" && chmod.retval == -1`,
 		},
+		{
+			ID:         "test_perm_chown_rule",
+			Expression: `chown.file.path == "{{.Root}}/test-file" && chown.retval == -1`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -180,6 +184,23 @@ func TestFIMPermError(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_chmod_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Chmod.Retval)
+		})
+	})
+
+	test.Run(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"chown", testFile, "0", "0",
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_chown_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Chown.Retval)
 		})
 	})
 }
