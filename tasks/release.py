@@ -41,10 +41,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
-UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-ruby", "datadog-agent-macos-build"]
 RELEASE_JSON_FIELDS_TO_UPDATE = [
     "INTEGRATIONS_CORE_VERSION",
-    "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
 ]
@@ -655,7 +654,6 @@ def _update_release_json_entry(
     release_json,
     release_entry,
     integrations_version,
-    omnibus_software_version,
     omnibus_ruby_version,
     jmxfetch_version,
     jmxfetch_shasum,
@@ -678,7 +676,6 @@ def _update_release_json_entry(
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
-    new_version_config["OMNIBUS_SOFTWARE_VERSION"] = omnibus_software_version
     new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
     new_version_config["JMXFETCH_HASH"] = jmxfetch_shasum
@@ -738,15 +735,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         check_for_rc,
     )
 
-    omnibus_software_version = _fetch_dependency_repo_version(
-        "omnibus-software",
-        new_version,
-        max_version,
-        allowed_major_versions,
-        compatible_version_re,
-        check_for_rc,
-    )
-
     omnibus_ruby_version = _fetch_dependency_repo_version(
         "omnibus-ruby",
         new_version,
@@ -792,7 +780,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         release_json,
         release_entry,
         integrations_version,
-        omnibus_software_version,
         omnibus_ruby_version,
         jmxfetch_version,
         jmxfetch_shasum,
@@ -1499,7 +1486,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     """
     Performs set of tasks required for the main branch unfreeze during the agent release cycle.
     That includes:
-    - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+    - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
     - updates entries in .gitlab-ci.yml which depend on local branch name
 
@@ -1577,10 +1564,8 @@ def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
     if base_branch == '6.53.x':
         omnibus_ruby_branch = '6.53.x'
-        omnibus_software_branch = '6.53.x'
     else:
         omnibus_ruby_branch = base_branch
-        omnibus_software_branch = base_branch
 
     def _check_commit_in_repo(repo_name, branch, release_json_field):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1599,7 +1584,6 @@ def check_omnibus_branches(ctx):
                     print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
 
     _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
-    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
 
     return True
 

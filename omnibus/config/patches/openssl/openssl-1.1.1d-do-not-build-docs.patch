@@ -1,0 +1,11 @@
+--- openssl-1.1.1d/Makefile	2020-01-17 13:39:02.252815253 -0700
++++ openssl-1.1.1d/Makefile	2020-01-17 13:39:18.224704427 -0700
+@@ -223,7 +223,7 @@
+ 	 $(PERL) $(SRCDIR)/test/run_tests.pl list
+ 	@ : 
+ 
+-install: install_sw install_ssldirs install_docs
++install: install_sw install_ssldirs
+ 
+ uninstall: uninstall_docs uninstall_sw
+ 
