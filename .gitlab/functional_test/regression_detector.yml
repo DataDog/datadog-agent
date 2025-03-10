@@ -8,6 +8,16 @@ single-machine-performance-regression_detector-agent:
     IMG_PREFIX: "-7-amd64"
     TARGET_CONFIG_DIR: "test/regression"
 
+single-machine-performance-regression_detector-otel-agent:
+  extends: .single-machine-performance-regression_detector
+  timeout: 1h10m  
+  needs:
+    - job: single_machine_performance-otel-agent-amd64-a7
+      artifacts: false     
+  variables:
+    IMG_PREFIX: "-7-ot-amd64"
+    TARGET_CONFIG_DIR: "test/regression-otel-agent"
+
 .single-machine-performance-regression_detector:
   stage: functional_test
   rules:
@@ -261,7 +271,13 @@ single-machine-performance-regression_detector-pr-comment-agent:
   variables:
     HEADER: "Regression Detector"
   
-
+single-machine-performance-regression_detector-pr-comment-otel-agent:
+  extends: .single-machine-performance-regression_detector-pr-comment
+  needs:
+    - job: single-machine-performance-regression_detector-otel-agent
+  variables:
+    HEADER: "Regression Detector OTEL Agent"
+ 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
 .single-machine-performance-regression_detector-pr-comment:
