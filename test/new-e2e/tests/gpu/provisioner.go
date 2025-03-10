@@ -8,6 +8,7 @@ package gpu
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -263,6 +264,20 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return err
 		}
 
+		// Pull all the docker images required for the tests
+		// Note: we don't pre-pull images from the internal registry as it's not
+		// available in the kind nodes
+		imagesForKindNodes := []string{}
+		for _, image := range params.dockerImages {
+			if !strings.Contains(image, "dkr.ecr") {
+				imagesForKindNodes = append(imagesForKindNodes, image)
+			}
+		}
+		dockerPullCmds, err := downloadContainerdImagesInKindNodes(&awsEnv, host, kindCluster, imagesForKindNodes, kindCluster.GPUOperator)
+		if err != nil {
+			return err
+		}
+
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(helmValuesTemplate, kindClusterName)
 
@@ -272,7 +287,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			kubernetesagentparams.WithHelmValues(helmValues),
 			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
-			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(kindCluster.GPUOperator)),
+			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerPullCmds...)),
 		)
 
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.kubernetesAgentOptions...)
@@ -344,4 +359,25 @@ func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn
 		},
 		utils.PulumiDependsOn(dependsOn...),
 	)
+}
+
+func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremote.Host, kindCluster *nvidia.KindCluster, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+	var cmds []pulumi.Resource
+
+	for i, image := range images {
+		cmd, err := vm.OS.Runner().Command(
+			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("%d-%d", i)),
+			&command.Args{
+				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} crictl pull %s", kindCluster.ClusterName, image),
+			},
+			utils.PulumiDependsOn(dependsOn...),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds, nil
 }

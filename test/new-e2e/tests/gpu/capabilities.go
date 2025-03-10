@@ -29,7 +29,7 @@ import (
 const agentNamespace = "datadog"
 const podSelectorField = "app"
 const jobQueryInterval = 250 * time.Millisecond
-const jobQueryTimeout = 15 * time.Second // Might take some time to pull the image
+const jobQueryTimeout = 30 * time.Second // Might take some time to pull the image
 
 // suiteCapabilities is an interface that exposes the capabilities of the test suite,
 // generalizing between different environments
