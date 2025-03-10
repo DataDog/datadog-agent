@@ -109,23 +109,10 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	packages := resolvePackages(s.Packages)
+	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
-	installerVersion := "latest"
-	if s.Env.DefaultPackagesVersionOverride["datadog-installer"] != "" {
-		installerVersion = s.Env.DefaultPackagesVersionOverride["datadog-installer"]
-	}
-	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", installerVersion))
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
-	}
-	// HACK: even if the setup and installer are currently merged we can't self install since we
-	// don't have the full OCI and only the installer CLI.
-	// To solve this issue we assume our parent OCI is available with our version as tag.
-	url := oci.PackageURL(s.Env, "datadog-installer", installerVersion)
-	err = s.installPackage("datadog-installer", url)
-	if err != nil {
-		return fmt.Errorf("failed to install installer: %w", err)
 	}
 	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
 	if err != nil {

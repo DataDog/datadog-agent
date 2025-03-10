@@ -14,12 +14,16 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
@@ -737,7 +741,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -745,8 +749,30 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
+func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
+
+	for _, layer := range packet.Layers() {
+		switch layer := layer.(type) {
+		case *layers.DNS:
+			for _, answer := range layer.Answers {
+				if answer.Type == layers.DNSTypeCNAME {
+					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+				} else {
+					ip, ok := netip.AddrFromSlice(answer.IP)
+					if ok {
+						p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
+					} else {
+						seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+					}
+				}
+			}
+		}
+	}
+}
+
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
+	return eventType == model.DNSResponseEventType || eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -804,6 +830,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	// do the same with cgroup context
 	event.CGroupContext = &event.ProcessCacheEntry.CGroup
+	event.ContainerContext.ContainerID = event.ProcessContext.ContainerID
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -831,17 +858,16 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+func (p *EBPFProbe) resolveCGroupAndContainer(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, containerutils.ContainerID, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
+		return nil, "", fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
-	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
-	if !updated {
-		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
+	pce := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if pce == nil {
+		return nil, "", fmt.Errorf("failed to update cgroup for pid %d", pid)
 	}
-
-	return cgroupContext, nil
+	return cgroupContext, pce.ContainerID, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -927,25 +953,21 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
+		if cgroupContext, containerID, err := p.resolveCGroupAndContainer(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			if cgroupContext.CGroupFlags.IsContainer() {
-				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-				event.CgroupTracing.ContainerContext.ContainerID = containerID
-			}
-
 			event.CGroupContext = cgroupContext
+			event.CgroupTracing.ContainerContext.ContainerID = containerID
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode cgroup write event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+		if _, _, err := p.resolveCGroupAndContainer(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return
@@ -957,6 +979,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
 		}
+		return
+	case model.DNSResponseEventType:
+		p.unmarshalDNSResponse(data[offset:])
 		return
 	}
 
@@ -996,12 +1021,23 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
+	default:
+		if !event.CGroupContext.CGroupFile.IsNull() {
+			cgroupContext, _, err := p.resolveCGroupAndContainer(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
+			if err != nil {
+				seclog.Debugf("failed to resolve cgroup context for event %s: %s", eventType, err)
+			} else {
+				event.CGroupContext.Merge(cgroupContext)
+			}
+		}
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
+
+	// resolve the container context
+	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	switch eventType {
 
@@ -1292,6 +1328,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			return
 		}
+
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
@@ -1322,6 +1359,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		if p.config.Probe.DNSResolutionEnabled {
+			ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
+			if ok {
+				event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
+			}
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1331,6 +1374,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+		if p.config.Probe.DNSResolutionEnabled {
+			ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
+			if ok {
+				event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
+			}
 		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
@@ -1354,9 +1403,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	}
-
-	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {

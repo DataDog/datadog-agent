@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.26.0-1"
-	databricksJavaTracerVersion = "1.45.2-1"
-	databricksAgentVersion      = "7.62.2-1"
+	databricksInjectorVersion   = "0.34.0-1"
+	databricksJavaTracerVersion = "1.46.1-1"
+	databricksAgentVersion      = "7.63.3-1"
 )
 
 var (
@@ -79,6 +79,7 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
+	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
@@ -176,7 +177,7 @@ func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	s.Span.SetTag("spark_node", "driver")
 
-	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "spark_node:driver")
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
@@ -201,7 +202,7 @@ func setupDatabricksDriver(s *common.Setup) {
 func setupDatabricksWorker(s *common.Setup) {
 	s.Span.SetTag("spark_node", "worker")
 
-	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:worker")
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "spark_node:worker")
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
