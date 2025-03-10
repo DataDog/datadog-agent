@@ -8,7 +8,7 @@ on:
 jobs:
   auto_assign_issue:
     runs-on: ubuntu-latest
-    container: 
+    container:
       image: ghcr.io/datadog/agent-issue-auto-assign:latest
       credentials:
         username: ${{ github.actor }}
@@ -22,10 +22,12 @@ jobs:
     - name: Install dependencies
       # Dependencies are installed at runtime. Otherwise it would create a huge image see https://hub.docker.com/r/pytorch/pytorch/tags
       run: |
-        pip install --upgrade pip && pip install --no-compile --no-cache-dir torch transformers invoke codeowners slack-sdk PyGithub python-gitlab semver
+        pip install --upgrade pip
+        pip install --no-compile --no-cache-dir torch transformers "dda==$(cat .dda/version)"
+        dda self dep sync -f legacy-tasks
     - name: Assign issue
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
       run: |
-        inv -e issue.assign-owner -i ${{ github.event.issue.number }}
+        dda inv -e issue.assign-owner -i ${{ github.event.issue.number }}

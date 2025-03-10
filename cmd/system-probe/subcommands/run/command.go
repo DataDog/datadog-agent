@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -118,6 +120,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
+				createandfetchimpl.Module(),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
@@ -159,7 +162,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd ddgostatsd.ClientInterface, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, compression logscompression.Component) error {
+func run(log log.Component, _ config.Component, statsd ddgostatsd.ClientInterface, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, compression logscompression.Component, _ authtoken.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -292,6 +295,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
+		createandfetchimpl.Module(),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },

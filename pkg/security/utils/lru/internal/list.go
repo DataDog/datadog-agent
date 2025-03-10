@@ -4,8 +4,6 @@
 
 package internal
 
-import "time"
-
 // Entry is an LRU Entry
 type Entry[K comparable, V any] struct {
 	// Next and previous pointers in the doubly-linked list of elements.
@@ -23,12 +21,6 @@ type Entry[K comparable, V any] struct {
 
 	// The Value stored with this element.
 	Value V
-
-	// The time this element would be cleaned up, optional
-	ExpiresAt time.Time
-
-	// The expiry bucket item was put in, optional
-	ExpireBucket uint8
 }
 
 // PrevEntry returns the previous list element or nil.
@@ -88,8 +80,8 @@ func (l *LruList[K, V]) insert(e, at *Entry[K, V]) *Entry[K, V] {
 }
 
 // insertValue is a convenience wrapper for insert(&Entry{Value: v, ExpiresAt: ExpiresAt}, at).
-func (l *LruList[K, V]) insertValue(k K, v V, expiresAt time.Time, at *Entry[K, V]) *Entry[K, V] {
-	return l.insert(&Entry[K, V]{Value: v, Key: k, ExpiresAt: expiresAt}, at)
+func (l *LruList[K, V]) insertValue(k K, v V, at *Entry[K, V]) *Entry[K, V] {
+	return l.insert(&Entry[K, V]{Value: v, Key: k}, at)
 }
 
 // Remove removes e from its list, decrements l.len
@@ -121,13 +113,7 @@ func (l *LruList[K, V]) move(e, at *Entry[K, V]) {
 // PushFront inserts a new element e with value v at the front of list l and returns e.
 func (l *LruList[K, V]) PushFront(k K, v V) *Entry[K, V] {
 	l.lazyInit()
-	return l.insertValue(k, v, time.Time{}, &l.root)
-}
-
-// PushFrontExpirable inserts a new expirable element e with Value v at the front of list l and returns e.
-func (l *LruList[K, V]) PushFrontExpirable(k K, v V, expiresAt time.Time) *Entry[K, V] {
-	l.lazyInit()
-	return l.insertValue(k, v, expiresAt, &l.root)
+	return l.insertValue(k, v, &l.root)
 }
 
 // MoveToFront moves element e to the front of list l.
