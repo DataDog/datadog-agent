@@ -65,12 +65,14 @@
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
+    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $CI_PROJECT_DIR/.tmp/llvm-strip
   timeout: 2h 00m
   artifacts:
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/.tmp/clang
       - $CI_PROJECT_DIR/.tmp/llc
+      - $CI_PROJECT_DIR/.tmp/llvm-strip
 
 build_clang_x64:
   extends: .build_clang_common
