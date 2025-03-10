@@ -55,6 +55,7 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 		envVars[k] = v
 	}
 	envVars["DD_INSTALLER_URL"] = params.installerURL
+	envVars["DD_REMOTE_UPDATES"] = "true"
 
 	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;

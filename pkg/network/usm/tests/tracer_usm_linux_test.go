@@ -698,9 +698,12 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
+	cfg.EnableNodeJSMonitoring = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)

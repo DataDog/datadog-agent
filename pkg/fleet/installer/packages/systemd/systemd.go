@@ -58,6 +58,10 @@ func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
 		return err
 	}
 	span.SetTag("exit_code", exitErr.ExitCode())
+	// exit code 143 means the process was killed by a signal, most likely because we self stopped
+	if exitErr.ExitCode() == 143 {
+		return nil
+	}
 	return errors.New(string(exitErr.Stderr))
 }
 

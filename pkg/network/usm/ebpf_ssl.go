@@ -628,7 +628,7 @@ var (
 )
 
 func isContainerdTmpMount(path string) bool {
-	return strings.Contains(path, "tmpmounts/containerd-mount")
+	return strings.Contains(path, "tmpmounts/containerd-mount") || strings.Contains(path, "/tmp/ctd-volume")
 }
 
 func isBuildKit(procRoot string, pid uint32) bool {

@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	registerAgent([]string{"datadog-installer"}, func() *cobra.Command {
+	registerAgent([]string{"datadog-installer", "installer"}, func() *cobra.Command {
 		return command.MakeCommand(subcommands.InstallerSubcommands())
 	})
 }

@@ -162,7 +162,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
-	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
 
@@ -195,7 +195,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
-	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, metrics.UsedCores, 0.0) // average core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
 
@@ -220,6 +220,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pidStats := getMetricsEntry(key, stats)
 	require.NotNil(t, pidStats)
 
-	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }

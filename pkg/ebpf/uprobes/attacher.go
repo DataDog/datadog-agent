@@ -709,7 +709,7 @@ func isBuildKit(procInfo *ProcInfo) bool {
 }
 
 func isContainerdTmpMount(path string) bool {
-	return strings.Contains(path, "tmpmounts/containerd-mount")
+	return strings.Contains(path, "tmpmounts/containerd-mount") || strings.Contains(path, "/tmp/ctd-volume")
 }
 
 // getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64

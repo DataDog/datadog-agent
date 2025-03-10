@@ -60,6 +60,12 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	if resultChan == nil {
 		return fmt.Errorf("error retrieving global docker scanner channel")
 	}
+
+	containerImageFilter, err := collectors.NewSBOMContainerFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create container filter: %w", err)
+	}
+
 	go func() {
 		for {
 			select {
@@ -75,6 +81,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
+
+					if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+						continue
+					}
 
 					if image.SBOM.Status != workloadmeta.Pending {
 						// BOM already stored. Can happen when the same image ID

@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
@@ -85,7 +84,6 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
 			return mock
 		}),
-		fx.Supply(option.None[logsAgent.Component]()),
 		fx.Supply(option.None[collector.Component]()),
 		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints

@@ -108,6 +108,9 @@ build do
               move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
+            # Create the installer symlink
+            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"

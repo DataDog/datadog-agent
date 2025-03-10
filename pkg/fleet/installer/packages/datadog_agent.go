@@ -23,23 +23,26 @@ import (
 )
 
 const (
-	agentPackage      = "datadog-agent"
-	agentSymlink      = "/usr/bin/datadog-agent"
-	agentUnit         = "datadog-agent.service"
-	traceAgentUnit    = "datadog-agent-trace.service"
-	processAgentUnit  = "datadog-agent-process.service"
-	systemProbeUnit   = "datadog-agent-sysprobe.service"
-	securityAgentUnit = "datadog-agent-security.service"
-	agentExp          = "datadog-agent-exp.service"
-	traceAgentExp     = "datadog-agent-trace-exp.service"
-	processAgentExp   = "datadog-agent-process-exp.service"
-	systemProbeExp    = "datadog-agent-sysprobe-exp.service"
-	securityAgentExp  = "datadog-agent-security-exp.service"
+	agentPackage       = "datadog-agent"
+	agentSymlink       = "/usr/bin/datadog-agent"
+	agentUnit          = "datadog-agent.service"
+	installerAgentUnit = "datadog-agent-installer.service"
+	traceAgentUnit     = "datadog-agent-trace.service"
+	processAgentUnit   = "datadog-agent-process.service"
+	systemProbeUnit    = "datadog-agent-sysprobe.service"
+	securityAgentUnit  = "datadog-agent-security.service"
+	agentExp           = "datadog-agent-exp.service"
+	installerAgentExp  = "datadog-agent-installer-exp.service"
+	traceAgentExp      = "datadog-agent-trace-exp.service"
+	processAgentExp    = "datadog-agent-process-exp.service"
+	systemProbeExp     = "datadog-agent-sysprobe-exp.service"
+	securityAgentExp   = "datadog-agent-security-exp.service"
 )
 
 var (
 	stableUnits = []string{
 		agentUnit,
+		installerAgentUnit,
 		traceAgentUnit,
 		processAgentUnit,
 		systemProbeUnit,
@@ -47,6 +50,7 @@ var (
 	}
 	experimentalUnits = []string{
 		agentExp,
+		installerAgentExp,
 		traceAgentExp,
 		processAgentExp,
 		systemProbeExp,
@@ -213,15 +217,21 @@ func StartAgentExperiment(ctx context.Context) error {
 	if err := agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return systemd.StartUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
-	return systemd.StartUnit(ctx, agentUnit)
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
+	return systemd.StartUnit(ctx, agentUnit, "--no-block")
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return StopAgentExperiment(ctx)
 }

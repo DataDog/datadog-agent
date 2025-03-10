@@ -69,11 +69,6 @@ func (d *DockerUtil) init() error {
 		CacheDuration:  10 * time.Second,
 	}
 
-	cfg.filter, err = containers.GetSharedMetricFilter()
-	if err != nil {
-		return err
-	}
-
 	d.cfg = cfg
 	d.cli = cli
 	d.imageNameBySha = make(map[string]string)

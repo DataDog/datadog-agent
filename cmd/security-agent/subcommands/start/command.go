@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -130,7 +129,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}

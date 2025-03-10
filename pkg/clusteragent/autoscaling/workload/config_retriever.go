@@ -23,7 +23,7 @@ const (
 
 // RcClient is a subinterface of rcclient.Component to allow mocking
 type RcClient interface {
-	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SubscribeIgnoreExpiration(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
 // ConfigRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
@@ -41,14 +41,14 @@ func NewConfigRetriever(store *store, isLeader func() bool, rcClient RcClient) (
 		clock:    clock.RealClock{},
 	}
 
-	rcClient.Subscribe(data.ProductContainerAutoscalingSettings, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingSettings, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		// For autoscaling settings, we need to be able to clean up the store to handle deleted configs.
 		// Remote config guarantees that we receive all configs at once, so we can safely clean up the store after processing all configs.
 		autoscalingSettingsProcessor := newAutoscalingSettingsProcessor(cr.store)
 		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingSettingsProcessor.process, autoscalingSettingsProcessor.postProcess)
 	})
 
-	rcClient.Subscribe(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	rcClient.SubscribeIgnoreExpiration(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		autoscalingValuesProcessor := newAutoscalingValuesProcessor(cr.store)
 		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingValuesProcessor.process, autoscalingValuesProcessor.postProcess)
 	})

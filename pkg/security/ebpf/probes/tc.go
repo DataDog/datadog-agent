@@ -78,6 +78,7 @@ func GetRawPacketTCProgramFunctions() []string {
 func GetAllTCProgramFunctions() []string {
 	output := []string{
 		"classifier_dns_request_parser",
+		"classifier_dns_response",
 		"classifier_dns_request",
 		"classifier_imds_request",
 	}
@@ -120,6 +121,13 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 			Key:           TCIMDSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_imds_request",
+			},
+		},
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCDNSResponseKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_dns_response",
 			},
 		},
 	}
