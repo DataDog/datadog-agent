@@ -19,11 +19,11 @@ import (
 
 type mockFlareComponent struct{}
 
-func (m *mockFlareComponent) Create(profileData types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func (m *mockFlareComponent) Create(_ types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
 	return "/tmp/mock_flare.zip", nil
 }
 
-func (m *mockFlareComponent) Send(flarePath, caseID, email string, source helpers.FlareSource) (string, error) {
+func (m *mockFlareComponent) Send(_, caseID, email string, source helpers.FlareSource) (string, error) {
 	return "Flare sent successfully", nil
 }
 
