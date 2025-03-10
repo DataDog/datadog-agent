@@ -73,7 +73,6 @@ func TestHistogram(t *testing.T) {
 
 	sp := sk.Points[0]
 
-
 	require.Equal(t, sp.Sketch.Basic.Cnt, int64(10))
 	require.Equal(t, sp.Sketch.Basic.Sum, float64(45))
 	require.Equal(t, sp.Sketch.Basic.Avg, float64(4.5))
