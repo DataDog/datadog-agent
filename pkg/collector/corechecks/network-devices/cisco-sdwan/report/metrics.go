@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -369,7 +370,7 @@ func (ms *SDWanSender) getDeviceTags(systemIP string) []string {
 	if !ok {
 		return []string{"system_ip:" + systemIP}
 	}
-	return tags
+	return utils.CopyStrings(tags)
 }
 
 func (ms *SDWanSender) getPrefixedDeviceTags(prefix string, systemIP string) []string {
