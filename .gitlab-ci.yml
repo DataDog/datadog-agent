@@ -1281,3 +1281,4 @@ test-datadog-ci:
     # - datadog-ci span --name custom-span --duration 618
     - datadog-ci span --name install-python-dependencies --start-time $datestart --end-time $dateend
     - dda inv -e gitlab.celian
+    - dda inv -e gitlab.celian2

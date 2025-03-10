@@ -513,14 +513,20 @@ def set_gitconfig_in_ci(ctx):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False, echo=False):
+def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibility_section=True):
     """
-    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
+    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything.
+    - create_ci_visibility_section: If True, will create a ci visibility section with the same name (see ci_visibility_section for more details).
     """
     # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
     section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
     try:
+        if create_ci_visibility_section:
+            # Create a temporary context only to pass it to the ci_visibility_section
+            ctx = Context()
+            ci_vis_manager = ci_visibility_section(ctx, section_name)
+            ci_vis_manager.__start__()
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(
@@ -533,6 +539,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     finally:
         if in_ci:
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+        if create_ci_visibility_section:
+            ci_vis_manager.__exit__(None, None, None)
 
 
 # TODO: Tags / measures...
@@ -563,8 +571,7 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
     def convert_time(t):
         return int(t * 1000)
 
-    # ctx.run(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
-    print(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
+    ctx.run(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
