@@ -571,7 +571,7 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
     def convert_time(t):
         return int(t * 1000)
 
-    ctx.run(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
+    ctx.run(f"datadog-ci span --name '{section_name}' --start-time {convert_time(start_time)} --end-time {convert_time(end_time)}")
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
