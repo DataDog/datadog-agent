@@ -248,6 +248,7 @@
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
 /cmd/system-probe/api/client/client_windows.go    @DataDog/windows-kernel-integrations
 /cmd/system-probe/api/server/listener_windows.go    @DataDog/windows-kernel-integrations
+/cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
