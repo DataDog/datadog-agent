@@ -93,8 +93,8 @@ job-owners:
     - send_pipeline_stats
     - send_pkg_size
     - setup_agent_version
-    - single-machine-performance-regression_detector
-    - single-machine-performance-regression_detector-pr-comment
+    - single-machine-performance-regression_detector-agent
+    - single-machine-performance-regression_detector-pr-comment-agent
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps
     - trace-agent-v04-2cpus-stress_load-fixed_sps

@@ -1,14 +1,20 @@
-single-machine-performance-regression_detector:
+single-machine-performance-regression_detector-agent:
+  extends: .single-machine-performance-regression_detector
+  timeout: 1h10m  
+  needs:
+    - job: single_machine_performance-amd64-a7
+      artifacts: false     
+  variables:
+    IMG_PREFIX: "-7-amd64"
+    TARGET_CONFIG_DIR: "test/regression"
+
+.single-machine-performance-regression_detector:
   stage: functional_test
-  timeout: 1h10m
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs:
-    - job: single_machine_performance-amd64-a7
-      artifacts: false
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -76,7 +82,7 @@ single-machine-performance-regression_detector:
     - echo "Commit ${BASELINE_SHA} is recent enough"
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
-      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}${IMG_PREFIX}") ]]
       do
           echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
           BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
@@ -96,9 +102,9 @@ single-machine-performance-regression_detector:
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     # Copy the baseline SHA to SMP for debugging purposes later
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
+    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}${IMG_PREFIX}
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}${IMG_PREFIX}
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
@@ -111,7 +117,7 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE} \
       --baseline-sha ${BASELINE_SHA} \
       --comparison-sha ${CI_COMMIT_SHA} \
-      --target-config-dir test/regression/ \
+      --target-config-dir ${TARGET_CONFIG_DIR}/ \
       --submission-metadata submission_metadata \
       --tags ${SMP_TAGS} || {
         exit_code=$?
@@ -248,9 +254,17 @@ single-machine-performance-regression_detector:
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
 
+single-machine-performance-regression_detector-pr-comment-agent:
+  extends: .single-machine-performance-regression_detector-pr-comment
+  needs:
+    - job: single-machine-performance-regression_detector-agent
+  variables:
+    HEADER: "Regression Detector"
+  
+
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
-single-machine-performance-regression_detector-pr-comment:
+.single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
     - !reference [.on_dev_branches]
@@ -259,8 +273,6 @@ single-machine-performance-regression_detector-pr-comment:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
   tags: ["arch:amd64"]
-  needs:
-    - job: single-machine-performance-regression_detector
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -296,7 +308,7 @@ single-machine-performance-regression_detector-pr-comment:
     # Transforming the Markdown report to a valid JSON string is easy to foul
     # up, so to make debugging easier, we store the payload in a variable to
     # help debugging.
-    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"Regression Detector", "message":"'"$(cat report_as_json_string.txt)"'"}'
+    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"'"${HEADER}"'", "message":"'"$(cat report_as_json_string.txt)"'"}'
     - printf "%s\n" "PR comment JSON payload:${PR_COMMENT_JSON_PAYLOAD}"
     - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
     # Craft an HTTPS request to pr-commenter service to post Markdown report to
