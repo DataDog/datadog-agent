@@ -419,7 +419,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		databaseFilePath = options.databaseFilePath
 	}
 	dbPath := path.Join(databaseFilePath, options.databaseFileName)
-	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
+	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey, baseURL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1076,7 +1076,7 @@ type HTTPClient struct {
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
 	dbPath := path.Join(runPath, "remote-config-cdn.db")
-	db, err := openCacheDB(dbPath, agentVersion, apiKey)
+	db, err := openCacheDB(dbPath, agentVersion, apiKey, site)
 	if err != nil {
 		return nil, err
 	}
