@@ -364,16 +364,16 @@ def celian(ctx):
 
 @task
 def celian2(ctx):
-    with gitlab_section(ctx, 'my-first-section'):
+    with gitlab_section('my-first-section'):
         print('Sleeping...')
         time.sleep(0.618)
         print('End sleep')
 
-    with gitlab_section(ctx, 'my-nested-section'):
+    with gitlab_section('my-nested-section'):
         print('Sleeping...')
         time.sleep(0.1)
         print('Launching child...')
-        with gitlab_section(ctx, 'my-child-section'):
+        with gitlab_section('my-child-section'):
             print('Sleeping...')
             time.sleep(0.1)
             print('End child section...')

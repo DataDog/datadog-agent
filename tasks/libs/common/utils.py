@@ -526,7 +526,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibili
             # Create a temporary context only to pass it to the ci_visibility_section
             ctx = Context()
             ci_vis_manager = ci_visibility_section(ctx, section_name)
-            ci_vis_manager.__start__()
+            ci_vis_manager.__enter__()
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(
