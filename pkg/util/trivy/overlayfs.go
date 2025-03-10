@@ -17,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
@@ -81,7 +82,7 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, errors.New("failed to get cache for scan")
 	}
 
-	containerArtifact, err := local.NewArtifact(ctr, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	containerArtifact, err := local.NewArtifact(ctr, cache, walker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, err
 	}

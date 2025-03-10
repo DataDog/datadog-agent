@@ -41,7 +41,7 @@ def build(
     Build Cluster Agent
 
      Example invokation:
-        inv cluster-agent.build
+        dda inv cluster-agent.build
     """
     build_common(
         ctx,
