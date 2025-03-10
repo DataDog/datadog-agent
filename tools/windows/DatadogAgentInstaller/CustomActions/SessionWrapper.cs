@@ -50,7 +50,7 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Runs command and logs stdout/stderr to MSI log, returns the process object.
         /// </summary>
-        public Process RunCommand(string filename, string arguments, IDictionary<string,string> environment)
+        public Process RunCommand(string filename, string arguments, IDictionary<string, string> environment)
         {
             var psi = new ProcessStartInfo
             {

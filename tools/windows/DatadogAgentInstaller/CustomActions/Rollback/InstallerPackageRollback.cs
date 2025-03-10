@@ -24,11 +24,11 @@ namespace Datadog.CustomActions.Rollback
         public void Restore(ISession session, IFileSystemServices fileSystemServices,
             IServiceController serviceController)
         {
-            string installDir = session.Property("INSTALLDIR");
+            var installDir = session.Property("INSTALLDIR");
             session.Log($"installDir: {installDir}");
             // TODO remove me
             installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
-            string installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
+            var installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
 
             var installerEnvVariables = new Dictionary<string, string>();
             installerEnvVariables["DD_API_KEY"] = session.Property("SITE");

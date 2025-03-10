@@ -49,6 +49,6 @@ namespace Datadog.CustomActions.Interfaces
         /// <summary>
         /// see <see cref="SessionWrapper.RunCommand"/>
         /// </summary>
-        Process RunCommand(string filename, string arguments, IDictionary<string,string> environment);
+        Process RunCommand(string filename, string arguments, IDictionary<string, string> environment);
     }
 }
