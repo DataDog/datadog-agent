@@ -10,9 +10,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +27,7 @@ type Provider struct {
 // CommonEndpointProvider return a filled Provider struct
 func CommonEndpointProvider() Provider {
 	return Provider{
-		VersionEndpoint:  api.NewAgentEndpointProvider(common.GetVersion, "/version", "GET"),
+		VersionEndpoint:  api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
 		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname, "/hostname", "GET"),
 		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
 	}

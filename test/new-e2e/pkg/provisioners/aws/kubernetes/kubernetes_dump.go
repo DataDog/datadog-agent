@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -31,6 +30,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubectlget "k8s.io/kubectl/pkg/cmd/get"
 	kubectlutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func dumpEKSClusterState(ctx context.Context, name string) (ret string, err error) {
@@ -130,6 +131,9 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 	}
 
 	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
+	if instanceIP == nil {
+		return ret, fmt.Errorf("failed to get private IP of instance")
+	}
 
 	auth := []ssh.AuthMethod{}
 
