@@ -202,7 +202,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 50 * time.Millisecond
 	expBackoff.MaxInterval = 500 * time.Millisecond
-	expBackoff.MaxElapsedTime = 5 * time.Second
+	expBackoff.MaxElapsedTime = 30 * time.Second
 	err = backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():

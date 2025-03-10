@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -172,6 +173,11 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	containerFilter, err := collectors.NewSBOMContainerFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create container filter: %w", err)
+	}
+
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
 		AddKind(workloadmeta.KindContainerImageMetadata).
@@ -211,7 +217,7 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processContainerImagesEvents(eventBundle)
+			c.processor.processContainerImagesEvents(eventBundle, containerFilter)
 		case scanResult, ok := <-hostSbomChan:
 			if !ok {
 				return nil

@@ -64,6 +64,7 @@ enum TC_TAIL_CALL_KEYS
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
+    DNS_RESPONSE
 };
 
 enum TC_RAWPACKET_KEYS {
@@ -72,6 +73,8 @@ enum TC_RAWPACKET_KEYS {
 };
 
 #define DNS_MAX_LENGTH 256
+// 468 is the maximum that can go in the stack of the dns_response classifier without blowing it
+#define DNS_RECEIVE_MAX_LENGTH 468
 #define DNS_EVENT_KEY 0
 
 #define EGRESS 1
