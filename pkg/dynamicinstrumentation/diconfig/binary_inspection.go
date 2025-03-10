@@ -81,7 +81,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
-		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
 	return nil
