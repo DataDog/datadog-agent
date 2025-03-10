@@ -1253,7 +1253,8 @@ workflow:
   - |
     echo "Installing datadog-ci"
     rm -f /usr/local/bin/datadog-ci
-    $S3_CP_CMD s3://celian-innovation-week-25q1/datadog-ci_linux-x64 /usr/local/bin/datadog-ci
+    # $S3_CP_CMD s3://celian-innovation-week-25q1/datadog-ci_linux-x64 /usr/local/bin/datadog-ci
+    curl -fsSL https://us-east-1.console.aws.amazon.com/s3/object/celian-innovation-week-25q1?region=us-east-1&bucketType=general&prefix=datadog-ci_linux-x64 --output "/usr/local/bin/datadog-ci"
     chmod +x /usr/local/bin/datadog-ci
 
 test-datadog-ci:
