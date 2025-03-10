@@ -1249,17 +1249,27 @@ workflow:
 #   - ls
 #   - ls bin
 
-
-test-datadog-ci:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+test-ubuntu:
+  image: ubuntu:latest
   tags: ["arch:amd64"]
   stage: celian
   needs: []
   script:
-    - set -e
-    - !reference [.update-datadog-ci-amd64]
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    - datadog-ci --version || true
-    - datadog-ci --help || true
-    - datadog-ci trace --name trace-echo -- echo Hello world
-    - datadog-ci span --name custom-span --duration 618
+    - echo hello world
+
+
+
+
+# test-datadog-ci:
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+#   tags: ["arch:amd64"]
+#   stage: celian
+#   needs: []
+#   script:
+#     - set -e
+#     - !reference [.update-datadog-ci-amd64]
+#     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+#     - datadog-ci --version || true
+#     - datadog-ci --help || true
+#     - datadog-ci trace --name trace-echo -- echo Hello world
+#     - datadog-ci span --name custom-span --duration 618
