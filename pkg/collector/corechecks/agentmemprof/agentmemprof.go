@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// CheckName is the name of the agentmemprof check
 const (
 	CheckName = "agentmemprof"
 )
@@ -44,12 +45,14 @@ type AgentMemProfCheck struct {
 	flareComponent  flare.Component
 }
 
+// Factory creates a new instance of the agentmemprof check
 func Factory(flareComponent flare.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(flareComponent)
 	})
 }
 
+// newCheck creates a new instance of the agentmemprof check
 func newCheck(flareComponent flare.Component) check.Check {
 	return &AgentMemProfCheck{
 		CheckBase:      core.NewCheckBase(CheckName),
@@ -58,6 +61,7 @@ func newCheck(flareComponent flare.Component) check.Check {
 	}
 }
 
+// Parse parses the configuration for the agentmemprof check
 func (c *AgentMemProfConfig) Parse(data []byte) error {
 	// default values
 	c.MemoryThreshold = 0
@@ -65,6 +69,7 @@ func (c *AgentMemProfConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// Configure configures the agentmemprof check
 func (m *AgentMemProfCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
@@ -74,6 +79,7 @@ func (m *AgentMemProfCheck) Configure(senderManager sender.SenderManager, _ uint
 	return m.instance.Parse(config)
 }
 
+// Run runs the agentmemprof check
 func (m *AgentMemProfCheck) Run() error {
 	// Don't run again if the profile has already been captured
 	if m.profileCaptured {

@@ -12,7 +12,7 @@ import flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 
 // Component is the component type
 type Component interface {
-	// ReadPofileData Gathers and returns pprof server output for a variety of agent services.
+	// ReadProfileData Gathers and returns pprof server output for a variety of agent services.
 	//
 	// Will always attempt to read the pprof of core-agent and security-agent, and will optionally try to read information for
 	// process-agent, trace-agent, and system-probe if those systems are detected as enabled.
