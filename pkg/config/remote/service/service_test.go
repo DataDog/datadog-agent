@@ -798,6 +798,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.uptane = uptaneClient
 
