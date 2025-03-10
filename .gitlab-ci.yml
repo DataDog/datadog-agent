@@ -1219,16 +1219,16 @@ workflow:
 #     echo "${CI_UPLOADER_SHA} /usr/local/bin/datadog-ci" | sha256sum --check
 #     chmod +x /usr/local/bin/datadog-ci
 
-.update-datadog-ci-amd64:
-  - echo "Installing datadog-ci"
-  # - export ARTIFACT_URL=https://github.com/DataDog/datadog-ci/actions/runs/13762194314/artifacts/2721276532
-  - export ARTIFACT_URL="https://productionresultssa18.blob.core.windows.net/actions-results/d336ac70-f605-460e-b85b-c8e1a07b6149/workflow-job-run-4423c1e0-002d-5e20-8e08-3922a79ea964/artifacts/9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd.zip?rscd=attachment%3B+filename%3D%22binary.zip%22&se=2025-03-10T10%3A29%3A20Z&sig=a9oOLN4LDUn8MC8OTOddG2898WZ2x5%2F1SlKiZv%2F8Mdw%3D&ske=2025-03-10T19%3A39%3A41Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2025-03-10T07%3A39%3A41Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2025-01-05&sp=r&spr=https&sr=b&st=2025-03-10T10%3A19%3A15Z&sv=2025-01-05"
-  - rm -f /usr/local/bin/datadog-ci
-  - |
-    curl -fsSL "$ARTIFACT_URL" --output binary.zip
-    unzip binary.zip
-    mv datadog-ci_linux-x64 /usr/local/bin/datadog-ci
-    chmod +x /usr/local/bin/datadog-ci
+# .update-datadog-ci-amd64:
+#   - echo "Installing datadog-ci"
+#   # - export ARTIFACT_URL=https://github.com/DataDog/datadog-ci/actions/runs/13762194314/artifacts/2721276532
+#   - export ARTIFACT_URL="https://productionresultssa18.blob.core.windows.net/actions-results/d336ac70-f605-460e-b85b-c8e1a07b6149/workflow-job-run-4423c1e0-002d-5e20-8e08-3922a79ea964/artifacts/9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd.zip?rscd=attachment%3B+filename%3D%22binary.zip%22&se=2025-03-10T10%3A29%3A20Z&sig=a9oOLN4LDUn8MC8OTOddG2898WZ2x5%2F1SlKiZv%2F8Mdw%3D&ske=2025-03-10T19%3A39%3A41Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2025-03-10T07%3A39%3A41Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2025-01-05&sp=r&spr=https&sr=b&st=2025-03-10T10%3A19%3A15Z&sv=2025-01-05"
+#   - rm -f /usr/local/bin/datadog-ci
+#   - |
+#     curl -fsSL "$ARTIFACT_URL" --output binary.zip
+#     unzip binary.zip
+#     mv datadog-ci_linux-x64 /usr/local/bin/datadog-ci
+#     chmod +x /usr/local/bin/datadog-ci
 
 # .build-datadog-ci:
 #   - apt-get update
@@ -1249,27 +1249,23 @@ workflow:
 #   - ls
 #   - ls bin
 
-test-ubuntu:
-  image: ubuntu:latest
+.get-custom-datadog-ci-amd64:
+  - |
+    echo "Installing datadog-ci"
+    rm -f /usr/local/bin/datadog-ci
+    $S3_CP_CMD s3://celian-innovation-week-25q1/datadog-ci_linux-amd64 /usr/local/bin/datadog-ci
+    chmod +x /usr/local/bin/datadog-ci
+
+test-datadog-ci:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: celian
   needs: []
   script:
-    - echo hello world
-
-
-
-
-# test-datadog-ci:
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#   tags: ["arch:amd64"]
-#   stage: celian
-#   needs: []
-#   script:
-#     - set -e
-#     - !reference [.update-datadog-ci-amd64]
-#     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-#     - datadog-ci --version || true
-#     - datadog-ci --help || true
-#     - datadog-ci trace --name trace-echo -- echo Hello world
-#     - datadog-ci span --name custom-span --duration 618
+    - set -e
+    - !reference [.get-custom-datadog-ci-amd64]
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - datadog-ci --version || true
+    - datadog-ci --help || true
+    - datadog-ci trace --name trace-echo -- echo Hello world
+    - datadog-ci span --name custom-span --duration 618
