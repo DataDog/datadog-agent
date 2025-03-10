@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 
 import yaml
 from invoke import task
@@ -26,7 +27,7 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import experimental
+from tasks.libs.common.utils import experimental, gitlab_section, ci_visibility_section
 
 
 @task
@@ -341,3 +342,22 @@ def download_artifact(ctx, job_id=0, name='datadog-ci_linux-x64'):
 
     ctx.run(f'mv /tmp/{name} .')
     print(f'Artifact {name} downloaded and extracted')
+
+
+@task
+def celian(ctx):
+    with ci_visibility_section(ctx, 'my-first-section'):
+        print('Sleeping...')
+        time.sleep(0.618)
+        print('End sleep')
+
+    with ci_visibility_section(ctx, 'my-nested-section'):
+        print('Sleeping...')
+        time.sleep(0.1)
+        print('Launching child...')
+        with ci_visibility_section(ctx, 'my-child-section'):
+            print('Sleeping...')
+            time.sleep(0.1)
+            print('End child section...')
+        time.sleep(0.1)
+        print('End nested section...')

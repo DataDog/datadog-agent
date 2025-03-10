@@ -535,6 +535,38 @@ def gitlab_section(section_name, collapsed=False, echo=False):
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
+# TODO: Tags / measures...
+@contextmanager
+def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False):
+    """Creates a ci visibility span with the given name.
+
+    Args:
+        - ignore_on_error: If True, the section won't be created on error.
+    """
+
+    in_ci = running_in_gitlab_ci()
+    if not in_ci and not force:
+        yield
+        return
+
+    start_time = time.perf_counter()
+
+    # TODO: Test cases etc...
+    try:
+        yield
+    except:
+        if ignore_on_error:
+            return
+    finally:
+        end_time = time.perf_counter()
+
+    def convert_time(t):
+        return int(t * 1000)
+
+    # ctx.run(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
+    print(f"datadog-ci span --name '{section_name}' --start {convert_time(start_time)} --end {convert_time(end_time)}")
+
+
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
     """
     Decorator to retry a function in case of failure and print its traceback.

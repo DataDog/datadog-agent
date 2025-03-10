@@ -1277,6 +1277,7 @@ test-datadog-ci:
     - !reference [.get-custom-datadog-ci-amd64]
     - datadog-ci --version || true
     - datadog-ci --help || true
-    - datadog-ci trace --name trace-echo -- echo Hello world
-    - datadog-ci span --name custom-span --duration 618
+    # - datadog-ci trace --name trace-echo -- echo Hello world
+    # - datadog-ci span --name custom-span --duration 618
     - datadog-ci span --name install-python-dependencies --start-time $datestart --end-time $dateend
+    - dda inv -e gitlab.celian
