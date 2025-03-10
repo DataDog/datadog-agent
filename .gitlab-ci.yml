@@ -1253,8 +1253,12 @@ workflow:
   - |
     echo "Installing datadog-ci"
     rm -f /usr/local/bin/datadog-ci
-    curl -fsSL https://gitlab.ddbuild.io/DataDog/datadog-ci/-/jobs/840076964/artifacts/raw/datadog-ci_linux-x64?inline=false --output /usr/local/bin/datadog-ci
+    python3 -m pip install tasks/requirements.txt
+    inv -e gitlab.download-artifact
+    mv datadog-ci_linux-x64 /usr/local/bin/datadog-ci
+    # curl -fsSL https://gitlab.ddbuild.io/DataDog/datadog-ci/-/jobs/840076964/artifacts/raw/datadog-ci_linux-x64?inline=false --output /usr/local/bin/datadog-ci
     chmod +x /usr/local/bin/datadog-ci
+    datadog-ci --help
 
 test-datadog-ci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

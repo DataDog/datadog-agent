@@ -325,3 +325,19 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+@task
+def download_artifact(ctx, name='datadog-ci_linux-x64'):
+    repo = get_gitlab_repo('DataDog/datadog-ci')
+    job = repo.jobs.get(840076964)
+
+    ctx.run(f'rm -rf /tmp/artifacts.zip /tmp/{name}')
+    with open('/tmp/artifacts.zip', 'wb') as f:
+        job.artifacts(streamed=True, action=f.write)
+
+    with ctx.cd('/tmp'):
+        ctx.run('unzip artifacts.zip')
+
+    ctx.run(f'mv /tmp/{name} .')
+    print(f'Artifact {name} downloaded and extracted')
