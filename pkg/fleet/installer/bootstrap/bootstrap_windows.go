@@ -26,7 +26,7 @@ import (
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := paths.CreateInstallerDataDir()
+	err := paths.EnsureInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
 	}

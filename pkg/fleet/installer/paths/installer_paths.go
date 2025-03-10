@@ -24,3 +24,9 @@ const (
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
 )
+
+// EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func EnsureInstallerDataDir() error {
+	return nil
+}

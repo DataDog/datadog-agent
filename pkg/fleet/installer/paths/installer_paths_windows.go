@@ -16,10 +16,11 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -55,11 +56,11 @@ func init() {
 	RunPath = filepath.Join(PackagesPath, "run")
 }
 
-// CreateInstallerDataDir creates the root directory for the installer data and sets permissions
+// EnsureInstallerDataDir creates/updates the root directory for the installer data and sets permissions
 // to ensure that only Administrators have write access to the directory tree.
 //
 // bootstrap runs before the MSI, so it must create the directory with the correct permissions.
-func CreateInstallerDataDir() error {
+func EnsureInstallerDataDir() error {
 	targetDir := datadogInstallerData
 
 	// Desired permissions:

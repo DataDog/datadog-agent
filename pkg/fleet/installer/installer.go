@@ -187,7 +187,13 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	_, err := i.db.GetPackage(packageDatadogAgent)
+	// make sure data directory is set up correctly
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	_, err = i.db.GetPackage(packageDatadogAgent)
 	if err == nil {
 		// need to remove the agent before installing the installer
 		err = i.db.DeletePackage(packageDatadogAgent)
