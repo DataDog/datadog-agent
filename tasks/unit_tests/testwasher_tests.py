@@ -10,10 +10,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer_1.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer_1.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer_1.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {})
 
     def test_flakes_file_failing_test(self):
@@ -22,10 +19,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_1.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer_2.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer_2.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer_2.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {})
 
     def test_should_fail_failing_tests(self):
@@ -34,10 +28,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer_3.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer_3.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer_3.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayload"}})
 
     def test_should_mark_parent_flaky(self):
@@ -46,13 +37,18 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        print("A", test_washer.get_flaky_failures(module_path))
+        print("B", test_washer.get_failing_tests(module_path))
+        print("C", test_washer.get_non_flaky_failing_tests(module_path))
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
         self.assertEqual(
             non_flaky_failing_tests,
-            {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite/TestMemory"}},
+            {
+                "github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {
+                    "TestEKSSuite/TestMemory",
+                    "TestEKSSuite",
+                }
+            },
         )
 
     def test_should_not_be_considered_flaky(self):
@@ -61,10 +57,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_3.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
         self.assertEqual(
             non_flaky_failing_tests,
             {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite"}},
@@ -76,10 +69,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {})
 
     def test_non_flaky_panicking_test(self):
@@ -88,10 +78,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
         self.assertEqual(
             non_flaky_failing_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
@@ -103,10 +90,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_4.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
-            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
-        )
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {})
 
     def test_flaky_on_log(self):
@@ -115,8 +99,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_5.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        flaky_tests = test_washer.get_flaky_failures(module_path)
         self.assertEqual(flaky_tests, {})
 
     def test_flaky_on_log2(self):
@@ -125,8 +108,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_6.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        flaky_tests = test_washer.get_flaky_failures(module_path)
         self.assertEqual(
             flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
@@ -138,8 +120,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_7.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        flaky_tests = test_washer.get_flaky_marked_tests(module_path)
         self.assertEqual(
             flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
@@ -151,8 +132,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_8.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        flaky_tests = test_washer.get_flaky_marked_tests(module_path)
         self.assertEqual(
             flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
@@ -164,8 +144,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_9.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
-        flaky_tests = test_washer.merge_known_flakes(marked_flaky_tests)
+        flaky_tests = test_washer.get_flaky_failures(module_path)
         self.assertEqual(
             flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
@@ -177,7 +156,7 @@ class TestUtils(unittest.TestCase):
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_a.yaml", "tasks/unit_tests/testdata/flakes_b.yaml"],
         )
         module_path = "tasks/unit_tests/testdata"
-        _, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        marked_flaky_tests = test_washer.get_flaky_failures(module_path)
         self.assertEqual(
             marked_flaky_tests,
             {
@@ -188,65 +167,22 @@ class TestUtils(unittest.TestCase):
             },
         )
 
-
-class TestMergeKnownFlakes(unittest.TestCase):
-    def test_with_shared_keys(self):
-        test_washer = TestWasher()
-        marked_flakes = {
-            "nintendo": {"mario", "luigi"},
-            "sega": {"sonic"},
-        }
-        test_washer.known_flaky_tests = {
-            "nintendo": {"peach"},
-            "sony": {"crashbandicoot"},
-        }
-        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
-        self.assertEqual(
-            merged_flakes,
-            {
-                "nintendo": {"mario", "luigi", "peach"},
-                "sega": {"sonic"},
-                "sony": {"crashbandicoot"},
-            },
+    def test_flaky_non_failing(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_no_failure.json",
+            flakes_file_paths=["tasks/unit_tests/testdata/flakes_1.yaml"],
         )
+        module_path = "tasks/unit_tests/testdata"
+        marked_flaky_tests = test_washer.get_flaky_marked_tests(module_path)
+        self.assertEqual(marked_flaky_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayload"}})
 
-    def test_no_shared_keys(self):
-        test_washer = TestWasher()
-        marked_flakes = {
-            "nintendo": {"mario", "luigi"},
-        }
-        test_washer.known_flaky_tests = {
-            "sega": {"sonic"},
-        }
-        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
-        self.assertEqual(
-            merged_flakes,
-            {
-                "nintendo": {"mario", "luigi"},
-                "sega": {"sonic"},
-            },
+    def test_flaky_non_failing_marked(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_no_failure_marker.json",
+            flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
         )
-
-    def test_empty_marked(self):
-        test_washer = TestWasher()
-        marked_flakes = {}
-        test_washer.known_flaky_tests = {
-            "sega": {"sonic"},
-        }
-        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
+        module_path = "tasks/unit_tests/testdata"
+        marked_flaky_tests = test_washer.get_flaky_marked_tests(module_path)
         self.assertEqual(
-            merged_flakes,
-            {"sega": {"sonic"}},
-        )
-
-    def test_empty_yaml(self):
-        test_washer = TestWasher()
-        marked_flakes = {
-            "nintendo": {"mario", "luigi"},
-        }
-        test_washer.known_flaky_tests = {}
-        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
-        self.assertEqual(
-            merged_flakes,
-            {"nintendo": {"mario", "luigi"}},
+            marked_flaky_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayloadContainerized"}}
         )
