@@ -67,6 +67,7 @@ const (
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
+	netifProbe       = "tracepoint__net__netif_receive_skb_kafka"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -99,6 +100,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "kafka_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -255,6 +263,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
 	events.Configure(p.cfg, eventStreamName, p.mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
