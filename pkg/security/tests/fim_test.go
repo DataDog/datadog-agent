@@ -146,8 +146,6 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		t.Skip("not stable")
-
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
