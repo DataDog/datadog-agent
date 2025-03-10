@@ -50,7 +50,6 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -150,7 +149,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(option.None[rcservice.Component]()),
 			fx.Supply(option.None[rcservicemrf.Component]()),
 			fx.Supply(option.None[collector.Component]()),
-			fx.Supply(option.None[logsAgent.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
