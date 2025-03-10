@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Cisco SD-WAN: fix an issue that could led to incorrect metrics tagging.
+    Cisco SD-WAN: fix an issue that could lead to incorrect metrics tagging.
