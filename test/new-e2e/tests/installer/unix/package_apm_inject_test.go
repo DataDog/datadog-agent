@@ -14,6 +14,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -54,6 +55,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
+	state.AssertDirExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")
 	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
 		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
 		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
@@ -126,6 +128,15 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertDockerdNotInstrumented()
+}
+
+func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=true", "DD_DATA_STREAM_ENABLED=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.assertStableConfig(map[string]interface{}{
+		"DD_PROFILING_ENABLED":   true,
+		"DD_DATA_STREAM_ENABLED": true,
+	})
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
@@ -481,6 +492,18 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 	content, err := s.host.ReadFile("/etc/ld.so.preload")
 	assert.NoError(s.T(), err)
 	assert.Contains(s.T(), string(content), libPath)
+}
+
+func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
+	assert.NoError(s.T(), err)
+
+	actualStableConfig := map[string]interface{}{}
+	err = yaml.Unmarshal(content, &actualStableConfig)
+	assert.NoError(s.T(), err)
+
+	assert.Contains(s.T(), actualStableConfig, "apm_configuration_default")
+	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
 func (s *packageApmInjectSuite) assertSocketPath() {
