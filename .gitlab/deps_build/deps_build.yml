@@ -7,6 +7,7 @@
     !reference [.manual]
   stage: deps_build
   variables:
+    KUBERNETES_MEMORY_REQUEST: 4Gi
     KUBERNETES_CPU_REQUEST: 4
   script:
     # use tmpdir to prevent git remote capture by clang build
@@ -45,6 +46,7 @@
       -DLLVM_PARALLEL_COMPILE_JOBS=4 \
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       -DLLVM_ENABLE_UNWIND_TABLES=OFF \
+      -Wno-dev \
       ../llvm
     - cmake --build . --target install
     # fail if references to glibc >= 2.18
