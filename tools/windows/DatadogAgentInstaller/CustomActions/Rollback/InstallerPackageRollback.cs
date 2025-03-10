@@ -2,6 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Datadog.CustomActions.Rollback
@@ -28,7 +29,12 @@ namespace Datadog.CustomActions.Rollback
             // TODO remove me
             installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
             string installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
-            using (var proc = session.RunCommand(installerExecutable, _installerCommand))
+
+            var installerEnvVariables = new Dictionary<string, string>();
+            installerEnvVariables["DD_API_KEY"] = session.Property("SITE");
+            installerEnvVariables["DD_SITE"] = session.Property("APIKEY");
+
+            using (var proc = session.RunCommand(installerExecutable, _installerCommand, installerEnvVariables))
             {
                 if (proc.ExitCode != 0)
                 {

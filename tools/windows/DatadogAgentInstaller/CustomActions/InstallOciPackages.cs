@@ -1,10 +1,11 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
+using System.Collections.Generic;
 using System.IO;
-using Datadog.CustomActions.Native;
 
 namespace Datadog.CustomActions
 {
@@ -14,6 +15,7 @@ namespace Datadog.CustomActions
         private readonly ISession _session;
         private readonly string _installerExecutable;
         private readonly string _site;
+        private readonly string _apiKey;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -21,6 +23,7 @@ namespace Datadog.CustomActions
             _session = session;
             string installDir = session.Property("INSTALLDIR");
             _site = session.Property("SITE");
+            _apiKey = session.Property("APIKEY");
             session.Log($"installDir: {installDir}");
             // TODO remove me
             installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
@@ -61,6 +64,14 @@ namespace Datadog.CustomActions
             }
 
             return (library.Substring(0, index), library.Substring(index + 1));
+        }
+
+        private Dictionary<string, string> InstallerEnvironmentVariables()
+        {
+            var env = new Dictionary<string, string>();
+            env["DD_API_KEY"] = _apiKey;
+            env["DD_SITE"] = _site;
+            return env;
         }
 
         private ActionResult InstallPackages()
@@ -136,7 +147,7 @@ namespace Datadog.CustomActions
         private bool IsPackageInstalled(string library)
         {
             string packageName = PackageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}"))
+            using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode == 10)
                 {
@@ -154,7 +165,7 @@ namespace Datadog.CustomActions
         private void InstallPackage(string library, string version)
         {
             string ociImageName = OciImageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}"))
+            using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode != 0)
                 {
@@ -166,7 +177,7 @@ namespace Datadog.CustomActions
         private void UninstallPackage(string library)
         {
             string packageName = PackageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"remove {packageName}"))
+            using (var proc = _session.RunCommand(_installerExecutable, $"remove {packageName}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode != 0)
                 {
