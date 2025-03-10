@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"runtime"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
@@ -23,16 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component, statsd ddgostatsd.ClientInterface) error {
+func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, telemetry telemetry.Component, deps module.FactoryDependencies) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
@@ -40,7 +36,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	mux := gorilla.NewRouter()
 
-	err = module.Register(cfg, mux, modules.All, wmeta, tagger, telemetry, compression, statsd)
+	err = module.Register(cfg, mux, modules.All, deps)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -53,7 +49,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	setupConfigHandlers(mux, settings)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta, tagger, telemetry) }).Methods("POST")
+	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) }).Methods("POST")
 
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
