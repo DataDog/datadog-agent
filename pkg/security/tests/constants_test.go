@@ -67,13 +67,13 @@ func TestOctogonConstants(t *testing.T) {
 	})
 }
 
-func getFighterConstants(champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, map[string]uint64, error) {
-	championConstants, err := getOffsetConstantsFromFetcher(champion, kv)
+func getFighterConstants(champion, challenger constantfetch.ConstantFetcher) (map[string]uint64, map[string]uint64, error) {
+	championConstants, err := getOffsetConstantsFromFetcher(champion)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	challengerConstants, err := getOffsetConstantsFromFetcher(challenger, kv)
+	challengerConstants, err := getOffsetConstantsFromFetcher(challenger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -83,7 +83,7 @@ func getFighterConstants(champion, challenger constantfetch.ConstantFetcher, kv 
 
 func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version, ignoreMissing []string) {
 	t.Helper()
-	championConstants, challengerConstants, err := getFighterConstants(champion, challenger, kv)
+	championConstants, challengerConstants, err := getFighterConstants(champion, challenger)
 	if err != nil {
 		t.Error(err)
 	}
@@ -115,7 +115,7 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 	}
 }
 
-func getOffsetConstantsFromFetcher(cf constantfetch.ConstantFetcher, kv *kernel.Version) (map[string]uint64, error) {
-	probe.AppendProbeRequestsToFetcher(cf, kv)
+func getOffsetConstantsFromFetcher(cf constantfetch.ConstantFetcher) (map[string]uint64, error) {
+	probe.AppendProbeRequestsToFetcher(cf)
 	return cf.FinishAndGetResults()
 }
