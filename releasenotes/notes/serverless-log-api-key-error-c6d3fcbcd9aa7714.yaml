@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    When unable to get the API key in serverless, log as an error.
