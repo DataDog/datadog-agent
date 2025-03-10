@@ -166,6 +166,8 @@ type EnvVar struct {
 	Name string `json:"name"`
 	// Value of the environment variable.
 	Value string `json:"value,omitempty"`
+	// Source of the environment variable.
+	ValueFrom *struct{} `json:"valueFrom,omitempty"`
 }
 
 // VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes
