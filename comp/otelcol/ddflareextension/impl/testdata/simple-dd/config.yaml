@@ -5,6 +5,7 @@ receivers:
       scrape_configs:
         - fallback_scrape_protocol: PrometheusText1.0.0
           job_name: "datadog-agent"
+          metric_name_validation_scheme: legacy
           scrape_interval: 5s
           static_configs:
             - targets: ["0.0.0.0:8888"]

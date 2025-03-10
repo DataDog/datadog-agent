@@ -162,6 +162,7 @@ receivers:
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
+          metric_name_validation_scheme: legacy
           metrics_path: /metrics
           scheme: http
           scrape_interval: 1m
