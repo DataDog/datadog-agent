@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -28,6 +29,8 @@ import (
 
 	"k8s.io/client-go/transport"
 )
+
+const apiServerQuery = "%s/api/v1/pods?fieldSelector=spec.nodeName=%s"
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
@@ -43,6 +46,10 @@ type kubeletClientConfig struct {
 	clientKeyPath  string
 	token          string
 	tokenPath      string
+
+	useAPIServer  bool
+	apiServerHost string
+	nodeName      string
 }
 
 type kubeletClient struct {
@@ -125,8 +132,16 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 }
 
 func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET",
-		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
+	var fullURL string
+
+	// Redirect pod list requests to the API server when `useAPIServer` is enabled
+	if kc.config.useAPIServer && path == kubeletPodPath {
+		fullURL = fmt.Sprintf(apiServerQuery, kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
+	} else {
+		fullURL = fmt.Sprintf("%s%s", kc.kubeletURL, path)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
 	}
@@ -165,6 +180,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	kubeletTimeout := 30 * time.Second
 	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
+	kubeletUseAPIServer := pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server")
 	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
 	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
 	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
@@ -196,6 +212,19 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		clientKeyPath:  kubeletClientKeyPath,
 		token:          kubeletToken,
 		tokenPath:      kubeletTokenPath,
+	}
+
+	if kubeletUseAPIServer {
+		apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS")
+		if apiServerHost == "" || apiServerPort == "" {
+			return nil, fmt.Errorf("failed to determine API server host/port")
+		}
+
+		clientConfig.useAPIServer = true
+		clientConfig.apiServerHost = fmt.Sprintf("https://%s:%s", apiServerHost, apiServerPort)
+
+		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}
 
 	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)
