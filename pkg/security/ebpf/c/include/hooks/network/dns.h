@@ -172,7 +172,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    long err = bpf_skb_load_bytes(skb, pkt->offset, evt->data, remaining_bytes);
+    long err = bpf_skb_load_bytes(skb, pkt->offset, evt->data, (u32)remaining_bytes);
 
     if (err < 0) {
         return ACT_OK;
