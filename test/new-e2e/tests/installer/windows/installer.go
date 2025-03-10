@@ -162,6 +162,11 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
+// GarbageCollect runs the garbage-collect command, removing unused packages
+func (d *DatadogInstaller) GarbageCollect() (string, error) {
+	return d.execute("garbage-collect")
+}
+
 func (d *DatadogInstaller) createInstallerFolders() {
 	for _, p := range consts.InstallerConfigPaths {
 		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
