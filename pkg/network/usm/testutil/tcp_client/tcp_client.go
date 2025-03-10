@@ -57,6 +57,10 @@ func main() {
 	if useRST {
 		// closed connection issues RST instead of FIN
 		fd, _ := conn.(*net.TCPConn).File()
-		syscall.SetsockoptLinger(int(fd.Fd()), syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{Onoff: 1, Linger: 0})
+		err = syscall.SetsockoptLinger(int(fd.Fd()), syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{Onoff: 1, Linger: 0})
+		if err != nil {
+			fmt.Println("set linger error:", err)
+			os.Exit(1)
+		}
 	}
 }

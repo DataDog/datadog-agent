@@ -888,9 +888,8 @@ func checkStatesInMap(t *testing.T, monitor *Monitor, m *ebpf.Map, tuples []nete
 	assert.Eventually(t, func() bool {
 		if exist {
 			return findAllKeysInMap(t, m, tuples)
-		} else {
-			return !findAllKeysInMap(t, m, tuples)
 		}
+		return !findAllKeysInMap(t, m, tuples)
 	}, 500*time.Millisecond, 50*time.Millisecond)
 	if t.Failed() {
 		t.Logf("failed search keys %v, %v exist: %t", tuples[0], tuples[1], exist)
