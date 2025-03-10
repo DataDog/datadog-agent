@@ -52,7 +52,7 @@ var otlpIngestParams = utils.IAParams{
 
 func (s *otlpIngestTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPTraces() {
