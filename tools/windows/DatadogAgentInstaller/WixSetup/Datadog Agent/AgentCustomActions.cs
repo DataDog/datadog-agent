@@ -62,7 +62,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction InstallOciPackages { get; }
 
-        public ManagedAction RollbackOciPackages { get; }
+        // public ManagedAction RollbackOciPackages { get; }
 
         public ManagedAction UninstallOciPackages { get; }
 
@@ -473,19 +473,19 @@ namespace WixSetup.Datadog_Agent
                 Sequence = Sequence.NotInSequence
             };
 
-            RollbackOciPackages = new CustomAction<CustomActions>(
-                    new Id(nameof(RollbackOciPackages)),
-                    CustomActions.RollbackOciPackages,
-                    Return.ignore,
-                    When.Before,
-                    Step.StartServices,
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-            .SetProperties("INSTALLDIR=[INSTALLDIR],SITE=[SITE],APIKEY=[APIKEY]");
+            // RollbackOciPackages = new CustomAction<CustomActions>(
+            //         new Id(nameof(RollbackOciPackages)),
+            //         CustomActions.RollbackOciPackages,
+            //         Return.ignore,
+            //         When.Before,
+            //         Step.StartServices,
+            //         Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            // )
+            // {
+            //     Execute = Execute.rollback,
+            //     Impersonate = false
+            // }
+            // .SetProperties("INSTALLDIR=[INSTALLDIR],SITE=[SITE],APIKEY=[APIKEY]");
 
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
