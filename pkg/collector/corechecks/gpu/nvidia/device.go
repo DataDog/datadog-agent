@@ -43,14 +43,12 @@ var allDeviceMetrics = []deviceMetric{
 
 type deviceCollector struct {
 	device        nvml.Device
-	tags          []string
 	metricGetters []deviceMetric
 }
 
-func newDeviceCollector(device nvml.Device, tags []string) (Collector, error) {
+func newDeviceCollector(device nvml.Device) (Collector, error) {
 	c := &deviceCollector{
 		device: device,
-		tags:   tags,
 	}
 	c.metricGetters = append(c.metricGetters, allDeviceMetrics...) // copy all metrics to avoid modifying the original slice
 
@@ -109,7 +107,6 @@ func (c *deviceCollector) Collect() ([]Metric, error) {
 		values = append(values, Metric{
 			Name:  metric.name,
 			Value: value,
-			Tags:  c.tags,
 			Type:  metric.metricType,
 		})
 

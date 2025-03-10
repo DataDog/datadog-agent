@@ -57,18 +57,6 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
-	if err != nil {
-		return 0, err
-	}
-
-	e.ContainerID = containerutils.ContainerID(id)
-
-	return ContainerIDLen, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
@@ -967,17 +955,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
-
-	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -1504,4 +1486,61 @@ func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return total, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	var cursor int
+
+	e.Action = binary.NativeEndian.Uint32(data[0:4])
+	e.FilePosition = binary.NativeEndian.Uint32(data[4:8])
+
+	nameLen := int(binary.NativeEndian.Uint16(data[8:10]))
+	oldValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
+	newValueLen := int(binary.NativeEndian.Uint16(data[12:14]))
+	flags := binary.NativeEndian.Uint16(data[14:16])
+
+	// handle truncated fields
+	e.NameTruncated = flags&(1<<0) > 0
+	e.OldValueTruncated = flags&(1<<1) > 0
+	e.ValueTruncated = flags&(1<<2) > 0
+	cursor += 16
+
+	// parse name and values
+	if nameLen+oldValueLen+newValueLen > len(data[cursor:]) {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	e.Name, err = UnmarshalString(data[cursor:cursor+nameLen], nameLen)
+	if err != nil {
+		return 0, err
+	}
+	e.Name = strings.TrimSpace(e.Name)
+	cursor += nameLen
+
+	e.OldValue, err = UnmarshalString(data[cursor:cursor+oldValueLen], oldValueLen)
+	if err != nil {
+		return 0, err
+	}
+	e.OldValue = strings.TrimSpace(e.OldValue)
+	cursor += oldValueLen
+
+	if e.Action == uint32(SysCtlReadAction) {
+		e.Value = e.OldValue
+	} else if e.Action == uint32(SysCtlWriteAction) {
+		e.Value, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
+		if err != nil {
+			return 0, err
+		}
+		e.Value = strings.TrimSpace(e.Value)
+	}
+
+	// make sure the cursor is incremented either way
+	cursor += newValueLen
+
+	return cursor, nil
 }

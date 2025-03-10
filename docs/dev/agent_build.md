@@ -5,18 +5,18 @@
 You can decide at build time which components of the Agent you want to find in
 the final artifact. By default, all the components are picked up, so if you want
 to replicate the same configuration of the Agent distributed via system packages,
-all you have to do is `deva agent.build`.
+all you have to do is `dda inv agent.build`.
 
 To pick only certain components you have to invoke the task like this:
 
 ```
-deva agent.build --build-include=zstd,etcd,python
+dda inv agent.build --build-include=zstd,etcd,python
 ```
 
 Conversely, if you want to exclude something:
 
 ```
-deva agent.build --build-exclude=systemd,python
+dda inv agent.build --build-exclude=systemd,python
 ```
 
 This is the complete list of the available components:
@@ -67,13 +67,13 @@ into the Agent binary. For instance, to override the defaults and bundle only th
 and the security Agents:
 
 ```
-deva agent.build --bundle process-agent --bundle security-agent
+dda inv agent.build --bundle process-agent --bundle security-agent
 ```
 
 To disable bundling entirely:
 
 ```
-deva agent.build --bundle agent
+dda inv agent.build --bundle agent
 ```
 
 ## Testing Agent changes in containerized environments
@@ -91,7 +91,7 @@ COPY agent /opt/datadog-agent/bin/agent/agent
 
 For this to work properly, two things are important:
 - Your change needs to be done on top of the `<AGENT_VERSION>` tag from the DataDog repository.
-- You need to run the invoke task with the proper embedded path `deva -e agent.build -e /opt/datadog-agent/embedded`.
+- You need to run the invoke task with the proper embedded path `dda inv -e agent.build -e /opt/datadog-agent/embedded`.
 
 **Note**: This makes `invoke` install the build's artifacts in the `/opt/datadog-agent/embedded` folder. Make sure the folder exists and the current user has write permissions.
 

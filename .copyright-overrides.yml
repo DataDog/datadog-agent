@@ -295,7 +295,7 @@ go.opentelemetry.io/otel/semconv/internal: Copyright The OpenTelemetry Authors
 go.opentelemetry.io/otel/semconv/v1.12.0: Copyright The OpenTelemetry Authors
 golang.org/x/crypto/chacha20poly1305: Copyright (c) 2009 The Go Authors. All rights reserved
 
-# Not added by inv generate-licenses but spotted by inv-e lint-licenses
+# Not added by `dda inv generate-licenses` but spotted by `dda inv -e lint-licenses`
 github.com/AdaLogics/go-fuzz-headers: AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|AdamKorcz <adam@adalogics.com>|Sebastiaan van Stijn <github@gone.nl>|AdaLogics <48351493+AdaLogics@users.noreply.github.com>|Kazuyoshi Kato <kato.kazuyoshi@gmail.com>
 github.com/AdamKorcz/go-118-fuzz-build/testing: AdamKorcz <adam@adalogics.com>|AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|John Howard <howardjohn@google.com>|Kazuyoshi Kato <katokazu@amazon.com>|Khaled Yakdan <yakdan@code-intelligence.de>|AdamKorcz <Adam@adalogics.com>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>
 github.com/Microsoft/go-winio/pkg/bindfilter: Copyright (c) 2015 Microsoft
@@ -396,3 +396,6 @@ github.com/jaegertracing/jaeger-idl/proto-gen/api_v2: ["Copyright (c) 2019 The J
 github.com/jaegertracing/jaeger-idl/thrift-gen/agent: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
 github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
 github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+
+# https://github.com/bhmj/xpression/blob/master/LICENCE
+github.com/bhmj/xpression: Copyright 2021-2022 Michael Gurov (github.com/bhmj)

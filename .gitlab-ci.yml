@@ -170,49 +170,47 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v56253564-2781d434
+  DATADOG_AGENT_BUILDIMAGES: v57956792-9c6a3311
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v56253564-2781d434
+  DATADOG_AGENT_WINBUILDIMAGES: v57956792-9c6a3311
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v56253564-2781d434
+  DATADOG_AGENT_ARMBUILDIMAGES: v57956792-9c6a3311
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v56253564-2781d434
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v57956792-9c6a3311
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v56253564-2781d434
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v57956792-9c6a3311
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v56253564-2781d434
+  CI_IMAGE_BTF_GEN: v57956792-9c6a3311
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v56253564-2781d434
+  CI_IMAGE_DEB_X64: v57956792-9c6a3311
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v56253564-2781d434
+  CI_IMAGE_DEB_ARM64: v57956792-9c6a3311
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v56253564-2781d434
+  CI_IMAGE_DEB_ARMHF: v57956792-9c6a3311
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v56253564-2781d434
+  CI_IMAGE_DD_AGENT_TESTING: v57956792-9c6a3311
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v56253564-2781d434
+  CI_IMAGE_DOCKER_X64: v57956792-9c6a3311
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v56253564-2781d434
+  CI_IMAGE_DOCKER_ARM64: v57956792-9c6a3311
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v56253564-2781d434
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v57956792-9c6a3311
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v56253564-2781d434
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v57956792-9c6a3311
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v56253564-2781d434
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v57956792-9c6a3311
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v56253564-2781d434
+  CI_IMAGE_SYSTEM_PROBE_X64: v57956792-9c6a3311
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v56253564-2781d434
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v57956792-9c6a3311
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v56253564-2781d434
+  CI_IMAGE_RPM_X64: v57956792-9c6a3311
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v56253564-2781d434
+  CI_IMAGE_RPM_ARM64: v57956792-9c6a3311
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v56253564-2781d434
+  CI_IMAGE_RPM_ARMHF: v57956792-9c6a3311
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v56253564-2781d434
-  CI_IMAGE_WIN_1809_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v56253564-2781d434
+  CI_IMAGE_WIN_LTSC2022_X64: v57956792-9c6a3311
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -380,8 +378,9 @@ variables:
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
+# Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
-  if: ($CI_PIPELINE_SOURCE == "schedule" || ($DDR_WORKFLOW_ID != null && $APPS =~ /^beta-build-/)) && $CI_COMMIT_BRANCH == "main"
+  if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
 
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
@@ -424,20 +423,6 @@ workflow:
 
 .manual:
   - !reference [.except_mergequeue]
-  - when: manual
-    allow_failure: true
-
-.except_no_a7:
-  - !reference [.except_mergequeue]
-  - <<: *if_not_version_7
-    when: never
-
-.on_dev_branch_manual:
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
   - when: manual
     allow_failure: true
 
@@ -577,12 +562,6 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_nightly_repo_branch_always:
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: always
-
 .on_deploy_stable_or_beta_repo_branch:
   - !reference [.except_mergequeue]
   - <<: *if_not_stable_or_beta_repo_branch
@@ -629,22 +608,21 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.not_on_release_branch_or_tagged_commit:
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-
 .only_main:
   - <<: *if_not_main_branch
     when: never
 
-.except_main_or_release_branch:
+.except_main_release_or_mq:
   - <<: *if_main_branch
     when: never
   - <<: *if_release_branch
     when: never
   - !reference [.except_mergequeue]
+
+.on_dev_branches:
+  - !reference [.except_main_release_or_mq]
+  - <<: *if_tagged_commit
+    when: never
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -1085,12 +1063,7 @@ workflow:
 
 .on_scheduled_main:
   - <<: *if_scheduled_main
-
-.on_scheduled_main_or_manual:
-  - <<: *if_scheduled_main
     when: always
-  - when: manual
-    allow_failure: true
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
@@ -1224,9 +1197,6 @@ workflow:
 # Use in jobs that need to run on Windows Server 2019 runners.
 .windows_docker_2019:
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  variables:
-    # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
 
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.
