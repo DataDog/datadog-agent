@@ -1,8 +1,8 @@
-single-machine-performance-regression_detector:
+single-machine-performance-regression_detector-otlp-vs-oss:
   stage: functional_test
   timeout: 1h10m
   rules:
-    - !reference [.on_dev_branches]
+    - !reference [.except_main_or_release_branch]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -22,7 +22,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.21.0
+    SMP_VERSION: 0.20.2
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -96,7 +96,7 @@ single-machine-performance-regression_detector:
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     # Copy the baseline SHA to SMP for debugging purposes later
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
+    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-ot-oss-beta-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
@@ -253,7 +253,7 @@ single-machine-performance-regression_detector:
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
-    - !reference [.on_dev_branches]
+    - !reference [.except_main_or_release_branch]
     - when: always
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"

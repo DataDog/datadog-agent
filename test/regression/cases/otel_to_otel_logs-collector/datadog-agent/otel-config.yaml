@@ -5,28 +5,29 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-    # Collect own metrics
   prometheus:
     config:
       scrape_configs:
-      - job_name: 'otel-collector'
-        scrape_interval: 60s
+      - job_name: 'otelcol'
+        scrape_interval: 10s
         static_configs:
-        - targets: ['0.0.0.0:8888']
-        metric_relabel_configs:
-        - source_labels: [__name__]
-          regex: ".*grpc_io.*"
-          action: drop
+          - targets: ['0.0.0.0:8888']
 exporters:
   datadog:
     traces:
       span_name_as_resource_name: true
+      endpoint: "http://127.0.0.1:9091"
+    hostname: "smp-regression"    
+    api:
+      key: "123456789"
+      site: 127.0.0.1:9092
     metrics:
       resource_attributes_as_tags: true
-    hostname: "otelcol-test-olivierg2"
-    api:
-      key: ${env:DD_API_KEY}
-      site: ${env:DD_SITE}
+      endpoint: http://127.0.0.1:9091
+    logs:
+      endpoint: http://127.0.0.1:9091
+      
+
 processors:
   batch:
 connectors:
