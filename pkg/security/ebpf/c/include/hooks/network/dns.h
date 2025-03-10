@@ -160,15 +160,15 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     int remaining_bytes = len - sizeof(struct dnshdr);
 
-    if (remaining_bytes <= 0) {
-        return ACT_OK;
-    }
-
     if(pkt->offset <= 0) {
         return ACT_OK;
     }
 
     if (remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
+    if (remaining_bytes <= 0) {
         return ACT_OK;
     }
 
@@ -182,9 +182,9 @@ int classifier_dns_response(struct __sk_buff *skb) {
     u64 * stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &evt->header.id);
 
     if (stored_timestamp != NULL &&  *stored_timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
-        //struct kevent_t evt;
-        //evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
-        //send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
+        struct kevent_t evt;
+        evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
         return ACT_OK;
     }
 
