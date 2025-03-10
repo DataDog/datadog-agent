@@ -210,7 +210,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 
 		if len(usageMetricTags) > 0 {
 			// Ensure we get the limit metric with the same tags as the usage one
-			limitMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
+			limitMetrics, err := v.caps.FakeIntake().Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
 			assert.NoError(c, err)
 			assert.Greater(c, len(limitMetrics), 0, "no 'gpu.core.limit' with tags %v", usageMetricTags)
 		}
