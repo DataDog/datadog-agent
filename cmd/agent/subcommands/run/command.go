@@ -142,6 +142,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/moltp"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -502,7 +503,7 @@ func startAgent(
 	_ option.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
-	_ serializer.MetricSerializer,
+	sharedSerializer serializer.MetricSerializer,
 	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	_ internalAPI.Component,
@@ -607,6 +608,14 @@ func startAgent(
 
 	// start dependent services
 	go startDependentServices()
+
+	// FIXME this shouldn't be here
+	go func() {
+		err := moltp.Serve(":4317", sharedSerializer)
+		if err != nil {
+			log.Errorf("failed to start moltp: %v", err)
+		}
+	}()
 
 	return nil
 }

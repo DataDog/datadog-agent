@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package moltp.v1;
+
+import "opentelemetry/proto/collector/metrics/v1/metrics_service.proto";
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/moltp/v1";
+
+service MetricsService {
+  rpc Export(ExportMetricsServiceRequest) returns (opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse) {}
+}
+
+message ExportMetricsServiceRequest {
+}
