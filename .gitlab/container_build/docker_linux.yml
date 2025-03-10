@@ -76,6 +76,20 @@ single_machine_performance-amd64-a7:
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
     IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-amd64
 
+single_machine_performance-otel-agent-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: container_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - docker_build_ot_agent7
+  variables:
+    IMG_REGISTRIES: internal-aws-smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-ot-amd64
+
+
 docker_build_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
   rules:
@@ -383,3 +397,5 @@ docker_build_dogstatsd_arm64:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
   timeout: 20m
+
+
