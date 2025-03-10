@@ -366,7 +366,7 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 
 	for i, image := range images {
 		cmd, err := vm.OS.Runner().Command(
-			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("%d-%d", i)),
+			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{
 				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} crictl pull %s", kindCluster.ClusterName, image),
 			},
