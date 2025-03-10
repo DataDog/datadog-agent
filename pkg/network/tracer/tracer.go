@@ -419,7 +419,7 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 	if log.ShouldLog(log.TraceLvl) {
@@ -430,11 +430,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	buffer := network.ClientPool.Get(clientID)
 	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving connections: %s", err)
+		return nil, nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	usmStats, cleaners := t.usmMonitor.GetProtocolStats()
-	defer cleaners()
+	usmStats, cleanup := t.usmMonitor.GetProtocolStats()
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), usmStats)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
@@ -469,7 +468,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return conns, nil
+	return conns, cleanup, nil
 }
 
 // RegisterClient registers a clientID with the tracer

@@ -32,8 +32,8 @@ func NewTracer(_ *config.Config, _ telemetry.Component, _ statsd.ClientInterface
 func (t *Tracer) Stop() {}
 
 // GetActiveConnections is not implemented on this OS for Tracer
-func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
-	return nil, ebpf.ErrNotImplemented
+func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	return nil, nil, ebpf.ErrNotImplemented
 }
 
 // GetNetworkID is not implemented on this OS for Tracer
