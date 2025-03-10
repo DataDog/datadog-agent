@@ -43,7 +43,7 @@ const (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newRemoteHostImpl))
+		fx.Provide(NewRemoteHostImpl))
 }
 
 var cachKey = "hostname"
@@ -52,7 +52,8 @@ type remotehostimpl struct {
 	cache *cache.Cache
 }
 
-func newRemoteHostImpl() hostnameinterface.Component {
+// NewRemoteHostImpl returns a new hostname.Component which queries the core agent remotely
+func NewRemoteHostImpl() hostnameinterface.Component {
 	return &remotehostimpl{
 		cache: cache.New(defaultExpire, defaultPurge),
 	}
