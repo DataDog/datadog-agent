@@ -28,19 +28,19 @@ func (c *Counter) addSample(sample *MetricSample, _ float64) {
 	c.sampled = true
 }
 
-func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
+func (c *Counter) flush(timestamp float64) ([]SerieData, error) {
 	value, sampled := c.value, c.sampled
 	c.value, c.sampled = 0, false
 
 	if !sampled {
-		return []*Serie{}, NoSerieError{}
+		return nil, NoSerieError{}
 	}
 
-	return []*Serie{
+	return []SerieData{
 		{
 			// we use the timestamp passed to the flush
-			Points: []Point{{Ts: timestamp, Value: value / float64(c.interval)}},
-			MType:  APIRateType,
+			Point: Point{Ts: timestamp, Value: value / float64(c.interval)},
+			MType: APIRateType,
 		},
 	}, nil
 }
