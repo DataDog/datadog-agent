@@ -1209,15 +1209,43 @@ workflow:
 # -------------------------
 
 # TODO: Do it within build images
+# .update-datadog-ci-amd64:
+#   - echo "Installing datadog-ci"
+#   - export CI_UPLOADER_VERSION=2.48.0
+#   - export CI_UPLOADER_SHA=5e700c465728fff8313e77c2d5ba1ce19a736168735137e1ddc7c6346ed48208
+#   - rm -f /usr/local/bin/datadog-ci
+#   - |
+#     curl -fsSL https://github.com/DataDog/datadog-ci/releases/download/v${CI_UPLOADER_VERSION}/datadog-ci_linux-x64 --output "/usr/local/bin/datadog-ci"
+#     echo "${CI_UPLOADER_SHA} /usr/local/bin/datadog-ci" | sha256sum --check
+#     chmod +x /usr/local/bin/datadog-ci
+
 .update-datadog-ci-amd64:
   - echo "Installing datadog-ci"
-  - export CI_UPLOADER_VERSION=2.48.0
-  - export CI_UPLOADER_SHA=5e700c465728fff8313e77c2d5ba1ce19a736168735137e1ddc7c6346ed48208
+  - export ARTIFACT_PATH=https://github.com/DataDog/datadog-ci/actions/runs/13762194314/artifacts/2721276532
   - rm -f /usr/local/bin/datadog-ci
   - |
-    curl -fsSL https://github.com/DataDog/datadog-ci/releases/download/v${CI_UPLOADER_VERSION}/datadog-ci_linux-x64 --output "/usr/local/bin/datadog-ci"
-    echo "${CI_UPLOADER_SHA} /usr/local/bin/datadog-ci" | sha256sum --check
+    curl -fsSL "$ARTIFACT_PATH" --output "/usr/local/bin/datadog-ci"
     chmod +x /usr/local/bin/datadog-ci
+
+# .build-datadog-ci:
+#   - apt-get update
+#   - apt-get install npm nodejs -y
+#   - npm install --global yarn
+#   - yarn --version
+#   - |
+#     # NVM
+#     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+#     export NVM_DIR="$HOME/.nvm"
+#     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+#   - nvm install 18 && nvm use 18
+#   - git clone git@github.com:DataDog/datadog-ci.git
+#   - cd datadog-ci
+#   - yarn install --imutable
+#   - yarn build
+#   - yarn dist-standalone -t node18-linux-x64 -o datadog-ci_linux-x64
+#   - ls
+#   - ls bin
+
 
 test-datadog-ci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
