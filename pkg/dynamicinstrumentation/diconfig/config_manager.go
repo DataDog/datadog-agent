@@ -236,6 +236,12 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 		// Check hash to see if the configuration changed
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
+			err := AnalyzeBinary(procInfo)
+			if err != nil {
+				log.Errorf("couldn't inspect binary: %v\n", err)
+				continue
+			}
+
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
@@ -244,14 +250,9 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Tracef("Applying config update: %v\n", probe)
-	err := AnalyzeBinary(procInfo)
-	if err != nil {
-		log.Errorf("couldn't inspect binary: %v\n", err)
-		return
-	}
 
 generateCompileAttach:
-	err = codegen.GenerateBPFParamsCode(procInfo, probe)
+	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
 		if !probe.InstrumentationInfo.AttemptedRebuild {
