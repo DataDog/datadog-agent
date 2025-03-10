@@ -196,6 +196,9 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.flushWg.Add(1)
 	}
 
+	for _, m := range messages {
+		m.SetContent([]byte{})
+	}
 	p := &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload.Bytes(),
