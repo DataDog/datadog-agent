@@ -188,10 +188,10 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
-// GetProtocolStats returns the current stats for all protocols and a cleanup function to free resources.
-func (m *Monitor) GetProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
+// GetProtocolStats returns the current stats for all protocols
+func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	if m == nil {
-		return nil, func() {}
+		return nil
 	}
 
 	defer func() {

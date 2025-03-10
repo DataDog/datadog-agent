@@ -6,11 +6,8 @@
 package http
 
 import (
-	"errors"
-
 	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
@@ -22,6 +19,11 @@ var Interner = intern.NewStringInterner()
 
 // Method is the type used to represent HTTP request methods
 type Method uint8
+
+// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
+// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
+// will be between 99 and 101
+const RelativeAccuracy = 0.01
 
 const (
 	// MethodUnknown represents an unknown request method
@@ -126,20 +128,12 @@ type RequestStat struct {
 	DynamicTags []string
 }
 
-func (r *RequestStat) initSketch() error {
-	latencies := protocols.SketchesPool.Get()
-	if latencies == nil {
-		return errors.New("error recording http transaction latency: could not create new ddsketch")
+func (r *RequestStat) initSketch() (err error) {
+	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
-	r.Latencies = latencies
-	return nil
-}
-
-func (r *RequestStat) close() {
-	if r.Latencies != nil {
-		r.Latencies.Clear()
-		protocols.SketchesPool.Put(r.Latencies)
-	}
+	return
 }
 
 // RequestStats stores HTTP request statistics.
@@ -228,7 +222,6 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	if stats.Latencies == nil {
 		if err := stats.initSketch(); err != nil {
-			log.Warnf("could not add request latency to ddsketch: %v", err)
 			return
 		}
 
@@ -249,15 +242,6 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
-		}
-	}
-}
-
-// Close releases internal stats resources.
-func (r *RequestStats) Close() {
-	for _, stats := range r.Data {
-		if stats != nil {
-			stats.close()
 		}
 	}
 }
