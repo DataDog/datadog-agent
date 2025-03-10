@@ -109,12 +109,17 @@ var supportedLanguages = []language{
 	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
-func (l language) isSupported() bool {
-	return slices.Contains(supportedLanguages, l)
+func defaultSupportedLanguagesMap() map[language]bool {
+	m := map[language]bool{}
+	for _, l := range supportedLanguages {
+		m[l] = true
+	}
+
+	return m
 }
 
-func (l language) isEnabledByDefault() bool {
-	return l != "php"
+func (l language) isSupported() bool {
+	return slices.Contains(supportedLanguages, l)
 }
 
 // defaultVersionMagicString is a magic string that indicates that the user

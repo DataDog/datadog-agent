@@ -202,7 +202,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 50 * time.Millisecond
 	expBackoff.MaxInterval = 500 * time.Millisecond
-	expBackoff.MaxElapsedTime = 5 * time.Second
+	expBackoff.MaxElapsedTime = 30 * time.Second
 	err = backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
@@ -247,12 +247,6 @@ func (t *remoteTagger) Stop() error {
 
 	t.log.Info("remote tagger stopped successfully")
 
-	return nil
-}
-
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the remote tagger
-func (t *remoteTagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 
@@ -436,10 +430,6 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
-
-func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *remoteTagger) ResetCaptureTagger() {}
 
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based

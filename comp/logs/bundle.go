@@ -7,6 +7,7 @@ package logs //nolint:revive // TODO(AML) Fix revive linter
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	streamlogs "github.com/DataDog/datadog-agent/comp/logs/streamlogs/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,5 +17,6 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		agentimpl.Module(),
+		streamlogs.Module(),
 	)
 }

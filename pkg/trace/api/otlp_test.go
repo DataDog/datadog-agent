@@ -1542,8 +1542,8 @@ func TestOTLPHelpers(t *testing.T) {
 			status := ptrace.NewStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
-			transform.Status2Error(status, tt.events, &span)
-			assert.Equal(tt.out.Error, span.Error)
+			got := transform.Status2Error(status, tt.events, span.Meta)
+			assert.Equal(tt.out.Error, got)
 			for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
 				if v, ok := tt.out.Meta[prop]; ok {
 					assert.Equal(v, span.Meta[prop])
@@ -1656,19 +1656,19 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	if enableOperationAndResourceNameV2 {
 		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr              map[string]string
-		libname            string
-		libver             string
-		in                 ptrace.Span
-		operationNameV1    string
-		operationNameV2    string
-		resourceNameV1     string
-		resourceNameV2     string
-		out                *pb.Span
-		outTags            map[string]string
-		topLevelOutMetrics map[string]float64
+		rattr                      map[string]string
+		libname                    string
+		libver                     string
+		in                         ptrace.Span
+		operationNameV1            string
+		operationNameV2            string
+		resourceNameV1             string
+		resourceNameV2             string
+		out                        *pb.Span
+		outTags                    map[string]string
+		topLevelOutMetrics         map[string]float64
+		ignoreMissingDatadogFields bool
 	}{
 		{
 			rattr: map[string]string{
@@ -2132,66 +2132,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			libver:  "v2",
 			// Modified version of:
 			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
-			// Using both old and new semantic conventions.
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				Name:       "POST /uploads/:document_id",
-				Start:      now,
-				End:        now + 200000000,
-				StatusCode: ptrace.StatusCodeError,
-				Attributes: map[string]interface{}{
-					"operation.name":            "ddtracer.server",
-					"http.request.method":       "POST",
-					"http.method":               "SHOULD NOT BE USED FOR RESOURCE NAME",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "SHOULD NOT BE USED FOR ERROR.MSG",
-					"error.type":                "WebSocketDisconnect",
-				},
-			}),
-			operationNameV1: "ddtracer.server",
-			operationNameV2: "ddtracer.server",
-			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
-			out: &pb.Span{
-				Service:  "document-uploader",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"env":                  "staging",
-					"otel.library.name":    "ddtracer",
-					"otel.library.version": "v2",
-					"otel.status_code":     "Error",
-					"error.msg":            "201",
-					"http.method":          "POST",
-					"url.path":             "/uploads/4",
-					"url.scheme":           "https",
-					"http.route":           "/uploads/:document_id",
-					"http.status_code":     "201",
-					"error.type":           "WebSocketDisconnect",
-					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":            "unspecified",
-				},
-				Type: "custom",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
-			},
-		},
-		{
-			rattr: map[string]string{
-				"env":          "staging",
-				"service.name": "document-uploader",
-			},
-			libname: "ddtracer",
-			libver:  "v2",
-			// Modified version of:
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
 			// Using old semantic conventions.
 			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
 				Name:       "POST /uploads/:document_id",
@@ -2274,7 +2214,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"deployment.environment.name": "do-not-use",
 					"container.id":                "do-not-use",
 					"k8s.pod.uid":                 "do-not-use",
-					"datadog.host.name":           "do-not-use",
 					"otel.library.name":           "ddtracer",
 					"otel.library.version":        "v2",
 					"otel.status_code":            "Error",
@@ -2287,8 +2226,221 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				"_top_level": 1,
 			},
 		},
+		{
+			rattr:   map[string]string{},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					transform.KeyDatadogService:        "test-service",
+					transform.KeyDatadogName:           "test-name",
+					transform.KeyDatadogResource:       "test-resource",
+					transform.KeyDatadogType:           "test-type",
+					transform.KeyDatadogError:          1,
+					transform.KeyDatadogEnvironment:    "test-env",
+					transform.KeyDatadogVersion:        "test-version",
+					transform.KeyDatadogSpanKind:       "test-kind",
+					transform.KeyDatadogErrorMsg:       "Out of memory",
+					transform.KeyDatadogErrorType:      "mem",
+					transform.KeyDatadogErrorStack:     "1/2/3",
+					transform.KeyDatadogHTTPStatusCode: 404,
+					"http.status_code":                 200,
+				},
+			}),
+			operationNameV1: "test-name",
+			operationNameV2: "test-name",
+			resourceNameV1:  "test-resource",
+			resourceNameV2:  "test-resource",
+			out: &pb.Span{
+				Service:  "test-service",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "test-env",
+					"version":              "test-version",
+					"span.kind":            "test-kind",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":     "Unset",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"w3c.tracestate":       "state",
+					"error.msg":            "Out of memory",
+					"error.type":           "mem",
+					"error.stack":          "1/2/3",
+					"http.status_code":     "404",
+				},
+				Metrics: map[string]float64{
+					"http.status_code": 404,
+				},
+				Type: "test-type",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":       1,
+				"http.status_code": 404,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.name":                             "myservice",
+				"service.version":                          "v1.2.3",
+				"env":                                      "staging",
+				semconv127.AttributeClientAddress:          "sample_client_address",
+				semconv127.AttributeHTTPResponseBodySize:   "sample_content_length",
+				semconv127.AttributeHTTPResponseStatusCode: "sample_status_code",
+				semconv127.AttributeHTTPRequestBodySize:    "sample_content_length",
+				"http.request.header.referrer":             "sample_referrer",
+				semconv127.AttributeNetworkProtocolVersion: "sample_version",
+				semconv127.AttributeServerAddress:          "sample_server_name",
+				semconv127.AttributeURLFull:                "sample_url",
+				semconv127.AttributeUserAgentOriginal:      "sample_useragent",
+				"http.request.header.example":              "test",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					"name":            "john",
+					"http.method":     "GET",
+					"http.route":      "/path",
+					"approx":          1.2,
+					"count":           2,
+					"analytics.event": "false",
+					"service.name":    "pylons",
+				},
+				Events: []testutil.OTLPSpanEvent{
+					{
+						Timestamp: 123,
+						Name:      "boom",
+						Attributes: map[string]interface{}{
+							"message":  "Out of memory",
+							"accuracy": 2.4,
+						},
+						Dropped: 2,
+					},
+					{
+						Timestamp: 456,
+						Name:      "exception",
+						Attributes: map[string]interface{}{
+							"exception.message":    "Out of memory",
+							"exception.type":       "mem",
+							"exception.stacktrace": "1/2/3",
+						},
+						Dropped: 2,
+					},
+				},
+				Links: []testutil.OTLPSpanLink{
+					{
+						TraceID:    "fedcba98765432100123456789abcdef",
+						SpanID:     "abcdef0123456789",
+						TraceState: "dd=asdf256,ee=jkl;128",
+						Attributes: map[string]interface{}{
+							"a1": "v1",
+							"a2": "v2",
+						},
+						Dropped: 24,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{
+							"a3": "v2",
+							"a4": "v4",
+						},
+						Dropped: 0,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
+					},
+				},
+				StatusMsg:  "Error",
+				StatusCode: ptrace.StatusCodeError,
+			}),
+			operationNameV1: "",
+			operationNameV2: "",
+			resourceNameV1:  "",
+			resourceNameV2:  "",
+			out: &pb.Span{
+				Service:  "",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"name":                          "john",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"version":                       "v1.2.3",
+					"w3c.tracestate":                "state",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"http.route":                    "/path",
+					"_dd.span_events.has_exception": "true",
+					"http.method":                   "GET",
+					"http.client_ip":                "sample_client_address",
+					"http.response.content_length":  "sample_content_length",
+					"http.request.content_length":   "sample_content_length",
+					"http.referrer":                 "sample_referrer",
+					"http.version":                  "sample_version",
+					"http.server_name":              "sample_server_name",
+					"http.url":                      "sample_url",
+					"http.useragent":                "sample_useragent",
+					"http.request.headers.example":  "test",
+				},
+				Metrics: map[string]float64{
+					"approx":                               1.2,
+					"count":                                2,
+					sampler.KeySamplingRateEventExtraction: 0,
+				},
+				Type: "",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
+			},
+			ignoreMissingDatadogFields: true,
+		},
 	} {
 		t.Run("", func(t *testing.T) {
+			cfg.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
@@ -2298,7 +2450,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			for k, v := range tt.rattr {
 				res.Attributes().PutStr(k, v)
 			}
-			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -2356,7 +2508,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 
 			// test new top-level identification feature flag
 			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-			got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
 			wantMetrics := tt.topLevelOutMetrics
 			if len(wantMetrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
@@ -2787,68 +2939,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"url.scheme":                "https",
 					"http.route":                "/uploads/:document_id",
 					"http.response.status_code": "201",
-					"error.type":                "WebSocketDisconnect",
-				},
-			}),
-			operationNameV1: "ddtracer.server",
-			operationNameV2: "ddtracer.server",
-			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
-			out: &pb.Span{
-				Service:  "document-uploader",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"env":                       "staging",
-					"otel.library.name":         "ddtracer",
-					"otel.library.version":      "v2",
-					"otel.status_code":          "Error",
-					"error.msg":                 "201",
-					"http.request.method":       "POST",
-					"http.method":               "POST",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "201",
-					"error.type":                "WebSocketDisconnect",
-					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":                 "unspecified",
-				},
-				Type: "custom",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
-			},
-		},
-		{
-			rattr: map[string]string{
-				"env":          "staging",
-				"service.name": "document-uploader",
-			},
-			libname: "ddtracer",
-			libver:  "v2",
-			// Modified version of:
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
-			// Using both old and new semantic conventions.
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				Name:       "POST /uploads/:document_id",
-				Start:      now,
-				End:        now + 200000000,
-				StatusCode: ptrace.StatusCodeError,
-				Attributes: map[string]interface{}{
-					"operation.name":            "ddtracer.server",
-					"http.request.method":       "POST",
-					"http.method":               "SHOULD NOT BE USED FOR RESOURCE NAME",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "SHOULD NOT BE USED FOR ERROR.MSG",
 					"error.type":                "WebSocketDisconnect",
 				},
 			}),
@@ -3788,7 +3878,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 			for k, v := range tt.rattr {
 				res.Attributes().PutStr(k, v)
 			}
-			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
 			want := tt.out
 			if enableOperationAndResourceNameV2 {
 				want.Name = tt.operationNameV2

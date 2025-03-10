@@ -274,11 +274,11 @@ func TestCoreAgentConfigCmd(s OTelTestSuite, expectedCfg string) {
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
 
-	s.T().Log("Calling config command in core agent")
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
+	s.T().Log("Calling 'config otel-agent' command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config", "otel-agent"})
 	require.NoError(s.T(), err, "Failed to execute config")
 	require.Empty(s.T(), stderr)
 	require.NotNil(s.T(), stdout)
-	s.T().Log("Full output of config command in core agent\n", stdout)
+	s.T().Log("Full output of 'config otel-agent' command in core agent\n", stdout)
 	assert.Contains(s.T(), stdout, expectedCfg)
 }

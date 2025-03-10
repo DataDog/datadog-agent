@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
-	"sync"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -75,12 +74,6 @@ type datadogConfig struct {
 // TaggerWrapper is a struct that contains two tagger component: capturetagger and the local tagger
 // and implements the tagger interface
 type TaggerWrapper struct {
-	// captureTagger is a tagger instance that contains a tagger that will contain the tagger
-	// state when replaying a capture scenario
-	captureTagger tagger.Component
-
-	mux sync.RWMutex
-
 	defaultTagger tagger.Component
 
 	wmeta         workloadmeta.Component
@@ -188,11 +181,6 @@ func (t *TaggerWrapper) Stop() error {
 	return t.defaultTagger.Stop()
 }
 
-// ReplayTagger returns the replay tagger instance
-func (t *TaggerWrapper) ReplayTagger() tagger.ReplayTagger {
-	return newReplayTagger(t.telemetryStore)
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 func (t *TaggerWrapper) GetTaggerTelemetryStore() *telemetry.Store {
 	return t.telemetryStore
@@ -205,16 +193,6 @@ func (t *TaggerWrapper) GetDefaultTagger() tagger.Component {
 
 // GetEntity returns the hash for the provided entity id.
 func (t *TaggerWrapper) GetEntity(entityID types.EntityID) (*types.Entity, error) {
-	t.mux.RLock()
-	if t.captureTagger != nil {
-		entity, err := t.captureTagger.GetEntity(entityID)
-		if err == nil && entity != nil {
-			t.mux.RUnlock()
-			return entity, nil
-		}
-	}
-	t.mux.RUnlock()
-
 	return t.defaultTagger.GetEntity(entityID)
 }
 
@@ -222,16 +200,6 @@ func (t *TaggerWrapper) GetEntity(entityID types.EntityID) (*types.Entity, error
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
 func (t *TaggerWrapper) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
-	// TODO: defer unlock once performance overhead of defer is negligible
-	t.mux.RLock()
-	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(entityID, cardinality)
-		if err == nil && len(tags) > 0 {
-			t.mux.RUnlock()
-			return tags, nil
-		}
-	}
-	t.mux.RUnlock()
 	return t.defaultTagger.Tag(entityID, cardinality)
 }
 
@@ -254,16 +222,6 @@ func (t *TaggerWrapper) LegacyTag(entity string, cardinality types.TagCardinalit
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
 func (t *TaggerWrapper) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	// TODO: defer unlock once performance overhead of defer is negligible
-	t.mux.RLock()
-	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(entityID, cardinality, tb)
-		if err == nil {
-			t.mux.RUnlock()
-			return nil
-		}
-	}
-	t.mux.RUnlock()
 	return t.defaultTagger.AccumulateTagsFor(entityID, cardinality, tb)
 }
 
@@ -280,16 +238,6 @@ func (t *TaggerWrapper) GetEntityHash(entityID types.EntityID, cardinality types
 // Standard queries the defaultTagger to get entity
 // standard tags (env, version, service) from cache or sources.
 func (t *TaggerWrapper) Standard(entityID types.EntityID) ([]string, error) {
-	t.mux.RLock()
-	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
-	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Standard(entityID)
-		if err == nil && len(tags) > 0 {
-			t.mux.RUnlock()
-			return tags, nil
-		}
-	}
-	t.mux.RUnlock()
 	return t.defaultTagger.Standard(entityID)
 }
 
@@ -312,51 +260,18 @@ func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, e
 // GlobalTags queries global tags that should apply to all data coming from the
 // agent.
 func (t *TaggerWrapper) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	t.mux.RLock()
-	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(types.GetGlobalEntityID(), cardinality)
-		if err == nil && len(tags) > 0 {
-			t.mux.RUnlock()
-			return tags, nil
-		}
-	}
-	t.mux.RUnlock()
 	return t.defaultTagger.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
 // from the agent and appends them to the TagsAccumulator
 func (t *TaggerWrapper) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	t.mux.RLock()
-	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
-
-		if err == nil {
-			t.mux.RUnlock()
-			return nil
-		}
-	}
-	t.mux.RUnlock()
 	return t.defaultTagger.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
 }
 
 // List the content of the defaulTagger
 func (t *TaggerWrapper) List() types.TaggerListResponse {
 	return t.defaultTagger.List()
-}
-
-// SetNewCaptureTagger sets the tagger to be used when replaying a capture
-func (t *TaggerWrapper) SetNewCaptureTagger(newCaptureTagger tagger.Component) {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.captureTagger = newCaptureTagger
-}
-
-// ResetCaptureTagger resets the capture tagger to nil
-func (t *TaggerWrapper) ResetCaptureTagger() {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.captureTagger = nil
 }
 
 // EnrichTags extends a tag list with origin detection tags
@@ -486,7 +401,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// Generate container ID from External Data
 		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
 		if err != nil {
-			t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
 
 		// Accumulate tags for generated container ID

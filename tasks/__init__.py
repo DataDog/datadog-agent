@@ -56,6 +56,7 @@ from tasks import (
     quality_gates,
     release,
     rtloader,
+    sbomgen,
     sds,
     security_agent,
     selinux,
@@ -223,6 +224,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(sbomgen)
 ns.configure(
     {
         "run": {

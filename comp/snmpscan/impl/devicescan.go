@@ -57,7 +57,7 @@ func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
 	return pdus, nil
 }
 
-func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string) error {
+func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, s.log)
 	if err != nil {
@@ -70,6 +70,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusInProgress,
+			ScanType:   scanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
@@ -83,6 +84,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
+				ScanType:   scanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
@@ -99,6 +101,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 			DeviceScanStatus: &metadata.ScanStatusMetadata{
 				DeviceID:   deviceID,
 				ScanStatus: metadata.ScanStatusError,
+				ScanType:   scanType,
 			},
 			CollectTimestamp: time.Now().Unix(),
 			Namespace:        namespace,
@@ -113,6 +116,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
 			ScanStatus: metadata.ScanStatusCompleted,
+			ScanType:   scanType,
 		},
 		CollectTimestamp: time.Now().Unix(),
 		Namespace:        namespace,
