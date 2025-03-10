@@ -51,11 +51,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
-	Metadata     map[string][]metadata `json:"check_metadata"`
-	LogsMetadata map[string][]metadata `json:"logs_metadata"`
-	UUID         string                `json:"uuid"`
+	Hostname            string                `json:"hostname"`
+	Timestamp           int64                 `json:"timestamp"`
+	Metadata            map[string][]metadata `json:"check_metadata"`
+	LogsMetadata        map[string][]metadata `json:"logs_metadata"`
+	ExtraPythonPackages map[string]string     `json:"extra_python_packages"`
+	UUID                string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -83,6 +84,8 @@ type inventorychecksImpl struct {
 	m sync.Mutex
 	// data is a map of instanceID to metadata
 	data map[string]instanceMetadata
+	// pythonPackages is a map of python package name to version
+	pythonPackages map[string]string
 
 	log      log.Component
 	conf     config.Component
@@ -113,12 +116,13 @@ type provides struct {
 func newInventoryChecksProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
-		conf:     deps.Config,
-		log:      deps.Log,
-		coll:     deps.Coll,
-		sources:  option.None[*sources.LogSources](),
-		hostname: hname,
-		data:     map[string]instanceMetadata{},
+		conf:           deps.Config,
+		log:            deps.Log,
+		coll:           deps.Coll,
+		sources:        option.None[*sources.LogSources](),
+		hostname:       hname,
+		data:           map[string]instanceMetadata{},
+		pythonPackages: map[string]string{},
 	}
 	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
@@ -176,6 +180,28 @@ func (ic *inventorychecksImpl) Set(instanceID string, key string, value interfac
 
 		ic.Refresh()
 	}
+}
+
+// SetPackages sets a version for the python packages
+func (ic *inventorychecksImpl) SetPackages(extraPythonPackages map[string]string) {
+	if !ic.Enabled || extraPythonPackages == nil {
+		return
+	}
+
+	ic.m.Lock()
+	defer ic.m.Unlock()
+
+	pythonPackagesVersion := make(map[string]string)
+	invPythonPackagesEnabled := ic.conf.GetBool("inventories_python_packages_enabled")
+	if invPythonPackagesEnabled {
+		for name, version := range extraPythonPackages {
+			pythonPackagesVersion[name] = version
+		}
+	}
+
+	ic.pythonPackages = pythonPackagesVersion
+
+	ic.Refresh()
 }
 
 func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string]interface{} {
@@ -266,12 +292,19 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
+	pythonPackagesVersion := make(map[string]string)
+	invPythonPackagesEnabled := ic.conf.GetBool("inventories_python_packages_enabled")
+	if invPythonPackagesEnabled {
+		pythonPackagesVersion = ic.pythonPackages
+	}
+
 	return &Payload{
-		Hostname:     ic.hostname,
-		Timestamp:    time.Now().UnixNano(),
-		Metadata:     payloadData,
-		LogsMetadata: logsMetadata,
-		UUID:         uuid.GetUUID(),
+		Hostname:            ic.hostname,
+		Timestamp:           time.Now().UnixNano(),
+		Metadata:            payloadData,
+		LogsMetadata:        logsMetadata,
+		ExtraPythonPackages: pythonPackagesVersion,
+		UUID:                uuid.GetUUID(),
 	}
 }
 
