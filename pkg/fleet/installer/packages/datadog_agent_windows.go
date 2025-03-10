@@ -12,16 +12,22 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows/registry"
 )
 
 const (
-	datadogAgent = "datadog-agent"
+	datadogAgent     = "datadog-agent"
+	premoteEventName = "Global\\DatadogInstallerPremote"
+	stopEventName    = "Global\\DatadogInstallerStop"
 )
 
 // PrepareAgent prepares the machine to install the agent
@@ -30,17 +36,9 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
-func SetupAgent(ctx context.Context, args []string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
-	defer func() {
-		// Don't log error here, or it will appear twice in the output
-		// since installerImpl.Install will also print the error.
-		span.Finish(err)
-	}()
-	// Make sure there are no Agent already installed
-	_ = removeAgentIfInstalled(ctx)
-	err = installAgentPackage("stable", args)
-	return err
+// This will get called within the MSI installer and should no-op
+func SetupAgent(_ context.Context, _ []string) (err error) {
+	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -58,42 +56,127 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = installAgentPackage("experiment", nil)
+	err = installAgentPackage("experiment", nil, "start_agent_experiment.log")
 	if err != nil {
-		// experiment failed, expect stop-experiment to restore the stable Agent
+		// we failed to install the Agent, we need to restore the stable Agent
+		// to leave the system in a consistent state.
+		// if the reinstall of the sable fails again we can't do much.
+		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
 		return err
 	}
+
+	// now we start our watchdog to make sure the Agent is running
+	// and we can restore the stable Agent if it stops.
+	err = startWatchdog(ctx)
+	if err != nil {
+		log.Errorf("Watchdog failed: %s", err)
+		// we failed to start the watchdog, the Agent stopped, or we received a stop-experiment signal
+		// we need to restore the stable Agent
+		// to leave the system in a consistent state.
+		// remove the experiment Agent
+		err = removeAgentIfInstalled(ctx)
+		if err != nil {
+			// we failed to remove the experiment Agent
+			// we can't do much here
+			log.Errorf("Failed to remove experiment Agent: %s", err)
+			return fmt.Errorf("Failed to remove experiment Agent: %w", err)
+		}
+		// reinstall the stable Agent
+		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
+		return err
+	}
+
 	return nil
 }
 
-// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
-func StopAgentExperiment(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "stop_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to stop agent experiment: %s", err)
-		}
-		span.Finish(err)
-	}()
+func startWatchdog(_ context.Context) error {
+	timeout := time.Now().Add(60 * time.Minute)
 
-	err = removeAgentIfInstalled(ctx)
+	// open events that signal the end of the experiment
+	premoteEvent, stopEvent, err := createEvents()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create events: %w", err)
 	}
+	defer closeEvents(premoteEvent, stopEvent)
 
-	err = installAgentPackage("stable", nil)
+	// open services we are watching
+	m, err := mgr.Connect()
 	if err != nil {
-		// if we cannot restore the stable Agent, the system is left without an Agent
-		return err
+		return fmt.Errorf("failed to connect to service manager: %w", err)
+	}
+	defer m.Disconnect()
+
+	instService, err := m.OpenService("Datadog Installer")
+	if err != nil {
+		return fmt.Errorf("could not access service: %w", err)
+	}
+	defer instService.Close()
+
+	dataDogService, err := m.OpenService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("could not access service: %w", err)
+	}
+	defer dataDogService.Close()
+
+	// main watchdog loop
+	for time.Now().Before(timeout) {
+		// check the Installer service
+		status, err := instService.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service: %w", err)
+		}
+		if status.State != svc.Running {
+			// the service has died
+			// we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("Agent is not running")
+		}
+
+		// check the Agent service
+		// TODO do we need to check the status of the agent service?
+		status, err = dataDogService.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service: %w", err)
+		}
+		if status.State != svc.Running {
+			// the service has died
+			// we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("Agent is not running")
+		}
+
+		// wait for the events to be singaled with a timeout
+		events, err := windows.WaitForMultipleObjects([]windows.Handle{premoteEvent, stopEvent}, false, 1000)
+		if err != nil {
+			return fmt.Errorf("could not wait for events: %w", err)
+		}
+		switch events {
+		case windows.WAIT_OBJECT_0:
+			// the premote event was signaled
+			// this means we are done with the experiment
+			// we can return without an error
+			return nil
+		case windows.WAIT_OBJECT_0 + 1:
+			// the stop event was signaled
+			// this means we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("stop event was signaled")
+		}
+
 	}
 
 	return nil
+
+}
+
+// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
+func StopAgentExperiment(_ context.Context) (err error) {
+	return setStopEvent()
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(_ context.Context) error {
-	// noop
-	return nil
+	return setPremoteEvent()
 }
 
 // RemoveAgent stops and removes the agent
@@ -104,16 +187,10 @@ func RemoveAgent(ctx context.Context) (err error) {
 	return removeAgentIfInstalled(ctx)
 }
 
-func installAgentPackage(target string, args []string) error {
-	// Lookup Agent user stored in registry by the Installer MSI
-	// and pass it to the Agent MSI
-	agentUser, err := getAgentUserName()
-	if err != nil {
-		return fmt.Errorf("failed to get Agent user: %w", err)
-	}
+func installAgentPackage(target string, args []string, logFileName string) error {
 
 	rootPath := ""
-	_, err = os.Stat(paths.RootTmpDir)
+	_, err := os.Stat(paths.RootTmpDir)
 	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
 	if os.IsExist(err) {
 		rootPath = paths.RootTmpDir
@@ -122,16 +199,15 @@ func installAgentPackage(target string, args []string) error {
 	if err != nil {
 		return err
 	}
-	logFile := path.Join(tempDir, "msi.log")
+	logFile := path.Join(tempDir, logFileName)
+
+	args = append(args, "FLEET_INSTALL=1")
 
 	cmd, err := msi.Cmd(
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
-		msi.WithDdAgentUserName(agentUser),
 		msi.WithAdditionalArgs(args),
-		// The Agent package is not serviceable by the end user.
-		msi.HideControlPanelEntry(),
-		msi.WithLogFile(path.Join(tempDir, "msi.log")),
+		msi.WithLogFile(logFile),
 	)
 	var output []byte
 	if err == nil {
@@ -164,27 +240,52 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	return nil
 }
 
-// getAgentUserName returns the user name for the Agent, stored in the registry by the Installer MSI
-func getAgentUserName() (string, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.QUERY_VALUE)
+func createEvents() (windows.Handle, windows.Handle, error) {
+	premoteEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(premoteEventName))
 	if err != nil {
-		return "", err
+		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
 	}
-	defer k.Close()
 
-	user, _, err := k.GetStringValue("installedUser")
+	stopEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(stopEventName))
 	if err != nil {
-		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
+		// close the premoteEvent
+		windows.CloseHandle(premoteEvent)
+		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
 	}
 
-	domain, _, err := k.GetStringValue("installedDomain")
+	return premoteEvent, stopEvent, err
+
+}
+
+func closeEvents(premoteEvent, stopEvent windows.Handle) {
+	windows.CloseHandle(premoteEvent)
+	windows.CloseHandle(stopEvent)
+}
+
+func setPremoteEvent() error {
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(premoteEventName))
 	if err != nil {
-		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
+		return fmt.Errorf("Failed to open event: %w", err)
 	}
+	defer windows.CloseHandle(event)
 
-	if domain != "" {
-		user = domain + `\` + user
+	err = windows.SetEvent(event)
+	if err != nil {
+		return fmt.Errorf("Failed to set event: %w", err)
 	}
+	return nil
+}
 
-	return user, nil
+func setStopEvent() error {
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(stopEventName))
+	if err != nil {
+		return fmt.Errorf("Failed to open event: %w", err)
+	}
+	defer windows.CloseHandle(event)
+
+	err = windows.SetEvent(event)
+	if err != nil {
+		return fmt.Errorf("Failed to set event: %w", err)
+	}
+	return nil
 }

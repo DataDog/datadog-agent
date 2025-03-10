@@ -30,14 +30,14 @@ func TestInstallerUpgrades(t *testing.T) {
 func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	// Arrange
 	s.Require().NoError(s.Installer().Install(
-		ins.WithOption(ins.WithInstallerURLFromInstallersJSON(pipeline.StableURL, s.StableInstallerVersion().PackageVersion()))),
+		ins.WithOption(ins.WithURLFromInstallersJSON(pipeline.StableURL, s.StableAgentVersion().PackageVersion()))),
 		ins.WithMSILogFile("install.log"),
 	)
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
-		WithVersionEqual(s.StableInstallerVersion().Version())
+		WithVersionEqual(s.StableAgentVersion().Version())
 
 	// Act
 	// Install "latest" from the pipeline

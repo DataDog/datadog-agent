@@ -28,7 +28,7 @@ const (
 	// ConfigPath is the location of the Datadog Installer's configuration on disk
 	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
-	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
+	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Agent`
 	// NamedPipe is the name of the named pipe used by the Datadog Installer
 	NamedPipe string = `\\.\pipe\dd_installer`
 

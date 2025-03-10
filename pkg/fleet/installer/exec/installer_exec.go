@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -52,17 +51,11 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	if runtime.GOOS != "windows" {
-		// os.Interrupt is not support on Windows
-		// It gives " run failed: exec: canceling Cmd: not supported by windows"
-		cmd.Cancel = func() error {
-			return cmd.Process.Signal(os.Interrupt)
-		}
-	}
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
 		span: span,
@@ -78,6 +71,13 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string) 
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// SetupInstaller runs the setup command.
+func (i *InstallerExec) SetupInstaller(ctx context.Context, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup-installer", path)
+	defer func() { cmd.span.Finish(nil) }()
 	return cmd.Run()
 }
 

@@ -10,6 +10,7 @@ import "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent
 // Params contains the optional parameters for the Datadog Install Script command
 type Params struct {
 	installerURL string
+	agentUser    string
 	// For now the extraEnvVars are only used by the install script,
 	// but they can (and should) be passed to the executable.
 	extraEnvVars map[string]string
@@ -17,6 +18,14 @@ type Params struct {
 
 // Option is an optional function parameter type for the Params
 type Option func(*Params) error
+
+// WithAgentUser sets the user to install the agent as
+func WithAgentUser(user string) Option {
+	return func(params *Params) error {
+		params.agentUser = user
+		return nil
+	}
+}
 
 // WithExtraEnvVars specifies additional environment variables.
 func WithExtraEnvVars(envVars map[string]string) Option {
@@ -42,9 +51,9 @@ func WithInstallerURL(installerURL string) Option {
 // Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
 // will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
+func WithURLFromInstallersJSON(jsonURL, version string) Option {
 	return func(params *Params) error {
-		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
+		url, err := installers.GetProductURL(jsonURL, "datadog-agent", version, "x86_64")
 		if err != nil {
 			return err
 		}
