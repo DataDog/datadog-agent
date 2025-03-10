@@ -1179,6 +1179,23 @@ int test_chown(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_rename(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (rename(oldpath, newpath) < 0) {
+        perror("rename");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1266,6 +1283,8 @@ int main(int argc, char **argv) {
             exit_code = test_chmod(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chown") == 0) {
             exit_code = test_chown(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "rename") == 0) {
+            return test_rename(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

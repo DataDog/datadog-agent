@@ -98,6 +98,10 @@ func TestFIMPermError(t *testing.T) {
 			ID:         "test_perm_chown_rule",
 			Expression: `chown.file.path == "{{.Root}}/test-file" && chown.retval == -1`,
 		},
+		{
+			ID:         "test_perm_rename_rule",
+			Expression: `rename.file.destination.path == "{{.Root}}/test-file" && rename.file.path == "{{.Root}}/rename-file" && rename.retval == -13`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -127,6 +131,11 @@ func TestFIMPermError(t *testing.T) {
 	}
 
 	err = os.Chown(testFile, 2002, 2002)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	renameFile, _, err := test.Create("rename-file")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,6 +210,23 @@ func TestFIMPermError(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_chown_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Chown.Retval)
+		})
+	})
+
+	test.Run(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"rename", renameFile, testFile,
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_rename_rule")
+			assert.Equal(t, -int64(syscall.EACCES), event.Rename.Retval)
 		})
 	})
 }
