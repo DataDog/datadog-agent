@@ -21,7 +21,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -150,7 +150,7 @@ powershell_script_signing:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -245,7 +245,6 @@ windows-installer-amd64:
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
-      -e USE_S3_CACHING="$USE_S3_CACHING"
       -e API_KEY_ORG2=${API_KEY_ORG2}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"

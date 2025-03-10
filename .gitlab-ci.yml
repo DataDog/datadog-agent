@@ -151,7 +151,6 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
-  USE_S3_CACHING: --omnibus-s3-cache
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache

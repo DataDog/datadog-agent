@@ -162,7 +162,6 @@ def _get_environment_for_cache() -> dict:
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
-            "USE_S3_CACHING",
             "USER",
             "USERDOMAIN",
             "USERNAME",
