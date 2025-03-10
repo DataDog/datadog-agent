@@ -1251,7 +1251,7 @@ workflow:
 
 .get-custom-datadog-ci-amd64:
   - |
-    DATADOG_CI_JOB_ID=840415335
+    DATADOG_CI_JOB_ID=840467882
     echo "Installing datadog-ci"
     rm -f /usr/local/bin/datadog-ci
     dda inv -e gitlab.download-artifact --job-id $DATADOG_CI_JOB_ID
@@ -1267,13 +1267,16 @@ test-datadog-ci:
     - set -e
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - datestart="$(date '+%s%N' | cut -b1-13)"
     - |
       python3 -m pip uninstall setuptools -y
       python3 -m pip install setuptools==75.8.2
       python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
       python3 -m dda self dep sync -f legacy-tasks
+    - dateend="$(date '+%s%N' | cut -b1-13)"
     - !reference [.get-custom-datadog-ci-amd64]
     - datadog-ci --version || true
     - datadog-ci --help || true
     - datadog-ci trace --name trace-echo -- echo Hello world
     - datadog-ci span --name custom-span --duration 618
+    - datadog-ci span --name install-python-dependencies --start-time $datestart --end-time $dateend
