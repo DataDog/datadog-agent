@@ -2544,7 +2544,7 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
 }
 
-func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Client, url string) {
+func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Client, url string, isHTTP2 bool) {
 	parsedURL, err := neturl.Parse(url)
 	require.NoError(t, err)
 
@@ -2575,6 +2575,9 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		defer cleanup()
 
 		requests := conns.HTTP
+		if isHTTP2 {
+			requests = conns.HTTP2
+		}
 		if getRequestStats == nil || postRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
@@ -2640,7 +2643,7 @@ func testHTTPSketches(t *testing.T, tr *tracer.Tracer) {
 
 	client.Transport = transport
 
-	testHTTPLikeSketches(t, tr, client, httpURL)
+	testHTTPLikeSketches(t, tr, client, httpURL, false)
 }
 
 func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
@@ -2657,7 +2660,7 @@ func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
 		},
 	}
 
-	testHTTPLikeSketches(t, tr, client, httpURL)
+	testHTTPLikeSketches(t, tr, client, httpURL, true)
 }
 
 const (
