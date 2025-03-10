@@ -110,14 +110,21 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		lf.proxy = nil
 		return
 	}
-
-	lf.proxy = &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
+	if lf.proxy == nil {
+		lf.proxy = &httputil.ReverseProxy{
+			Director: func(req *http.Request) {
+				req.URL.Scheme = "https"
+				req.URL.Host = leaderIP + ":" + lf.apiPort
+				req.Header.Add(forwardHeader, "true")
+			},
+			Transport: lf.transport,
+			ErrorLog:  lf.logger,
+		}
+	} else {
+		lf.proxy.Director = func(req *http.Request) {
 			req.URL.Scheme = "https"
 			req.URL.Host = leaderIP + ":" + lf.apiPort
 			req.Header.Add(forwardHeader, "true")
-		},
-		Transport: lf.transport,
-		ErrorLog:  lf.logger,
+		}
 	}
 }
