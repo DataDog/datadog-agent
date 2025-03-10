@@ -547,6 +547,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallerRollback$"
       - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
       - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+      # apm-library-dotnet
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
 
 
 new-e2e-installer-ansible:
@@ -829,7 +832,7 @@ trigger-fips-e2e:
   needs: [generate-fips-e2e-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.on_deploy_nightly_repo_branch]
+    # - !reference [.on_deploy_nightly_repo_branch] # Should be kept manual until all the FIPS tests are passing
     - !reference [.manual]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
