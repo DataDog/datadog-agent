@@ -46,7 +46,7 @@
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       -DLLVM_ENABLE_UNWIND_TABLES=OFF \
       ../llvm
-    - cmake -toolchain $DD_CMAKE_TOOLCHAIN --build . --target install
+    - cmake --build . --target install
     # fail if references to glibc >= 2.18
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
