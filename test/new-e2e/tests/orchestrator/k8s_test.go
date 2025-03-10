@@ -6,17 +6,42 @@
 package orchestrator
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
+	"testing"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 )
 
 const defaultTimeout = 10 * time.Minute
+
+//go:embed agent_values.yaml
+var agentCustomValuesFmt string
+
+type k8sSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+func TestKindSuite(t *testing.T) {
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awskubernetes.KindProvisioner(
+			awskubernetes.WithDeployTestWorkload(),
+			awskubernetes.WithAgentOptions(
+				kubernetesagentparams.WithDualShipping(),
+				kubernetesagentparams.WithHelmValues(agentCustomValuesFmt),
+			),
+		)),
+	}
+	e2e.Run(t, &k8sSuite{}, options...)
+}
 
 func (suite *k8sSuite) TestRedisPod() {
 	expectAtLeastOneResource{
@@ -34,7 +59,7 @@ func (suite *k8sSuite) TestNode() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorNode},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			return payload.Node.Metadata.Name == fmt.Sprintf("%s-control-plane", suite.KubeClusterName)
+			return payload.Node.Metadata.Name == fmt.Sprintf("%s-control-plane", suite.Env().KubernetesCluster.ClusterName)
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,

@@ -76,7 +76,7 @@ func (e expectAtLeastOneManifest) Assert(suite *k8sSuite) {
 	giveup := time.Now().Add(e.timeout)
 	fmt.Println("trying to " + e.message)
 	for {
-		payloads, err := suite.Fakeintake.GetOrchestratorManifests()
+		payloads, err := suite.Env().FakeIntake.Client().GetOrchestratorManifests()
 		suite.NoError(err, "failed to get manifest payloads from intake")
 		//fmt.Printf("found %d manifests\n", len(payloads))
 		for _, p := range payloads {
