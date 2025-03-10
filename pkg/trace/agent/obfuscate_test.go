@@ -47,8 +47,13 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		{statsGroup("valkey", "ADD 1, 2"), "ADD"},
 		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
 	} {
-		agnt, stop := agentWithDefaults()
-		defer stop()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.SQLObfuscationMode = string(obfuscate.Legacy)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+		defer cancelFunc()
+
 		agnt.obfuscateStatsGroup(tt.in)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}
@@ -405,8 +410,13 @@ ORDER BY [b].[Name]`,
 		},
 	}
 
-	agnt, stop := agentWithDefaults()
-	defer stop()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.SQLObfuscationMode = string(obfuscate.Legacy)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	defer cancelFunc()
+
 	for _, tc := range testCases {
 		agnt.obfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
@@ -547,5 +557,5 @@ func TestLexerObfuscation(t *testing.T) {
 		Meta:     map[string]string{"db.type": "sqlserver"},
 	}
 	agnt.obfuscateSpan(span)
-	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
 }
