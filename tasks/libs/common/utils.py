@@ -557,7 +557,7 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
         yield
         return
 
-    start_time = time.perf_counter()
+    start_time = time.time()
 
     # TODO: Test cases etc...
     try:
@@ -566,7 +566,7 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
         if ignore_on_error:
             return
     finally:
-        end_time = time.perf_counter()
+        end_time = time.time()
 
     def convert_time(t):
         return int(t * 1000)
