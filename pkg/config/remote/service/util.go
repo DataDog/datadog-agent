@@ -126,27 +126,6 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 		return nil
 	})
 	if err != nil {
-		return nil, err
-	}
-	return metadata, nil
-}
-
-func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, error) {
-	apiKeyHash := hashAPIKey(apiKey)
-
-	db, err := bbolt.Open(path, 0600, &bbolt.Options{
-		Timeout: databaseLockTimeout,
-	})
-	if err != nil {
-		if errors.Is(err, bbolt.ErrTimeout) {
-			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
-		}
-		log.Infof("Failed to open remote configuration database %s", err)
-		return recreate(path, agentVersion, apiKeyHash)
-	}
-
-	metadata, err := getMetadataFromDB(db)
-	if err != nil {
 		_ = db.Close()
 		log.Infof("Failed to validate remote configuration database %s", err)
 		return recreate(path, agentVersion, apiKeyHash, url)
