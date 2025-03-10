@@ -1131,6 +1131,54 @@ int test_chmod(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chown(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "Please specify a file name, a user ID, and a group ID\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long owner = strtoul(argv[2], &end, 10);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && owner == ULONG_MAX) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if ((uid_t)owner != owner) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+
+    unsigned long group = strtoul(argv[3], &end, 10);
+    if (end == argv[3]) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && group == ULONG_MAX) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if ((gid_t)group != group) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chown(filename, (uid_t)owner, (gid_t)group) < 0) {
+        perror("chown");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1216,6 +1264,8 @@ int main(int argc, char **argv) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
             exit_code = test_chmod(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chown") == 0) {
+            exit_code = test_chown(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
