@@ -2351,6 +2351,7 @@ core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/trace/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/noop,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/collector/logs/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/collector/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2564,6 +2565,7 @@ core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/balancer/endpointsharding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst/internal,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2599,7 +2601,9 @@ core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC aut
 core,google.golang.org/grpc/internal/idle,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/pretty,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/proxyattributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/resolver/delegatingresolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/dns/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Copyright 2014 gRPC authors.
