@@ -10,4 +10,6 @@ import (
 )
 
 // PreRemoveHooks contains the mapping between packages and their pre-remove hooks
-var PreRemoveHooks = map[string]repository.PreRemoveHook{}
+var PreRemoveHooks = map[string]repository.PreRemoveHook{
+	packageAPMLibraryDotnet: PreRemoveHookDotnet,
+}

@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.26.0-1"
-	emrJavaTracerVersion = "1.45.2-1"
-	emrAgentVersion      = "7.62.2-1"
+	emrInjectorVersion   = "0.34.0-1"
+	emrJavaTracerVersion = "1.46.1-1"
+	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
@@ -71,6 +71,7 @@ type extraEmrInstanceInfo struct {
 
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
+	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)

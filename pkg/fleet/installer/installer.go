@@ -38,6 +38,7 @@ const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
+	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
 
 // Installer is a package manager that installs and uninstalls packages.
@@ -715,6 +716,8 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StartInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StartAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -726,6 +729,8 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 		return packages.StopAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StopInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StopAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -737,6 +742,8 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.PromoteInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.PromoteAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -761,6 +768,8 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
 		return packages.SetupAPMInjector(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.SetupAPMLibraryDotnet(ctx, pkg)
 	default:
 		return nil
 	}
@@ -774,6 +783,8 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 		return packages.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
 		return packages.RemoveInstaller(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.RemoveAPMLibraryDotnet(ctx)
 	default:
 		return nil
 	}
