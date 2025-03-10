@@ -912,24 +912,35 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 }
 
 func (s *CoreAgentService) apiKeyUpdateCallback(dbPath string) func(string, any, any) {
-	return func(setting string, _, newvalue any) {
-		s.Lock()
-		defer s.Unlock()
-
+	return func(setting string, oldvalue, newvalue any) {
 		if setting != "api_key" {
 			return
 		}
 
 		newKey, ok := newvalue.(string)
+		s.Lock()
+		defer s.Unlock()
+
 		if ok {
 			s.api.UpdateAPIKey(newKey)
 		}
-		apiKeyHash := hashAPIKey(newKey)
-		db, err := recreate(dbPath, s.agentVersion, apiKeyHash)
-		if err != nil {
-			log.Errorf("Could not flush db: %s", err)
-		} else {
-			s.db = db
+
+		// Verify that the Org UUID hasn't changed
+		orgUUID, err := s.uptane.StoredOrgUUID()
+		if err == nil {
+			// If we don't have a stored UUID, skip this check
+			newOrgUUID, err := s.api.FetchOrgData(context.Background())
+			if err == nil {
+				// If we weren't able to get the new org UUID, again skip
+				if orgUUID != newOrgUUID.Uuid {
+					log.Errorf("Error switching API key: new API key is from a different organization")
+					oldKey, ok := oldvalue.(string)
+					if ok {
+						s.api.UpdateAPIKey(oldKey)
+					}
+					return
+				}
+			}
 		}
 	}
 }

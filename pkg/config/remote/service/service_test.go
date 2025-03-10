@@ -774,10 +774,18 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 
 func TestWithApiKeyUpdate(t *testing.T) {
 	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
 	updatedKey := "notUpdated"
+
 	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
 		updatedKey = args.Get(0).(string)
 	})
+	orgResponse := pbgo.OrgDataResponse{
+		Uuid: "firstUuid",
+	}
+	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
+
 	cfg := configmock.New(t)
 	dir := t.TempDir()
 	cfg.SetWithoutSource("run_path", dir)
@@ -791,16 +799,15 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 	service.api = api
-
-	originalAPIKey, err := getMetadataFromDB(service.db)
-	assert.NoError(t, err)
+	service.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
-
 	assert.Equal(t, "updated", updatedKey)
-	newAPIKey, err := getMetadataFromDB(service.db)
-	assert.NoError(t, err)
-	assert.NotEqual(t, originalAPIKey, newAPIKey)
+
+	orgResponse.Uuid = "badUuid"
+	cfg.SetWithoutSource("api_key", "BAD_ORG")
+	assert.Equal(t, "updated", updatedKey)
+
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
