@@ -420,21 +420,15 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	p.http2InFlightMapCleaner = mapCleaner
 }
 
-// GetStats returns a map of HTTP2 stats and a callback to clean resources.
-// The format of HTTP2 stats:
+// GetStats returns a map of HTTP2 stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
+func (p *Protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
-	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.HTTP2,
-			Stats: stats,
-		}, func() {
-			for _, elem := range stats {
-				elem.Close()
-			}
-		}
+		Type:  protocols.HTTP2,
+		Stats: p.statkeeper.GetAndResetAllStats(),
+	}
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
