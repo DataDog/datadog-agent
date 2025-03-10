@@ -19,7 +19,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
-	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -40,7 +38,6 @@ import (
 func SetupHandlers(
 	r *mux.Router,
 	wmeta workloadmeta.Component,
-	logsAgent option.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
 	collector option.Option[collector.Component],
@@ -62,10 +59,6 @@ func SetupHandlers(
 		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, option.New(wmeta), ac, tagger)
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
-
-	if logsAgent, ok := logsAgent.Get(); ok {
-		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
-	}
 
 	return r
 }
@@ -90,11 +83,6 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
 	}
-}
-
-// TODO: logsAgent is a module so have to make the api component a module too
-func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return streamutils.GetStreamFunc(func() streamutils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
 func getHealth(w http.ResponseWriter, _ *http.Request) {
