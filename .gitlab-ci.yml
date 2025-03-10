@@ -1265,6 +1265,8 @@ test-datadog-ci:
   needs: []
   script:
     - set -e
+    - python3 -m pip uninstall setuptools -y
+    - python3 -m pip install setuptools==75.8.2
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.get-custom-datadog-ci-amd64]
