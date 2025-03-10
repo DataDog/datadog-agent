@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
+	hostStatus "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -112,7 +113,7 @@ func newHostProvider(deps dependencies) provides {
 		Comp:             &h,
 		MetadataProvider: runnerimpl.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
+		StatusHeaderProvider: status.NewHeaderInformationProvider(hostStatus.Provider{
 			Config: h.config,
 		}),
 		Endpoint:      api.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
