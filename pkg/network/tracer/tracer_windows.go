@@ -197,7 +197,7 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
@@ -210,13 +210,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
 	}
 	_, err = t.driverInterface.GetClosedConnectionStats(t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
 	activeConnStats := buffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
@@ -250,7 +250,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
-	return conns, nil
+	return conns, func() {}, nil
 }
 
 // RegisterClient registers the client
