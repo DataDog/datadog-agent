@@ -67,7 +67,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expRetCode in
 	if expRetCode != -1 {
 		assert.Nil(t, err, "program execution error")
 	}
-	assert.Equal(t, expRetCode, code, "return code error: %v", err)
+	assert.Equal(t, expRetCode, code, "return code error: %v, check the `struct raw_packet_event_t` and adapt the `structRawPacketEventData*` const", err)
 }
 
 func TestRawPacketTailCalls(t *testing.T) {

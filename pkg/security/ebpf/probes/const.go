@@ -57,10 +57,8 @@ const (
 )
 
 const (
-	// DentryResolverOpenCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an open event
-	DentryResolverOpenCallbackTracepointKey uint32 = iota + 1
 	// DentryResolverMkdirCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an mkdir event
-	DentryResolverMkdirCallbackTracepointKey
+	DentryResolverMkdirCallbackTracepointKey uint32 = iota + 1
 	// DentryResolverMountStageOneCallbackTracepointKey is the key to the callback program to execute after resolving the root dentry of a new mount
 	DentryResolverMountStageOneCallbackTracepointKey
 	// DentryResolverMountStageTwoCallbackTracepointKey is the key to the callback program to execute after resolving the mountpoint dentry a new mount
@@ -87,6 +85,8 @@ const (
 	TCDNSRequestParserKey
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
+	// TCDNSResponseKey is the key to the DNS response program
+	TCDNSResponseKey
 )
 
 const (

@@ -1285,8 +1285,11 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if err != nil {
 		return nil, nil, err
 	}
-	dump, err := tm.GetDumpFromDocker(dockerInstance)
-	if err != nil {
+	var dump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		dump, err = tm.GetDumpFromDocker(dockerInstance)
+		return nil
+	}); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}

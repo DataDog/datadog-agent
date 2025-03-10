@@ -337,6 +337,17 @@ def set_new_release_branch(branch):
     _save_release_json(rj)
 
 
+def set_current_milestone(milestone):
+    rj = load_release_json()
+    rj["current_milestone"] = milestone
+    _save_release_json(rj)
+
+
+def get_current_milestone():
+    rj = load_release_json()
+    return rj["current_milestone"]
+
+
 def generate_repo_data(ctx, warning_mode, next_version, release_branch):
     if warning_mode:
         # Warning mode is used to warn integrations so that they prepare their release version in advance.
