@@ -266,6 +266,7 @@ func appendStringEnv(env []string, key string, value string, skipIfEqual string)
 	return env
 }
 
+// ToEnv returns a slice of environment variables from the InstallScriptEnv struct
 func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	env = appendStringEnv(env, envApmInstrumentationEnabled, e.APMInstrumentationEnabled, "")
 	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
