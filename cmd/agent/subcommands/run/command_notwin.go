@@ -8,6 +8,11 @@
 package run
 
 import "go.uber.org/fx"
+import "github.com/DataDog/datadog-agent/pkg/collector/cshared"
+
+func init() {
+	cshared.Initialize()
+}
 
 func getPlatformModules() fx.Option {
 	return fx.Options()
