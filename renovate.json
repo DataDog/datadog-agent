@@ -1,6 +1,7 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "enabledManagers": ["custom.regex"],
+    "labels": ["dependencies"],
     "customManagers" : [
       {
         "customType": "regex",
@@ -20,9 +21,8 @@
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+)"
         ],
-        "depNameTemplate": "protoc",
-        "versioningTemplate": "loose",
-        "datasourceTemplate": "custom.protoc"
+        "depNameTemplate": "protocolbuffers/protobuf",
+        "datasourceTemplate": "github-releases"
       },
       {
         "customType": "regex",
@@ -52,12 +52,6 @@
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
-        ]
-      },
-      "protoc": {
-        "defaultRegistryUrlTemplate": "https://api.github.com/repos/protocolbuffers/protobuf/releases",
-        "transformTemplates": [
-          "{\"releases\": $map($.[tag_name,published_at], function($v) { {\"version\": $v[0], \"releaseTimestamp\": $v[1] } }) }"
         ]
       }
     }
