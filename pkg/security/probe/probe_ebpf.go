@@ -12,8 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"math"
 	"net"
 	"net/netip"
@@ -23,6 +21,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
@@ -1024,7 +1025,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if !event.CGroupContext.CGroupFile.IsNull() {
 			cgroupContext, _, err := p.resolveCGroupAndContainer(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
 			if err != nil {
-				seclog.Debugf("failed to resolve cgroup context for event %s: %s", err, eventType.String())
+				seclog.Debugf("failed to resolve cgroup context for event %s: %s", eventType, err)
 			} else {
 				event.CGroupContext.Merge(cgroupContext)
 			}
