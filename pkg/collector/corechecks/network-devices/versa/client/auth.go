@@ -42,28 +42,16 @@ func (client *Client) login() error {
 	// Request to /versa/analytics/login to obtain Analytics CSRF prevention token
 	analyticsPayload := url.Values{}
 	analyticsPayload.Set("endpoint", "https://10.0.225.103:8443")
-	req, err := client.newRequest("POST", "/versa/analytics/login", strings.NewReader(analyticsPayload.Encode()))
-	if err != nil {
-		return err
-	}
 
-	body, statusCode, err := client.do(req)
+	// Run this requrst twice to get the CSRF token from analytics
+	// the first succeeds but does not return the token
+	err = client.runAnalyticsLogin(&analyticsPayload)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to run FIRST analytics login: %w", err)
 	}
-
-	if statusCode != 200 {
-		return fmt.Errorf("failed to log in to Versa Analytics, status code: %v: %s", statusCode, string(body))
-	}
-
-	// TODO: remove this, we don't need it, just using it for debugging
-	endpointUrl, err := url.Parse(client.endpoint + "/versa")
+	err = client.runAnalyticsLogin(&analyticsPayload)
 	if err != nil {
-		return fmt.Errorf("url parsing failed: %w", err)
-	}
-	cookies := client.httpClient.Jar.Cookies(endpointUrl)
-	for _, cookie := range cookies {
-		log.Infof("Versa Analytics cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
+		return fmt.Errorf("failed to run SECOND analytics login: %w", err)
 	}
 
 	return nil
@@ -154,6 +142,53 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 
 	if sessionRes.StatusCode != 200 {
 		return fmt.Errorf("authentication failed, status code: %v: %s", sessionRes.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
+	req, err := client.newRequest("POST", "/versa/analytics/login", strings.NewReader(analyticsPayload.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("X-CSRF-TOKEN", client.token)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	loginRes, err := client.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("invalid request: %w", err)
+	}
+
+	defer loginRes.Body.Close()
+
+	bodyBytes, err := io.ReadAll(loginRes.Body)
+	if err != nil {
+		return err
+	}
+
+	endpointUrl, err := url.Parse(client.endpoint + "/versa")
+	if err != nil {
+		return fmt.Errorf("url parsing failed: %w", err)
+	}
+
+	cookies := client.httpClient.Jar.Cookies(endpointUrl)
+
+	log.Infof("Client ANALYTICS login URL: %s", endpointUrl)
+	log.Infof("Client ANALYTICS login response headers: %+v", loginRes.Header)
+	for _, cookie := range cookies {
+		log.Infof("Versa Analytics cookie: %s=%s;Secure:%t;Path:%s", cookie.Name, cookie.Value, cookie.Secure, cookie.Path)
+		// TODO: better handling of cookie
+		// if cookie.Name == "VD-CSRF-TOKEN" {
+		// 	client.token = cookie.Value
+		// 	client.tokenExpiry = timeNow().Add(time.Hour * 1)
+		// }
+	}
+
+	if loginRes.StatusCode != 200 {
+		return fmt.Errorf("analytics authentication failed, status code: %v: %s", loginRes.StatusCode, string(bodyBytes))
+	} else {
+		log.Infof("Analytics login successful!! %s", string(bodyBytes))
 	}
 
 	return nil

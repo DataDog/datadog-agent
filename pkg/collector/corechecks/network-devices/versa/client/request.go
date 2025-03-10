@@ -24,22 +24,22 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	req.Header.Add("X-CSRF-TOKEN", client.token)
 	client.authenticationMutex.Unlock()
 
-	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
+	log.Infof("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
-	log.Tracef("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
+	log.Infof("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
 
 	defer resp.Body.Close()
 
-	if !isAuthenticated(resp.Header) {
-		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
-		// clear auth to trigger re-authentication
-		client.clearAuth()
-		// Return 401 on auth errors
-		return nil, 401, nil
-	}
+	// if !isAuthenticated(resp.Header) {
+	// 	log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
+	// 	// clear auth to trigger re-authentication
+	// 	client.clearAuth()
+	// 	// Return 401 on auth errors
+	// 	return nil, 401, nil
+	// }
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
