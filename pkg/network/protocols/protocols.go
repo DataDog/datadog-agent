@@ -60,9 +60,8 @@ type Protocol interface {
 	Name() string
 
 	// GetStats returns the latest monitoring stats from a protocol
-	// implementation. The second return value is a callback for cleanup
-	// purposes. Each protocol can use it to release resources, if necessary.
-	GetStats() (*ProtocolStats, func())
+	// implementation.
+	GetStats() *ProtocolStats
 
 	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
 	IsBuildModeSupported(buildmode.Type) bool

@@ -275,8 +275,8 @@ func (*nodeJSMonitor) Name() string {
 }
 
 // GetStats is a no-op.
-func (*nodeJSMonitor) GetStats() (*protocols.ProtocolStats, func()) {
-	return nil, nil
+func (*nodeJSMonitor) GetStats() *protocols.ProtocolStats {
+	return nil
 }
 
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.

@@ -434,8 +434,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 		return nil, nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	usmStats, cleanup := t.usmMonitor.GetProtocolStats()
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), usmStats)
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	var udpConns, tcpConns int
@@ -469,7 +468,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return conns, cleanup, nil
+	return conns, func() {}, nil
 }
 
 // RegisterClient registers a clientID with the tracer
