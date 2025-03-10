@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -165,12 +164,7 @@ func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.Lo
 }
 
 func resolveFileConfig(cliParams *CliParams) ([]*sources.LogSource, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	absolutePath := filepath.Join(wd, cliParams.LogConfigPath)
-	data, err := os.ReadFile(absolutePath)
+	data, err := os.ReadFile(cliParams.LogConfigPath)
 	if err != nil {
 		return nil, err
 	}
