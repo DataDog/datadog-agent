@@ -61,10 +61,10 @@ var tracerouteRunnerTelemetry = struct {
 
 // Runner executes traceroutes
 type Runner struct {
-	gatewayLookup network.GatewayLookup
-	nsIno         uint32
-	networkID     string
-	hostname      hostname.Component
+	gatewayLookup   network.GatewayLookup
+	nsIno           uint32
+	networkID       string
+	hostnameService hostname.Component
 }
 
 // New initializes a new traceroute runner
@@ -87,10 +87,10 @@ func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	}
 
 	return &Runner{
-		gatewayLookup: gatewayLookup,
-		nsIno:         nsIno,
-		networkID:     networkID,
-		hostname:      remotehostnameimpl.NewRemoteHostImpl(),
+		gatewayLookup:   gatewayLookup,
+		nsIno:           nsIno,
+		networkID:       networkID,
+		hostnameService: remotehostnameimpl.NewRemoteHostImpl(),
 	}, nil
 }
 
@@ -125,7 +125,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		timeout = cfg.Timeout
 	}
 
-	hname, err := r.hostname.Get(ctx)
+	hname, err := r.hostnameService.Get(ctx)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
