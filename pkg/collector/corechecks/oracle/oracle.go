@@ -15,19 +15,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	csharedapi "github.com/DataDog/datadog-agent/pkg/collector/cshared/api"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/benbjohnson/clock"
 
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
@@ -407,7 +408,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
-	agentHostname, err := hostname.Get(context.Background())
+	agentHostname, err := csharedapi.GetHostname(context.Background())
 	if err == nil {
 		c.agentHostname = agentHostname
 	} else {

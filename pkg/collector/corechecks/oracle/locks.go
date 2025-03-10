@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	csharedapi "github.com/DataDog/datadog-agent/pkg/collector/cshared/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -136,7 +136,7 @@ func (c *Check) locks() error {
 		return nil
 	}
 
-	hname, _ := hostname.Get(context.TODO())
+	hname, _ := csharedapi.GetHostname(context.TODO())
 	ts := float64(c.clock.Now().UnixMilli())
 	m := metricsPayload{
 		Host:                  c.dbHostname,
