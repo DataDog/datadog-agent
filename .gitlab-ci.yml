@@ -1206,6 +1206,18 @@ workflow:
 .windows_docker_default:
   extends: .windows_docker_2022
 
+# -------------------------
+
+# TODO: Do it within build images
+.update-datadog-ci-amd64:
+  - echo "Installing datadog-ci"
+  - export CI_UPLOADER_VERSION=2.48.0
+  - export CI_UPLOADER_SHA=5e700c465728fff8313e77c2d5ba1ce19a736168735137e1ddc7c6346ed48208
+  - rm -f /usr/local/bin/datadog-ci
+  - |
+    curl -fsSL https://github.com/DataDog/datadog-ci/releases/download/v${CI_UPLOADER_VERSION}/datadog-ci_linux-x64 --output "/usr/local/bin/datadog-ci"
+    echo "${CI_UPLOADER_SHA} /usr/local/bin/datadog-ci" | sha256sum --check
+    chmod +x /usr/local/bin/datadog-ci
 
 test-datadog-ci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -1214,14 +1226,9 @@ test-datadog-ci:
   needs: []
   script:
     - set -e
-    - |
-      echo "Install datadog-ci"
-      CI_UPLOADER_VERSION=2.38.1
-      CI_UPLOADER_SHA=4e56d449e6396ae4c7356f07fc5372a28999aacb012d4343a3b8a9389123aa38
-      curl -fsSL https://github.com/DataDog/datadog-ci/releases/download/v${CI_UPLOADER_VERSION}/datadog-ci_linux-x64 --output ./datadog-ci && \
-      echo "${CI_UPLOADER_SHA} ./datadog-ci" | sha256sum --check
-      chmod +x ./datadog-ci
-    - ./datadog-ci --version || true
-    - ./datadog-ci --help || true
-    - ./datadog-ci trace --name trace-echo -- echo Hello world
-    - ./datadog-ci span --name custom-span --duration 618
+    - !reference [.update-datadog-ci-amd64]
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - datadog-ci --version || true
+    - datadog-ci --help || true
+    - datadog-ci trace --name trace-echo -- echo Hello world
+    - datadog-ci span --name custom-span --duration 618
