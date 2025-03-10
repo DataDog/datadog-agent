@@ -15,6 +15,8 @@
 '@datadog/container-intake': CTK
 '@datadog/agent-metrics-logs': AMLII
 '@datadog/agent-shared-components': ASCII
+'@datadog/agent-runtimes': AGENTRUN
+'@datadog/agent-configuration': AGENTCFG
 '@datadog/container-app': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // LogConfig reads the logger config
 type LogConfig pkgconfigmodel.Reader
