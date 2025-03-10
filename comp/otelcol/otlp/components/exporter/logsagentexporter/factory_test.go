@@ -21,7 +21,7 @@ import (
 func TestNewLogsExporter(t *testing.T) {
 	channel := make(chan *message.Message)
 
-	factory := NewFactory(channel)
+	factory := NewFactory(channel, nil)
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))

@@ -38,8 +38,8 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayusage *attributes.GatewayUsage) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, gatewayusage)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
@@ -103,7 +103,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -145,7 +145,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
