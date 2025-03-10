@@ -469,7 +469,7 @@ namespace WixSetup.Datadog_Agent
                     Execute = Execute.rollback,
                     Impersonate = false
                 }
-                .SetProperties("INSTALLDIR=[INSTALLDIR],SITE=[SITE]");
+                .SetProperties("INSTALLDIR=[INSTALLDIR],SITE=[SITE],APIKEY=[APIKEY]");
 
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
@@ -484,6 +484,7 @@ namespace WixSetup.Datadog_Agent
                     Impersonate = false
                 }
                 .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "APIKEY=[APIKEY]," +
                                "SITE=[SITE],"+
                                "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                                "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
@@ -501,6 +502,7 @@ namespace WixSetup.Datadog_Agent
                     Impersonate = false
                 }
                 .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "APIKEY=[APIKEY]," +
                                "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                                "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
