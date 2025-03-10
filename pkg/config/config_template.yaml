@@ -4561,13 +4561,6 @@ api_key:
   #
   # socket_port: 3030
 
-  ## @param memory_profile_threshold - integer - optional - default: 0
-  ## @env DD_MEMORY_PROFILE_THRESHOLD - integer - optional - default: 0
-  ## Memory threshold in bytes to automatically generate a memory profile.
-  ## If set to 0, memory profiling is disabled.
-  #
-  # memory_profile_threshold: 0
-
   # internal_profiling:
   #
     ## @param enabled - boolean - optional - default: false

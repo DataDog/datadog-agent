@@ -2,28 +2,36 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package agentmemprof
 
 import (
-	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
+type mockFlareComponent struct{}
+
+func (m *mockFlareComponent) Create(profileData types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+	return "/tmp/mock_flare.zip", nil
+}
+
+func (m *mockFlareComponent) Send(flarePath, caseID, email string, source helpers.FlareSource) (string, error) {
+	return "Flare sent successfully", nil
+}
+
 func TestRun(t *testing.T) {
-	// Initialize mock configuration
-	cfg := mock.New(t)
-
-	// Set configuration value directly
-	cfg.SetWithoutSource("memory_profile_threshold", 1024*1024) // 1 MB
-
-	// Create a new check instance
-	check := newCheck(cfg)
+	// Create a new check instance with a mock flare component
+	flareComponent := &mockFlareComponent{}
+	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 
 	// Mock memory usage to exceed threshold
 	var memStats runtime.MemStats
@@ -35,36 +43,14 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the profile was captured
-	assert.True(t, check.(*Check).profileCaptured)
-}
-
-func TestCaptureHeapProfile(t *testing.T) {
-	// Create a temporary directory for profiles
-	tempDir := t.TempDir()
-
-	// Capture the heap profile
-	err := captureHeapProfile(tempDir)
-	require.NoError(t, err)
-
-	// Verify that the profile file was created
-	files, err := os.ReadDir(tempDir)
-	require.NoError(t, err)
-	assert.Len(t, files, 1)
-
-	// Verify the file name format
-	fileName := files[0].Name()
-	assert.Regexp(t, `^heap-profile-\d+\.pprof$`, fileName)
+	assert.True(t, check.profileCaptured)
 }
 
 func TestRunProfileAlreadyCaptured(t *testing.T) {
-	// Initialize mock configuration
-	cfg := mock.New(t)
-
-	// Set configuration value directly
-	cfg.SetWithoutSource("memory_profile_threshold", 1024*1024) // 1 MB
-
-	// Create a new check instance
-	check := newCheck(cfg).(*Check)
+	// Create a new check instance with a mock flare component
+	flareComponent := &mockFlareComponent{}
+	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 	check.profileCaptured = true
 
 	// Run the check
@@ -76,19 +62,29 @@ func TestRunProfileAlreadyCaptured(t *testing.T) {
 }
 
 func TestRunThresholdNotSet(t *testing.T) {
-	// Initialize mock configuration
-	cfg := mock.New(t)
-
-	// Set configuration value directly
-	cfg.SetWithoutSource("memory_profile_threshold", 0) // Threshold not set
-
-	// Create a new check instance
-	check := newCheck(cfg)
+	// Create a new check instance with a mock flare component
+	flareComponent := &mockFlareComponent{}
+	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	check.instance.MemoryThreshold = 0 // Threshold not set
 
 	// Run the check
 	err := check.Run()
 	require.NoError(t, err)
 
 	// Verify that the profile was not captured
-	assert.False(t, check.(*Check).profileCaptured)
+	assert.False(t, check.profileCaptured)
+}
+
+func TestGenerateFlareLocal(t *testing.T) {
+	// Create a new check instance with a mock flare component
+	flareComponent := &mockFlareComponent{}
+	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	check.instance.TicketID = 0
+
+	// Generate the flare
+	err := check.generateFlare()
+	require.NoError(t, err)
+
+	// Verify that the flare was generated locally
+	assert.True(t, check.profileCaptured)
 }
