@@ -5,6 +5,8 @@ receivers:
           - job_name: 'custom'
             scrape_interval: 60s
             metric_name_validation_scheme: legacy
+            scrape_protocols:
+              - "PrometheusText0.0.4"
             static_configs:
 
 exporters:
