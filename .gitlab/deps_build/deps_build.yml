@@ -28,7 +28,6 @@
     - patch -ruN ../llvm/CMakeLists.txt < $CI_PROJECT_DIR/pkg/ebpf/c/cmakelists.patch
     - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $CI_PROJECT_DIR/pkg/ebpf/c/constant_folding.patch
     - |
-      CC=$DD_CC CXX=$DD_CXX \
       cmake \
       --toolchain $DD_CMAKE_TOOLCHAIN \
       -DLLVM_ENABLE_PROJECTS=clang \
@@ -80,6 +79,9 @@ build_clang_x64:
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
+    CC: 'x86_64-unknown-linux-gnu-gcc'
+    CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
 
 build_clang_arm64:
   extends: .build_clang_common
@@ -87,6 +89,9 @@ build_clang_arm64:
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
+    CC: 'aarch64-unknown-linux-gnu-gcc'
+    CXX: 'aarch64-unknown-linux-gnu-g++'
+    DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
 
 build_processed_btfhub_archive:
   rules:
