@@ -21,7 +21,7 @@
 #include <arpa/inet.h>
 #include <linux/un.h>
 #include <err.h>
-#include <errno.h>
+#include <limits.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -1099,6 +1099,38 @@ int test_network_flow_send_udp4(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chmod(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a file name and a mode\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long mode = strtoul(argv[2], &end, 8);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && mode == ULONG_MAX) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (mode > 0777) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(filename, mode) < 0) {
+        perror("chmod");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1182,6 +1214,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chmod") == 0) {
+            exit_code = test_chmod(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
