@@ -21,7 +21,7 @@ namespace Datadog.CustomActions
         public InstallOciPackages(ISession session)
         {
             _session = session;
-            string installDir = session.Property("INSTALLDIR");
+            var installDir = session.Property("INSTALLDIR");
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
             session.Log($"installDir: {installDir}");
@@ -57,7 +57,7 @@ namespace Datadog.CustomActions
         private (string Name, string Version) ParseVersion(string library)
         {
             library = library.Trim();
-            int index = library.IndexOf(',');
+            var index = library.IndexOf(',');
             if (index == -1)
             {
                 return (library, string.Empty);
@@ -79,14 +79,14 @@ namespace Datadog.CustomActions
             try
             {
                 _session.Log("Installing Oci Packages");
-                string instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+                var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
                 if (instrumentationEnabled != "iis")
                 {
                     _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
                     return ActionResult.Failure;
                 }
-                string librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+                var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 var libraries = librariesRaw.Split(',');
                 foreach (var library in libraries)
                 {
@@ -115,7 +115,7 @@ namespace Datadog.CustomActions
 
         private ActionResult UninstallPackages()
         {
-            string librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+            var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
             _session.Log($"Uninstalling Oci Packages {librariesRaw}");
             var libraries = librariesRaw.Split(',');
             foreach (var library in libraries)
@@ -146,7 +146,7 @@ namespace Datadog.CustomActions
 
         private bool IsPackageInstalled(string library)
         {
-            string packageName = PackageName(library);
+            var packageName = PackageName(library);
             using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode == 10)
@@ -164,7 +164,7 @@ namespace Datadog.CustomActions
 
         private void InstallPackage(string library, string version)
         {
-            string ociImageName = OciImageName(library);
+            var ociImageName = OciImageName(library);
             using (var proc = _session.RunCommand(_installerExecutable, $"install  {PackageUrl(library, version)}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode != 0)
@@ -176,7 +176,7 @@ namespace Datadog.CustomActions
 
         private void UninstallPackage(string library)
         {
-            string packageName = PackageName(library);
+            var packageName = PackageName(library);
             using (var proc = _session.RunCommand(_installerExecutable, $"remove {packageName}", InstallerEnvironmentVariables()))
             {
                 if (proc.ExitCode != 0)
