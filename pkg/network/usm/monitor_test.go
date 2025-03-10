@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -21,8 +20,6 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -825,11 +822,9 @@ const (
 
 // TestTCPConnectionStatesMap verifies that the map 'connection_states' is cleared after the TCP connection closes.
 func TestTCPConnectionStatesMap(t *testing.T) {
-	buildTCPClientBin(t)
-
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	require.NotNil(t, monitor)
 
 	statesMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(connectionStatesMapName)
@@ -843,9 +838,33 @@ func TestTCPConnectionStatesMap(t *testing.T) {
 	testTCPConnectionStatesRST(t, monitor, statesMap, serverPort)
 }
 
-// testTCPConnectionStatesFIN verifies that the connection entries are present in the map after the connection is established
-// and removed once the connection is closed with FIN.
+// testTCPConnectionStatesFIN establishes a TCP connection, verifies the presence of connection entries in the map,
+// then confirms the entries are removed after FIN segment.
 func testTCPConnectionStatesFIN(t *testing.T, monitor *Monitor, statesMap *ebpf.Map, serverPort uint16) {
+	conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort))))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Write([]byte("Hello"))
+	require.NoError(t, err)
+
+	clientPort := uint16(conn.LocalAddr().(*net.TCPAddr).Port)
+	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
+	checkStatesInMap(t, monitor, statesMap, tuples, true)
+
+	tcpConn, ok := conn.(*net.TCPConn)
+	require.True(t, ok, "unexpected *net.TCPConn %T", conn)
+
+	// tells the TCP stack that the client will no longer send data, the TCP stack then sends a FIN segment.
+	err = tcpConn.CloseWrite()
+	require.NoError(t, err)
+
+	checkStatesInMap(t, monitor, statesMap, tuples, false)
+}
+
+// testTCPConnectionStatesRST establishes a TCP connection, verifies the presence of connection entries in the map,
+// confirms that entries are removed after RST segment.
+func testTCPConnectionStatesRST(t *testing.T, monitor *Monitor, statesMap *ebpf.Map, serverPort uint16) {
 	conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort))))
 	require.NoError(t, err)
 
@@ -856,30 +875,10 @@ func testTCPConnectionStatesFIN(t *testing.T, monitor *Monitor, statesMap *ebpf.
 	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
 	checkStatesInMap(t, monitor, statesMap, tuples, true)
 
-	// close connection with FIN
+	// explicitly closing an active connection triggers a RST segment
 	err = conn.Close()
 	require.NoError(t, err)
 
-	checkStatesInMap(t, monitor, statesMap, tuples, false)
-}
-
-// testTCPConnectionStatesRST verifies that entries are properly removed from the map after a connection reset.
-// OS may delay RST packets until client termination, requiring a separate TCP client process.
-func testTCPConnectionStatesRST(t *testing.T, monitor *Monitor, statesMap *ebpf.Map, serverPort uint16) {
-	serverPath := net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort)))
-	clientPort, err := getFreePort()
-	require.NoError(t, err)
-	clientPath := net.JoinHostPort(clientHost, strconv.Itoa(int(clientPort)))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, buildTCPClientBin(t), serverPath, clientPath, "true")
-	err = cmd.Run()
-	require.NoError(t, ctx.Err())
-	require.NoError(t, err)
-
-	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
 	checkStatesInMap(t, monitor, statesMap, tuples, false)
 }
 
@@ -956,28 +955,9 @@ func runTCPServer(t *testing.T, serverPort uint16) {
 		_, _ = io.Copy(c, c)
 	}, false)
 	require.NotNil(t, server)
+	require.Equal(t, serverPath, server.Address())
 
 	done := make(chan struct{})
 	server.Run(done)
 	t.Cleanup(func() { close(done) })
-
-	require.NotNil(t, server)
-	require.Equal(t, serverPath, server.Address())
-}
-
-func getFreePort() (uint16, error) {
-	listener, err := net.Listen("tcp", net.JoinHostPort(clientHost, "0"))
-	if err != nil {
-		return 0, err
-	}
-	defer listener.Close()
-	return uint16(listener.Addr().(*net.TCPAddr).Port), nil
-}
-
-func buildTCPClientBin(t *testing.T) string {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-	clientBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "tcp_client")
-	require.NoError(t, err)
-	return clientBin
 }
