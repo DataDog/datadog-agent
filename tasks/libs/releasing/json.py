@@ -27,24 +27,21 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 INTEGRATIONS_CORE_JSON_FIELD = "INTEGRATIONS_CORE_VERSION"
 RELEASE_JSON_FIELDS_TO_UPDATE = [
     INTEGRATIONS_CORE_JSON_FIELD,
-    "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
 ]
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
-INTERNAL_DEPS_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+INTERNAL_DEPS_REPOS = ["omnibus-ruby", "datadog-agent-macos-build"]
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
 UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT]
 DEFAULT_BRANCHES = {
-    "omnibus-software": "master",
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent-macos-build": "master",
     "datadog-agent": "main",
 }
 DEFAULT_BRANCHES_AGENT6 = {
-    "omnibus-software": "6.53.x",
     "omnibus-ruby": "6.53.x",
     "datadog-agent-macos-build": "6.53.x",
     "datadog-agent": "6.53.x",
@@ -144,7 +141,6 @@ def _update_release_json_entry(
     release_json,
     release_entry,
     integrations_version,
-    omnibus_software_version,
     omnibus_ruby_version,
     jmxfetch_version,
     jmxfetch_shasum,
@@ -167,7 +163,6 @@ def _update_release_json_entry(
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
-    new_version_config["OMNIBUS_SOFTWARE_VERSION"] = omnibus_software_version
     new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
     new_version_config["JMXFETCH_HASH"] = jmxfetch_shasum
@@ -227,15 +222,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         check_for_rc,
     )
 
-    omnibus_software_version = _fetch_dependency_repo_version(
-        "omnibus-software",
-        new_version,
-        max_version,
-        allowed_major_versions,
-        compatible_version_re,
-        check_for_rc,
-    )
-
     omnibus_ruby_version = _fetch_dependency_repo_version(
         "omnibus-ruby",
         new_version,
@@ -281,7 +267,6 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         release_json,
         release_entry,
         integrations_version,
-        omnibus_software_version,
         omnibus_ruby_version,
         jmxfetch_version,
         jmxfetch_shasum,
