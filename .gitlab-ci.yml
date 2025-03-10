@@ -1253,7 +1253,7 @@ workflow:
   - |
     echo "Installing datadog-ci"
     rm -f /usr/local/bin/datadog-ci
-    python3 -m pip install tasks/requirements.txt
+    python3 -m pip install -r tasks/requirements.txt --break-system-packages
     inv -e gitlab.download-artifact
     mv datadog-ci_linux-x64 /usr/local/bin/datadog-ci
     # curl -fsSL https://gitlab.ddbuild.io/DataDog/datadog-ci/-/jobs/840076964/artifacts/raw/datadog-ci_linux-x64?inline=false --output /usr/local/bin/datadog-ci
