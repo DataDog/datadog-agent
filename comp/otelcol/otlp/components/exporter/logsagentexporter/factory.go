@@ -61,7 +61,7 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 }
 
 // NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
-func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage gatewayusage.Component) exp.Factory {
+func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage *attributes.GatewayUsage) exp.Factory {
 	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage)
 }
 

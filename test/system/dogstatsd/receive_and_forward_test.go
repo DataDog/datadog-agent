@@ -73,7 +73,7 @@ func TestReceiveAndForward(t *testing.T) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := selector.NewCompressor(mockConfig, nil)
+			strategy := selector.NewCompressor(mockConfig)
 
 			sc := []servicecheck.ServiceCheck{}
 			decompressedBody, err := strategy.Decompress([]byte(requests[0]))

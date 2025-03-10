@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 const (
@@ -86,7 +85,6 @@ type collectorImpl struct {
 	tagger         tagger.Component
 	client         *http.Client
 	ctx            context.Context
-	gatewayUsage   *attributes.GatewayUsage
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -102,7 +100,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.gatewayUsage)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -148,7 +146,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		client:         client,
 		ctx:            context.Background(),
-		gatewayUsage:   attributes.NewGatewayUsage(),
 	}
 
 	reqs.Lc.Append(compdef.Hook{

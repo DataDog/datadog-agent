@@ -17,7 +17,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
 	go.opentelemetry.io/collector/component v1.27.0 // indirect
-	go.opentelemetry.io/collector/component/componenttest v0.120.0 // indirect
+	go.opentelemetry.io/collector/component/componenttest v0.121.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.121.0 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect

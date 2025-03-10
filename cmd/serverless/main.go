@@ -48,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 // AWS Lambda is writing the Lambda function files in /var/task, we want the
@@ -90,7 +89,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compression logscompression.Component, gatewayUsage *attributes.GatewayUsage) {
+func runAgent(tagger tagger.Component, compression logscompression.Component) {
 
 	startTime := time.Now()
 
@@ -129,7 +128,7 @@ func runAgent(tagger tagger.Component, compression logscompression.Component, ga
 	wg.Add(3)
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
-	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger, gatewayUsage)
+	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
 
 	// start appsec
@@ -335,13 +334,13 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger, gatewayUsage)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 	serverlessDaemon.SetOTLPAgent(otlpAgent)
 

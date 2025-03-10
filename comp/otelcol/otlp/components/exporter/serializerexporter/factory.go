@@ -75,12 +75,12 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
-func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayusage gatewayusage.Component) exp.Factory {
+func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayusage *attributes.GatewayUsage) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
 	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, gatewayusage)
 }
 
-func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, typ component.Type, gatewayUsage gatewayusage.Component) exp.Factory {
+func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, typ component.Type, gatewayUsage *attributes.GatewayUsage) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())

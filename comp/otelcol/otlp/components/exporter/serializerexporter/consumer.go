@@ -176,14 +176,16 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage *attributes.GatewayUsage) {
-	c.series = append(c.series, &metrics.Serie{
-		Name:           "datadog.otel.gateway",
-		Points:         []metrics.Point{{Value: gatewayUsage.Gauge(), Ts: float64(time.Now().Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		Host:           hostname,
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-	})
+	if gatewayUsage != nil {
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.otel.gateway",
+			Points:         []metrics.Point{{Value: gatewayUsage.Gauge(), Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
 }
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.

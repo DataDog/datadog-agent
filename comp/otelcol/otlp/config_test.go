@@ -189,12 +189,12 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg, nil)
+			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, nil)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -458,12 +458,12 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			}
 			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg, nil)
+			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, nil)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -510,12 +510,12 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg, nil)
+			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, nil)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -606,12 +606,12 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg, nil)
+			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, nil)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 			assert.Equal(t, testInstance.shouldSet, pcfg.shouldSetLoggingSection())

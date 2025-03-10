@@ -44,7 +44,7 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{}, fakeTagger, fakeCompression, nil)
+	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{}, fakeTagger, fakeCompression)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)

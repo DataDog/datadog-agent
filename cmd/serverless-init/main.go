@@ -33,7 +33,6 @@ import (
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -101,8 +100,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, gatewayUsage *attributes.GatewayUsage) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression, gatewayUsage)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
 
@@ -112,7 +111,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component, gatewayUsage *attributes.GatewayUsage) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -150,7 +149,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
-	setupOtlpAgent(metricAgent, tagger, gatewayUsage)
+	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
@@ -204,12 +203,12 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.
 	return metricAgent
 }
 
-func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) {
+func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component) {
 	if !otlp.IsEnabled() {
 		log.Debugf("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger, gatewayUsage)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 }
 

@@ -28,7 +28,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -93,7 +92,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
-func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (
+func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (
 	otelcol.Factories,
 	error,
 ) {
@@ -113,12 +112,12 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil, gatewayUsage),
+		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil, nil),
 		debugexporter.NewFactory(),
 	}
 
 	if logsAgentChannel != nil {
-		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, gatewayUsage))
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, nil))
 	}
 
 	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](exporterFactories...)
@@ -196,7 +195,7 @@ type Pipeline struct {
 type CollectorStatus = datatype.CollectorStatus
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
@@ -216,7 +215,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 
 	col, err := otelcol.NewCollector(otelcol.CollectorSettings{
 		Factories: func() (otelcol.Factories, error) {
-			return getComponents(s, logsAgentChannel, tagger, gatewayUsage)
+			return getComponents(s, logsAgentChannel, tagger)
 		},
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
@@ -263,8 +262,8 @@ func (p *Pipeline) Stop() {
 
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
 // any potential failure.
-func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (*Pipeline, error) {
-	pcfg, err := FromAgentConfig(cfg, gatewayUsage)
+func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (*Pipeline, error) {
+	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
@@ -272,7 +271,7 @@ func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSeriali
 	if err := checkAndUpdateCfg(cfg, pcfg, logsAgentChannel); err != nil {
 		return nil, err
 	}
-	p, err := NewPipeline(pcfg, s, logsAgentChannel, tagger, gatewayUsage)
+	p, err := NewPipeline(pcfg, s, logsAgentChannel, tagger)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
 		return nil, pipelineError.Load()

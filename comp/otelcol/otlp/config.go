@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -33,7 +32,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Reader, gatewayUsage *attributes.GatewayUsage) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -57,7 +56,7 @@ func FromAgentConfig(cfg config.Reader, gatewayUsage *attributes.GatewayUsage) (
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
-	mc, err := normalizeMetricsConfig(metricsConfigMap, false, gatewayUsage)
+	mc, err := normalizeMetricsConfig(metricsConfigMap, false)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to normalize metrics config: %w", err))
 	}
@@ -75,12 +74,12 @@ func FromAgentConfig(cfg config.Reader, gatewayUsage *attributes.GatewayUsage) (
 	}, multierr.Combine(errs...)
 }
 
-func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool, gatewayUsage *attributes.GatewayUsage) (map[string]interface{}, error) {
+func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {
 	// metricsConfigMap doesn't strictly match the types present in MetricsConfig struct
 	// so to get properly type map we need to decode it twice
 
 	// We need to start with default config to get the corrent default values
-	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil, nil, nil, gatewayUsage).CreateDefaultConfig()
+	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil, nil, nil, nil).CreateDefaultConfig()
 
 	x := cf.(*serializerexporter.ExporterConfig).Metrics
 	if strict {
