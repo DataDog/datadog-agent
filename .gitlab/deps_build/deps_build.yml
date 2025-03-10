@@ -28,7 +28,10 @@
     - patch -ruN ../llvm/CMakeLists.txt < $CI_PROJECT_DIR/pkg/ebpf/c/cmakelists.patch
     - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $CI_PROJECT_DIR/pkg/ebpf/c/constant_folding.patch
     - |
-      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      CC=$DD_CC CXX=$DD_CXX \
+      cmake \
+      --toolchain $DD_CMAKE_TOOLCHAIN \
+      -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
       -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
       -G "Ninja" \
@@ -44,7 +47,7 @@
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       -DLLVM_ENABLE_UNWIND_TABLES=OFF \
       ../llvm
-    - cmake --build . --target install
+    - cmake -toolchain $DD_CMAKE_TOOLCHAIN --build . --target install
     # fail if references to glibc >= 2.18
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
@@ -53,12 +56,12 @@
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_PERMANENT_ARTIFACTS_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_DD_AGENT_OMNIBUS_LLVM_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_PERMANENT_ARTIFACTS_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH}
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    #- $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_DD_AGENT_OMNIBUS_LLVM_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
@@ -71,14 +74,14 @@
 
 build_clang_x64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
