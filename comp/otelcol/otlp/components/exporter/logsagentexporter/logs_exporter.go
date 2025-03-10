@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -29,7 +28,7 @@ type Exporter struct {
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
-	gatewaysUsage    gatewayusage.Component
+	gatewaysUsage    *attributes.GatewayUsage
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -39,7 +38,7 @@ func NewExporter(
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
-	gatewaysUsage gatewayusage.Component,
+	gatewaysUsage *attributes.GatewayUsage,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {

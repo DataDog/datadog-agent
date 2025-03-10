@@ -48,7 +48,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0 // indirect
@@ -269,7 +268,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types => ../../comp/otelcol/ddflareextension/types
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../comp/otelcol/ddprofilingextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../comp/otelcol/ddprofilingextension/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage => ../../comp/otelcol/gatewayusage
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../comp/otelcol/otlp/components/exporter/datadogexporter

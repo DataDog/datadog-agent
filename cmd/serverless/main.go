@@ -19,8 +19,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
-	gatewayusagefx "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -50,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 // AWS Lambda is writing the Lambda function files in /var/task, we want the
@@ -83,7 +82,6 @@ func main() {
 		runAgent,
 		taggernoop.Module(),
 		logscompressionfx.Module(),
-		gatewayusagefx.Module(),
 	)
 
 	if err != nil {
@@ -92,7 +90,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compression logscompression.Component, gatewayUsage gatewayusage.Component) {
+func runAgent(tagger tagger.Component, compression logscompression.Component, gatewayUsage *attributes.GatewayUsage) {
 
 	startTime := time.Now()
 
@@ -337,7 +335,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component, gatewayUsage gatewayusage.Component) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")

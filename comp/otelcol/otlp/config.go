@@ -17,11 +17,11 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -33,7 +33,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Reader, gatewayUsage gatewayusage.Component) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Reader, gatewayUsage *attributes.GatewayUsage) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -75,7 +75,7 @@ func FromAgentConfig(cfg config.Reader, gatewayUsage gatewayusage.Component) (Pi
 	}, multierr.Combine(errs...)
 }
 
-func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool, gatewayUsage gatewayusage.Component) (map[string]interface{}, error) {
+func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool, gatewayUsage *attributes.GatewayUsage) (map[string]interface{}, error) {
 	// metricsConfigMap doesn't strictly match the types present in MetricsConfig struct
 	// so to get properly type map we need to decode it twice
 

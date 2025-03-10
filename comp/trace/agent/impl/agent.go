@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -79,7 +78,7 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayUsage gatewayusage.Component) source.Source {
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayUsage *attributes.GatewayUsage) source.Source {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, gatewayUsage)
 }
 

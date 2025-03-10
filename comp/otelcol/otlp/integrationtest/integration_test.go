@@ -58,7 +58,6 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
-	gatewayusagefx "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -140,7 +139,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		orchestratorimpl.MockModule(),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
-		gatewayusagefx.Module(),
 		taggerfx.Module(tagger.Params{}),
 		noopsimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {

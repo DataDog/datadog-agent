@@ -16,12 +16,12 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	coreOtlp "github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 // ServerlessOTLPAgent represents an OTLP agent in a serverless context
@@ -31,7 +31,7 @@ type ServerlessOTLPAgent struct {
 
 // NewServerlessOTLPAgent creates a new ServerlessOTLPAgent with the correct
 // otel pipeline.
-func NewServerlessOTLPAgent(serializer serializer.MetricSerializer, tagger tagger.Component, gatewayUsage gatewayusage.Component) *ServerlessOTLPAgent {
+func NewServerlessOTLPAgent(serializer serializer.MetricSerializer, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) *ServerlessOTLPAgent {
 	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(pkgconfigsetup.Datadog(), serializer, nil, tagger, gatewayUsage)
 	if err != nil {
 		log.Error("Error creating new otlp pipeline:", err)

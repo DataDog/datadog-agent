@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,7 +182,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil, gatewayusagemock.NewMock())
+			}, nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetrics(
@@ -299,7 +298,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil, gatewayusagemock.NewMock())
+			}, nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -350,7 +349,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, nil, gatewayusagemock.NewMock())
+	}, nil, nil, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,

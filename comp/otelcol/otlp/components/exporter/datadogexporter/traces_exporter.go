@@ -7,8 +7,8 @@ import (
 	"context"
 	"net/http"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/consumer"
@@ -21,7 +21,7 @@ type traceExporter struct {
 	cfg           *datadogconfig.Config
 	ctx           context.Context      // ctx triggers shutdown upon cancellation
 	traceagentcmp traceagent.Component // agent processes incoming traces
-	gatewayUsage  gatewayusage.Component
+	gatewayUsage  *attributes.GatewayUsage
 }
 
 func newTracesExporter(
@@ -29,7 +29,7 @@ func newTracesExporter(
 	params exporter.Settings,
 	cfg *datadogconfig.Config,
 	traceagentcmp traceagent.Component,
-	gatewayUsage gatewayusage.Component,
+	gatewayUsage *attributes.GatewayUsage,
 ) *traceExporter {
 	return &traceExporter{
 		params:        params,

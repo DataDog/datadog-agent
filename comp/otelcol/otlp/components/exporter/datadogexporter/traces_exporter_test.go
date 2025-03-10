@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -19,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -40,7 +38,7 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayusage gatewayusage.Component) source.Source {
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayusage *attributes.GatewayUsage) source.Source {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, gatewayusage)
 }
 
@@ -105,7 +103,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), gatewayusagemock.NewMock())
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -147,7 +145,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), gatewayusagemock.NewMock())
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)

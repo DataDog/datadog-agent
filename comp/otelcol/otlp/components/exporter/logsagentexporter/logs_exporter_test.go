@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"testing"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
@@ -297,7 +296,7 @@ func TestLogsExporter(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
 			params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-			f := NewFactory(testChannel, gatewayusagemock.NewMock())
+			f := NewFactory(testChannel, nil)
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,
 				LogSourceName: tt.args.logSourceName,

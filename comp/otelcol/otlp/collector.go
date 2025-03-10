@@ -28,12 +28,12 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -93,7 +93,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
-func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage gatewayusage.Component) (
+func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (
 	otelcol.Factories,
 	error,
 ) {
@@ -196,7 +196,7 @@ type Pipeline struct {
 type CollectorStatus = datatype.CollectorStatus
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage gatewayusage.Component) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
@@ -263,7 +263,7 @@ func (p *Pipeline) Stop() {
 
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
 // any potential failure.
-func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage gatewayusage.Component) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component, gatewayUsage *attributes.GatewayUsage) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg, gatewayUsage)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))

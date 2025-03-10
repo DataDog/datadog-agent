@@ -35,7 +35,6 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -46,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 type collectorImpl struct {
@@ -73,7 +73,6 @@ type Requires struct {
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
-	GatewayUsage        gatewayusage.Component
 }
 
 // RequiresNoAgent declares the input types to the constructor with no dependencies on Agent components
@@ -126,7 +125,7 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 	}
 }
 
-func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage gatewayusage.Component) {
+func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage *attributes.GatewayUsage) {
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	} else {
@@ -150,7 +149,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	addFactories(reqs, factories, reqs.GatewayUsage)
+	addFactories(reqs, factories, attributes.NewGatewayUsage())
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger

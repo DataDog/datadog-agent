@@ -159,7 +159,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
@@ -250,7 +249,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types => ../../../../../../comp/otelcol/ddflareextension/types
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../../../../../comp/otelcol/ddprofilingextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../../../comp/otelcol/ddprofilingextension/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage => ../../../../../../comp/otelcol/gatewayusage
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../../../../comp/otelcol/otlp/components/exporter/datadogexporter

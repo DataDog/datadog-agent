@@ -50,7 +50,6 @@ use (
 	comp/otelcol/ddflareextension/types
 	comp/otelcol/ddprofilingextension/def
 	comp/otelcol/ddprofilingextension/impl
-	comp/otelcol/gatewayusage
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	comp/otelcol/otlp/components/exporter/datadogexporter

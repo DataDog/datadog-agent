@@ -22,7 +22,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 const (
@@ -64,8 +64,6 @@ type Requires struct {
 	InventoryAgent inventoryagent.Component
 
 	Tagger tagger.Component
-
-	GatewayUsage gatewayusage.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -88,7 +86,7 @@ type collectorImpl struct {
 	tagger         tagger.Component
 	client         *http.Client
 	ctx            context.Context
-	gatewayUsage   gatewayusage.Component
+	gatewayUsage   *attributes.GatewayUsage
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -150,7 +148,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		client:         client,
 		ctx:            context.Background(),
-		gatewayUsage:   reqs.GatewayUsage,
+		gatewayUsage:   attributes.NewGatewayUsage(),
 	}
 
 	reqs.Lc.Append(compdef.Hook{

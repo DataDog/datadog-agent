@@ -21,7 +21,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
@@ -46,7 +45,7 @@ type factory struct {
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
-	gatewayUsage gatewayusage.Component
+	gatewayUsage *attributes.GatewayUsage
 }
 
 type tagenricher interface {
@@ -70,7 +69,7 @@ func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimen
 type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
-func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayUsage gatewayusage.Component) exp.Factory {
+func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayUsage *attributes.GatewayUsage) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
 	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, gatewayUsage)
 }

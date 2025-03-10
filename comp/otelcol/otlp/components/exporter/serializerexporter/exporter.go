@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"strings"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -82,7 +81,7 @@ type Exporter struct {
 	params          exporter.Settings
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
-	gatewayUsage    gatewayusage.Component
+	gatewayUsage    *attributes.GatewayUsage
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -149,7 +148,7 @@ func NewExporter(
 	tr *metrics.Translator,
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
-	gatewayUsage gatewayusage.Component,
+	gatewayUsage *attributes.GatewayUsage,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {

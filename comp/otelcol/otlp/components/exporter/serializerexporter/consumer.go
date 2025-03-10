@@ -15,12 +15,12 @@ import (
 
 	"go.uber.org/multierr"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
@@ -80,7 +80,7 @@ type SerializerConsumer interface {
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string)
-	addGatewayUsage(hostname string, gatewayUsage gatewayusage.Component)
+	addGatewayUsage(hostname string, gatewayUsage *attributes.GatewayUsage)
 }
 
 type serializerConsumer struct {
@@ -175,7 +175,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 	}
 }
 
-func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage gatewayusage.Component) {
+func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage *attributes.GatewayUsage) {
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.otel.gateway",
 		Points:         []metrics.Point{{Value: gatewayUsage.Gauge(), Ts: float64(time.Now().Unix())}},

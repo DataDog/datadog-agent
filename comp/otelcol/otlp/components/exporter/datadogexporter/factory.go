@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -46,7 +45,7 @@ type factory struct {
 	h              serializerexporter.SourceProviderFunc
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
-	gatewayUsage   gatewayusage.Component
+	gatewayUsage   *attributes.GatewayUsage
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -73,7 +72,7 @@ func newFactoryWithRegistry(
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
-	gatewayUsage gatewayusage.Component,
+	gatewayUsage *attributes.GatewayUsage,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -115,7 +114,7 @@ func NewFactory(
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
-	gatewayUsage gatewayusage.Component,
+	gatewayUsage *attributes.GatewayUsage,
 ) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
 }

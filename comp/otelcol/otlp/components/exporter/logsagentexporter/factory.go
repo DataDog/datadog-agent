@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
@@ -41,11 +40,11 @@ type Config struct {
 
 type factory struct {
 	logsAgentChannel chan *message.Message
-	gatewayUsage     gatewayusage.Component
+	gatewayUsage     *attributes.GatewayUsage
 }
 
 // NewFactoryWithType creates a new logsagentexporter factory with the given type.
-func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage gatewayusage.Component) exp.Factory {
+func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage *attributes.GatewayUsage) exp.Factory {
 	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage}
 
 	return exp.NewFactory(

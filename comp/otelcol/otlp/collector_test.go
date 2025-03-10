@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -27,7 +26,7 @@ import (
 func TestGetComponents(t *testing.T) {
 	fakeTagger := mock.SetupFakeTagger(t)
 
-	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, gatewayusagemock.NewMock())
+	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, nil)
 	// No duplicate component
 	require.NoError(t, err)
 }
@@ -35,7 +34,7 @@ func TestGetComponents(t *testing.T) {
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := mock.SetupFakeTagger(t)
 
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, gatewayusagemock.NewMock())
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, nil)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,7 +61,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	fakeTagger := mock.SetupFakeTagger(t)
 
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, gatewayusagemock.NewMock())
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, nil)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -102,7 +101,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg, gatewayusagemock.NewMock())
+			pcfg, err := FromAgentConfig(cfg, nil)
 			require.NoError(t, err)
 			if testInstance.err == "" {
 				AssertSucessfulRun(t, pcfg)

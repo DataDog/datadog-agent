@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
@@ -22,7 +21,7 @@ import (
 func TestNewLogsExporter(t *testing.T) {
 	channel := make(chan *message.Message)
 
-	factory := NewFactory(channel, gatewayusagemock.NewMock())
+	factory := NewFactory(channel, nil)
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
