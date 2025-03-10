@@ -10,17 +10,14 @@ package trivy
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
+	"math"
 	"runtime"
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -37,15 +34,12 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// This is required to load sqlite based RPM databases
-func init() {
-	// mattn/go-sqlite3 is only registering the sqlite3 driver
-	// let's register the sqlite (no 3) driver as well
-	sql.Register("sqlite", &sqlite3.SQLiteDriver{})
-}
 
 const (
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
@@ -101,7 +95,14 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkerOption:      walker.Option{},
+		WalkerOption: walker.Option{
+			ErrorCallback: func(_ string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
 	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
@@ -118,27 +119,27 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
 			option.WalkerOption.SkipDirs,
-			"bin/**",
-			"boot/**",
-			"dev/**",
-			"media/**",
-			"mnt/**",
-			"proc/**",
-			"run/**",
-			"sbin/**",
-			"sys/**",
-			"tmp/**",
-			"usr/bin/**",
-			"usr/sbin/**",
-			"var/cache/**",
-			"var/lib/containerd/**",
-			"var/lib/containers/**",
-			"var/lib/docker/**",
-			"var/lib/libvirt/**",
-			"var/lib/snapd/**",
-			"var/log/**",
-			"var/run/**",
-			"var/tmp/**",
+			"/bin/**",
+			"/boot/**",
+			"/dev/**",
+			"/media/**",
+			"/mnt/**",
+			"/proc/**",
+			"/run/**",
+			"/sbin/**",
+			"/sys/**",
+			"/tmp/**",
+			"/usr/bin/**",
+			"/usr/sbin/**",
+			"/var/cache/**",
+			"/var/lib/containerd/**",
+			"/var/lib/containers/**",
+			"/var/lib/docker/**",
+			"/var/lib/libvirt/**",
+			"/var/lib/snapd/**",
+			"/var/log/**",
+			"/var/run/**",
+			"/var/tmp/**",
 		)
 	}
 
@@ -210,6 +211,20 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
 	}, nil
+}
+
+// NewCollectorForCLI returns a new collector, should be used only for sbomgen CLI
+func NewCollectorForCLI() *Collector {
+	return &Collector{
+		config: collectorConfig{
+			maxCacheSize: math.MaxInt,
+		},
+		marshaler: cyclonedx.NewMarshaler(""),
+
+		osScanner:   ospkg.NewScanner(),
+		langScanner: langpkg.NewScanner(),
+		vulnClient:  vulnerability.NewClient(db.Config{}),
+	}
 }
 
 // GetGlobalCollector gets the global collector

@@ -230,6 +230,7 @@
 /cmd/process-agent/                     @DataDog/container-intake
 /cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /cmd/serverless-init/                   @DataDog/serverless
+/cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
 /cmd/system-probe/config/adjust_usm.go  @DataDog/ebpf-platform @DataDog/universal-service-monitoring
@@ -335,7 +336,6 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/agent-log-pipelines
-/comp/logs/auditor @DataDog/agent-metrics-logs
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
@@ -605,6 +605,7 @@
 /tasks/static_quality_gates/            @DataDog/agent-delivery
 /tasks/rtloader.py                      @DataDog/agent-metric-pipelines
 /tasks/security_agent.py                @DataDog/agent-security
+/tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent

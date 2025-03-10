@@ -549,4 +549,13 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_deinit, void *ssl_session) {
     return 0;
 }
 
+SEC("kprobe/tcp_sendmsg")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+    log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
+    // map connection tuple during SSL_do_handshake(ctx)
+    map_ssl_ctx_to_sock(sk);
+
+    return 0;
+}
+
 #endif
