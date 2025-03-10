@@ -1251,11 +1251,10 @@ workflow:
 
 .get-custom-datadog-ci-amd64:
   - |
-    # 840076964
     DATADOG_CI_JOB_ID=840415335
     echo "Installing datadog-ci"
     rm -f /usr/local/bin/datadog-ci
-    dda inv -e gitlab.download-artifact
+    dda inv -e gitlab.download-artifact $DATADOG_CI_JOB_ID
     mv datadog-ci_linux-x64 /usr/local/bin/datadog-ci
     chmod +x /usr/local/bin/datadog-ci
 

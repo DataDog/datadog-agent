@@ -328,9 +328,9 @@ def compute_gitlab_ci_config(
 
 
 @task
-def download_artifact(ctx, name='datadog-ci_linux-x64'):
+def download_artifact(ctx, job_id=0, name='datadog-ci_linux-x64'):
     repo = get_gitlab_repo('DataDog/datadog-ci')
-    job = repo.jobs.get(840076964)
+    job = repo.jobs.get(job_id)
 
     ctx.run(f'rm -rf /tmp/artifacts.zip /tmp/{name}')
     with open('/tmp/artifacts.zip', 'wb') as f:
