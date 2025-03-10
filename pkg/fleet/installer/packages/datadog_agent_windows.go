@@ -41,28 +41,6 @@ func SetupAgent(_ context.Context, _ []string) (err error) {
 	return nil
 }
 
-// GetCurrentAgentMSIProperties returns the MSI path and version of the currently installed Agent
-func GetCurrentAgentMSIProperties() (string, string, error) {
-	product, err := msi.FindProductCode("Datadog Agent")
-	if err != nil {
-		return "", "", err
-	}
-
-	productVersion, err := msi.GetProductVersion(product.Code)
-	if err != nil {
-		return "", "", err
-	}
-
-	// get MSI path
-	msiPath, err := msi.FindProductMSI(product.Code)
-	if err != nil {
-		return "", "", err
-	}
-
-	return msiPath, productVersion, nil
-
-}
-
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_experiment")
@@ -113,11 +91,15 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 func startWatchdog(_ context.Context) error {
 	timeout := time.Now().Add(60 * time.Minute)
+
+	// open events that signal the end of the experiment
 	premoteEvent, stopEvent, err := createEvents()
 	if err != nil {
 		return fmt.Errorf("could not create events: %w", err)
 	}
 	defer closeEvents(premoteEvent, stopEvent)
+
+	// open services we are watching
 	m, err := mgr.Connect()
 	if err != nil {
 		return fmt.Errorf("failed to connect to service manager: %w", err)
@@ -136,6 +118,7 @@ func startWatchdog(_ context.Context) error {
 	}
 	defer dataDogService.Close()
 
+	// main watchdog loop
 	for time.Now().Before(timeout) {
 		// check the Installer service
 		status, err := instService.Query()
@@ -171,7 +154,7 @@ func startWatchdog(_ context.Context) error {
 		case windows.WAIT_OBJECT_0:
 			// the premote event was signaled
 			// this means we are done with the experiment
-			// we can return
+			// we can return without an error
 			return nil
 		case windows.WAIT_OBJECT_0 + 1:
 			// the stop event was signaled
