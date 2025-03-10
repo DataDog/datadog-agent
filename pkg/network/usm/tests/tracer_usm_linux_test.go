@@ -431,7 +431,8 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			// Perform the TLS handshake
 			require.NoError(t, tlsConn.Handshake())
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				payload := getConnections(collect, tr)
+				payload, cleanup := getConnections(collect, tr)
+				defer cleanup()
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
@@ -504,7 +505,8 @@ func (s *USMSuite) TestTLSClassification() {
 			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-					payload := getConnections(collect, tr)
+					payload, cleanup := getConnections(collect, tr)
+					defer cleanup()
 					for _, c := range payload.Conns {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
 							return
@@ -576,7 +578,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	// Iterate through active connections until we find connection created above
 	var foundIncoming, foundOutgoing bool
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		payload := getConnections(collect, tr)
+		payload, cleanup := getConnections(collect, tr)
+		defer cleanup()
 
 		for _, c := range payload.Conns {
 			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
