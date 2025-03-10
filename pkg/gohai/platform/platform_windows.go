@@ -129,7 +129,8 @@ func fetchOsDescription() (string, error) {
 	return "(undetermined windows version)", err
 }
 
-func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
+//FetchWindowsVersion fetches the windows version
+func FetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
 	var osversion windows.OsVersionInfoEx
 	status, _, _ := procRtlGetVersion.Call(uintptr(unsafe.Pointer(&osversion)))
 	if status == 0 {
@@ -208,7 +209,7 @@ func (platformInfo *Info) fillPlatformInfo() {
 	platformInfo.Machine = utils.NewValue(getNativeArchInfo())
 	platformInfo.OS = utils.NewValueFrom(fetchOsDescription())
 
-	maj, min, bld, err := fetchWindowsVersion()
+	maj, min, bld, err := FetchWindowsVersion()
 	platformInfo.KernelRelease = utils.NewValueFrom(fmt.Sprintf("%d.%d.%d", maj, min, bld), err)
 
 	platformInfo.KernelName = utils.NewValue("Windows")
