@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
@@ -73,7 +75,9 @@ var (
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "system-probe.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "system-probe.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 		{Path: "security-agent.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
 	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
@@ -113,28 +117,12 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		span.Finish(err)
 	}()
 
-	// 1. Ensure the dd-agent user and group exist
-	if err = user.EnsureAgentUserAndGroup(ctx); err != nil {
-		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	err = PostInstallAgent(ctx, "/opt/datadog-package", "manual_update")
+	if err != nil {
+		return err
 	}
-	// 2. Add install info metadata if it doesn't exist
-	if err = installinfo.WriteInstallInfo("manual_update"); err != nil {
-		return fmt.Errorf("failed to write install info: %v", err)
-	}
-	// 3. Ensure config/log/package directories are created and have the correct permissions
-	if err = agentDirectories.Ensure(); err != nil {
-		return fmt.Errorf("failed to create directories: %v", err)
-	}
-	if err = agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
-		return fmt.Errorf("failed to set package ownerships: %v", err)
-	}
-	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to set config ownerships: %v", err)
-	}
-	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
-		return fmt.Errorf("failed to create symlink: %v", err)
-	}
-	// 4. Install the agent systemd units
+
+	// Install the agent systemd units
 	for _, unit := range stableUnits {
 		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
@@ -163,6 +151,63 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 			return err
 		}
 	}
+	return nil
+}
+
+// PostInstallAgent performs post-installation steps for the agent
+func PostInstallAgent(ctx context.Context, installPath string, caller string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "post_install_agent")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// 1. Ensure the dd-agent user and group exist
+	if err = user.EnsureAgentUserAndGroup(ctx, installPath); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+	// 2. Ensure config/log/package directories are created and have the correct permissions
+	if err = agentDirectories.Ensure(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
+	}
+	if err = agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
+		return fmt.Errorf("failed to set package ownerships: %v", err)
+	}
+	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
+		return fmt.Errorf("failed to create symlink: %v", err)
+	}
+	// 3. Create symlink to the agent binary
+	if err = file.EnsureSymlink(installPath, agentSymlink); err != nil {
+		return fmt.Errorf("failed to create symlink: %v", err)
+	}
+	// 4. Set up SELinux permissions if we're on CentOS 7
+	// TODO
+	// Use platform, family, version, err := gopsutilhost.PlatformInformation()
+
+	// 5. Handle install info
+	// TODO: update to properly match on the three possible callers (manual_update, dpkg, and rpm)
+	if err = installinfo.WriteInstallInfo(caller); err != nil {
+		return fmt.Errorf("failed to write install info: %v", err)
+	}
+	// 6. Call post.py for integration persistence. Allowed to fail.
+	// XXX: We should probably port this to Go
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
+		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "embedded/bin/post.py"))
+		if err := cmd.Run(); err != nil {
+			log.Warnf("failed to run post.py: %v", err)
+		}
+	}
+	// 7. Run FIPS install if required
+	// XXX: We should probably port this to Go
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/fipsinstall.sh")); err == nil {
+		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/fipsinstall.sh"))
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to run fipsinstall.sh: %v", err)
+		}
+	}
+
 	return nil
 }
 
