@@ -9,6 +9,7 @@ package usm
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -17,13 +18,20 @@ import (
 	"math/rand"
 	"net"
 	nethttp "net/http"
+	"net/netip"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -807,4 +815,170 @@ func TestCleanProtocolMaps(t *testing.T) {
 			checkMockMapIsClean(t, mockMap)
 		})
 	}
+}
+
+const (
+	connectionStatesMapName = "connection_states"
+	serverHost              = "127.0.0.1"
+	clientHost              = "127.0.0.1"
+)
+
+// TestTCPConnectionStatesMap verifies that the map 'connection_states' is cleared after the TCP connection closes.
+func TestTCPConnectionStatesMap(t *testing.T) {
+	buildTCPClientBin(t)
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
+	require.NotNil(t, monitor)
+
+	statesMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(connectionStatesMapName)
+	require.NotNil(t, statesMap)
+	require.Equal(t, statesMap.KeySize(), uint32(unsafe.Sizeof(netebpf.ConnTuple{})), "wrong key size")
+
+	serverPort := uint16(4949)
+	runTCPServer(t, serverPort)
+
+	testTCPConnectionStatesFIN(t, monitor, statesMap, serverPort)
+	testTCPConnectionStatesRST(t, monitor, statesMap, serverPort)
+}
+
+// testTCPConnectionStatesFIN verifies that the connection entries are present in the map after the connection is established
+// and removed once the connection is closed with FIN.
+func testTCPConnectionStatesFIN(t *testing.T, monitor *Monitor, statesMap *ebpf.Map, serverPort uint16) {
+	conn, err := net.Dial("tcp", net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort))))
+	require.NoError(t, err)
+
+	_, err = conn.Write([]byte("Hello"))
+	require.NoError(t, err)
+
+	clientPort := uint16(conn.LocalAddr().(*net.TCPAddr).Port)
+	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
+	checkStatesInMap(t, monitor, statesMap, tuples, true)
+
+	// close connection with FIN
+	err = conn.Close()
+	require.NoError(t, err)
+
+	checkStatesInMap(t, monitor, statesMap, tuples, false)
+}
+
+// testTCPConnectionStatesRST verifies that entries are properly removed from the map after a connection reset.
+// OS may delay RST packets until client termination, requiring a separate TCP client process.
+func testTCPConnectionStatesRST(t *testing.T, monitor *Monitor, statesMap *ebpf.Map, serverPort uint16) {
+	serverPath := net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort)))
+	clientPort, err := getFreePort()
+	require.NoError(t, err)
+	clientPath := net.JoinHostPort(clientHost, strconv.Itoa(int(clientPort)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, buildTCPClientBin(t), serverPath, clientPath, "true")
+	err = cmd.Run()
+	require.NoError(t, ctx.Err())
+	require.NoError(t, err)
+
+	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
+	checkStatesInMap(t, monitor, statesMap, tuples, false)
+}
+
+func checkStatesInMap(t *testing.T, monitor *Monitor, m *ebpf.Map, tuples []netebpf.ConnTuple, exist bool) {
+	require.Equal(t, 2, len(tuples))
+	assert.Eventually(t, func() bool {
+		if exist {
+			return findAllKeysInMap(t, m, tuples)
+		} else {
+			return !findAllKeysInMap(t, m, tuples)
+		}
+	}, 500*time.Millisecond, 50*time.Millisecond)
+	if t.Failed() {
+		t.Logf("failed search keys %v, %v exist: %t", tuples[0], tuples[1], exist)
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, connectionStatesMapName)
+		t.FailNow()
+	}
+}
+
+// findAllKeysInMap returns true if all specified keys are present in the map.
+func findAllKeysInMap(t *testing.T, m *ebpf.Map, keys []netebpf.ConnTuple) bool {
+	require.NotEmpty(t, keys)
+	set := make(map[netebpf.ConnTuple]struct{}, len(keys))
+
+	var key netebpf.ConnTuple
+	value := make([]byte, m.ValueSize())
+	iter := m.Iterate()
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		set[key] = struct{}{}
+	}
+	for _, k := range keys {
+		if _, exists := set[k]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+// makeConnTuples makes keys for searching in the connection map
+func makeConnTuples(t *testing.T, src, dst string, srcPort, dstPort uint16) []netebpf.ConnTuple {
+	srcAddr, err := netip.ParseAddr(src)
+	require.NoError(t, err)
+	srcLow, srcHigh := util.ToLowHighIP(srcAddr)
+
+	dstAddr, err := netip.ParseAddr(dst)
+	require.NoError(t, err)
+	dstLow, dstHigh := util.ToLowHighIP(dstAddr)
+
+	tuples := []netebpf.ConnTuple{
+		{
+			Saddr_h:  srcHigh,
+			Saddr_l:  srcLow,
+			Daddr_h:  dstHigh,
+			Daddr_l:  dstLow,
+			Sport:    srcPort,
+			Dport:    dstPort,
+			Metadata: uint32(netebpf.TCP),
+		},
+		{
+			Saddr_h:  dstHigh,
+			Saddr_l:  dstLow,
+			Daddr_h:  srcHigh,
+			Daddr_l:  srcLow,
+			Sport:    dstPort,
+			Dport:    srcPort,
+			Metadata: uint32(netebpf.TCP),
+		},
+	}
+	return tuples
+}
+
+func runTCPServer(t *testing.T, serverPort uint16) {
+	serverPath := net.JoinHostPort(serverHost, strconv.Itoa(int(serverPort)))
+	server := testutil.NewTCPServer(serverPath, func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+	}, false)
+	require.NotNil(t, server)
+
+	done := make(chan struct{})
+	server.Run(done)
+	t.Cleanup(func() { close(done) })
+
+	require.NotNil(t, server)
+	require.Equal(t, serverPath, server.Address())
+}
+
+func getFreePort() (uint16, error) {
+	listener, err := net.Listen("tcp", net.JoinHostPort(clientHost, "0"))
+	if err != nil {
+		return 0, err
+	}
+	defer listener.Close()
+	return uint16(listener.Addr().(*net.TCPAddr).Port), nil
+}
+
+func buildTCPClientBin(t *testing.T) string {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	clientBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "tcp_client")
+	require.NoError(t, err)
+	return clientBin
 }
