@@ -528,6 +528,8 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 	if err != nil {
 		s.refreshErrorCount++
 		logRefreshError(s, err)
+	} else {
+		s.refreshErrorCount = 0
 	}
 
 	for {
@@ -552,6 +554,8 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		if err != nil {
 			s.refreshErrorCount++
 			logRefreshError(s, err)
+		} else {
+			s.refreshErrorCount = 0
 		}
 	}
 }
@@ -571,6 +575,8 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 		if err != nil {
 			s.refreshErrorCount++
 			logRefreshError(s, err)
+		} else {
+			s.refreshErrorCount = 0
 		}
 	}
 }
@@ -612,6 +618,7 @@ func (s *CoreAgentService) pollOrgStatus() {
 		}
 		return
 	}
+	s.refreshErrorCount = 0
 
 	// Print info log when the new status is different from the previous one, or if it's the first run
 	if s.previousOrgStatus == nil ||
