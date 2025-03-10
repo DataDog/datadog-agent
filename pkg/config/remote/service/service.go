@@ -477,7 +477,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		disableConfigPollLoop: options.disableConfigPollLoop,
 	}
 
-	cfg.OnUpdate(cas.apiKeyUpdateCallback(dbPath))
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
 
 	return cas, nil
 }
@@ -911,7 +911,7 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback(dbPath string) func(string, any, any) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
 	return func(setting string, oldvalue, newvalue any) {
 		if setting != "api_key" {
 			return
