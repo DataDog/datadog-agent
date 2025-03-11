@@ -32,7 +32,6 @@ const (
 	tlsProcessTailCall     = "uprobe__redis_tls_process"
 	tlsTerminationTailCall = "uprobe__redis_tls_termination"
 	eventStream            = "redis"
-	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
 )
 
 type protocol struct {
@@ -48,13 +47,6 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newRedisProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
-	},
-	Probes: []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: netifProbe,
-			},
-		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -106,7 +98,6 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }

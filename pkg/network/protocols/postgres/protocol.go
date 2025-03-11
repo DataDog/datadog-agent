@@ -43,7 +43,6 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
-	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -79,13 +78,6 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "postgres_batches",
-		},
-	},
-	Probes: []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: netifProbe,
-			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -167,7 +159,6 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
