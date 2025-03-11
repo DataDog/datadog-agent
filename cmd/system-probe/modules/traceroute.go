@@ -38,7 +38,7 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	runner, err := runner.New(deps.Telemetry)
+	runner, err := runner.New(deps.Telemetry, deps.Hostname)
 	if err != nil {
 		return &traceroute{}, err
 	}
