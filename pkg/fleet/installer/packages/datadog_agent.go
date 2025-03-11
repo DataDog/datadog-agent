@@ -25,8 +25,12 @@ import (
 )
 
 const (
-	agentPackage       = "datadog-agent"
-	agentSymlink       = "/usr/bin/datadog-agent"
+	agentPackage = "datadog-agent"
+
+	agentSymlink   = "/usr/bin/datadog-agent"
+	stablePath     = "/opt/datadog-packages/datadog-agent/stable"
+	experimentPath = "/opt/datadog-packages/datadog-agent/experiment"
+
 	agentUnit          = "datadog-agent.service"
 	installerAgentUnit = "datadog-agent-installer.service"
 	traceAgentUnit     = "datadog-agent-trace.service"
@@ -117,7 +121,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		span.Finish(err)
 	}()
 
-	err = PostInstallAgent(ctx, "/opt/datadog-package", "manual_update")
+	err = PostInstallAgent(ctx, stablePath, "manual_update")
 	if err != nil {
 		return err
 	}
@@ -162,24 +166,25 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 	}()
 
 	// 1. Ensure the dd-agent user and group exist
-	if err = user.EnsureAgentUserAndGroup(ctx, installPath); err != nil {
+	userHomePath := installPath
+	if installPath == stablePath || installPath == experimentPath {
+		userHomePath = "/opt/datadog-packages"
+	}
+	if err = user.EnsureAgentUserAndGroup(ctx, userHomePath); err != nil {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 	// 2. Ensure config/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
-	if err = agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
+	if err = agentPackagePermissions.Ensure(installPath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
 	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
-	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
-		return fmt.Errorf("failed to create symlink: %v", err)
-	}
 	// 3. Create symlink to the agent binary
-	if err = file.EnsureSymlink(installPath, agentSymlink); err != nil {
+	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 	// 4. Set up SELinux permissions if we're on CentOS 7
@@ -259,8 +264,8 @@ func RemoveAgent(ctx context.Context) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	if err := agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
-		return fmt.Errorf("failed to set package ownerships: %v", err)
+	if err := PostInstallAgent(ctx, experimentPath, "manual_update"); err != nil {
+		return err
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
@@ -269,6 +274,9 @@ func StartAgentExperiment(ctx context.Context) error {
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
+	if err := PostInstallAgent(ctx, stablePath, "manual_update"); err != nil {
+		return err
+	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
 	return systemd.StartUnit(ctx, agentUnit, "--no-block")
