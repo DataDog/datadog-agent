@@ -72,6 +72,7 @@ func (s *LinuxJournaldFakeintakeSuite) TearDownSuite() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
+	flake.Mark(s.T())
 	// Run test cases
 	s.Run("journaldLogCollection", s.journaldLogCollection)
 
@@ -81,9 +82,7 @@ func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
-
 	t := s.T()
-	flake.Mark(t)
 	// Add dd-agent user to systemd-journal group
 	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")
 	require.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
