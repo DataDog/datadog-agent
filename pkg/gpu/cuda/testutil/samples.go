@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package testutil contains test utilities for the CUDA package.
 package testutil
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
+// SamplesSMVersionSet returns a set of all the SM versions present in the sample files.
 func SamplesSMVersionSet() map[uint32]struct{} {
 	smSet := make(map[uint32]struct{})
 	for _, sm := range SampleSMVersions {
@@ -28,6 +30,7 @@ func SamplesSMVersionSet() map[uint32]struct{} {
 // Retrieved from the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
 var SampleSMVersions = []uint32{50, 52, 60, 61, 70, 75, 80, 86, 89, 90}
 
+// GetCudaSample returns the path to the CUDA fatbin file for the given name.
 // The test data is a CUDA fatbin file compiled with the Makefile present in the same directory,
 // using `make <name>` (for now, only supported samples are `sample` and `heavy-sample`).
 func GetCudaSample(t testing.TB, name string) string {
