@@ -93,16 +93,15 @@ def run_and_profile(ctx):
 
     error = False
     for test in tests:
-        loader = unittest.TestLoader()
-        dir, filename = os.path.split(test)
-        suite = loader.discover(dir, pattern=filename)
         with gitlab_section(f'Running {test}'):
+            loader = unittest.TestLoader()
+            dir, filename = os.path.split(test)
+            suite = loader.discover(dir, pattern=filename)
             runner = unittest.TextTestRunner()
-            res = runner.run(suite)
 
-        if not res.wasSuccessful():
-            print('Error in', test)
-            error = True
+            if not runner.run(suite).wasSuccessful():
+                print('Error in', test)
+                error = True
 
     if error:
         raise Exit(color_message('Some tests are failing', Color.RED), code=1)
