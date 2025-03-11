@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -40,7 +42,10 @@ const (
 )
 
 type npCollectorImpl struct {
+	// config related
 	collectorConfigs *collectorConfigs
+	sourceExcludes   []*filter.ConnectionFilter
+	destExcludes     []*filter.ConnectionFilter
 
 	// Deps
 	epForwarder  eventplatform.Forwarder
@@ -84,26 +89,17 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s max_per_minute=%d flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
-		collectorConfigs.workers,
-		collectorConfigs.timeout,
-		collectorConfigs.maxTTL,
-		collectorConfigs.pathtestInputChanSize,
-		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.storeConfig.ContextsLimit,
-		collectorConfigs.storeConfig.TTL,
-		collectorConfigs.storeConfig.Interval,
-		collectorConfigs.storeConfig.MaxPerMinute,
-		collectorConfigs.flushInterval,
-		collectorConfigs.reverseDNSEnabled,
-		collectorConfigs.reverseDNSTimeout,
-	)
+	logger.Infof("New NpCollector %+v", collectorConfigs)
 
 	return &npCollectorImpl{
-		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
-		rdnsquerier:      rdnsquerier,
-		logger:           logger,
+		sourceExcludes:   filter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
+		destExcludes:     filter.ParseConnectionFilters(collectorConfigs.destExcludedConns),
+
+		epForwarder:  epForwarder,
+		logger:       logger,
+		statsdClient: statsd,
+		rdnsquerier:  rdnsquerier,
 
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
@@ -124,7 +120,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushLoopDone: make(chan struct{}),
 
 		runTraceroute: runTraceroute,
-		statsdClient:  statsd,
 	}
 }
 
@@ -157,13 +152,53 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
-func doSubnetsContainIP(subnets []*net.IPNet, ip net.IP) bool {
+func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
 	for _, subnet := range subnets {
-		if subnet.Contains(ip) {
+		if subnet.Contains(net.IP(ip.AsSlice())) {
 			return true
 		}
 	}
 	return false
+}
+
+type translation struct {
+	source netip.AddrPort
+	dest   netip.AddrPort
+}
+
+func applyTranslation(conn *model.Connection) (translation, error) {
+	translatedSource := conn.Laddr.Ip
+	translatedSrcPort := conn.Laddr.Port
+	translatedDest := conn.Raddr.Ip
+	translatedDstPort := conn.Raddr.Port
+	if conn.IpTranslation != nil {
+		if conn.IpTranslation.ReplSrcIP != "" {
+			translatedSource = conn.IpTranslation.ReplSrcIP
+		}
+		if conn.IpTranslation.ReplSrcPort != 0 {
+			translatedSrcPort = conn.IpTranslation.ReplSrcPort
+		}
+		if conn.IpTranslation.ReplDstIP != "" {
+			translatedDest = conn.IpTranslation.ReplDstIP
+		}
+		if conn.IpTranslation.ReplDstPort != 0 {
+			translatedDstPort = conn.IpTranslation.ReplDstPort
+		}
+	}
+	sourceAddr, err := netip.ParseAddr(translatedSource)
+	if err != nil {
+		return translation{}, err
+	}
+	destAddr, err := netip.ParseAddr(translatedDest)
+	if err != nil {
+		return translation{}, err
+	}
+
+	translation := translation{
+		source: netip.AddrPortFrom(sourceAddr, uint16(translatedSrcPort)),
+		dest:   netip.AddrPortFrom(destAddr, uint16(translatedDstPort)),
+	}
+	return translation, nil
 }
 
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
@@ -183,19 +218,30 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
-	translatedDest := conn.Raddr.Ip
-	// prefer IP translation if it's available
-	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
-		translatedDest = conn.IpTranslation.ReplDstIP
+
+	// TODO translation should probably be applied to the traceroute as well right?gi
+	translation, err := applyTranslation(conn)
+	if err != nil {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_ip"}, 1) //nolint:errcheck
+		return false
 	}
-	remoteIP := net.ParseIP(translatedDest)
-	if remoteIP.IsLoopback() {
+	if translation.dest.Addr().IsLoopback() {
 		// is this case possible, given that we already filter out IntraHost?
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
 		return false
 	}
-	if doSubnetsContainIP(vpcSubnets, remoteIP) {
+	if doSubnetsContainIP(vpcSubnets, translation.dest.Addr()) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
+		return false
+	}
+
+	filterable := filter.FilterableConnection{
+		Type:   conn.Type,
+		Source: translation.source,
+		Dest:   translation.dest,
+	}
+	if filter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1) //nolint:errcheck
 		return false
 	}
 	return true
