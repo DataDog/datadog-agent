@@ -83,7 +83,7 @@ lint_gitlab_ci_shellcheck:
     # Do only on diff and not on main / release branches
     - status=0
     - |
-      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ] && ! [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
+      if [ "$CI_COMMIT_BRANCH" != "main" ] && ! [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
         inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
       fi
     - |
@@ -104,8 +104,6 @@ lint_github_actions_shellcheck:
           - .github/workflows/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
       when: on_success
-    - when: never
   allow_failure: true
   script:
-    - DIFF_FILES="$(git diff --name-only "$(git merge-base main HEAD)" | grep -E '.github/workflows/.*\.yml' | tr '\n' ',')"
-    - inv -e linter.github-actions-shellcheck --files "$DIFF_FILES"
+    - inv -e linter.github-actions-shellcheck

@@ -42,6 +42,9 @@ from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 from tasks.update_go import _update_go_mods, _update_references
 
+# - SC2086 corresponds to using variables in this way $VAR instead of "$VAR" (used in every jobs).
+# - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
+# - SC2046 corresponds to avoid using $(...) to prevent word splitting.
 DEFAULT_SHELLCHECK_EXCLUDES = 'SC2059,SC2028,SC2086,SC2016,SC2046'
 
 
@@ -956,6 +959,11 @@ def gitlab_ci_shellcheck(
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
     """
 
+    # Used by the CI to skip linting if no changes
+    if diff_file and not os.path.exists(diff_file):
+        print('No diff file found, skipping lint')
+        return
+
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
@@ -987,16 +995,25 @@ def gitlab_ci_shellcheck(
 @task
 def github_actions_shellcheck(
     ctx,
-    files: str,
     exclude=DEFAULT_SHELLCHECK_EXCLUDES,
     shellcheck_args="",
     fail_fast=False,
     use_bat=None,
     only_errors=False,
+    all_files=False,
 ):
     """Lint github action workflows with shellcheck."""
 
-    files = [file for file in files.split(',') if file]
+    if all_files:
+        files = glob('.github/workflows/*.yml')
+    else:
+        files = ctx.run(
+            "git diff --name-only \"$(git merge-base main HEAD)\" | grep -E '.github/workflows/.*\\.yml'", warn=True
+        ).stdout.splitlines()
+
+    if not files:
+        print('No github action workflow files to lint, skipping')
+        return
 
     scripts = {}
     for file in files:
