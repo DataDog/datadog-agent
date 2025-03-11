@@ -566,11 +566,18 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
         if ignore_on_error:
             return
     finally:
-        # Ensure the section is at least 1 ms long to avoid errors
-        end_time = max(time.time(), start_time + 1e-3)
+        end_time = time.time()
 
+    create_ci_visibility_section(ctx, section_name, start_time, end_time)
+
+
+def create_ci_visibility_section(ctx, section_name, start_time: float, end_time: float):
     def convert_time(t):
         return int(t * 1000)
+
+    start_time = convert_time(start_time)
+    # Ensure the section is at least 1 ms long to avoid errors
+    end_time = max(convert_time(end_time), start_time + 1)
 
     ctx.run(f"datadog-ci span --name '{section_name}' --start-time {convert_time(start_time)} --end-time {convert_time(end_time)}")
 
