@@ -11,14 +11,13 @@ package otlp
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 //nolint:revive // TODO(SERV) Fix revive linter
 type ServerlessOTLPAgent struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func NewServerlessOTLPAgent(serializer.MetricSerializer, tagger.Component, *attributes.GatewayUsage) *ServerlessOTLPAgent {
+func NewServerlessOTLPAgent(serializer.MetricSerializer, tagger.Component) *ServerlessOTLPAgent {
 	return nil
 }
 
