@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -18,7 +19,7 @@ import (
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
 	Operation  Operation
-	Parameters string
+	Parameters *intern.StringValue
 	types.ConnectionKey
 }
 
