@@ -921,26 +921,26 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
 		s.Lock()
 		defer s.Unlock()
 
-		if ok {
-			s.api.UpdateAPIKey(newKey)
+		if !ok {
+			log.Errorf("Could not convert API key to string")
+			return
 		}
+		s.api.UpdateAPIKey(newKey)
 
 		// Verify that the Org UUID hasn't changed
-		orgUUID, err := s.uptane.StoredOrgUUID()
-		if err == nil {
-			// If we don't have a stored UUID, skip this check
-			newOrgUUID, err := s.api.FetchOrgData(context.Background())
-			if err == nil {
-				// If we weren't able to get the new org UUID, again skip
-				if orgUUID != newOrgUUID.Uuid {
-					log.Errorf("Error switching API key: new API key is from a different organization")
-					oldKey, ok := oldvalue.(string)
-					if ok {
-						s.api.UpdateAPIKey(oldKey)
-					}
-					return
-				}
-			}
+		storedOrgUUID, err := s.uptane.StoredOrgUUID()
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+		newOrgUUID, err := s.api.FetchOrgData(context.Background())
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+
+		if storedOrgUUID != newOrgUUID.Uuid {
+			log.Errorf("Error switching API key: new API key is from a different organization")
 		}
 	}
 }

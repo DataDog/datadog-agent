@@ -805,9 +805,10 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	cfg.SetWithoutSource("api_key", "updated")
 	assert.Equal(t, "updated", updatedKey)
 
+	// We still
 	orgResponse.Uuid = "badUuid"
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
-	assert.Equal(t, "updated", updatedKey)
+	assert.Equal(t, "BAD_ORG", updatedKey)
 
 }
 
