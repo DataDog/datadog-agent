@@ -465,7 +465,7 @@ var pointerCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_string": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"s": &ditypes.CapturedValue{
+				"s": {
 					Type: "*struct",
 					Fields: fieldMap{
 						"arg_0": &ditypes.CapturedValue{
@@ -484,7 +484,7 @@ var pointerCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_slice": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"s": &ditypes.CapturedValue{
+				"s": {
 					Type: "*struct",
 					Fields: fieldMap{
 						"arg_0": &ditypes.CapturedValue{
