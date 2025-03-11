@@ -138,7 +138,6 @@ func startWatchdog(_ context.Context) error {
 		}
 
 		// check the Agent service
-		// TODO do we need to check the status of the agent service?
 		status, err = dataDogService.Query()
 		if err != nil {
 			return fmt.Errorf("could not query service: %w", err)
@@ -218,7 +217,8 @@ func installAgentPackage(target string, args []string, logFileName string) error
 	// create args
 	// need to carry these over as we are uninstalling the agent first
 	// and we need to reinstall it with the same configuration
-	// and we have wiped out our registry keys containing the configuration
+	// and we wipe out our registry keys containing the configuration
+	// that the next install would have used
 	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
 	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
 
