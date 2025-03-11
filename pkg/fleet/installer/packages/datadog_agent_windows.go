@@ -178,13 +178,13 @@ func StopAgentExperiment(_ context.Context) (err error) {
 func PromoteAgentExperiment(_ context.Context) error {
 	err := setPremoteEvent()
 	if err != nil {
-		log.Errorf("Failed to promote agent experiment: %s", err)
+		// if we can't set the event it means the watchdog has failed
+		// In this case, we were already premoting the experiment
+		// so we can return without an error as all we were about to do
+		// is stop the watchdog
+		log.Errorf("Failed to set premote event: %s", err)
 	}
 
-	// if we can't set the event it means the watchdog has failed
-	// In this case, we were already premoting the experiment
-	// so we can return without an error as all we were about to do
-	// is stop the watchdog
 	return nil
 }
 
