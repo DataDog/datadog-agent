@@ -1303,8 +1303,8 @@ invoke_unit_tests:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: []
-  rules:
-    - !reference [.on_invoke_tasks_changes]
+  # rules:
+  #   - !reference [.on_invoke_tasks_changes]
   script:
     - !reference [.datadog-ci-amd64-fullsetup]
     - dda inv -e invoke-unit-tests.run-and-profile
