@@ -566,7 +566,8 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
         if ignore_on_error:
             return
     finally:
-        end_time = time.time()
+        # Ensure the section is at least 1 ms long to avoid errors
+        end_time = max(time.time(), start_time + 1)
 
     def convert_time(t):
         return int(t * 1000)
