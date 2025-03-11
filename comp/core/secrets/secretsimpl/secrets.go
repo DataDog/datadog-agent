@@ -254,11 +254,11 @@ func (r *secretResolver) startRefreshRoutine() {
 
 	if r.refreshIntervalScatter {
 		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval)))
-		log.Infof("scatterDuration is %s", r.scatterDuration)
-		r.ticker = r.clk.Ticker(r.scatterDuration)
+		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
-		r.ticker = r.clk.Ticker(r.refreshInterval)
+		r.scatterDuration = r.refreshInterval
 	}
+	r.ticker = r.clk.Ticker(t.r.scatterDuration)
 
 	go func() {
 		<-r.ticker.C
@@ -701,7 +701,7 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	}
 
 	if r.refreshIntervalScatter {
-		fmt.Fprintf(w, "'secret_refresh interval' enabled: the first refresh will happen at %s seconds and then every %s seconds", r.scatterDuration, r.refreshInterval)
+		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s ", r.scatterDuration, r.refreshInterval)
 	}
 
 }
