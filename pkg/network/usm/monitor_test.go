@@ -852,8 +852,8 @@ func testTCPConnectionStatesFIN(t *testing.T, monitor *Monitor, statesMap *ebpf.
 	require.NoError(t, err)
 
 	clientPort := uint16(conn.LocalAddr().(*net.TCPAddr).Port)
-	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
-	checkStatesInMap(t, monitor, statesMap, tuples, true)
+	tuples := makeKeys(t, clientHost, serverHost, clientPort, serverPort)
+	checkKeysInMap(t, monitor, statesMap, tuples, true)
 
 	tcpConn, ok := conn.(*net.TCPConn)
 	require.True(t, ok, "unexpected *net.TCPConn %T", conn)
@@ -862,7 +862,7 @@ func testTCPConnectionStatesFIN(t *testing.T, monitor *Monitor, statesMap *ebpf.
 	err = tcpConn.CloseWrite()
 	require.NoError(t, err)
 
-	checkStatesInMap(t, monitor, statesMap, tuples, false)
+	checkKeysInMap(t, monitor, statesMap, tuples, false)
 }
 
 // testTCPConnectionStatesRST establishes a TCP connection, verifies the presence of connection entries in the map,
@@ -875,23 +875,24 @@ func testTCPConnectionStatesRST(t *testing.T, monitor *Monitor, statesMap *ebpf.
 	require.NoError(t, err)
 
 	clientPort := uint16(conn.LocalAddr().(*net.TCPAddr).Port)
-	tuples := makeConnTuples(t, clientHost, serverHost, clientPort, serverPort)
-	checkStatesInMap(t, monitor, statesMap, tuples, true)
+	tuples := makeKeys(t, clientHost, serverHost, clientPort, serverPort)
+	checkKeysInMap(t, monitor, statesMap, tuples, true)
 
 	// explicitly closing an active connection triggers a RST segment
 	err = conn.Close()
 	require.NoError(t, err)
 
-	checkStatesInMap(t, monitor, statesMap, tuples, false)
+	checkKeysInMap(t, monitor, statesMap, tuples, false)
 }
 
-func checkStatesInMap(t *testing.T, monitor *Monitor, m *ebpf.Map, tuples []netebpf.ConnTuple, exist bool) {
+// checkKeysInMap checks that all keys are present in the map ('exist'==true) or keys are missing from the map ('exist'==false).
+func checkKeysInMap(t *testing.T, monitor *Monitor, m *ebpf.Map, tuples []netebpf.ConnTuple, exist bool) {
 	require.Equal(t, 2, len(tuples))
-	assert.Eventually(t, func() bool {
+	require.Eventually(t, func() bool {
 		if exist {
-			return findAllKeysInMap(t, m, tuples)
+			return findAllKeysInMap(m, tuples)
 		}
-		return !findAllKeysInMap(t, m, tuples)
+		return !findAllKeysInMap(m, tuples)
 	}, 500*time.Millisecond, 50*time.Millisecond)
 	if t.Failed() {
 		t.Logf("failed search keys %v, %v exist: %t", tuples[0], tuples[1], exist)
@@ -901,8 +902,7 @@ func checkStatesInMap(t *testing.T, monitor *Monitor, m *ebpf.Map, tuples []nete
 }
 
 // findAllKeysInMap returns true if all specified keys are present in the map.
-func findAllKeysInMap(t *testing.T, m *ebpf.Map, keys []netebpf.ConnTuple) bool {
-	require.NotEmpty(t, keys)
+func findAllKeysInMap(m *ebpf.Map, keys []netebpf.ConnTuple) bool {
 	set := make(map[netebpf.ConnTuple]struct{}, len(keys))
 
 	var key netebpf.ConnTuple
@@ -919,8 +919,8 @@ func findAllKeysInMap(t *testing.T, m *ebpf.Map, keys []netebpf.ConnTuple) bool 
 	return true
 }
 
-// makeConnTuples makes keys for searching in the connection map
-func makeConnTuples(t *testing.T, src, dst string, srcPort, dstPort uint16) []netebpf.ConnTuple {
+// makeKeys makes keys (connection tuples) for searching in the map.
+func makeKeys(t *testing.T, src, dst string, srcPort, dstPort uint16) []netebpf.ConnTuple {
 	srcAddr, err := netip.ParseAddr(src)
 	require.NoError(t, err)
 	srcLow, srcHigh := util.ToLowHighIP(srcAddr)
