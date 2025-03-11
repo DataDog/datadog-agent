@@ -822,6 +822,9 @@ const (
 
 // TestTCPConnectionStatesMap verifies that the map 'connection_states' is cleared after the TCP connection closes.
 func TestTCPConnectionStatesMap(t *testing.T) {
+	if kv < usmconfig.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
