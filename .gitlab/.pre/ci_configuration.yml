@@ -92,7 +92,7 @@ lint_gitlab_ci_shellcheck:
         exit $status
       fi
 
-lint_github_actions_workflows:
+lint_github_actions_shellcheck:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
