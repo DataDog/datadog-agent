@@ -44,6 +44,7 @@ const (
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
+	netifProbes            = "tracepoint__net__netif_receive_skb_http"
 )
 
 // Spec is the protocol spec for the HTTP protocol.
@@ -64,6 +65,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbes,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -130,6 +138,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbes}})
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
