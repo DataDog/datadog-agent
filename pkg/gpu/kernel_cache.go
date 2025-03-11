@@ -85,6 +85,7 @@ type KernelCache struct {
 
 type kernelCacheTelemetry struct {
 	symbolCacheSize telemetry.Gauge
+	kernelCacheSize telemetry.Gauge
 	readErrors      telemetry.Counter
 	fatbinPayloads  telemetry.Counter
 	kernelsPerFile  telemetry.Histogram
@@ -97,6 +98,7 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 
 	return &kernelCacheTelemetry{
 		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
+		kernelCacheSize: tm.NewGauge(subsystem, "kernel_cache_size", nil, "Number of kernels in the cache"),
 		readErrors:      tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
 		fatbinPayloads:  tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
 		kernelsPerFile:  tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
@@ -184,9 +186,8 @@ func (kc *KernelCache) GetKernelData(pid int, addr uint64, smVersion uint32) (*c
 	key := kernelKey{pid: pid, address: addr, smVersion: smVersion}
 
 	// Try to get from cache first
-	kc.cacheMutex.RLock()
-	defer kc.cacheMutex.RUnlock()
-	if data, ok := kc.cache[key]; ok {
+	data := kc.getExistingKernelData(key)
+	if data != nil {
 		return data.kernel, data.err
 	}
 
@@ -197,6 +198,14 @@ func (kc *KernelCache) GetKernelData(pid int, addr uint64, smVersion uint32) (*c
 	default:
 		return nil, fmt.Errorf("kernel cache request channel full, cannot queue request for pid=%d addr=0x%x", pid, addr)
 	}
+}
+
+// getExistingKernelData returns the kernel data for a given key if it exists.
+func (kc *KernelCache) getExistingKernelData(key kernelKey) *kernelData {
+	kc.cacheMutex.RLock()
+	defer kc.cacheMutex.RUnlock()
+
+	return kc.cache[key]
 }
 
 // loadKernelData loads the kernel data for a given key. This function uses some internal caches
@@ -243,11 +252,19 @@ func (kc *KernelCache) processRequests() {
 		select {
 		case key := <-kc.requests:
 			// Load kernel data
+			if kc.getExistingKernelData(key) != nil {
+				// Kernel already loaded, skip
+				// This can happen if we have received multiple requests for the same kernel
+				// while we were processing the request.
+				continue
+			}
+
 			kernel, err := kc.loadKernelData(key)
 
 			// Update or store in cache
 			kc.cacheMutex.Lock()
 			kc.cache[key] = &kernelData{kernel: kernel, err: err}
+			kc.telemetry.kernelCacheSize.Set(float64(len(kc.cache)))
 			kc.cacheMutex.Unlock()
 		case pid := <-kc.pidsToDelete:
 			delete(kc.pidMaps, pid)
@@ -295,6 +312,7 @@ func (kc *KernelCache) cleanDataForPid(pid int) {
 
 	kc.pidsToDelete <- pid
 
+	kc.telemetry.kernelCacheSize.Set(float64(len(kc.cache)))
 	kc.telemetry.activePIDs.Set(float64(len(kc.pidMaps)))
 }
 
