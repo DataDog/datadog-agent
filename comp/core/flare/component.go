@@ -10,12 +10,13 @@
 package flare
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface {
