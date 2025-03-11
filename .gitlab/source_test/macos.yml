@@ -4,7 +4,9 @@ include:
 
 .tests_macos_gitlab:
   stage: source_test
-  extends: .macos_gitlab
+  extends: 
+    - .unit_test_base
+    - .macos_gitlab
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
