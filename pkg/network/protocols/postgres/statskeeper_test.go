@@ -37,7 +37,7 @@ func TestStatKeeperProcess(t *testing.T) {
 
 	require.Equal(t, 1, len(s.stats))
 	for k, stat := range s.stats {
-		require.Equal(t, "dummy", k.Parameters)
+		require.Equal(t, "dummy", k.Parameters.Get())
 		require.Equal(t, SelectOP, k.Operation)
 		require.Equal(t, 20, stat.Count)
 		require.Equal(t, float64(20), stat.Latencies.GetCount())
