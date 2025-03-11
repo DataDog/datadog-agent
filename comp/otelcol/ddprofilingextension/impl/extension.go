@@ -16,6 +16,7 @@ import (
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -122,7 +123,7 @@ func (e *ddExtension) startForOCB() error {
 		cl.Transport = &headerTransport{
 			wrapped: http.DefaultTransport,
 			headers: map[string]string{
-				additionalTagsHeader: fmt.Sprintf("orchestrator:fargate_ECS,task_arn:%s", source.Identifier),
+				additionalTagsHeader: fmt.Sprintf("orchestrator:fargate_ECS,task_arn:%s,agent_version:%s", source.Identifier, version.AgentVersion),
 			},
 		}
 		profilerOptions = append(profilerOptions, profiler.WithHTTPClient(cl))

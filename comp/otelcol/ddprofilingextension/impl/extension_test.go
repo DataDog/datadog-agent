@@ -232,7 +232,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+		assert.Equal(t, "orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default,agent_version:6.0.0", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
