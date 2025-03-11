@@ -5,7 +5,7 @@ OnFailure=datadog-agent.service
 Conflicts=datadog-agent.service
 Before=datadog-agent.service
 JobTimeoutSec=3000
-Wants=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
 
 [Service]
 Type=oneshot
