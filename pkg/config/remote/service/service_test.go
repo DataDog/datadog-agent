@@ -805,7 +805,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	cfg.SetWithoutSource("api_key", "updated")
 	assert.Equal(t, "updated", updatedKey)
 
-	// We still
+	// We still use the new key even if the new org doesn't match the old org.
 	orgResponse.Uuid = "badUuid"
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
 	assert.Equal(t, "BAD_ORG", updatedKey)
