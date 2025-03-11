@@ -347,7 +347,7 @@ def download_artifact(ctx, job_id=0, name='datadog-ci_linux-x64'):
 @task
 def celian(ctx):
     ci_visibility_tag(ctx, 'my-tag', 'my-value')
-    ci_visibility_tag(ctx, 'pipeline-tag', 'my-value-2')
+    ci_visibility_tag(ctx, 'pipeline-tag', 'my-value-2', level='pipeline')
 
     with ci_visibility_section(ctx, 'my-first-section'):
         print('Sleeping...')
@@ -368,7 +368,7 @@ def celian(ctx):
 @task
 def celian2(ctx):
     ci_visibility_measure(ctx, 'my-measure', 42)
-    ci_visibility_measure(ctx, 'pipeline-measure', 618)
+    ci_visibility_measure(ctx, 'pipeline-measure', 618, level='pipeline')
 
     with gitlab_section('my-first-section'):
         print('Sleeping...')
