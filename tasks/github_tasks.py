@@ -72,7 +72,7 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=None,
-    release_version="nightly-a7",
+    release_version="nightly",
     major_version="7",
     destination=".",
     version_cache=None,

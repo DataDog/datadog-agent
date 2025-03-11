@@ -134,8 +134,7 @@ variables:
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
-  WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -162,8 +161,7 @@ variables:
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_6: nightly
-  RELEASE_VERSION_7: nightly-a7
+  RELEASE_VERSION: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
@@ -286,12 +284,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -437,11 +429,6 @@ workflow:
 .on_main_always:
   - <<: *if_main_branch
     when: always
-
-.on_tag_or_a7:
-  - !reference [.except_mergequeue]
-  - <<: *if_tagged_commit
-  - <<: *if_version_7
 
 .on_deploy:
   - <<: *if_deploy

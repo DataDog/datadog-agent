@@ -6,7 +6,8 @@
         "7": "7.63.3"
     },
     "nightly": {
-        "OMNIBUS_RUBY_VERSION": "e28997be4eb8359d9f198c8840b7c52464e3f0d0",
+        "OMNIBUS_SOFTWARE_VERSION": "bc7dd57379bf475a30206ddcb5d4a932597ac336",
+        "OMNIBUS_RUBY_VERSION": "7ff6fe13aa37efbe5bb929837643c9ef2b3109db",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
         "MACOS_BUILD_VERSION": "master",
@@ -21,10 +22,11 @@
         "WINDOWS_APMINJECT_MODULE": "release-signed",
         "WINDOWS_APMINJECT_VERSION": "1.1.3",
         "WINDOWS_APMINJECT_SHASUM": "5fdd62a84e640204386b9c28dc2e3ac5d9b8adde6427cb9f5914619f94d7b5bd",
-        "INTEGRATIONS_CORE_VERSION": "7bc4cf2b925c96d01304e653ce59e5b1e9a38e37"
+        "INTEGRATIONS_CORE_VERSION": "25613230b069bf89f1cc63b8eaf2aa54be42ed91"
     },
     "release": {
         "INTEGRATIONS_CORE_VERSION": "7.56.0-rc.2",
+        "OMNIBUS_SOFTWARE_VERSION": "7.56.0-rc.3",
         "OMNIBUS_RUBY_VERSION": "7.56.0-rc.1",
         "JMXFETCH_VERSION": "0.49.6",
         "JMXFETCH_HASH": "f06bdac1f8ec41daf9b9839ac883f1865a068b04810ea82197b8a6afb9369cb9",
