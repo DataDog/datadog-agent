@@ -485,7 +485,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithCollectCommands(opts.CollectCommands),
 		sqllexer.WithCollectTables(opts.TableNames),
 		sqllexer.WithCollectProcedures(opts.CollectProcedures),
-		sqllexer.WithKeepSQLAlias(opts.KeepSQLAlias),
+		sqllexer.WithKeepSQLAlias(true),
 		sqllexer.WithRemoveSpaceBetweenParentheses(opts.RemoveSpaceBetweenParentheses),
 		sqllexer.WithKeepTrailingSemicolon(opts.KeepTrailingSemicolon),
 		sqllexer.WithKeepIdentifierQuotation(opts.KeepIdentifierQuotation),
