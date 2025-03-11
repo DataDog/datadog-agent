@@ -99,14 +99,14 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: elementType})
 
 		} else if top.parameter.Kind == uint(reflect.Pointer) {
-			if top.parameter.ParameterPieces == nil || len(top.parameter.ParameterPieces) == 0 {
+			if len(top.parameter.ParameterPieces) == 0 {
 				continue
 			}
 			valueType := top.parameter.ParameterPieces[0]
 			queue = append(queue, &captureDepthItem{depth: top.depth, parameter: valueType})
 
 		} else if top.parameter.Kind == uint(reflect.String) {
-			// Propogate DoNotCapture/NotCaptureReason value to string fields (char*, len) for clarity
+			// Propagate DoNotCapture/NotCaptureReason value to string fields (char*, len) for clarity
 			if len(top.parameter.ParameterPieces) == 2 &&
 				top.parameter.ParameterPieces[0] != nil &&
 				len(top.parameter.ParameterPieces[0].ParameterPieces) == 1 &&

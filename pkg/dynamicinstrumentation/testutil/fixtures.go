@@ -11,13 +11,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
-type InstrumentationOptions struct {
+// TestInstrumentationOptions contains options for probes in tests
+type TestInstrumentationOptions struct {
 	CaptureDepth int
 }
 
+// CapturedValueMapWithOptions pairs instrumentaiton options with expected values
 type CapturedValueMapWithOptions struct {
 	CapturedValueMap ditypes.CapturedValueMap
-	Options          InstrumentationOptions
+	Options          TestInstrumentationOptions
 }
 
 type funcName = string
@@ -33,95 +35,95 @@ var basicCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_bool": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("bool", "true")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 		{
 			CapturedValueMap: nil,
-			Options:          InstrumentationOptions{CaptureDepth: 0},
+			Options:          TestInstrumentationOptions{CaptureDepth: 0},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int", "-1512")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint", "1512")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int8": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int8", "-8")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int16": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int16", "-16")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int32": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int32", "-32")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int64": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int64", "-64")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint8": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint8", "8")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint16": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint16", "16")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint32": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint32", "32")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint64": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint64", "64")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_byte": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("uint8", "97")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_rune": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("int32", "1")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 
@@ -134,7 +136,7 @@ var stringCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": capturedValue("string", "abc")},
-			Options:          InstrumentationOptions{CaptureDepth: 10},
+			Options:          TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 }
@@ -146,7 +148,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("uint8", "1"),
 				"arg_1": capturedValue("uint8", "1"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_rune_array": []CapturedValueMapWithOptions{
@@ -155,7 +157,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("int32", "1"),
 				"arg_1": capturedValue("int32", "2"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_array": []CapturedValueMapWithOptions{
@@ -164,7 +166,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("string", "one"),
 				"arg_1": capturedValue("string", "two"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int_array": []CapturedValueMapWithOptions{
@@ -173,7 +175,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("int", "1"),
 				"arg_1": capturedValue("int", "2"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int8_array": []CapturedValueMapWithOptions{
@@ -182,7 +184,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("int8", "1"),
 				"arg_1": capturedValue("int8", "2"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_array": []CapturedValueMapWithOptions{
@@ -191,7 +193,7 @@ var arrayCaptures = fixtures{
 				"arg_0": capturedValue("uint", "1"),
 				"arg_1": capturedValue("uint", "2"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays": []CapturedValueMapWithOptions{
@@ -206,7 +208,7 @@ var arrayCaptures = fixtures{
 					"arg_1": capturedValue("int", "4"),
 				}},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_structs": []CapturedValueMapWithOptions{
@@ -221,7 +223,7 @@ var arrayCaptures = fixtures{
 					"anotherString": capturedValue("string", "bar"),
 				}},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays_of_arrays": []CapturedValueMapWithOptions{
@@ -248,7 +250,7 @@ var arrayCaptures = fixtures{
 					}},
 				}},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 }
@@ -261,7 +263,7 @@ var sliceCaptures = fixtures{
 				"[1]uint": capturedValue("uint", "2"),
 				"[2]uint": capturedValue("uint", "3"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_slice": []CapturedValueMapWithOptions{
@@ -288,7 +290,7 @@ var sliceCaptures = fixtures{
 					},
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_empty_slice_of_structs": []CapturedValueMapWithOptions{
@@ -300,7 +302,7 @@ var sliceCaptures = fixtures{
 					Fields: nil,
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_slice_of_structs": []CapturedValueMapWithOptions{
@@ -312,7 +314,7 @@ var sliceCaptures = fixtures{
 					Fields: nil,
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_slice_with_other_params": []CapturedValueMapWithOptions{
@@ -325,7 +327,7 @@ var sliceCaptures = fixtures{
 				},
 				"x": capturedValue("uint", "5"),
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 }
@@ -338,7 +340,7 @@ var structCaptures = fixtures{
 				"arg_1": capturedValue("string", "bb"),
 				"arg_2": capturedValue("string", "ccc"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": []CapturedValueMapWithOptions{
@@ -350,7 +352,7 @@ var structCaptures = fixtures{
 					}},
 				"a": capturedValue("int", "2"),
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct": []CapturedValueMapWithOptions{
@@ -360,7 +362,7 @@ var structCaptures = fixtures{
 				"arg_1": capturedValue("int", "1"),
 				"arg_2": capturedValue("int16", "2"),
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": []CapturedValueMapWithOptions{
@@ -373,7 +375,7 @@ var structCaptures = fixtures{
 						"arg_2": capturedValue("int16", "2"),
 					}},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_embedded_struct": []CapturedValueMapWithOptions{
@@ -392,7 +394,7 @@ var structCaptures = fixtures{
 					}},
 				}},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 }
@@ -408,11 +410,11 @@ var pointerCaptures = fixtures{
 					},
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 		{
 			CapturedValueMap: nil,
-			Options:          InstrumentationOptions{CaptureDepth: 0},
+			Options:          TestInstrumentationOptions{CaptureDepth: 0},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_pointer": []CapturedValueMapWithOptions{
@@ -421,7 +423,7 @@ var pointerCaptures = fixtures{
 				"a": {Type: "uint", Value: strPtr("1")},
 				"z": {Type: "*bool"},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": []CapturedValueMapWithOptions{
@@ -436,7 +438,7 @@ var pointerCaptures = fixtures{
 					},
 				},
 			}}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_struct_pointer": []CapturedValueMapWithOptions{
@@ -446,7 +448,7 @@ var pointerCaptures = fixtures{
 				"x": {Type: "*struct"},
 				"z": {Type: "uint", Value: strPtr("4")},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_pointer": []CapturedValueMapWithOptions{
@@ -457,7 +459,7 @@ var pointerCaptures = fixtures{
 					"arg_0": capturedValue("string", "abc"),
 				},
 			}},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_string": []CapturedValueMapWithOptions{
@@ -476,7 +478,7 @@ var pointerCaptures = fixtures{
 					},
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_slice": []CapturedValueMapWithOptions{
@@ -503,7 +505,7 @@ var pointerCaptures = fixtures{
 					},
 				},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 10},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 }
@@ -525,7 +527,7 @@ var captureDepthCaptures = fixtures{
 					}},
 				}},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 5},
+			Options: TestInstrumentationOptions{CaptureDepth: 5},
 		},
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
@@ -539,7 +541,7 @@ var captureDepthCaptures = fixtures{
 					}},
 				}},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 4},
+			Options: TestInstrumentationOptions{CaptureDepth: 4},
 		},
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
@@ -550,7 +552,7 @@ var captureDepthCaptures = fixtures{
 					}},
 				}},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 3},
+			Options: TestInstrumentationOptions{CaptureDepth: 3},
 		},
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
@@ -558,11 +560,11 @@ var captureDepthCaptures = fixtures{
 					"arg_0": capturedValue("int", "1"),
 				}},
 			},
-			Options: InstrumentationOptions{CaptureDepth: 2},
+			Options: TestInstrumentationOptions{CaptureDepth: 2},
 		},
 		{
 			CapturedValueMap: nil,
-			Options:          InstrumentationOptions{CaptureDepth: 1},
+			Options:          TestInstrumentationOptions{CaptureDepth: 1},
 		},
 	},
 }
@@ -589,12 +591,4 @@ var expectedCaptures = mergeMaps(
 	// mapCaptures,
 	// genericCaptures,
 	// multiParamCaptures,
-)
-
-var pointerWithDepthCaptures = fixtures{
-	// All fixtures have CaptureDepth: 10 now
-}
-
-var expectedCapturesWithDepth = mergeMaps(
-	pointerWithDepthCaptures,
 )
