@@ -7,7 +7,30 @@
 
 package packages
 
-import "context"
+import (
+	"context"
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+)
+
+const (
+	packageAPMInject = "datadog-apm-inject"
+)
+
+var (
+	loaderRelativePath = []string{"injldr.exe"}
+)
+
+func getInjectTargetPath(target string) string {
+	return filepath.Join(paths.PackagesPath, packageAPMInject, target)
+}
+
+func getInjectExecutablePath(installDir string) string {
+	return filepath.Join(append([]string{installDir}, loaderRelativePath...)...)
+}
 
 // SetupAPMInjector noop
 func SetupAPMInjector(_ context.Context) error {
@@ -15,10 +38,40 @@ func SetupAPMInjector(_ context.Context) error {
 }
 
 // RemoveAPMInjector noop
-func RemoveAPMInjector(_ context.Context) error { return nil }
+func RemoveAPMInjector(_ context.Context) error {
+	return nil
+}
 
-// InstrumentAPMInjector noop
-func InstrumentAPMInjector(_ context.Context, _ string) error { return nil }
+// InstrumentAPMInjector instruments the APM injector
+func InstrumentAPMInjector(ctx context.Context, _ string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
+	defer func() { span.Finish(err) }()
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getInjectTargetPath("stable"))
+	if err != nil {
+		return err
+	}
+	execInject := exec.NewApmInjectExec(getInjectExecutablePath(installDir))
+	_, err = execInject.Instrument(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-// UninstrumentAPMInjector noop
-func UninstrumentAPMInjector(_ context.Context, _ string) error { return nil }
+// UninstrumentAPMInjector uninstruments the APM injector
+func UninstrumentAPMInjector(ctx context.Context, _ string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector")
+	defer func() { span.Finish(err) }()
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getInjectTargetPath("stable"))
+	if err != nil {
+		return err
+	}
+	execInject := exec.NewApmInjectExec(getInjectExecutablePath(installDir))
+	_, err = execInject.Uninstrument(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
