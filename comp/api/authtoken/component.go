@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

@@ -10,7 +10,7 @@ import (
 	"io"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
