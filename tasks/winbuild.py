@@ -19,7 +19,7 @@ OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 def agent_package(
     ctx,
     flavor=AgentFlavor.base.name,
-    release_version="nightly-a7",
+    release_version="nightly",
     skip_deps=False,
     build_upgrade=False,
 ):
@@ -42,7 +42,7 @@ def agent_package(
 @task
 def installer_package(
     ctx,
-    release_version="nightly-a7",
+    release_version="nightly",
     skip_deps=False,
 ):
     # Build installer
