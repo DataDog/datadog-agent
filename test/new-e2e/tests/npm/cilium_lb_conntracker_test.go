@@ -42,7 +42,6 @@ func TestCiliumLBConntracker(t *testing.T) {
 	// TODO: find a way to update this list dynamically
 	versionsToTest := []string{"1.15.14", "1.16.7", "1.17.1"}
 	for _, v := range versionsToTest {
-		v := v
 		t.Run(fmt.Sprintf("version %s", v), func(_t *testing.T) {
 			_t.Parallel()
 
