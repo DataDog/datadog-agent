@@ -46,7 +46,7 @@ jobs:
                 DD_SITE: 'datadoghq.com'
                 DD_API_KEY: ${{ secrets.DD_API_KEY }}
                 DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
-                SLACK_DATADOG_AGENT_CI_WEBHOOK: ${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
+                SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: |
                 dda inv -e release.check-previous-agent6-rc
 
@@ -110,20 +110,23 @@ jobs:
 
             - name: Check if agent 6 is in qualification phase
               if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              env:
+                SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: |
-                is_qualification=$(inv -e release.is-qualification -r 6.53.x --output)
+                is_qualification=$(dda inv -e release.is-qualification -r 6.53.x --output)
                 echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
                 if [[ "$is_qualification" == "true" && "${{ steps.check_for_changes.outputs.CHANGES }}" == "false" ]]; then
-                  inv -e release.alert-ci-on-call -r 6.53.x --slack-webhook=${{ secrets.SLACK_DATADOG_AGENT_CI_WEBHOOK }}
+                  dda inv -e release.alert-ci-on-call -r 6.53.x
                 fi
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false') }}
               env:
                 MATRIX: ${{ matrix.value }}
+                SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: |
                 if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-                  dda inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT6_RELEASE_SLACK_WEBHOOK }} --patch-version
+                  dda inv -e release.create-rc -r "$MATRIX" --patch-version
                 else
-                  dda inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
+                  dda inv -e release.create-rc -r "$MATRIX"
                 fi

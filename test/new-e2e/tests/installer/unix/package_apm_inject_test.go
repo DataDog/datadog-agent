@@ -36,7 +36,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -154,7 +154,7 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 	defer s.Purge()
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -249,7 +249,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceVersion("datadog-apm-inject", "0.15.0-1"),
 	)
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
@@ -272,7 +272,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceInstall("datadog-agent"),
 		envForceVersion("datadog-apm-inject", "0.16.0-1"),
 	)
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
