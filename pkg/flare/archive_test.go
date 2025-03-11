@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -87,7 +86,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func setupProcessAPIServer(t *testing.T, port int) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		apiserver.Module(),
+		processapiserver.Module(),
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 			"process_config.cmd_port": port,
@@ -324,6 +323,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		listener, err := net.Listen("tcp", ":0")
 		require.NoError(t, err)
 		port := listener.Addr().(*net.TCPAddr).Port
+		defer listener.Close()
 
 		setupProcessAPIServer(t, port)
 
