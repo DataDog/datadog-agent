@@ -15,12 +15,15 @@ import (
 
 func main() {}
 
-// CheckFactory exports the Oracle check factory
+// oracleLoadCheck exports the Oracle check factory
 //
-//export CheckFactory
-func CheckFactory() unsafe.Pointer {
-	factory := oracle.Factory
-	return unsafe.Pointer(&factory)
+//export oracleLoadCheck
+func oracleLoadCheck(retPtr *unsafe.Pointer) {
+	factory := oracle.Factory()
+	if checkFunc, ok := factory.Get(); ok {
+		c := checkFunc()
+		*retPtr = unsafe.Pointer(&c)
+	}
 }
 
-// go build -tags oracle -o oracle.so -buildmode=c-shared ./pkg/collector/corechecks/oracle/main/main.go
+// go build -tags oracle -o libcheckoracle.so -buildmode=c-shared ./pkg/collector/corechecks/oracle/main/main.go

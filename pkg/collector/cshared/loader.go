@@ -9,23 +9,22 @@ package cshared
 // #include <dlfcn.h>
 // #include <stdlib.h>
 //
-// void *get_check_factory(char* checklib) {
+// void get_check_from_lib(char *checklib, char *loadFuncName, void **ret) {
 //     void *lib = dlopen(checklib, RTLD_LAZY);
 //     if (lib == 0) {
-//         return 0;
+//         return;
 //     }
-//     void *factory_func = dlsym(lib, "CheckFactory");
+//     void *factory_func = dlsym(lib, loadFuncName);
 //     if (factory_func == 0) {
-//         return 0;
+//         return;
 //     }
-//     return ((void*(*)()) factory_func)();
+//     ((void(*)(void **)) factory_func)(ret);
 // }
 import "C"
 
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -37,9 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-var factoriesLock sync.Mutex
-var factories = make(map[string]option.Option[func() check.Check])
 
 type csharedLoader struct{}
 
@@ -60,34 +56,27 @@ func (*csharedLoader) String() string {
 
 func (*csharedLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	log.Infof("loading check %s", config.Name)
-	factoriesLock.Lock()
-	defer factoriesLock.Unlock()
 
-	if _, ok := factories[config.Name]; !ok {
-		libname := fmt.Sprintf("libcheck%s.so", config.Name)
-		log.Infof("getting check factory from %s", libname)
+	libname := fmt.Sprintf("libcheck%s.so", config.Name)
+	log.Infof("getting check factory from %s", libname)
 
-		libnameC := C.CString(libname)
-		var factoryFuncPtr unsafe.Pointer = C.get_check_factory(libnameC)
-		C.free(unsafe.Pointer(libnameC))
+	libnameC := C.CString(libname)
+	loadCheckFuncName := C.CString(fmt.Sprintf("%sLoadCheck", config.Name))
+	var checkPtr unsafe.Pointer
+	C.get_check_from_lib(libnameC, loadCheckFuncName, &checkPtr)
+	C.free(unsafe.Pointer(libnameC))
+	C.free(unsafe.Pointer(loadCheckFuncName))
 
-		if factoryFuncPtr == nil {
-			errmsg := C.dlerror()
-			return nil, fmt.Errorf("could not load check %s from %s: %s", config.Name, libname, C.GoString(errmsg))
-		}
-		log.Infof("successfully loaded check factory from %s", libname)
-
-		factoryFunc := *(*func() option.Option[func() check.Check])(factoryFuncPtr)
-		factories[config.Name] = factoryFunc()
+	if checkPtr == nil {
+		errmsg := C.dlerror()
+		return nil, fmt.Errorf("could not load check %s from %s: %s", config.Name, libname, C.GoString(errmsg))
 	}
+	log.Infof("successfully loaded check from %s", libname)
+	log.Flush()
 
-	factory := factories[config.Name]
-	checkFunc, ok := factory.Get()
-	if !ok {
-		return nil, fmt.Errorf("Check %s not found in Catalog", config.Name)
-	}
+	c := *(*check.Check)(checkPtr)
 
-	c := checkFunc()
+	log.Infof("configuring check %s", c)
 	if err := c.Configure(senderManager, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return c, err

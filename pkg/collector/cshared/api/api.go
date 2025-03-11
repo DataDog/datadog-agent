@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cshared exposes a C api for c-shared libraries
 package cshared
 
 // extern void pkgUtilHostnameGet(void *unsafeCtxArg, void *hostnameRetPtr, void *errRetPtr);
