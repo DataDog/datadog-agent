@@ -93,6 +93,8 @@ var (
 		common.KubeletMetricsPrefix + "go_goroutines",
 		common.KubeletMetricsPrefix + "go_threads",
 		common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes",
+		common.KubeletMetricsPrefix + "kubelet.image_pull.duration.count",
+		common.KubeletMetricsPrefix + "kubelet.image_pull.duration.sum",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.count",
 		common.KubeletMetricsPrefix + "kubelet.network_plugin.latency.sum",
 		common.KubeletMetricsPrefix + "kubelet.pleg.discard_events",
