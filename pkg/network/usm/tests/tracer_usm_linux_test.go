@@ -16,6 +16,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/netip"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -47,6 +48,7 @@ import (
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -431,7 +433,8 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			// Perform the TLS handshake
 			require.NoError(t, tlsConn.Handshake())
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				payload := getConnections(collect, tr)
+				payload, cleanup := getConnections(collect, tr)
+				defer cleanup()
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
@@ -504,7 +507,8 @@ func (s *USMSuite) TestTLSClassification() {
 			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-					payload := getConnections(collect, tr)
+					payload, cleanup := getConnections(collect, tr)
+					defer cleanup()
 					for _, c := range payload.Conns {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
 							return
@@ -576,7 +580,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	// Iterate through active connections until we find connection created above
 	var foundIncoming, foundOutgoing bool
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		payload := getConnections(collect, tr)
+		payload, cleanup := getConnections(collect, tr)
+		defer cleanup()
 
 		for _, c := range payload.Conns {
 			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
@@ -698,9 +703,12 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
+	cfg.EnableNodeJSMonitoring = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
@@ -2534,4 +2542,305 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+}
+
+func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Client, url string, isHTTP2 bool) {
+	parsedURL, err := neturl.Parse(url)
+	require.NoError(t, err)
+
+	getReq, err := nethttp.NewRequest("GET", url, nil)
+	require.NoError(t, err)
+
+	getResp, err := client.Do(getReq)
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	postReq1, err := nethttp.NewRequest("POST", url, nil)
+	require.NoError(t, err)
+
+	postResp1, err := client.Do(postReq1)
+	require.NoError(t, err)
+	defer postResp1.Body.Close()
+
+	postReq2, err := nethttp.NewRequest("POST", url, nil)
+	require.NoError(t, err)
+
+	postResp2, err := client.Do(postReq2)
+	require.NoError(t, err)
+	defer postResp2.Body.Close()
+
+	var getRequestStats, postRequestsStats *http.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.HTTP
+		if isHTTP2 {
+			requests = conns.HTTP2
+		}
+		if getRequestStats == nil || postRequestsStats == nil {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if getRequestStats != nil && postRequestsStats != nil {
+				break
+			}
+			if key.Path.Content.Get() != parsedURL.Path {
+				continue
+			}
+			if key.Method.String() == "GET" {
+				getRequestStats = stats
+				continue
+			}
+			if key.Method.String() == "POST" {
+				postRequestsStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, getRequestStats)
+		require.Len(ct, getRequestStats.Data, 1)
+		require.NotNil(ct, getRequestStats.Data[nethttp.StatusOK])
+		require.Equal(ct, 1, getRequestStats.Data[nethttp.StatusOK].Count)
+		require.Nil(ct, getRequestStats.Data[nethttp.StatusOK].Latencies)
+		require.NotZero(ct, getRequestStats.Data[nethttp.StatusOK].FirstLatencySample)
+
+		require.NotNil(ct, postRequestsStats)
+		require.Len(ct, postRequestsStats.Data, 1)
+		require.NotNil(ct, postRequestsStats.Data[nethttp.StatusOK])
+		require.Equal(ct, 2, postRequestsStats.Data[nethttp.StatusOK].Count)
+		require.NotNil(ct, postRequestsStats.Data[nethttp.StatusOK].Latencies)
+		require.NotZero(ct, postRequestsStats.Data[nethttp.StatusOK].FirstLatencySample)
+		require.Equal(ct, float64(2), postRequestsStats.Data[nethttp.StatusOK].Latencies.GetCount())
+	}, 10*time.Second, 1*time.Second)
+}
+
+const (
+	httpServerAddr = "127.0.0.1:8080"
+)
+
+var (
+	httpURL = "http://" + httpServerAddr + "/200/request-0"
+)
+
+func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion kernel.Version) {
+	if kv < minimalKernelVersion {
+		t.Skipf("skipping test, kernel version %s is not supported", kv)
+	}
+}
+
+func testHTTPSketches(t *testing.T, tr *tracer.Tracer) {
+	srvDoneFn := testutil.HTTPServer(t, httpServerAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	client := new(nethttp.Client)
+	transport := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
+	transport.ForceAttemptHTTP2 = false
+	transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
+
+	client.Transport = transport
+
+	testHTTPLikeSketches(t, tr, client, httpURL, false)
+}
+
+func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, usmhttp2.MinimumKernelVersion)
+	srvDoneFn := usmhttp2.StartH2CServer(t, httpServerAddr, false)
+	t.Cleanup(srvDoneFn)
+
+	client := &nethttp.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				return net.Dial(network, addr)
+			},
+		},
+	}
+
+	testHTTPLikeSketches(t, tr, client, httpURL, true)
+}
+
+const (
+	localhost = "127.0.0.1"
+)
+
+func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, kafkaPort)
+	require.NoError(t, kafka.RunServer(t, localhost, kafkaPort))
+
+	topicName1 := fmt.Sprintf("test-topic-1-%d", time.Now().UnixNano())
+	topicName2 := fmt.Sprintf("test-topic-2-%d", time.Now().UnixNano())
+
+	version := kversion.V3_4_0()
+	version.SetMaxKeyVersion(produceAPIKey, 10)
+	version.SetMaxKeyVersion(fetchAPIKey, 10)
+	client, err := kafka.NewClient(kafka.Options{
+		ServerAddress: serverAddress,
+		CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
+	})
+	require.NoError(t, err)
+
+	defer client.Client.Close()
+
+	require.NoError(t, client.CreateTopic(topicName1))
+	require.NoError(t, client.CreateTopic(topicName2))
+
+	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+
+	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr(), "record had a produce error while synchronously producing")
+
+	client.Client.AddConsumeTopics(topicName2)
+	fetches := client.Client.PollFetches(context.Background())
+	require.Empty(t, fetches.Errors())
+	require.Len(t, fetches.Records(), 1)
+
+	var fetchRequestStats, produceRequestsStats *kafka.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.Kafka
+		if fetchRequestStats == nil || produceRequestsStats == nil {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if fetchRequestStats != nil && produceRequestsStats != nil {
+				break
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
+				fetchRequestStats = stats
+				continue
+			}
+			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				produceRequestsStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, fetchRequestStats)
+		require.Len(ct, fetchRequestStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, fetchRequestStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, fetchRequestStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, fetchRequestStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, fetchRequestStats.ErrorCodeToStat[0].FirstLatencySample)
+
+		require.NotNil(ct, produceRequestsStats)
+		require.Len(ct, produceRequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 2, produceRequestsStats.ErrorCodeToStat[0].Count)
+		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, produceRequestsStats.ErrorCodeToStat[0].FirstLatencySample)
+		require.Equal(ct, float64(2), produceRequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+	}, 10*time.Second, 1*time.Second)
+}
+
+func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, postgresPort)
+	require.NoError(t, pgutils.RunServer(t, localhost, postgresPort, false))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, false)
+
+	pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+		ServerAddress: serverAddress,
+	})
+	require.NoError(t, pg.RunCreateQuery())
+	require.NoError(t, pg.RunInsertQuery(1))
+	require.NoError(t, pg.RunInsertQuery(2))
+	require.NoError(t, pg.RunSelectQuery())
+
+	var insertRequestStats, selectRequestsStats *pgutils.RequestStat
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.Postgres
+		if insertRequestStats == nil || selectRequestsStats == nil {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if selectRequestsStats != nil && insertRequestStats != nil {
+				break
+			}
+
+			if key.Parameters == "dummy" && key.Operation == pgutils.SelectOP {
+				selectRequestsStats = stats
+				continue
+			}
+			if key.Parameters == "dummy" && key.Operation == pgutils.InsertOP {
+				insertRequestStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, selectRequestsStats)
+		require.Equal(ct, 1, selectRequestsStats.Count)
+		require.Nil(ct, selectRequestsStats.Latencies)
+		require.NotZero(ct, selectRequestsStats.FirstLatencySample)
+
+		require.NotNil(ct, insertRequestStats)
+		require.Equal(ct, 2, insertRequestStats.Count)
+		require.NotNil(ct, insertRequestStats.Latencies)
+		require.NotZero(ct, insertRequestStats.FirstLatencySample)
+		require.Equal(ct, float64(2), insertRequestStats.Latencies.GetCount())
+	}, 10*time.Second, 1*time.Second)
+}
+
+func (s *USMSuite) TestVerifySketches() {
+	t := s.T()
+	t.Skip("skipping test, failing on main")
+	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
+	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+
+	tr, err := tracer.NewTracer(cfg, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	tests := []struct {
+		name     string
+		testFunc func(t *testing.T, tr *tracer.Tracer)
+	}{
+		{
+			name:     "http",
+			testFunc: testHTTPSketches,
+		},
+		{
+			name:     "http2",
+			testFunc: testHTTP2Sketches,
+		},
+		{
+			name:     "kafka",
+			testFunc: testKafkaSketches,
+		},
+		{
+			name:     "postgres",
+			testFunc: testPostgresSketches,
+		},
+	}
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			tt.testFunc(s.T(), tr)
+		})
+	}
 }

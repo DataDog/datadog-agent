@@ -20,7 +20,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     fill_container_context(proc_cache_entry, &event.container);
 
     // check if this event should trigger a syscall drift event
-    if (is_anomaly_syscalls_enabled() && event.container.container_id[0] != 0) {
+    if (is_anomaly_syscalls_enabled() && (event.container.cgroup_context.cgroup_flags != 0)) {
         // fetch the profile for the current container
         struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.container);
         if (profile) {
