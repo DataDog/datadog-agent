@@ -750,22 +750,26 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
+	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.NoCopy)
 
-	for _, layer := range packet.Layers() {
-		switch layer := layer.(type) {
-		case *layers.DNS:
-			for _, answer := range layer.Answers {
-				if answer.Type == layers.DNSTypeCNAME {
-					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-				} else {
-					ip, ok := netip.AddrFromSlice(answer.IP)
-					if ok {
-						p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
-					} else {
-						seclog.Errorf("DNS response with an invalid IP received: %v", ip)
-					}
-				}
+	layer := packet.Layer(layers.LayerTypeDNS)
+	if layer == nil {
+		return
+	}
+	dnsLayer, ok := layer.(*layers.DNS)
+	if !ok {
+		return
+	}
+
+	for _, answer := range dnsLayer.Answers {
+		if answer.Type == layers.DNSTypeCNAME {
+			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+		} else {
+			ip, ok := netip.AddrFromSlice(answer.IP)
+			if ok {
+				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
+			} else {
+				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
 			}
 		}
 	}
