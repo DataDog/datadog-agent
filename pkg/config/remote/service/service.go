@@ -912,7 +912,7 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 }
 
 func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
-	return func(setting string, oldvalue, newvalue any) {
+	return func(setting string, _, newvalue any) {
 		if setting != "api_key" {
 			return
 		}
