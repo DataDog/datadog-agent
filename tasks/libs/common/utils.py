@@ -380,7 +380,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":

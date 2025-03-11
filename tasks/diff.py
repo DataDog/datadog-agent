@@ -57,6 +57,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/security-agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
     },
+    "sbomgen": {
+        "entrypoint": "cmd/sbomgen",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
     "trace-agent": {

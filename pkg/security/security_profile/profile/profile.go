@@ -69,7 +69,7 @@ type SecurityProfile struct {
 	versionContexts     map[string]*VersionContext
 	pathsReducer        *activity_tree.PathsReducer
 
-	// Instances is the list of workload instances to witch the profile should apply
+	// Instances is the list of workload instances to which the profile should apply
 	Instances []*tags.Workload
 
 	// Metadata contains metadata for the current profile

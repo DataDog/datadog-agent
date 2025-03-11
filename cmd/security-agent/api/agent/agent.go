@@ -14,13 +14,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -48,7 +48,7 @@ func NewAgent(statusComponent status.Component, settings settings.Component, wme
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func (a *Agent) SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", common.GetVersion).Methods("GET")
+	r.HandleFunc("/version", version.Get).Methods("GET")
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")

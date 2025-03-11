@@ -20,11 +20,10 @@ const clocksMetricsPrefix = "clock.throttle_reasons"
 // clocksCollector collects clock metrics from an NVML device.
 type clocksCollector struct {
 	device nvml.Device
-	tags   []string
 }
 
 // newClocksCollector creates a new clocksMetricsCollector for the given NVML device.
-func newClocksCollector(device nvml.Device, tags []string) (Collector, error) {
+func newClocksCollector(device nvml.Device) (Collector, error) {
 	// Check first if the device supports clock throttle reasons
 	_, ret := device.GetCurrentClocksThrottleReasons()
 	if ret == nvml.ERROR_NOT_SUPPORTED {
@@ -35,7 +34,6 @@ func newClocksCollector(device nvml.Device, tags []string) (Collector, error) {
 
 	return &clocksCollector{
 		device: device,
-		tags:   tags,
 	}, nil
 }
 
@@ -57,7 +55,6 @@ func (c *clocksCollector) Collect() ([]Metric, error) {
 		metric := Metric{
 			Name:  fmt.Sprintf("%s.%s", clocksMetricsPrefix, name),
 			Value: value,
-			Tags:  c.tags,
 			Type:  metrics.GaugeType,
 		}
 		metricValues = append(metricValues, metric)

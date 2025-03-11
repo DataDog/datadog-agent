@@ -152,6 +152,10 @@ func (gh *gpuHost) fillData() {
 func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
 	gh.fillData()
 
+	if len(gh.data.Devices) == 0 {
+		return nil
+	}
+
 	return &Payload{
 		Hostname:  gh.hostname,
 		Timestamp: time.Now().UnixNano(),
