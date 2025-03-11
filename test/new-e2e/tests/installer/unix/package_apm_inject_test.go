@@ -55,7 +55,6 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
-	state.AssertDirExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")
 	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
 		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
 		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
@@ -63,6 +62,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
+	s.assertStableConfig(map[string]interface{}{})
 
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
@@ -495,6 +495,8 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 }
 
 func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	state := s.host.State()
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
 	assert.NoError(s.T(), err)
 
