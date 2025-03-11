@@ -829,7 +829,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	// If we have made our initial update (or the deadline has expired...)
+	// If we have made our initial update (or the deadline has expired)
 	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
 		// get the expiration time of timestamp.json
 		expires, err := s.uptane.TimestampExpires()
