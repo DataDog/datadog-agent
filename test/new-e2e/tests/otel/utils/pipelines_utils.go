@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"maps"
 	"strings"
 	"testing"
@@ -482,6 +483,7 @@ func TestHostMetrics(s OTelTestSuite) {
 
 // SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
 func SetupSampleTraces(s OTelTestSuite) {
+	flake.Mark(s.T())
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
