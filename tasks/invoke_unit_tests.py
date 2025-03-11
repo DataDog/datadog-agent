@@ -1,9 +1,11 @@
 import os
+import glob
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import gitlab_section
 
 TEST_ENV = {
     'INVOKE_UNIT_TESTS': '1',
@@ -79,3 +81,28 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
         # Restore env
         os.environ.clear()
         os.environ.update(old_environ)
+
+
+@task
+def run_and_profile(ctx):
+    import unittest
+
+    tests = sorted(list(glob.glob('tasks/unit_tests/**/*_tests.py', recursive=True)))
+    print(len(tests), 'tests found')
+    print(tests)
+
+    error = False
+    for test in tests:
+        loader = unittest.TestLoader()
+        dir, filename = os.path.split(test)
+        suite = loader.discover(dir, pattern=filename)
+        with gitlab_section(f'Running {test}'):
+            runner = unittest.TextTestRunner()
+            res = runner.run(suite)
+
+        if not res.wasSuccessful():
+            print('Error in', test)
+            error = True
+
+    if error:
+        raise Exit(color_message('Some tests are failing', Color.RED), code=1)
