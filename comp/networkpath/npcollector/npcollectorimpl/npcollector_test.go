@@ -1131,9 +1131,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
-				// map[string][]string{}
-				"network_path.collector.source_excludes": tt.sourceExcludes,
-				"network_path.collector.dest_excludes":   tt.destExcludes,
+				"network_path.collector.source_excludes":              tt.sourceExcludes,
+				"network_path.collector.dest_excludes":                tt.destExcludes,
 			}
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
