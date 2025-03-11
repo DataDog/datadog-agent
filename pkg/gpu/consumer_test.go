@@ -18,14 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
 	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
 
@@ -37,11 +35,8 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-
 	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)

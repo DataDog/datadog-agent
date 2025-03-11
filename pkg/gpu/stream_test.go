@@ -11,26 +11,18 @@ import (
 	"fmt"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
-
-	return sysCtx
-}
-
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler(streamMetadata{}, getSystemContextForTest(t))
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -87,7 +79,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler(streamMetadata{}, getSystemContextForTest(t))
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -156,7 +148,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler(streamMetadata{}, getSystemContextForTest(t))
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -189,7 +181,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler(streamMetadata{}, getSystemContextForTest(t))
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -231,7 +223,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler(streamMetadata{}, getSystemContextForTest(t))
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -329,9 +321,15 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			proc := kernel.ProcFSRoot()
-			sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-			require.NoError(t, err)
-			sysCtx.fatbinParsingEnabled = fatbinParsingEnabled
+			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
+
+			if fatbinParsingEnabled {
+				// Ensure the kernel cache is running so we can load the kernel data
+				sysCtx.kernelCache.Start()
+				t.Cleanup(sysCtx.kernelCache.Stop)
+			} else {
+				require.Nil(t, sysCtx.kernelCache)
+			}
 
 			// Set up the caches in system context so no actual queries are done
 			pid, tid := uint64(1), uint64(1)
@@ -343,7 +341,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			sharedMem := uint64(100)
 			constantMem := uint64(200)
 
-			sysCtx.pidMaps[int(pid)] = []*procfs.ProcMap{
+			sysCtx.kernelCache.pidMaps[int(pid)] = []*procfs.ProcMap{
 				{StartAddr: 0, EndAddr: 1000, Offset: 0, Pathname: binPath},
 			}
 
@@ -361,7 +359,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
 			require.NoError(t, err)
 
-			sysCtx.cudaSymbols[procBinIdent] = &symbolsEntry{
+			sysCtx.kernelCache.cudaSymbols[procBinIdent] = &symbolsEntry{
 				Symbols: &cuda.Symbols{
 					SymbolTable: map[uint64]string{kernAddress: kernName},
 					Fatbin:      fatbin,
@@ -388,6 +386,22 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			numLaunches := 3
 			for i := 0; i < numLaunches; i++ {
 				stream.handleKernelLaunch(launch)
+			}
+
+			if fatbinParsingEnabled {
+				// We need to wait until the kernel cache loads the kernel data
+				cacheKey := kernelKey{
+					pid:       int(pid),
+					address:   kernAddress,
+					smVersion: smVersion,
+				}
+				require.Eventually(t, func() bool {
+					return sysCtx.kernelCache.getExistingKernelData(cacheKey) != nil
+				}, 10000*time.Millisecond, 10*time.Millisecond)
+
+				// Ensure the kernel has been loaded correctly
+				require.NoError(t, sysCtx.kernelCache.cache[cacheKey].err)
+				require.NotNil(t, sysCtx.kernelCache.cache[cacheKey].kernel)
 			}
 
 			// No sync, so we should have data

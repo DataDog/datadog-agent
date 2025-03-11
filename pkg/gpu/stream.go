@@ -8,10 +8,8 @@
 package gpu
 
 import (
-	"fmt"
+	"errors"
 	"math"
-	"path"
-	"strconv"
 	"time"
 
 	"github.com/prometheus/procfs"
@@ -35,14 +33,6 @@ type StreamHandler struct {
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
-}
-
-// enrichedKernelLaunch is a kernel launch event with the kernel data attached.
-// We need to do it this way as we shouldn't modify the
-// gpuebpf.CudaKernelLaunch, as it's a shared definition with the C probes
-type enrichedKernelLaunch struct {
-	gpuebpf.CudaKernelLaunch
-	kernel *cuda.CubinKernel
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -126,6 +116,30 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
+// enrichedKernelLaunch is a structure that wraps a kernel launch event with the code to get
+// the kernel data from the kernel cache, in the background
+type enrichedKernelLaunch struct {
+	gpuebpf.CudaKernelLaunch
+	kernel *cuda.CubinKernel
+	err    error
+	stream *StreamHandler
+}
+
+// getKernelData attempts to get the kernel data from the kernel cache.
+// If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
+func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
+	if e.stream.sysCtx.kernelCache == nil {
+		return nil, nil // Fatbin parsing is disabled, so we don't need to get the kernel data. Return no error in this case
+	}
+
+	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, errKernelNotProcessedYet)) {
+		return e.kernel, e.err
+	}
+
+	e.kernel, e.err = e.stream.sysCtx.kernelCache.GetKernelData(int(e.stream.metadata.pid), e.Kernel_addr, e.stream.metadata.smVersion)
+	return e.kernel, e.err
+}
+
 func newStreamHandler(metadata streamMetadata, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
@@ -139,10 +153,12 @@ var logLimitErrorAttach = log.NewLogLimit(10, 10*time.Minute)
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	enrichedLaunch := &enrichedKernelLaunch{
 		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
+		stream:           sh,
 	}
 
-	err := sh.tryAttachKernelData(enrichedLaunch)
-	if err != nil {
+	// Trigger the background kernel data loading, we don't care about the result here
+	_, err := enrichedLaunch.getKernelData()
+	if err != nil && !errors.Is(err, errKernelNotProcessedYet) { // Only log the error if it's not the retryable error
 		if logLimitErrorAttach.ShouldLog() {
 			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}
@@ -157,46 +173,6 @@ func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
 			return m
 		}
 	}
-
-	return nil
-}
-
-func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil || !sh.sysCtx.fatbinParsingEnabled || sh.metadata.smVersion == noSmVersion {
-		// No system context or we don't have a SM version to use,
-		// kernel data attaching is disabled
-		return nil
-	}
-
-	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.metadata.pid))
-	if err != nil {
-		return fmt.Errorf("error reading process memory maps: %w", err)
-	}
-
-	entry := findEntryInMaps(maps, uintptr(event.Kernel_addr))
-	if entry == nil {
-		return fmt.Errorf("could not find memory maps entry for kernel address 0x%x", event.Kernel_addr)
-	}
-
-	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
-
-	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.metadata.pid)), "root", entry.Pathname)
-	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
-	if err != nil {
-		return fmt.Errorf("error getting file %s data: %w", binaryPath, err)
-	}
-
-	symbol, ok := fileData.SymbolTable[offsetInFile]
-	if !ok {
-		return fmt.Errorf("could not find symbol for address 0x%x in file %s", event.Kernel_addr, binaryPath)
-	}
-
-	kern := fileData.Fatbin.GetKernel(symbol, sh.metadata.smVersion)
-	if kern == nil {
-		return fmt.Errorf("could not find kernel for symbol %s in file %s", symbol, binaryPath)
-	}
-
-	event.kernel = kern
 
 	return nil
 }
@@ -271,10 +247,15 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgThreadCount += uint64(blockSize) * uint64(blockCount)
 		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
-		if launch.kernel != nil {
-			span.avgMemoryUsage[constantMemAlloc] += uint64(launch.kernel.ConstantMem)
-			span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.kernel.SharedMem)
-			span.avgMemoryUsage[kernelMemAlloc] += uint64(launch.kernel.KernelSize)
+		kernel, err := launch.getKernelData()
+		if err != nil {
+			if logLimitErrorAttach.ShouldLog() {
+				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
+			}
+		} else if kernel != nil {
+			span.avgMemoryUsage[constantMemAlloc] += uint64(kernel.ConstantMem)
+			span.avgMemoryUsage[sharedMemAlloc] += uint64(kernel.SharedMem)
+			span.avgMemoryUsage[kernelMemAlloc] += uint64(kernel.KernelSize)
 		}
 
 		span.numKernels++
