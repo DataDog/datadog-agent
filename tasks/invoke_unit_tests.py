@@ -93,9 +93,9 @@ def run_and_profile(ctx):
 
     error = False
     for test in tests:
-        with gitlab_section(f'Running {test}'):
+        dir, filename = os.path.split(test)
+        with gitlab_section(f'{filename.removesuffix("_tests.py")}'):
             loader = unittest.TestLoader()
-            dir, filename = os.path.split(test)
             suite = loader.discover(dir, pattern=filename)
             runner = unittest.TextTestRunner()
 
