@@ -50,14 +50,14 @@ func (s *linuxTestSuite) SetupSuite() {
 func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+	config := processAgentRefreshStr + secretClient.GetAgentConfiguration()
 
 	s.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(processAgentRefreshStr),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithAgentConfig(config),
 				agentparams.WithSkipAPIKeyInConfig(),
 			),
 		),
@@ -80,14 +80,14 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+	config := coreAgentRefreshStr + secretClient.GetAgentConfiguration()
 
 	s.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(coreAgentRefreshStr),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithAgentConfig(config),
 				agentparams.WithSkipAPIKeyInConfig(),
 			),
 		),

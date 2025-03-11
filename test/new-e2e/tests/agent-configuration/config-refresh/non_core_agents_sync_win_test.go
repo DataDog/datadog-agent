@@ -5,7 +5,6 @@
 package configrefresh
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,32 +37,28 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
 	authTokenFilePath := `C:\ProgramData\Datadog\auth_token`
-	secretResolverPath := filepath.Join(rootDir, "wrapper.bat")
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient.ConfigureRefreshInterval(configRefreshIntervalSec)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	templateVars := map[string]interface{}{
-		"AuthTokenFilePath":        authTokenFilePath,
-		"SecretDirectory":          rootDir,
-		"SecretResolver":           secretResolverPath,
-		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
-		"ApmCmdPort":               apmCmdPort,
-		"ProcessCmdPort":           processCmdPort,
-		"SecurityCmdPort":          securityCmdPort,
-		"AgentIpcPort":             agentIpcPort,
-		"SecretBackendCommandAllowGroupExecPermOption": "false", // this is not supported on Windows
+		"AuthTokenFilePath": authTokenFilePath,
+		"ApmCmdPort":        apmCmdPort,
+		"ProcessCmdPort":    processCmdPort,
+		"SecurityCmdPort":   securityCmdPort,
+		"AgentIpcPort":      agentIpcPort,
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig += secretClient.GetAgentConfiguration()
 
 	agentOptions := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(coreconfig),
 		agentparams.WithSecurityAgentConfig(securityAgentConfig),
 		agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 	}
-	agentOptions = append(agentOptions, secretsutils.WithWindowsSetupScript(secretResolverPath, true)...)
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
