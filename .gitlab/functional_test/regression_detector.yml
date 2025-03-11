@@ -2,7 +2,7 @@ single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -22,7 +22,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.20.2
+    SMP_VERSION: 0.21.0
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -37,7 +37,7 @@ single-machine-performance-regression_detector:
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
     - git fetch origin
-    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch --no-worktree)
+    - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
     - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
     - echo "Merge base is ${SMP_MERGE_BASE}"
@@ -253,7 +253,7 @@ single-machine-performance-regression_detector:
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.on_dev_branches]
     - when: always
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"

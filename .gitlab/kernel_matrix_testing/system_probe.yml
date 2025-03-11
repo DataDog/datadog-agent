@@ -33,7 +33,7 @@ upload_dependencies_sysprobe_arm64:
     - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # Pull base images
     - mkdir $KMT_DOCKERS
-    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
+    - dda inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]

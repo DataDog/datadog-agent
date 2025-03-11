@@ -12,12 +12,14 @@ package serializers
 
 import (
 	"fmt"
+	"path"
 	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -436,7 +438,8 @@ type SpliceEventSerializer struct {
 // easyjson:json
 type AcceptEventSerializer struct {
 	// Bound address (if any)
-	Addr IPPortFamilySerializer `json:"addr"`
+	Addr      IPPortFamilySerializer `json:"addr"`
+	Hostnames []string               `json:"hostnames"`
 }
 
 // BindEventSerializer serializes a bind event to JSON
@@ -450,8 +453,9 @@ type BindEventSerializer struct {
 // ConnectEventSerializer serializes a connect event to JSON
 // easyjson:json
 type ConnectEventSerializer struct {
-	Addr     IPPortFamilySerializer `json:"addr"`
-	Protocol string                 `json:"protocol"`
+	Addr      IPPortFamilySerializer `json:"addr"`
+	Hostnames []string               `json:"hostnames"`
+	Protocol  string                 `json:"protocol"`
 }
 
 // MountEventSerializer serializes a mount event to JSON
@@ -984,11 +988,12 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 }
 
 func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
-	ces := &AcceptEventSerializer{
+	aes := &AcceptEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
 			model.AddressFamily(e.Accept.AddrFamily).String()),
+		Hostnames: e.Connect.Hostnames,
 	}
-	return ces
+	return aes
 }
 
 func newBindEventSerializer(e *model.Event) *BindEventSerializer {
@@ -1004,7 +1009,8 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 	ces := &ConnectEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
 			model.AddressFamily(e.Connect.AddrFamily).String()),
-		Protocol: model.L4Protocol(e.Connect.Protocol).String(),
+		Protocol:  model.L4Protocol(e.Connect.Protocol).String(),
+		Hostnames: e.Connect.Hostnames,
 	}
 	return ces
 }
@@ -1097,7 +1103,12 @@ func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model
 }
 
 func newSysCtlEventSerializer(sce *model.SysCtlEvent, _ *model.Event) *SysCtlEventSerializer {
+	snapshot := sysctl.NewSnapshot()
+	relPath := path.Join("sys", sce.Name)
+	snapshot.InsertSnapshotEntry(snapshot.Proc, relPath, sce.Value)
+
 	return &SysCtlEventSerializer{
+		Proc:              snapshot.Proc,
 		Action:            model.SysCtlAction(sce.Action).String(),
 		FilePosition:      sce.FilePosition,
 		Name:              sce.Name,

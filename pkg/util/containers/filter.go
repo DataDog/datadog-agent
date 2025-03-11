@@ -181,30 +181,35 @@ func GetSharedMetricFilter() (*Filter, error) {
 	return f, nil
 }
 
+// GetPauseContainerExcludeList returns the exclude list for pause containers
+func GetPauseContainerExcludeList() []string {
+	return []string{
+		pauseContainerGCR,
+		pauseContainerOpenshift,
+		pauseContainerOpenshift3,
+		pauseContainerKubernetes,
+		pauseContainerGoogle,
+		pauseContainerAzure,
+		pauseContainerECS,
+		pauseContainerEKS,
+		pauseContainerRancher,
+		pauseContainerRancherMirrored,
+		pauseContainerMCR,
+		pauseContainerWin,
+		pauseContainerAKS,
+		pauseContainerECR,
+		pauseContainerUpstream,
+		pauseContainerCDK,
+		pauseContainerGiantSwarm,
+		pauseContainerRegistryK8sIo,
+	}
+}
+
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
 	var excludeList []string
 	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		excludeList = append(excludeList,
-			pauseContainerGCR,
-			pauseContainerOpenshift,
-			pauseContainerOpenshift3,
-			pauseContainerKubernetes,
-			pauseContainerGoogle,
-			pauseContainerAzure,
-			pauseContainerECS,
-			pauseContainerEKS,
-			pauseContainerRancher,
-			pauseContainerRancherMirrored,
-			pauseContainerMCR,
-			pauseContainerWin,
-			pauseContainerAKS,
-			pauseContainerECR,
-			pauseContainerUpstream,
-			pauseContainerCDK,
-			pauseContainerGiantSwarm,
-			pauseContainerRegistryK8sIo,
-		)
+		excludeList = GetPauseContainerExcludeList()
 	}
 
 	return NewFilter(GlobalFilter, nil, excludeList)
@@ -280,25 +285,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		excludeList = append(excludeList,
-			pauseContainerGCR,
-			pauseContainerOpenshift,
-			pauseContainerOpenshift3,
-			pauseContainerKubernetes,
-			pauseContainerGoogle,
-			pauseContainerAzure,
-			pauseContainerECS,
-			pauseContainerEKS,
-			pauseContainerRancher,
-			pauseContainerMCR,
-			pauseContainerWin,
-			pauseContainerAKS,
-			pauseContainerECR,
-			pauseContainerUpstream,
-			pauseContainerCDK,
-			pauseContainerGiantSwarm,
-			pauseContainerRegistryK8sIo,
-		)
+		excludeList = append(excludeList, GetPauseContainerExcludeList()...)
 	}
 	return NewFilter(MetricsFilter, includeList, excludeList)
 }

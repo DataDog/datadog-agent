@@ -753,6 +753,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Remote tagger
 	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
 
+	// CSI driver
+	config.BindEnvAndSetDefault("csi.enabled", false)
+	config.BindEnvAndSetDefault("csi.driver", "k8s.csi.datadoghq.com")
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
@@ -975,6 +979,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
 	config.BindEnv("evp_proxy_config.receiver_timeout")
+
+	// trace-agent's ol_proxy
+	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
+	config.BindEnv("ol_proxy_config.dd_url")
+	config.BindEnv("ol_proxy_config.api_key")
+	config.BindEnv("ol_proxy_config.additional_endpoints")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1419,7 +1429,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
-	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)

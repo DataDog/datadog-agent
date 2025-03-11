@@ -19,7 +19,10 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
-                sparse-checkout: 'tasks'
+                sparse-checkout: |
+                  .dda
+                  .github
+                  tasks
                 persist-credentials: false
 
             - name: Install python
@@ -28,14 +31,13 @@ jobs:
                 python-version-file: .python-version
                 cache: "pip"
 
-            - name: Install Python dependencies
-              run: |
-                python -m pip install --upgrade pip
-                pip install -r requirements.txt
-                pip install -r tasks/libs/requirements-github.txt
+            - name: Install dda
+              uses: ./.github/actions/install-dda
+              with:
+                features: legacy-tasks legacy-github
 
             - name: Assess Repository Permissions
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-              run: inv -e github.check-permissions --repo ${{ matrix.value }}
+              run: dda inv -e github.check-permissions --repo ${{ matrix.value }}

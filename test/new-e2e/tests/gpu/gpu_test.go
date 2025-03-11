@@ -142,19 +142,41 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
+func (v *gpuSuite) TestLimitMetricsAreReported() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
+		for _, metricName := range metricNames {
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
 
+func (v *gpuSuite) TestVectorAddProgramDetected() {
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.utilization", "gpu.memory.max", "gpu.sm_active"}
+		metricNames := []string{"gpu.core.usage"}
+
+		var usageMetricTags []string
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+
+			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+				usageMetricTags = metrics[0].Tags
+			}
+		}
+
+		if len(usageMetricTags) > 0 {
+			// Ensure we get the limit metric with the same tags as the usage one
+			limitMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
+			assert.NoError(c, err)
+			assert.Greater(c, len(limitMetrics), 0, "no 'gpu.core.limit' with tags %v", usageMetricTags)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
