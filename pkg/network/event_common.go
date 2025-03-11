@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run golang.org/x/tools/cmd/stringer@latest -output event_common_string.go -type=ConnectionType,ConnectionFamily,ConnectionDirection,EphemeralPortType -linecomment
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -output event_common_string.go -type=EphemeralPortType -linecomment
 
 package network
 
@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -39,63 +40,49 @@ const (
 )
 
 // ConnectionType will be either TCP or UDP
-type ConnectionType uint8
+type ConnectionType = types.ConnectionType
 
 const (
 	// TCP connection type
-	TCP ConnectionType = 0
+	TCP = types.TCP
 
 	// UDP connection type
-	UDP ConnectionType = 1
+	UDP = types.UDP
 )
-
-var (
-	tcpLabels = map[string]string{"ip_proto": TCP.String()}
-	udpLabels = map[string]string{"ip_proto": UDP.String()}
-)
-
-// Tags returns `ip_proto` tags for use in hot-path telemetry
-func (c ConnectionType) Tags() map[string]string {
-	switch c {
-	case TCP:
-		return tcpLabels
-	case UDP:
-		return udpLabels
-	default:
-		return nil
-	}
-}
 
 const (
 	// AFINET represents v4 connections
-	AFINET ConnectionFamily = 0 // v4
+	AFINET = types.AFINET
 
 	// AFINET6 represents v6 connections
-	AFINET6 ConnectionFamily = 1 // v6
+	AFINET6 = types.AFINET6
 )
 
 // ConnectionFamily will be either v4 or v6
-type ConnectionFamily uint8
+type ConnectionFamily = types.ConnectionFamily
 
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
-type ConnectionDirection uint8
+type ConnectionDirection = types.ConnectionDirection
 
 const (
 	// UNKNOWN represents connections where the direction is not known (yet)
-	UNKNOWN ConnectionDirection = 0
+	UNKNOWN = types.UNKNOWN
 
 	// INCOMING represents connections inbound to the host
-	INCOMING ConnectionDirection = 1 // incoming
+	INCOMING = types.INCOMING
 
 	// OUTGOING represents outbound connections from the host
-	OUTGOING ConnectionDirection = 2 // outgoing
+	OUTGOING = types.OUTGOING
 
 	// LOCAL represents connections that don't leave the host
-	LOCAL ConnectionDirection = 3 // local
+	LOCAL = types.LOCAL
 
 	// NONE represents connections that have no direction (udp, for example)
-	NONE ConnectionDirection = 4 // none
+	NONE = types.NONE
 )
+
+// ConnectionTuple represents the unique network key for a connection
+type ConnectionTuple = types.ConnectionTuple
 
 // EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
 type EphemeralPortType uint8
@@ -228,33 +215,6 @@ func (s StatCounters) IsZero() bool {
 // In eBPF this is 32 bits but it gets re-hashed to 64 bits in userspace to
 // reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
-
-// ConnectionTuple represents the unique network key for a connection
-type ConnectionTuple struct {
-	Source    util.Address
-	Dest      util.Address
-	Pid       uint32
-	NetNS     uint32
-	SPort     uint16
-	DPort     uint16
-	Type      ConnectionType
-	Family    ConnectionFamily
-	Direction ConnectionDirection
-}
-
-func (c ConnectionTuple) String() string {
-	return fmt.Sprintf(
-		"[%s%s] [PID: %d] [ns: %d] [%s:%d ⇄ %s:%d] ",
-		c.Type,
-		c.Family,
-		c.Pid,
-		c.NetNS,
-		c.Source,
-		c.SPort,
-		c.Dest,
-		c.DPort,
-	)
-}
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {

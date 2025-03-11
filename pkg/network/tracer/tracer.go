@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -88,8 +89,8 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	gwLookup network.GatewayLookup
 
@@ -215,8 +216,8 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		events.RegisterHandler(tr.processCache)
 	}
 
-	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
-	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
+	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
+	tr.destExcludes = filter.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
 		telemetryComponent,
 		cfg.ClientStateExpiry,

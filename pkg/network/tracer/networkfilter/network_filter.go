@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package network
+// Package networkfilter implements a configurable filter for ConnectionTuples.
+package networkfilter
 
 import (
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -156,7 +158,7 @@ func parsePortString(port string) (uint64, error) {
 
 // IsExcludedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
-func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn *ConnectionStats) bool {
+func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn types.ConnectionTuple) bool {
 	// No filters so short-circuit
 	if len(scf) == 0 && len(dcf) == 0 {
 		return false
@@ -176,21 +178,21 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 }
 
 // findMatchingFilter iterates through filters to see if this connection matches any defined filter
-func findMatchingFilter(cf []*ConnectionFilter, ip netip.Addr, addrPort uint16, addrType ConnectionType) bool {
+func findMatchingFilter(cf []*ConnectionFilter, ip netip.Addr, addrPort uint16, addrType types.ConnectionType) bool {
 	for _, filter := range cf {
 		if filter.IP == wildcard || filter.IP.Contains(ip) {
 			if filter.AllPorts.TCP && filter.AllPorts.UDP { // Wildcard port range case
 				return true
-			} else if filter.AllPorts.TCP && addrType == TCP { // Wildcard port range for only TCP
+			} else if filter.AllPorts.TCP && addrType == types.TCP { // Wildcard port range for only TCP
 				return true
-			} else if filter.AllPorts.UDP && addrType == UDP { // Wildcard port range for only UDP
+			} else if filter.AllPorts.UDP && addrType == types.UDP { // Wildcard port range for only UDP
 				return true
 			} else if _, ok := filter.Ports[addrPort]; ok {
 				if filter.Ports[addrPort].TCP && filter.Ports[addrPort].UDP {
 					return true
-				} else if filter.Ports[addrPort].TCP && addrType == TCP {
+				} else if filter.Ports[addrPort].TCP && addrType == types.TCP {
 					return true
-				} else if filter.Ports[addrPort].UDP && addrType == UDP {
+				} else if filter.Ports[addrPort].UDP && addrType == types.UDP {
 					return true
 				}
 			}
