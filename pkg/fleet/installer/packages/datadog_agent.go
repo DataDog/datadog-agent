@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -121,7 +122,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		span.Finish(err)
 	}()
 
-	err = PostInstallAgent(ctx, stablePath, "manual_update")
+	err = PostInstallAgent(ctx, stablePath, "installer")
 	if err != nil {
 		return err
 	}
@@ -173,6 +174,7 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 	if err = user.EnsureAgentUserAndGroup(ctx, userHomePath); err != nil {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
+
 	// 2. Ensure config/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
@@ -183,29 +185,33 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
+
 	// 3. Create symlink to the agent binary
 	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	// 4. Set up SELinux permissions if we're on CentOS 7
-	// TODO
-	// Use platform, family, version, err := gopsutilhost.PlatformInformation()
+
+	// 4. Set up SELinux permissions
+	if err = selinux.SetAgentPermissions("/etc/datadog-agent", installPath); err != nil {
+		log.Warnf("failed to set SELinux permissions: %v", err)
+	}
 
 	// 5. Handle install info
-	// TODO: update to properly match on the three possible callers (manual_update, dpkg, and rpm)
 	if err = installinfo.WriteInstallInfo(caller); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
+
 	// 6. Call post.py for integration persistence. Allowed to fail.
-	// XXX: We should probably port this to Go
+	// XXX: We should port this to Go
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
 		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "embedded/bin/post.py"))
 		if err := cmd.Run(); err != nil {
 			log.Warnf("failed to run post.py: %v", err)
 		}
 	}
+
 	// 7. Run FIPS install if required
-	// XXX: We should probably port this to Go
+	// XXX: We should port this to Go
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/fipsinstall.sh")); err == nil {
 		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/fipsinstall.sh"))
 		if err := cmd.Run(); err != nil {
@@ -264,7 +270,7 @@ func RemoveAgent(ctx context.Context) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	if err := PostInstallAgent(ctx, experimentPath, "manual_update"); err != nil {
+	if err := PostInstallAgent(ctx, experimentPath, "installer"); err != nil {
 		return err
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
@@ -274,7 +280,7 @@ func StartAgentExperiment(ctx context.Context) error {
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
-	if err := PostInstallAgent(ctx, stablePath, "manual_update"); err != nil {
+	if err := PostInstallAgent(ctx, stablePath, "installer"); err != nil {
 		return err
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
