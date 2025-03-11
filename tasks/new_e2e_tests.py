@@ -136,11 +136,11 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     # Create temporary file for flaky patterns config
-    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete=False)
-    tmp_flaky_patterns_config.write(b"{}")
-    tmp_flaky_patterns_config.close()
-    flaky_patterns_config = tmp_flaky_patterns_config.name
-    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
+    if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+        if os.path.exists(os.environ.get("FLAKY_PATTERNS_CONFIG")):
+            os.remove(os.environ.get("FLAKY_PATTERNS_CONFIG"))
+        with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
+            f.write("{}")
 
     cmd = f"gotestsum --format {gotestsum_format} "
     scrubber_raw_command = ""
@@ -167,13 +167,12 @@ def run(
         "arch": f"-arch {arch}" if arch else "",
         "flavor": f"-flavor {flavor}" if flavor else "",
         "major_version": f"-major-version {major_version}" if major_version else "",
-        "cws_supported_osversion": (
-            f"-cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
-        ),
-        "src_agent_version": (f"-src-agent-version {src_agent_version}" if src_agent_version else ""),
-        "dest_agent_version": (f"-dest-agent-version {dest_agent_version}" if dest_agent_version else ""),
-        "keep_stacks": "-keep-stacks" if keep_stacks else "",
-        "flaky_patterns_config": (f"--flaky-patterns-config={flaky_patterns_config}" if flaky_patterns_config else ""),
+        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
+        if cws_supported_osversion
+        else "",
+        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
+        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
+        "keep_stacks": '-keep-stacks' if keep_stacks else "",
         "extra_flags": extra_flags,
     }
 
@@ -190,13 +189,7 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(
-        test_res,
-        junit_tar,
-        AgentFlavor.base,
-        test_washer,
-        extra_flakes_config=flaky_patterns_config,
-    )
+    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -250,7 +243,6 @@ def run(
             pretty_print_logs(
                 test_res[0].result_json_path,
                 post_processed_output,
-                flakes_files=["flakes.yaml", flaky_patterns_config],
                 test_depth=logs_post_processing_test_depth,
             )
         else:
@@ -443,7 +435,7 @@ def pretty_print_test_logs(logs_per_test: dict[tuple[str, str], str], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_files=None, test_depth=1):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_depth=1, flakes_files=None):
     """Pretty prints logs with a specific order.
 
     Print order:
@@ -452,15 +444,14 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
         3. Successful and non flaky tests
         4. Successful and flaky tests
     """
+    if flakes_files is None:
+        flakes_files = []
 
     result_json_name = result_json_path.split("/")[-1]
-    result_json_dir = result_json_path.removesuffix("/" + result_json_name)
-    washer = TestWasher(
-        test_output_json_file=result_json_name,
-        flakes_file_paths=flakes_files or ["flakes.yaml"],
-    )
-    failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
-    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+    result_json_dir = result_json_path.removesuffix('/' + result_json_name)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files)
+    failing_tests = washer.get_failing_tests(result_json_dir)
+    flaky_failures = washer.get_flaky_failures(result_json_dir)
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]
@@ -471,7 +462,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             # The name of the parent / nth parent if test_depth is lower than the test name depth
             group_name = "/".join(test_name.split("/")[:test_depth])
 
-            package_flaky = all_known_flakes.get(package, set())
+            package_flaky = flaky_failures.get(package, set())
             package_failing = failing_tests.get(package, set())
 
             # Flaky if one of its parents is flaky as well
