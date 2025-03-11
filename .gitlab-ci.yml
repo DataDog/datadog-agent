@@ -1210,6 +1210,7 @@ workflow:
 celian:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64${DATADOG_AGENT_BUILDIMAGES_SUFFIX}:${DATADOG_AGENT_BUILDIMAGES}
   tags: ["arch:amd64"]
+  needs: []
   script:
     - pip freeze | grep setuptools
     - dda inv -e gitlab.compute-gitlab-ci-config
