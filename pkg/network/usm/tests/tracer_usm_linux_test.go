@@ -701,7 +701,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableRedisMonitoring = true
