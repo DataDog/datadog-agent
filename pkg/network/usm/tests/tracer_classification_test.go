@@ -66,11 +66,11 @@ func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 	return tr
 }
 
-func getConnections(t require.TestingT, tr *tracer.Tracer) (*network.Connections, func()) {
+func getConnections(t require.TestingT, tr *tracer.Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, cleanup, err := tr.GetActiveConnections(clientID)
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
-	return connections, cleanup
+	return connections
 }
 
 // testContext shares the context of a given test.
@@ -339,8 +339,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr,
 	t.Logf("looking for server addr %s", serverAddr)
 	var outgoing, incoming *network.ConnectionStats
 	failed := !assert.Eventually(t, func() bool {
-		conns, cleanup := getConnections(t, tr)
-		defer cleanup()
+		conns := getConnections(t, tr)
 		if outgoing == nil {
 			for _, c := range network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr

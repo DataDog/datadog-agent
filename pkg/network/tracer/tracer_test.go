@@ -207,8 +207,7 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		connections := getConnections(collect, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 		require.True(collect, ok)
@@ -257,9 +256,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(collect, tr))
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
@@ -278,9 +275,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.Equal(t, uint16(1), m.TCPEstablished)
 	assert.Equal(t, uint16(1), m.TCPClosed)
 
-	connections, cleanup := getConnections(t, tr)
-	defer cleanup()
-	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
 }
 
@@ -325,8 +320,7 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
-	connections, cleanup := getConnections(t, tr)
-	defer cleanup()
+	connections := getConnections(t, tr)
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
@@ -380,8 +374,7 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
-	connections, cleanup := getConnections(t, tr)
-	defer cleanup()
+	connections := getConnections(t, tr)
 
 	// Confirm that we could not find connection created above
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
@@ -416,8 +409,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Test
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		connections := getConnections(collect, tr)
 
 		// Server-side
 		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
@@ -497,8 +489,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message
-		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		connections := getConnections(ct, tr)
 		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 		if assert.True(ct, ok, "unable to find incoming connection") {
 			assert.Equal(ct, network.INCOMING, incoming.Direction)
@@ -555,8 +546,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 	c.Read(make([]byte, serverMessageSize))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, cleanup := getConnections(t, tr)
-	defer cleanup()
+	connections := getConnections(t, tr)
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.False(t, ok)
@@ -582,9 +572,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	assert.NoError(t, err)
 
 	// Iterate through active connections making sure there are no local DNS calls
-	connections, cleanup := getConnections(t, tr)
-	defer cleanup()
-	for _, c := range connections.Conns {
+	for _, c := range getConnections(t, tr).Conns {
 		assert.False(t, isLocalDNS(c))
 	}
 }
@@ -611,9 +599,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 
 	// Iterate through active connections making sure theres at least one connection
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		for _, c := range connections.Conns {
+		for _, c := range getConnections(collect, tr).Conns {
 			if isLocalDNS(c) {
 				return
 			}
@@ -650,8 +636,7 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Make sure we're not picking up 127.0.0.1:80
-		cxs, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		cxs := getConnections(collect, tr)
 		for _, c := range cxs.Conns {
 			assert.False(collect, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
 			assert.False(collect, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
@@ -689,8 +674,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 
 	var zeroConn network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		cxs, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		cxs := getConnections(collect, tr)
 		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 {
 				zeroConn = c
@@ -701,8 +685,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	}, 2*time.Second, 100*time.Millisecond)
 
 	// next call should not have the same connection
-	cxs, cleanup := getConnections(t, tr)
-	defer cleanup()
+	cxs := getConnections(t, tr)
 	found := false
 	for _, c := range cxs.Conns {
 		if c.Source == zeroConn.Source && c.SPort == zeroConn.SPort &&
@@ -1004,11 +987,11 @@ func initTracerState(t testing.TB, tr *Tracer) {
 	require.NoError(t, err)
 }
 
-func getConnections(t require.TestingT, tr *Tracer) (*network.Connections, func()) {
+func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, cleanup, err := tr.GetActiveConnections(clientID)
+	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
-	return connections, cleanup
+	return connections
 }
 
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
@@ -1046,8 +1029,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		}
 
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
-		connections, cleanup := getConnections(c, tr)
-		defer cleanup()
+		connections := getConnections(c, tr)
 		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 		if passed := assert.True(c, ok); !passed {
 			return
@@ -1134,9 +1116,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 
 	// for ebpfless, wait for the packet capture to appear
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, ok = findConnection(laddr, raddr, connections)
+		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1149,9 +1129,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	// Wait for the connection to be sent from the perf buffer
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, ok = findConnection(laddr, raddr, connections)
+		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1186,9 +1164,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, ok = findConnection(laddr, raddr, connections)
+		conn, ok = findConnection(laddr, raddr, getConnections(collect, tr))
 		require.True(collect, ok)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
@@ -1213,8 +1189,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		connections := getConnections(ct, tr)
 		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
@@ -1245,8 +1220,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 
 	var outgoing []network.ConnectionStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		connections := getConnections(ct, tr)
 		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
@@ -1296,8 +1270,7 @@ func (s *TracerSuite) TestTCPDirection() {
 	var outgoingConns []network.ConnectionStats
 	var incomingConns []network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		conns := getConnections(collect, tr)
 		if len(outgoingConns) == 0 {
 			outgoingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
@@ -1341,8 +1314,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	// Check if the connection was recorded as refused
 	var foundConn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		conns := getConnections(collect, tr)
 		// Check for the refusal record
 		foundConn = findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
 		require.NotNil(collect, foundConn)
@@ -1394,11 +1366,9 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	// Check if the connection was recorded as reset
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
 		// 104 is the errno for ECONNRESET
 		// findFailedConnection needs `t` for logging, hence no need to pass `collect`.
-		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, connections, 104)
+		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(collect, tr), 104)
 		require.NotNil(collect, conn)
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
@@ -1446,8 +1416,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	// Check if the connection was recorded as reset
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		conns := getConnections(collect, tr)
 		// 104 is the errno for ECONNRESET
 		// findFailedConnection needs `t` for logging, hence no need to pass `collect`.
 		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
@@ -1511,7 +1480,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 		require.NoError(b, err)
 		laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 		c.Write([]byte("hello"))
-		connections, _ := getConnections(b, tr)
+		connections := getConnections(b, tr)
 		conn, ok := findConnection(laddr, raddr, connections)
 
 		require.True(b, ok)
@@ -1522,8 +1491,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 		// Wait for the connection to be sent from the perf buffer
 		require.Eventually(b, func() bool {
 			var ok bool
-			connections, _ := getConnections(b, tr)
-			conn, ok = findConnection(laddr, raddr, connections)
+			conn, ok = findConnection(laddr, raddr, getConnections(b, tr))
 			return ok
 		}, 3*time.Second, 10*time.Millisecond, "couldn't find connection")
 
