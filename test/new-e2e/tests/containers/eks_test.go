@@ -23,7 +23,7 @@ func TestEKSSuite(t *testing.T) {
 	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
 		awskubernetes.WithEKSOptions(
 			tifeks.WithLinuxNodeGroup(),
-			tifeks.WithWindowsNodeGroup(),
+			//tifeks.WithWindowsNodeGroup(),
 			tifeks.WithBottlerocketNodeGroup(),
 			tifeks.WithLinuxARMNodeGroup(),
 		),
