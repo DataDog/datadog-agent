@@ -352,6 +352,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.DecoderTimeout = 1000
 	}
+	if core.IsSet("apm_config.max_processing_bytes") {
+		c.MaxProcessingBytes = core.GetInt64("apm_config.max_processing_bytes")
+	}
 
 	if k := "apm_config.replace_tags"; core.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)

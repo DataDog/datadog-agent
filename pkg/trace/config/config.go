@@ -408,6 +408,9 @@ type AgentConfig struct {
 	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
 	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
 
+	// Inflight payloads safeguard
+	MaxProcessingBytes int64
+
 	// http/s proxying
 	ProxyURL          *url.URL
 	SkipSSLValidation bool
@@ -583,6 +586,8 @@ func New() *AgentConfig {
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
 		WatchdogInterval: 10 * time.Second,
+
+		MaxProcessingBytes: 0, // disabled
 
 		Ignore:                      make(map[string][]string),
 		AnalyzedRateByServiceLegacy: make(map[string]float64),

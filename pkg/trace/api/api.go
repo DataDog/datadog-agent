@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/inflighttracker"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -119,6 +120,8 @@ type HTTPReceiver struct {
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+
+	inflighttracker *inflighttracker.Tracker
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -174,6 +177,8 @@ func NewHTTPReceiver(
 		timing:   timing,
 		info:     watchdog.NewCurrentInfo(),
 		Handlers: make(map[string]http.Handler),
+
+		inflighttracker: inflighttracker.New(conf.MaxProcessingBytes),
 	}
 }
 
@@ -530,6 +535,24 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 	}
 }
 
+func (r *HTTPReceiver) replyPayloadRejected(v Version, w http.ResponseWriter, req *http.Request) {
+	// this payload can not be accepted
+	io.Copy(io.Discard, req.Body) //nolint:errcheck
+	switch v {
+	case v01, v02, v03:
+		// do nothing
+	default:
+		w.Header().Set("Content-Type", "application/json")
+	}
+	if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	} else {
+		w.WriteHeader(r.rateLimiterResponse)
+	}
+	r.replyOK(req, v, w)
+	r.tagStats(v, req.Header, "").PayloadRefused.Inc()
+}
+
 // StatsProcessor implementations are able to process incoming client stats.
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
@@ -572,6 +595,16 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	_ = r.statsd.Gauge("datadog.trace_agent.receiver.inflight_tracker.size", float64(r.inflighttracker.Size()), nil, 1)
+	_ = r.statsd.Gauge("datadog.trace_agent.receiver.inflight_tracker.alloc", float64(r.inflighttracker.Alloc()), nil, 1)
+	// Inflight payload tracker safeguard
+	if r.inflighttracker.Enabled() && r.inflighttracker.Free() <= 0 {
+		log.Debugf("trace-agent inflighttracker safeguard memory exceeded, a payload has been rejected")
+		_ = r.statsd.Count("datadog.trace_agent.receiver.inflight_tracker.rejected_payload", 1, nil, 1)
+		r.replyPayloadRejected(v, w, req)
+		return
+	}
+
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -586,21 +619,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	case r.recvsem <- struct{}{}:
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
-		// this payload can not be accepted
-		io.Copy(io.Discard, req.Body) //nolint:errcheck
-		switch v {
-		case v01, v02, v03:
-			// do nothing
-		default:
-			w.Header().Set("Content-Type", "application/json")
-		}
-		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
-			w.WriteHeader(http.StatusTooManyRequests)
-		} else {
-			w.WriteHeader(r.rateLimiterResponse)
-		}
-		r.replyOK(req, v, w)
-		r.tagStats(v, req.Header, "").PayloadRefused.Inc()
+		r.replyPayloadRejected(v, w, req)
 		return
 	}
 	defer func() {
@@ -642,6 +661,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
+
+	var doneFunc func()
+	if r.inflighttracker.Enabled() {
+		size := req.Body.(*apiutil.LimitedReader).Count
+		doneFunc = r.inflighttracker.Track(size)
+	}
+
 	if n, ok := r.replyOK(req, v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
@@ -664,6 +690,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		Done:                   doneFunc,
 	}
 	r.out <- payload
 }
