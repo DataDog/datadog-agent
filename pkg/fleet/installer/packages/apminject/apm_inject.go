@@ -374,15 +374,15 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 	defer func() { span.Finish(err) }()
 
 	type ApmConfigDefault struct {
-		RuntimeMetricsEnabled *bool `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
-		LogsInjection         *bool `yaml:"DD_LOGS_INJECTION,omitempty"`
-		APMTracingEnabled     *bool `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
-		ProfilingEnabled      *bool `yaml:"DD_PROFILING_ENABLED,omitempty"`
-		DataStreamsEnabled    *bool `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
-		AppsecEnabled         *bool `yaml:"DD_APPSEC_ENABLED,omitempty"`
-		IastEnabled           *bool `yaml:"DD_IAST_ENABLED,omitempty"`
-		DataJobsEnabled       *bool `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
-		AppsecScaEnabled      *bool `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+		RuntimeMetricsEnabled *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
+		LogsInjection         *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
+		APMTracingEnabled     *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
+		ProfilingEnabled      *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
+		DataStreamsEnabled    *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
+		AppsecEnabled         *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
+		IastEnabled           *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
+		DataJobsEnabled       *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+		AppsecScaEnabled      *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
 	}
 	type ApplicationMonitoring struct {
 		Default ApmConfigDefault `yaml:"apm_configuration_default"`
@@ -391,19 +391,27 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 	appMonitoringConfigMutator := newFileMutator(
 		localStableConfigPath,
 		func(_ context.Context, _ []byte) ([]byte, error) {
-			return yaml.Marshal(ApplicationMonitoring{
+			cfg := ApplicationMonitoring{
 				Default: ApmConfigDefault{
 					RuntimeMetricsEnabled: a.Env.InstallScript.RuntimeMetricsEnabled,
 					LogsInjection:         a.Env.InstallScript.LogsInjection,
 					APMTracingEnabled:     a.Env.InstallScript.APMTracingEnabled,
-					ProfilingEnabled:      a.Env.InstallScript.ProfilingEnabled,
 					DataStreamsEnabled:    a.Env.InstallScript.DataStreamsEnabled,
 					AppsecEnabled:         a.Env.InstallScript.AppsecEnabled,
 					IastEnabled:           a.Env.InstallScript.IastEnabled,
 					DataJobsEnabled:       a.Env.InstallScript.DataJobsEnabled,
 					AppsecScaEnabled:      a.Env.InstallScript.AppsecScaEnabled,
 				},
-			})
+			}
+			if a.Env.InstallScript.ProfilingEnabled != nil {
+				profEnabled := "false"
+				if *a.Env.InstallScript.ProfilingEnabled {
+					profEnabled = "auto"
+				}
+				cfg.Default.ProfilingEnabled = &profEnabled
+			}
+
+			return yaml.Marshal(cfg)
 		},
 		nil, nil,
 	)
