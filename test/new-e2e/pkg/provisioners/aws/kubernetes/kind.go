@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
@@ -46,7 +47,8 @@ const (
 	defaultVMName     = "kind"
 )
 
-func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+// KindDiagnoseFunc is the Pulumi diagnose function that dumps the Kind cluster state
+func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
@@ -70,7 +72,7 @@ func KindProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[en
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(KindDiagnoseFunc)
 
 	return provisioner
 }

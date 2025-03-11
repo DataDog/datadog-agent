@@ -29,6 +29,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
@@ -204,7 +205,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 // gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
 func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
-	return provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	provisioner := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		name := "gpu-k8s"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -301,6 +302,10 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		return nil
 	}, nil)
+
+	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+
+	return provisioner
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
