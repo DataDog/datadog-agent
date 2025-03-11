@@ -87,6 +87,10 @@ namespace Datadog.CustomActions
                     return ActionResult.Failure;
                 }
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+                if (string.IsNullOrEmpty(librariesRaw))
+                {
+                    return ActionResult.Success;
+                }
                 var libraries = librariesRaw.Split(',');
                 foreach (var library in libraries)
                 {
@@ -116,6 +120,10 @@ namespace Datadog.CustomActions
         private ActionResult UninstallPackages()
         {
             var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+            if (string.IsNullOrEmpty(librariesRaw))
+            {
+                return ActionResult.Success;
+            }
             _session.Log($"Uninstalling Oci Packages {librariesRaw}");
             var libraries = librariesRaw.Split(',');
             foreach (var library in libraries)
@@ -130,7 +138,6 @@ namespace Datadog.CustomActions
                 }
                 catch (Exception ex)
                 {
-
                     _session.Log($"Error while uninstalling {libWithVersion.Name} library: " + ex.Message);
                 }
             }
