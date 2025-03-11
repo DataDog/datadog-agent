@@ -38,6 +38,17 @@ func NewExporter(
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
+) (*Exporter, error) {
+	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, nil)
+}
+
+// NewExporterWithGatewayUsage initializes a new logs agent exporter with the given parameters
+func NewExporterWithGatewayUsage(
+	set component.TelemetrySettings,
+	cfg *Config,
+	logSource *sources.LogSource,
+	logsAgentChannel chan *message.Message,
+	attributesTranslator *attributes.Translator,
 	gatewaysUsage *attributes.GatewayUsage,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
