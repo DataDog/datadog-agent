@@ -150,6 +150,8 @@ func (sc *streamCollection) createStream(header *gpuebpf.CudaEventHeader, gpuUUI
 		}
 	}
 
+	metadata.smVersion = sc.sysCtx.deviceSmVersions[metadata.gpuUUID]
+
 	return newStreamHandler(metadata, sc.sysCtx)
 }
 

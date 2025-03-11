@@ -35,7 +35,6 @@ type StreamHandler struct {
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
-	smVersion      uint32
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -163,7 +162,7 @@ func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil || sh.smVersion == noSmVersion {
+	if sh.sysCtx == nil || sh.metadata.smVersion == noSmVersion {
 		// No system context or we don't have a SM version to use,
 		// kernel data attaching is disabled
 		return nil
@@ -192,7 +191,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("could not find symbol for address 0x%x in file %s", event.Kernel_addr, binaryPath)
 	}
 
-	kern := fileData.Fatbin.GetKernel(symbol, sh.smVersion)
+	kern := fileData.Fatbin.GetKernel(symbol, sh.metadata.smVersion)
 	if kern == nil {
 		return fmt.Errorf("could not find kernel for symbol %s in file %s", symbol, binaryPath)
 	}
