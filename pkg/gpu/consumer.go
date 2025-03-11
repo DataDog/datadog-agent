@@ -29,11 +29,6 @@ const telemetryEventErrorUnknownType = "unknown_type"
 const telemetryEventTypeUnknown = "unknown"
 const telemetryEventHeader = "header"
 
-type nonGlobalStreamKey struct {
-	pid    uint32
-	stream uint64
-}
-
 // cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
 type cudaEventConsumer struct {
