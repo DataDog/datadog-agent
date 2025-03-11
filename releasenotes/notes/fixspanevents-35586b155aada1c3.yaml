@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: fix issue where new span field for span events wasn't properly serialized when received as message pack.
+    APM: fix issue where a new span field for span events wasn't properly serialized when received in MessagePack format.
