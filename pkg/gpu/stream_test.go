@@ -335,7 +335,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	sharedMem := uint64(100)
 	constantMem := uint64(200)
 
-	sysCtx.pidMaps[int(pid)] = []*procfs.ProcMap{
+	sysCtx.kernelCache.pidMaps[int(pid)] = []*procfs.ProcMap{
 		{StartAddr: 0, EndAddr: 1000, Offset: 0, Pathname: binPath},
 	}
 
@@ -353,7 +353,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
 	require.NoError(t, err)
 
-	sysCtx.cudaSymbols[procBinIdent] = &symbolsEntry{
+	sysCtx.kernelCache.cudaSymbols[procBinIdent] = &symbolsEntry{
 		Symbols: &cuda.Symbols{
 			SymbolTable: map[uint64]string{kernAddress: kernName},
 			Fatbin:      fatbin,
