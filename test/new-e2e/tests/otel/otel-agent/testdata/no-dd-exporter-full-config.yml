@@ -136,17 +136,15 @@ receivers:
       scrape_configs:
       - enable_compression: true
         enable_http2: true
-        fallback_scrape_protocol: PrometheusText1.0.0
+        fallback_scrape_protocol: PrometheusText0.0.4
         follow_redirects: true
         honor_timestamps: true
         job_name: datadog-agent
+        metric_name_validation_scheme: legacy
         metrics_path: /metrics
         scheme: http
         scrape_interval: 1m
         scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText1.0.0
         - PrometheusText0.0.4
         scrape_timeout: 10s
         static_configs:
