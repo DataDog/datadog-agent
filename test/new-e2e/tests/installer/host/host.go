@@ -156,23 +156,32 @@ func (h *Host) DeletePath(path string) {
 }
 
 // WaitForUnitActive waits for a systemd unit to be active
-func (h *Host) WaitForUnitActive(units ...string) {
+func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("systemctl is-active --quiet %s", unit))
+
+			return err == nil
+		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
 // WaitForUnitActivating waits for a systemd unit to be activating
 func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	for _, unit := range units {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=60; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		if err != nil {
-			h.t.Logf("installer logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer"))
-			h.t.Logf("installer exp logs:\n%s", h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"))
-			h.t.Logf("unit %s logs:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
-		}
-		require.NoError(t, err, "unit %s did not become activating", unit)
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"Active: activating\" <(sudo systemctl status %s)", unit))
+			return err == nil
+		},
+			time.Second*90,
+			time.Second*2,
+			"unit %s did not become activating. installer logs:\n%s\n\ninstaller exp logs:\n%sunit %s logs:\n%s",
+			unit,
+			h.remote.MustExecute("sudo journalctl -xeu datadog-installer"),
+			h.remote.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
+			unit,
+			h.remote.MustExecute("sudo journalctl -xeu "+unit),
+		)
 	}
 }
 

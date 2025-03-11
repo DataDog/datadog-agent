@@ -288,7 +288,7 @@
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-delivery @DataDog/fleet
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-delivery @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-delivery @DataDog/fleet
-/omnibus/python-scripts/                @DataDog/agent-runtimes @DataDog/windows-agent
+/omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-agent
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
