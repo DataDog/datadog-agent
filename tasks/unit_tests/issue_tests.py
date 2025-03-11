@@ -148,7 +148,7 @@ pkg/serverless/trace/inferredspan/propagation_test.go
 pkg/serverless/trace/propagation/carriers_test.go
 pkg/serverless/trace/propagation/extractor_test.go
 pkg/serverless/trigger/extractor.go
-pkg/util/ec2/ec2_tags.go
+pkg/util/ec2/tags/ec2_tags.go
 test/new-e2e/examples/ecs_test.go
 test/new-e2e/go.mod
 test/new-e2e/pkg/provisioners/aws/kubernetes/kubernetes_dump.go
