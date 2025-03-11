@@ -224,6 +224,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
  next_program:
     classification_next_program(skb, classification_ctx);
+    return;
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {

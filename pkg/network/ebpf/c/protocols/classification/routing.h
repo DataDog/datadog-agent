@@ -46,6 +46,7 @@ static __always_inline void classification_next_program(struct __sk_buff *skb, c
     log_debug("classification tail-call: skb=%p from=%d to=%d", skb, classification_ctx->routing_current_program, next_program);
     classification_ctx->routing_current_program = next_program;
     bpf_tail_call_compat(skb, &classification_progs, next_program);
+    return;
 }
 
 // init_routing_cache is executed once per packet, at the socket filter entrypoint.
