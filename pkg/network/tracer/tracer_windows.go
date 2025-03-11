@@ -57,8 +57,8 @@ type Tracer struct {
 	timerInterval int
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
