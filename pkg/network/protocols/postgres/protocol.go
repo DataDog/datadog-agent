@@ -43,6 +43,7 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
+	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -54,6 +55,7 @@ type protocol struct {
 	statskeeper           *StatKeeper
 	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
 	kernelTelemetryStopCh chan struct{}
+	mgr                   *manager.Manager
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -77,6 +79,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "postgres_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -132,7 +141,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newPostgresProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnablePostgresMonitoring {
 		return nil, nil
 	}
@@ -143,6 +152,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		statskeeper:           NewStatkeeper(cfg),
 		kernelTelemetry:       newKernelTelemetry(),
 		kernelTelemetryStopCh: make(chan struct{}),
+		mgr:                   mgr,
 	}, nil
 }
 
@@ -152,21 +162,22 @@ func (p *protocol) Name() string {
 }
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
 // PreStart runs setup required before starting the protocol.
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processPostgres,
 	)
 	if err != nil {
@@ -179,15 +190,15 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
-	p.startKernelTelemetry(mgr)
+	p.setupMapCleaner()
+	p.startKernelTelemetry()
 	return nil
 }
 
 // Stop stops all resources associated with the protocol.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -258,8 +269,8 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 	}
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	postgresInflight, _, err := mgr.GetMap(InFlightMap)
+func (p *protocol) setupMapCleaner() {
+	postgresInflight, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
@@ -284,8 +295,8 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	p.mapCleaner = mapCleaner
 }
 
-func (p *protocol) startKernelTelemetry(mgr *manager.Manager) {
-	telemetryMap, err := protocols.GetMap(mgr, KernelTelemetryMap)
+func (p *protocol) startKernelTelemetry() {
+	telemetryMap, err := protocols.GetMap(p.mgr, KernelTelemetryMap)
 	if err != nil {
 		log.Errorf("couldnt find kernel telemetry map: %s, error: %v", telemetryMap, err)
 		return

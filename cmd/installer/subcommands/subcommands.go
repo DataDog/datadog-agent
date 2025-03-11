@@ -7,12 +7,10 @@
 package subcommands
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
-	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/installer"
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
+	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +19,19 @@ import (
 func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		withDatadogAgent(daemon.Commands),
-		withRoot(installer.Commands),
-		installer.UnprivilegedCommands,
+		withRoot(installerCommands),
+		installerUnprivilegedCommands,
 	}
+}
+
+// installerCommands returns the installer subcommands.
+func installerCommands(_ *command.GlobalParams) []*cobra.Command {
+	return installer.RootCommands()
+}
+
+// installerUnprivilegedCommands returns the unprivileged installer subcommands.
+func installerUnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
+	return installer.UnprivilegedCommands()
 }
 
 func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {
@@ -32,7 +40,7 @@ func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {
 			return nil
 		}
 		if !user.IsRoot() {
-			return fmt.Errorf("this command requires root privileges")
+			return user.ErrRootRequired
 		}
 		return user.DatadogAgentToRoot()
 	})
@@ -44,7 +52,7 @@ func withDatadogAgent(factory command.SubcommandFactory) command.SubcommandFacto
 			return nil
 		}
 		if !user.IsRoot() {
-			return fmt.Errorf("this command requires root privileges")
+			return user.ErrRootRequired
 		}
 		return user.RootToDatadogAgent()
 	})

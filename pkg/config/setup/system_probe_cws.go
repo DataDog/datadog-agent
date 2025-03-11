@@ -80,6 +80,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.analyzers", []string{"os"})
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -117,6 +118,12 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
+
+	// CWS - SysCtl
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)

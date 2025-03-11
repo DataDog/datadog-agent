@@ -38,7 +38,7 @@ func main() {
 	fmt.Printf("-- Config: %+v --\n", cfg)
 	cfg.BPFDebug = true
 
-	t, err := tracer.NewTracer(cfg, nil)
+	t, err := tracer.NewTracer(cfg, nil, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -51,10 +51,11 @@ func main() {
 
 	printConns := func(now time.Time) {
 		fmt.Printf("-- %s --\n", now)
-		cs, err := t.GetActiveConnections(fmt.Sprintf("%d", os.Getpid()))
+		cs, cleanup, err := t.GetActiveConnections(fmt.Sprintf("%d", os.Getpid()))
 		if err != nil {
 			fmt.Println(err)
 		}
+		defer cleanup()
 		for _, c := range cs.Conns {
 			fmt.Println(network.ConnectionSummary(&c, cs.DNS))
 		}

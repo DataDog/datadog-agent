@@ -12,17 +12,18 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
-func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
 	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
 	defer cancel()
 	apiCl, err := apiserver.WaitForAPIClient(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
+	return apiCl.DynamicCl, apiCl.Cl.Discovery().ServerGroupsAndResources, nil
 }

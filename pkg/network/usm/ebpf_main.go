@@ -52,6 +52,8 @@ var (
 		// factory.
 		opensslSpec,
 		goTLSSpec,
+		istioSpec,
+		nodejsSpec,
 	}
 )
 
@@ -104,19 +106,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__tcp_sendmsg",
-					UID:          probeUID,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: tcpCloseProbe,
-					UID:          probeUID,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
 				},
 			},
@@ -154,9 +144,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
-
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
-	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
@@ -227,8 +214,8 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
-		func(protocols.Protocol, *manager.Manager) {})
+		func(protocol protocols.Protocol) error { return protocol.PreStart() },
+		func(protocols.Protocol) {})
 
 	// No protocols could be enabled, abort.
 	if len(e.enabledProtocols) == 0 {
@@ -241,8 +228,8 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
-		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+		func(protocol protocols.Protocol) error { return protocol.PostStart() },
+		func(protocol protocols.Protocol) { protocol.Stop() })
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
@@ -274,8 +261,8 @@ func (e *ebpfProgram) Close() error {
 	for _, rb := range e.RingBuffers {
 		err = errors.Join(err, rb.Stop(manager.CleanAll))
 	}
-	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
-		protocol.Stop(m)
+	stopProtocolWrapper := func(protocol protocols.Protocol) error {
+		protocol.Stop()
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
@@ -334,38 +321,75 @@ func (e *ebpfProgram) getProtocolsForBuildMode() ([]*protocols.ProtocolSpec, []*
 // TailCalls to the program's lists. Also, we're providing a cleanup method (the return value) which allows removal
 // of the elements we added in case of a failure in the initialization.
 func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protocols.ProtocolSpec) func() {
-	for _, spec := range protocols {
-		e.Maps = append(e.Maps, spec.Maps...)
-		e.Probes = append(e.Probes, spec.Probes...)
-		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
+	// Track already existing items
+	existingMaps := make(map[string]struct{})
+	existingProbes := make(map[string]struct{})
+	existingTailCalls := make(map[string]struct{})
+
+	// Populate sets with existing elements
+	for _, m := range e.Maps {
+		existingMaps[m.Name] = struct{}{}
 	}
+	for _, p := range e.Probes {
+		existingProbes[p.EBPFFuncName] = struct{}{}
+	}
+	for _, tc := range e.tailCallRouter {
+		existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+	}
+
+	// Track newly added elements for cleanup
+	var addedMaps []*manager.Map
+	var addedProbes []*manager.Probe
+	var addedTailCalls []manager.TailCallRoute
+
+	for _, spec := range protocols {
+		for _, m := range spec.Maps {
+			if _, exists := existingMaps[m.Name]; !exists {
+				e.Maps = append(e.Maps, m)
+				addedMaps = append(addedMaps, m)
+				existingMaps[m.Name] = struct{}{}
+			}
+		}
+
+		for _, p := range spec.Probes {
+			if _, exists := existingProbes[p.EBPFFuncName]; !exists {
+				e.Probes = append(e.Probes, p)
+				addedProbes = append(addedProbes, p)
+				existingProbes[p.EBPFFuncName] = struct{}{}
+			}
+		}
+
+		for _, tc := range spec.TailCalls {
+			if _, exists := existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName]; !exists {
+				e.tailCallRouter = append(e.tailCallRouter, tc)
+				addedTailCalls = append(addedTailCalls, tc)
+				existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+			}
+		}
+	}
+
+	// Cleanup function to remove only what was added
 	return func() {
 		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
-			for _, spec := range protocols {
-				for _, specMap := range spec.Maps {
-					if m.Name == specMap.Name {
-						return true
-					}
+			for _, added := range addedMaps {
+				if m.Name == added.Name {
+					return true
 				}
 			}
 			return false
 		})
 		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
-			for _, spec := range protocols {
-				for _, probe := range spec.Probes {
-					if p.EBPFFuncName == probe.EBPFFuncName {
-						return true
-					}
+			for _, added := range addedProbes {
+				if p.EBPFFuncName == added.EBPFFuncName {
+					return true
 				}
 			}
 			return false
 		})
 		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
-			for _, spec := range protocols {
-				for _, tailCall := range spec.TailCalls {
-					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
-						return true
-					}
+			for _, added := range addedTailCalls {
+				if tc.ProbeIdentificationPair.EBPFFuncName == added.ProbeIdentificationPair.EBPFFuncName {
+					return true
 				}
 			}
 			return false
@@ -428,7 +452,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
 	for _, p := range supported {
-		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
+		p.Instance.ConfigureOptions(&options)
 	}
 	if e.cfg.InternalTelemetryEnabled {
 		for _, pm := range e.PerfMaps {
@@ -441,9 +465,30 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
+	// We might have shared maps, probes and TCs between supported and not supported protocols. We need to make sure
+	// that we're not excluding a shared resource if it is used by at least one supported protocol.
+	supportedMaps := make(map[string]struct{})
+	supportedProbes := make(map[string]struct{})
+	supportedTCs := make(map[string]struct{})
+	for _, p := range supported {
+		for _, m := range p.Maps {
+			supportedMaps[m.Name] = struct{}{}
+		}
+		for _, probe := range p.Probes {
+			supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+		}
+		for _, tc := range p.TailCalls {
+			supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+		}
+	}
+
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
 		for _, m := range p.Maps {
+			if _, ok := supportedMaps[m.Name]; ok {
+				log.Debugf("map %s is shared between enabled and disabled protocols", m.Name)
+				continue
+			}
 			// Unused maps still need to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
 				MaxEntries: uint32(1),
@@ -454,11 +499,21 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 
 		for _, probe := range p.Probes {
+			if _, ok := supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName]; ok {
+				log.Debugf("probe %s is shared between enabled and disabled protocols", probe.ProbeIdentificationPair.EBPFFuncName)
+				continue
+			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+			log.Debugf("disabled probe: %v", probe.ProbeIdentificationPair.EBPFFuncName)
 		}
 
 		for _, tc := range p.TailCalls {
+			if _, ok := supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName]; ok {
+				log.Debugf("tail call %s is shared between enabled and disabled protocols", tc.ProbeIdentificationPair.EBPFFuncName)
+				continue
+			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
+			log.Debugf("disabled tail call: %v", tc.ProbeIdentificationPair.EBPFFuncName)
 		}
 	}
 
@@ -550,14 +605,14 @@ func (e *ebpfProgram) getProtocolStats() (map[protocols.ProtocolType]interface{}
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
 // If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
 // successfully executed the callback.
-func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []*protocols.ProtocolSpec {
+func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol) error, errorCb func(protocols.Protocol)) []*protocols.ProtocolSpec {
 	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
 	// we'll keep in a temporary copy and return it at the end.
 	res := make([]*protocols.ProtocolSpec, 0)
 	for _, protocol := range protocolList {
-		if err := cb(protocol.Instance, e.Manager.Manager); err != nil {
+		if err := cb(protocol.Instance); err != nil {
 			if errorCb != nil {
-				errorCb(protocol.Instance, e.Manager.Manager)
+				errorCb(protocol.Instance)
 			}
 			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Instance.Name(), err)
 			continue
@@ -587,7 +642,7 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
 
 	for _, spec := range knownProtocols {
-		protocol, err := spec.Factory(c)
+		protocol, err := spec.Factory(e.Manager.Manager, c)
 		if err != nil {
 			return &errNotSupported{err}
 		}

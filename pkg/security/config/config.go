@@ -210,6 +210,8 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
+	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
+	SBOMResolverAnalyzers []string
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -225,6 +227,15 @@ type RuntimeSecurityConfig struct {
 	HashResolverCacheSize int
 	// HashResolverReplace is used to apply specific hash to specific file path
 	HashResolverReplace map[string]string
+
+	// SysCtlEnabled defines if the sysctl event should be enabled
+	SysCtlEnabled bool
+	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
+	SysCtlSnapshotEnabled bool
+	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
+	SysCtlSnapshotPeriod time.Duration
+	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+	SysCtlSnapshotIgnoredBaseNames []string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -403,6 +414,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
+		SBOMResolverAnalyzers:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sbom.analyzers"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -412,6 +424,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
+
+		// SysCtl config parameter
+		SysCtlEnabled:                  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlSnapshotEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
+		SysCtlSnapshotPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
+		SysCtlSnapshotIgnoredBaseNames: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 
 		// security profiles
 		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -647,9 +665,9 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 }
 
 // GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
-func GetFamilyAddress(path string) (string, string) {
+func GetFamilyAddress(path string) string {
 	if strings.HasPrefix(path, "/") {
-		return "unix", path
+		return "unix"
 	}
-	return "tcp", path
+	return "tcp"
 }

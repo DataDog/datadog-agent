@@ -690,7 +690,7 @@ func testGetDiagnoses(t *testing.T) {
 
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
-	c, err := NewPythonCheck(senderManager, "fake_check", nil)
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, false)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

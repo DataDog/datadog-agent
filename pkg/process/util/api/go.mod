@@ -21,7 +21,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.20.5 // indirect
@@ -35,7 +35,7 @@ require (
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -46,6 +46,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
@@ -91,6 +92,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../../../comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../../comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ../../../../comp/otelcol/status/def
+	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ../../../../comp/otelcol/status/impl
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../../comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../../comp/trace/agent/def
@@ -165,6 +168,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../pkg/util/startstop

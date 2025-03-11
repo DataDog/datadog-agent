@@ -35,7 +35,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -54,7 +54,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
-	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
 		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
 		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
 	}
@@ -143,7 +143,7 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 	defer s.Purge()
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -238,7 +238,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceVersion("datadog-apm-inject", "0.15.0-1"),
 	)
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
@@ -261,7 +261,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceInstall("datadog-agent"),
 		envForceVersion("datadog-apm-inject", "0.16.0-1"),
 	)
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
@@ -346,7 +346,7 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/stable", 0755, "root", "root")
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
-	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
 		s.assertAppArmorProfile() // AppArmor profile should still be there
 	}
 }
@@ -435,7 +435,7 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 }
 
 func (s *packageApmInjectSuite) TestAppArmor() {
-	if s.os != e2eos.Ubuntu2204 && s.os != e2eos.Debian12 {
+	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
@@ -447,6 +447,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 	defer s.Purge()
 	s.assertAppArmorProfile()
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting; on deny list")
 }

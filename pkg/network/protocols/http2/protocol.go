@@ -58,6 +58,7 @@ const (
 	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
+	netifProbe                = "tracepoint__net__netif_receive_skb_http2"
 
 	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
@@ -121,6 +122,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "terminated_http2_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -204,7 +212,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
+func newHTTP2Protocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTP2Monitoring {
 		return nil, nil
 	}
@@ -218,6 +226,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &Protocol{
 		cfg:                        cfg,
+		mgr:                        mgr,
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
@@ -239,7 +248,7 @@ const (
 // - Set the `http2_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http2 event stream with the manager and its options.
-func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -265,28 +274,28 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		EditorFlag: manager.EditMaxEntries,
 	}
 
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
-	p.dynamicTable.configureOptions(mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
+	p.dynamicTable.configureOptions(p.mgr, opts)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
 // Additional initialisation steps, such as starting an event consumer,
 // should be performed here.
-func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
-	p.mgr = mgr
+func (p *Protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processHTTP2,
 	)
 	if err != nil {
 		return
 	}
 
-	if err = p.dynamicTable.preStart(mgr); err != nil {
+	if err = p.dynamicTable.preStart(p.mgr); err != nil {
 		return
 	}
 
@@ -299,16 +308,16 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 // PostStart is called after the start of the provided eBPF manager. Final
 // initialisation steps, such as setting up a map cleaner, should be
 // performed here.
-func (p *Protocol) PostStart(mgr *manager.Manager) error {
+func (p *Protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupHTTP2InFlightMapCleaner(mgr)
-	p.updateKernelTelemetry(mgr)
+	p.setupHTTP2InFlightMapCleaner()
+	p.updateKernelTelemetry()
 
-	return p.dynamicTable.postStart(mgr, p.cfg)
+	return p.dynamicTable.postStart(p.mgr, p.cfg)
 }
 
-func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, err := protocols.GetMap(mgr, TelemetryMap)
+func (p *Protocol) updateKernelTelemetry() {
+	mp, err := protocols.GetMap(p.mgr, TelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return
@@ -349,7 +358,7 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 // steps, such as stopping events consumers, should be performed here.
 // Note that since this method is a cleanup method, it *should not* fail and
 // tries to cleanup resources as best as it can.
-func (p *Protocol) Stop(_ *manager.Manager) {
+func (p *Protocol) Stop() {
 	p.dynamicTable.stop()
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()
@@ -395,8 +404,8 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 	}
 }
 
-func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
-	http2Map, _, err := mgr.GetMap(InFlightMap)
+func (p *Protocol) setupHTTP2InFlightMapCleaner() {
+	http2Map, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
 		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return

@@ -377,9 +377,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-// GetSECLVariables returns the set of SECL variables along with theirs values
-func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.currentRuleSet.Load().(*rules.RuleSet)
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
 		if strings.HasPrefix(name, "process.") {
@@ -401,21 +399,20 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					return
 				}
 
-				scopedValue := fmt.Sprintf("%v", value)
+				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") {
-			continue // skip container variables for now
+		} else if strings.Contains(name, ".") { // other scopes
+			continue
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {
 				continue
 			}
-
-			scopedValue := fmt.Sprintf("%v", value)
+			scopedValue := fmt.Sprintf("%+v", value)
 			seclVariables[name] = &api.SECLVariableState{
 				Name:  name,
 				Value: scopedValue,
