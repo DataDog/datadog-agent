@@ -54,7 +54,6 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     for job in list(kept_job.values()):
         remove_fields(job)
         if "needs" in job:
-            print("JOB", job)
             job["needs"] = update_needs_parent(
                 job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
             )
