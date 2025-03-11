@@ -93,6 +93,10 @@ func TestGPUK8sSuite(t *testing.T) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
+
+	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
+	// we're not breaking main if we get rate limited
+	flake.MarkOnLog(t, "rate limit")
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing
