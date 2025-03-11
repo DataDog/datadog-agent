@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.26.0-1"
-	databricksJavaTracerVersion = "1.45.2-1"
-	databricksAgentVersion      = "7.62.2-1"
+	databricksInjectorVersion   = "0.34.0-1"
+	databricksJavaTracerVersion = "1.46.1-1"
+	databricksAgentVersion      = "7.63.3-1"
 )
 
 var (
@@ -94,6 +94,14 @@ func SetupDatabricks(s *common.Setup) error {
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
 
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
+	}
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
 	setupCommonHostTags(s)
