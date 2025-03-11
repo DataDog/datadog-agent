@@ -176,7 +176,16 @@ func StopAgentExperiment(_ context.Context) (err error) {
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(_ context.Context) error {
-	return setPremoteEvent()
+	err := setPremoteEvent()
+	if err != nil {
+		log.Errorf("Failed to promote agent experiment: %s", err)
+	}
+
+	// if we can't set the event it means the watchdog has failed
+	// In this case, we were already premoting the experiment
+	// so we can return without an error as all we were about to do
+	// is stop the watchdog
+	return nil
 }
 
 // RemoveAgent stops and removes the agent
