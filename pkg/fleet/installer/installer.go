@@ -228,7 +228,8 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not create temporary directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		err = copyFile(path, filepath.Join(tmpDir, filepath.Base(path)))
+		msiName := fmt.Sprintf("datadog-agent-%s-1-x86_64.msi", version.AgentVersion)
+		err = copyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)
 		}

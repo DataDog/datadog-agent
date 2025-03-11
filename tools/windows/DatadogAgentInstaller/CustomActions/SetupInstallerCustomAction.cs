@@ -23,7 +23,7 @@ namespace Datadog.CustomActions
         public static ActionResult SetupInstaller(Session s)
         {
             ISession session = new SessionWrapper(s);
-            var msiPath = session.Property("OriginalDatabase");
+            var msiPath = session.Property("DATABASE");
             // get installer path
             var installerPath = session.Property("PROJECTLOCATION");
             installerPath = Path.Combine(installerPath, "bin", "datadog-installer.exe");
