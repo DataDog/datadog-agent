@@ -182,10 +182,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
             __u32 data_end = classification_ctx->skb_info.data_end;
             if (is_tls_handshake_client_hello(skb, offset, data_end)) {
-                goto inspect_tls_client_hello;
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_CLIENT_PROG);
             }
             if (is_tls_handshake_server_hello(skb, offset, data_end)) {
-                goto inspect_tls_server_hello;
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
             }
         }
         return;
@@ -222,12 +222,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
  next_program:
     classification_next_program(skb, classification_ctx);
-
-inspect_tls_client_hello:
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_CLIENT_PROG);
-
-inspect_tls_server_hello:
-    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {
