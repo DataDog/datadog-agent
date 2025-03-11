@@ -202,15 +202,22 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not remove agent: %w", err)
 		}
 
-		// remove the agent from the repository
-		err = i.packages.Delete(ctx, packageDatadogAgent)
-		if err != nil {
-			return fmt.Errorf("could not delete agent repository: %w", err)
-		}
 	} else if !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	}
 
+	// remove the agent from the repository no matter database state
+	pkgState, err := i.packages.Get(packageDatadogAgent).GetState()
+	if err != nil {
+		return fmt.Errorf("could not get agent state: %w", err)
+	}
+
+	if pkgState.HasStable() {
+		err = i.packages.Delete(ctx, packageDatadogAgent)
+		if err != nil {
+			return fmt.Errorf("could not delete agent repository: %w", err)
+		}
+	}
 	// setup the installer
 
 	// if windows we need to copy the MSI to temp directory
