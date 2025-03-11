@@ -19,7 +19,7 @@ runs:
     shell: bash
 
   - name: Install dda
-    uses: DataDog/datadog-agent-dev@e1806a36cb1da98f3a4852c6620b628bc31d81b6
+    uses: DataDog/datadog-agent-dev@11330223ee0cf7aa176261596945c071e1d9fbb7
     with:
       version: ${{ inputs.version || steps.set-version.outputs.version }}
       features: ${{ inputs.features }}

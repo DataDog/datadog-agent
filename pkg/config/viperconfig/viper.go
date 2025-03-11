@@ -201,8 +201,8 @@ func (c *safeConfig) checkKnownKey(key string) {
 	c.unknownKeys[key] = struct{}{}
 	c.Unlock()
 
-	// log without holding the lock
-	log.Warnf("config key %v is unknown", key)
+	// log without holding the lock. We use stack depth +3 to use the caller function location instead of checkKnownKey
+	log.WarnfStackDepth(3, "config key %q is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:

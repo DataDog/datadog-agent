@@ -5,14 +5,15 @@
 
 //go:build !ec2
 
-package ec2
+package tags
 
-import (
-	"context"
-	"fmt"
-)
+import "context"
 
-// GetAccountID returns the account ID of the current AWS instance
-func GetAccountID(_ context.Context) (string, error) {
-	return "", fmt.Errorf("ec2 is disabled in the binary")
+// GetTags grabs the host tags from the EC2 api
+func GetTags(_ context.Context) ([]string, error) {
+	return []string{}, nil
+}
+
+func fetchTagsFromCache(_ context.Context) ([]string, error) {
+	return []string{}, nil
 }
