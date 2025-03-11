@@ -145,6 +145,7 @@ def build(
     bundle=None,
     bundle_ebpf=False,
     agent_bin=None,
+    e2e_coverage_mode=True,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -217,7 +218,7 @@ def build(
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = "go build -mod={go_mod} {race_opt} {cover} {build_type} -tags \"{go_build_tags}\" "
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -225,8 +226,12 @@ def build(
     if include_sds:
         build_tags.append("sds")
 
+    if e2e_coverage_mode:
+        build_tags.append("e2ecoverage")
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
+        "cover": "-cover -covermode=atomic" if e2e_coverage_mode else "",
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",

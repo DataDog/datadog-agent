@@ -52,6 +52,8 @@ func SetupHandlers(
 	}
 
 	// TODO: move these to a component that is registerable
+	setupCoverageHandler(r)
+
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
