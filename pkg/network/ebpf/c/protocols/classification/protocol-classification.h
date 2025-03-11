@@ -183,9 +183,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             __u32 data_end = classification_ctx->skb_info.data_end;
             if (is_tls_handshake_client_hello(skb, offset, data_end)) {
                 bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_CLIENT_PROG);
+                return;
             }
             if (is_tls_handshake_server_hello(skb, offset, data_end)) {
                 bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
+                return;
             }
         }
         return;
