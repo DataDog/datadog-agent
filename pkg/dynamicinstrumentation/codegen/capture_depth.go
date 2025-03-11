@@ -49,6 +49,7 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 	return result
 }
 
+// setDoNotCapture sets the DoNotCapture flag on all parameters that are at or beyond the target depth
 func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 	queue := []*captureDepthItem{}
 	for i := range params {
@@ -60,6 +61,7 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 			parameter: params[i],
 		})
 	}
+
 	for len(queue) > 0 {
 		top := queue[0]
 		queue = queue[1:]

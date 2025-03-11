@@ -297,7 +297,7 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 		}
 
 		if param.DoNotCapture {
-			fmt.Println("Not going to capture ", param.Name)
+			log.Tracef("Not going to capture parameter: %s", param.Name)
 			return
 		}
 
