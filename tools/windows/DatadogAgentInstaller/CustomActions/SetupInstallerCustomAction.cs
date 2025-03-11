@@ -23,8 +23,13 @@ namespace Datadog.CustomActions
         public static ActionResult SetupInstaller(Session s)
         {
             ISession session = new SessionWrapper(s);
-            var fleetInstall = session.Property("FLEET_INSTALL");
             var msiPath = session.Property("OriginalDatabase");
+            // get installer path
+            var installerPath = session.Property("PROJECTLOCATION");
+            installerPath = Path.Combine(installerPath, "bin", "datadog-installer.exe");
+
+            // check if this is a fleet install
+            var fleetInstall = session.Property("FLEET_INSTALL");
             if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
             {
                 session.Log("Skipping installer setup as this is a FLEET install.");
@@ -36,7 +41,6 @@ namespace Datadog.CustomActions
                 session.Log($"msiPath does not exist: {msiPath}");
                 return ActionResult.Failure;
             }
-            var installerPath = "C:\\Program Files\\Datadog\\Datadog Installer\\datadog-installer.exe";
 
             // run the setup on the installer
             var proc = session.RunCommand(installerPath, $"setup-installer \"{msiPath}\"");

@@ -29,7 +29,11 @@ var (
 )
 
 var (
-	// datadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog Installer.
+	// DatadogDataDir is the path to the Datadog data directory, by default C:\\ProgramData\\Datadog.
+	DatadogDataDir string
+	// DatadogProgramFilesDir Datadog Program Files directory
+	DatadogProgramFilesDir string
+	// datadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog\\Installer.
 	datadogInstallerData string
 	// PackagesPath is the path to the packages directory.
 	PackagesPath string
@@ -46,12 +50,13 @@ var (
 )
 
 func init() {
-	datadogInstallerData, _ = getProgramDataDirForProduct("Datadog Installer")
+	DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
+	datadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
-	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
-	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
+	DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
+	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 	RunPath = filepath.Join(PackagesPath, "run")
 }
@@ -327,13 +332,40 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
 		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
-		return filepath.Join(res, product), nil
+		return filepath.Join(res, "Datadog"), nil
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
 		log.Warnf("Windows installation key config not found, using default program data dir")
-		return filepath.Join(res, product), nil
+		return filepath.Join(res, "Datadog"), nil
+	}
+	path = val
+	return
+}
+
+// getProgramFilesDirForProduct returns the root of the installatoin directory,
+// usually c:\program files\datadog\datadog agent
+func getProgramFilesDirForProduct(product string) (path string, err error) {
+	res, err := windows.KnownFolderPath(windows.FOLDERID_ProgramFiles, 0)
+	if err != nil {
+		// Something is terribly wrong on the system if %PROGRAMFILES% is missing
+		return "", err
+	}
+	keyname := "SOFTWARE\\Datadog\\" + product
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		keyname,
+		registry.ALL_ACCESS)
+	if err != nil {
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
+		return filepath.Join(res, "Datadog", product), nil
+	}
+	defer k.Close()
+	val, _, err := k.GetStringValue("InstallPath")
+	if err != nil {
+		log.Warnf("Windows installation key config not found, using default program data dir")
+		return filepath.Join(res, "Datadog", product), nil
 	}
 	path = val
 	return
@@ -352,4 +384,9 @@ func SetRepositoryPermissions(path string) error {
 	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
 
 	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
+}
+
+// GetAdminInstallerBinaryPath returns the path to the admin install binary
+func GetAdminInstallerBinaryPath(path string) string {
+	return filepath.Join(path, "ProgramFiles64Folder", "Datadog", "Datadog Agent", "bin", "datadog-installer.exe")
 }

@@ -100,5 +100,5 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, path.Join(adminInstallDir, "ProgramFiles64Folder", "Datadog", "Datadog Installer", "datadog-installer.exe")), nil
+	return iexec.NewInstallerExec(env, paths.GetAdminInstallerBinaryPath(adminInstallDir)), nil
 }

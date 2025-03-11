@@ -201,7 +201,14 @@ func installAgentPackage(target string, args []string, logFileName string) error
 	}
 	logFile := path.Join(tempDir, logFileName)
 
-	args = append(args, "FLEET_INSTALL=1")
+	// create args
+	// need to carry these over as we are uninstalling the agent first
+	// and we need to reinstall it with the same configuration
+	// and we have wiped out our registry keys containing the configuration
+	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
+	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
+
+	args = append(args, "FLEET_INSTALL=1", dataDir, projectLocation)
 
 	cmd, err := msi.Cmd(
 		msi.Install(),
