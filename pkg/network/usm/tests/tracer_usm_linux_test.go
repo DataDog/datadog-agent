@@ -715,6 +715,10 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
+
+	usmStats := tr.USMMonitor().GetUSMStats()
+	startupError, exists := usmStats["error"]
+	require.Falsef(t, exists, "error: %v", startupError)
 }
 
 func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
