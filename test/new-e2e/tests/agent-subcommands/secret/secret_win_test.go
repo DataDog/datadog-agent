@@ -56,32 +56,26 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {
-	config := `secret_backend_command: C:\TestFolder\wrapper.bat
-secret_backend_arguments:
-  - 'C:\TestFolder'
+	config := `
 host_aliases:
-  - ENC[alias_secret]`
-
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(config),
-	}
-	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
+  - ENC[C:\TestFolder\alias_secret]`
 
 	// Create secret before running the Agent
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("alias_secret", "a_super_secret_string")
+	config += secretClient.GetAgentConfiguration()
 
-	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(agentParams...),
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(config),
+			),
 		),
 	)
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: C:\\TestFolder\\wrapper.bat")
 	assert.Contains(v.T(), output, "Executable permissions: OK, the executable has the correct permissions")
 
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
@@ -93,25 +87,19 @@ host_aliases:
 }
 
 func (v *windowsSecretSuite) TestAgentConfigRefresh() {
-	config := `secret_backend_command: C:\TestFolder\wrapper.bat
-secret_backend_arguments:
-  - 'C:\TestFolder'
-api_key: ENC[api_key]
-`
-
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithSkipAPIKeyInConfig(),
-		agentparams.WithAgentConfig(config),
-	}
-	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	config := "api_key: ENC[C:\\TestFolder\\api_key]"
 
 	// Create API Key secret before running the Agent
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-		awshost.WithAgentOptions(agentParams...)),
+		awshost.WithAgentOptions(
+			agentparams.WithSkipAPIKeyInConfig(),
+			agentparams.WithAgentConfig(config),
+		)),
 	)
 
 	status := v.Env().Agent.Client.Status()

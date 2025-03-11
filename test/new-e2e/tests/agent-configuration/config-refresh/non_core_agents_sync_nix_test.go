@@ -38,31 +38,28 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
-	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
-	secretClient.SetSecret("api_key", apiKey1)
+	secretClient.AllowExecGroup()
+	secretClient.SetSecret(filepath.Join(rootDir, "api_key"), apiKey1)
 
 	// fill the config template
 	templateVars := map[string]interface{}{
 		"AuthTokenFilePath":        authTokenFilePath,
-		"SecretDirectory":          rootDir,
-		"SecretResolver":           secretResolverPath,
 		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
 		"ApmCmdPort":               apmCmdPort,
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
 		"AgentIpcPort":             agentIpcPort,
-		"SecretBackendCommandAllowGroupExecPermOption": "true",
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig += secretClient.GetAgentConfiguration()
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
