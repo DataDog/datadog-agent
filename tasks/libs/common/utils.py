@@ -567,12 +567,21 @@ def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False)
             return
     finally:
         # Ensure the section is at least 1 ms long to avoid errors
-        end_time = max(time.time(), start_time + 1)
+        end_time = max(time.time(), start_time + 1000)
 
     def convert_time(t):
         return int(t * 1000)
 
     ctx.run(f"datadog-ci span --name '{section_name}' --start-time {convert_time(start_time)} --end-time {convert_time(end_time)}")
+
+
+def ci_visibility_tag(ctx, name, value, level='job'):
+    ctx.run(f'datadog-ci tag --tags "{name}:{value}" --level {level}')
+
+
+def ci_visibility_measure(ctx, name, value, level='job'):
+    ctx.run(f'datadog-ci measure --measures "{name}:{value}" --level {level}')
+
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):

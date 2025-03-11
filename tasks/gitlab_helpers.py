@@ -27,7 +27,7 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import experimental, gitlab_section, ci_visibility_section, gitlab_section
+from tasks.libs.common.utils import experimental, gitlab_section, ci_visibility_section, gitlab_section, ci_visibility_measure, ci_visibility_tag
 
 
 @task
@@ -346,6 +346,9 @@ def download_artifact(ctx, job_id=0, name='datadog-ci_linux-x64'):
 
 @task
 def celian(ctx):
+    ci_visibility_tag(ctx, 'my-tag', 'my-value')
+    ci_visibility_tag(ctx, 'pipeline-tag', 'my-value-2')
+
     with ci_visibility_section(ctx, 'my-first-section'):
         print('Sleeping...')
         time.sleep(0.618)
@@ -364,6 +367,9 @@ def celian(ctx):
 
 @task
 def celian2(ctx):
+    ci_visibility_measure(ctx, 'my-measure', 42)
+    ci_visibility_measure(ctx, 'pipeline-measure', 618)
+
     with gitlab_section('my-first-section'):
         print('Sleeping...')
         time.sleep(0.618)
