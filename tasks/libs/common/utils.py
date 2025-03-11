@@ -579,7 +579,7 @@ def create_ci_visibility_section(ctx, section_name, start_time: float, end_time:
     # Ensure the section is at least 1 ms long to avoid errors
     end_time = max(convert_time(end_time), start_time + 1)
 
-    ctx.run(f"datadog-ci span --name '{section_name}' --start-time {convert_time(start_time)} --end-time {convert_time(end_time)}")
+    ctx.run(f"datadog-ci span --name '{section_name}' --start-time {start_time} --end-time {end_time}")
 
 
 def ci_visibility_tag(ctx, name, value, level='job'):
