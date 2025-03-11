@@ -51,6 +51,11 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		span.Finish(err)
 	}()
 
+	// open events that signal the end of the experiment
+	// this will terminate other running instances of the watchdog
+	// this allows for running multiple experiments in sequence
+	_ = setPremoteEvent()
+
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		return err
