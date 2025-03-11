@@ -235,11 +235,6 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  # System-probe
-  if sysprobe_enabled?
-    dependency 'system-probe'
-  end
-
   if osx_target?
     dependency 'datadog-agent-mac-app'
   end
