@@ -977,7 +977,10 @@ def gitlab_ci_shellcheck(
             continue
 
         # Shellcheck is only for bash like scripts
-        is_powershell = 'tags' in content and any('win' in tag for tag in content['tags'])
+        is_powershell = any(
+            'powershell' in flatten_script(content.get(keyword, ''))
+            for keyword in ('before_script', 'script', 'after_script')
+        )
         if is_powershell:
             continue
 
