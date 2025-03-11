@@ -80,6 +80,7 @@ from tasks.libs.releasing.version import (
     next_final_version,
     next_rc_version,
 )
+from tasks.notify import post_message
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -384,7 +385,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None):
+def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
     """Updates the release entries in release.json to prepare the next RC build.
 
     If the previous version of the Agent (determined as the latest tag on the
@@ -411,8 +412,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         Updates internal module dependencies with the new RC.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
-
-        If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
         This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -513,14 +512,12 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
             new_final_version,
         )
 
-        # Step 4 - If slack workflow webhook is provided, send a slack message
-        if slack_webhook:
-            print(color_message("Sending slack notification", "bold"))
-            payload = {
-                "pr_url": pr_url,
-                "version": str(new_highest_version),
-            }
-            send_slack_msg(ctx, payload, slack_webhook)
+        # Step 4 - Send a slack message
+        post_message(
+            ctx,
+            "agent-release-sync",
+            f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}",
+        )
 
 
 @task
@@ -645,12 +642,10 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
 
 
 @task
-def alert_ci_on_call(ctx, release_branch, slack_webhook):
+def alert_ci_on_call(ctx, release_branch):
     gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-    payload = {
-        'message': f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
-    }
-    send_slack_msg(ctx, payload, slack_webhook)
+    message = f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    post_message(ctx, "agent-ci-on-call", message)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -1349,10 +1344,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
         )
 
 
-def send_slack_msg(ctx, payload, webhook):
-    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
-
-
 @task
 def check_previous_agent6_rc(ctx):
     """
@@ -1378,13 +1369,12 @@ def check_previous_agent6_rc(ctx):
         err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
 
     if err_msg:
-        payload = {'message': err_msg}
-        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        post_message(ctx, "agent-ci-on-call", err_msg)
         raise Exit(message=err_msg, code=1)
 
 
 @task
-def bump_integrations_core(ctx, slack_webhook=None):
+def bump_integrations_core(ctx):
     """
     Create a PR to bump the integrations core fields in the release.json file
     """
@@ -1441,7 +1431,9 @@ def bump_integrations_core(ctx, slack_webhook=None):
         body=github_workflow_url,
         other_labels=["team/integrations"],
     )
-
-    if slack_webhook:
-        payload = {'pr_url': pr_url}
-        send_slack_msg(ctx, payload, slack_webhook)
+    for channel in ["agent-integrations-reviews", 'agent-delivery-reviews']:
+        post_message(
+            ctx,
+            channel,
+            f":pr-open: A <{pr_url}/s|PR> to bump `integrations-core` has been created. Please review and merge it.",
+        )
