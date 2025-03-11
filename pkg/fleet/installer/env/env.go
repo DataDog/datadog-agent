@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +52,15 @@ const (
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRuntimeMetricsEnabled     = "DD_RUNTIME_METRICS_ENABLED"
+	envLogsInjection             = "DD_LOGS_INJECTION"
+	envAPMTracingEnabled         = "DD_APM_TRACING_ENABLED"
+	envProfilingEnabled          = "DD_PROFILING_ENABLED"
+	envDataStreamsEnabled        = "DD_DATA_STREAMS_ENABLED"
+	envAppsecEnabled             = "DD_APPSEC_ENABLED"
+	envIastEnabled               = "DD_IAST_ENABLED"
+	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
+	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
 )
 
 var defaultEnv = Env{
@@ -73,6 +83,15 @@ var defaultEnv = Env{
 
 	InstallScript: InstallScriptEnv{
 		APMInstrumentationEnabled: "",
+		RuntimeMetricsEnabled:     nil,
+		LogsInjection:             nil,
+		APMTracingEnabled:         nil,
+		ProfilingEnabled:          nil,
+		DataStreamsEnabled:        nil,
+		AppsecEnabled:             nil,
+		IastEnabled:               nil,
+		DataJobsEnabled:           nil,
+		AppsecScaEnabled:          nil,
 	},
 }
 
@@ -95,7 +114,19 @@ const (
 
 // InstallScriptEnv contains the environment variables for the install script.
 type InstallScriptEnv struct {
+	// SSI
 	APMInstrumentationEnabled string
+
+	// APM features toggles
+	RuntimeMetricsEnabled *bool
+	LogsInjection         *bool
+	APMTracingEnabled     *bool
+	ProfilingEnabled      *bool
+	DataStreamsEnabled    *bool
+	AppsecEnabled         *bool
+	IastEnabled           *bool
+	DataJobsEnabled       *bool
+	AppsecScaEnabled      *bool
 }
 
 // Env contains the configuration for the installer.
@@ -195,6 +226,15 @@ func FromEnv() *Env {
 
 		InstallScript: InstallScriptEnv{
 			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			RuntimeMetricsEnabled:     getBoolEnv(envRuntimeMetricsEnabled),
+			LogsInjection:             getBoolEnv(envLogsInjection),
+			APMTracingEnabled:         getBoolEnv(envAPMTracingEnabled),
+			ProfilingEnabled:          getBoolEnv(envProfilingEnabled),
+			DataStreamsEnabled:        getBoolEnv(envDataStreamsEnabled),
+			AppsecEnabled:             getBoolEnv(envAppsecEnabled),
+			IastEnabled:               getBoolEnv(envIastEnabled),
+			DataJobsEnabled:           getBoolEnv(envDataJobsEnabled),
+			AppsecScaEnabled:          getBoolEnv(envAppsecScaEnabled),
 		},
 
 		Tags: append(
@@ -211,39 +251,52 @@ func FromEnv() *Env {
 	}
 }
 
+func appendBoolEnv(env []string, key string, value *bool) []string {
+	if value != nil {
+		env = append(env, key+"="+strconv.FormatBool(*value))
+	}
+	return env
+}
+
+func appendStringEnv(env []string, key string, value string, skipIfEqual string) []string {
+	if value != skipIfEqual {
+		env = append(env, key+"="+value)
+	}
+	return env
+}
+
+// ToEnv returns a slice of environment variables from the InstallScriptEnv struct
+func (e *InstallScriptEnv) ToEnv(env []string) []string {
+	env = appendStringEnv(env, envApmInstrumentationEnabled, e.APMInstrumentationEnabled, "")
+	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
+	env = appendBoolEnv(env, envLogsInjection, e.LogsInjection)
+	env = appendBoolEnv(env, envAPMTracingEnabled, e.APMTracingEnabled)
+	env = appendBoolEnv(env, envProfilingEnabled, e.ProfilingEnabled)
+	env = appendBoolEnv(env, envDataStreamsEnabled, e.DataStreamsEnabled)
+	env = appendBoolEnv(env, envAppsecEnabled, e.AppsecEnabled)
+	env = appendBoolEnv(env, envIastEnabled, e.IastEnabled)
+	env = appendBoolEnv(env, envDataJobsEnabled, e.DataJobsEnabled)
+	env = appendBoolEnv(env, envAppsecScaEnabled, e.AppsecScaEnabled)
+	return env
+}
+
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
 	var env []string
-	if e.APIKey != "" {
-		env = append(env, envAPIKey+"="+e.APIKey)
-	}
-	if e.Site != "" {
-		env = append(env, envSite+"="+e.Site)
-	}
+	env = appendStringEnv(env, envAPIKey, e.APIKey, "")
+	env = appendStringEnv(env, envSite, e.Site, "")
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
 	if e.RemotePolicies {
 		env = append(env, envRemotePolicies+"=true")
 	}
-	if e.Mirror != "" {
-		env = append(env, envMirror+"="+e.Mirror)
-	}
-	if e.RegistryOverride != "" {
-		env = append(env, envRegistryURL+"="+e.RegistryOverride)
-	}
-	if e.RegistryAuthOverride != "" {
-		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
-	}
-	if e.RegistryUsername != "" {
-		env = append(env, envRegistryUsername+"="+e.RegistryUsername)
-	}
-	if e.RegistryPassword != "" {
-		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
-	}
-	if e.InstallScript.APMInstrumentationEnabled != "" {
-		env = append(env, envApmInstrumentationEnabled+"="+e.InstallScript.APMInstrumentationEnabled)
-	}
+	env = appendStringEnv(env, envMirror, e.Mirror, "")
+	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
+	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
+	env = appendStringEnv(env, envRegistryUsername, e.RegistryUsername, "")
+	env = appendStringEnv(env, envRegistryPassword, e.RegistryPassword, "")
+	env = e.InstallScript.ToEnv(env)
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
 		for l, v := range e.ApmLibraries {
@@ -259,18 +312,10 @@ func (e *Env) ToEnv() []string {
 	if len(e.Tags) > 0 {
 		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
 	}
-	if len(e.Hostname) > 0 {
-		env = append(env, envHostname+"="+e.Hostname)
-	}
-	if e.HTTPProxy != "" {
-		env = append(env, envHTTPProxy+"="+e.HTTPProxy)
-	}
-	if e.HTTPSProxy != "" {
-		env = append(env, envHTTPSProxy+"="+e.HTTPSProxy)
-	}
-	if e.NoProxy != "" {
-		env = append(env, envNoProxy+"="+e.NoProxy)
-	}
+	env = appendStringEnv(env, envHostname, e.Hostname, "")
+	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
+	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
+	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
@@ -360,6 +405,20 @@ func getEnvOrDefault(env string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getBoolEnv(env string) *bool {
+	t := true
+	f := false
+	value := os.Getenv(env)
+	switch value {
+	case "true":
+		return &t
+	case "false":
+		return &f
+	default:
+		return nil
+	}
 }
 
 func getProxySetting(ddEnv string, env string) string {

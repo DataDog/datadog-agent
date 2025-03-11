@@ -14,6 +14,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -61,6 +62,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
+	s.assertStableConfig(map[string]interface{}{})
 
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
@@ -126,6 +128,15 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertDockerdNotInstrumented()
+}
+
+func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=true", "DD_DATA_STREAMS_ENABLED=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.assertStableConfig(map[string]interface{}{
+		"DD_PROFILING_ENABLED":    "auto",
+		"DD_DATA_STREAMS_ENABLED": true,
+	})
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
@@ -480,6 +491,20 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 	content, err := s.host.ReadFile("/etc/ld.so.preload")
 	assert.NoError(s.T(), err)
 	assert.Contains(s.T(), string(content), libPath)
+}
+
+func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]interface{}) {
+	state := s.host.State()
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
+	assert.NoError(s.T(), err)
+
+	actualStableConfig := map[string]interface{}{}
+	err = yaml.Unmarshal(content, &actualStableConfig)
+	assert.NoError(s.T(), err)
+
+	assert.Contains(s.T(), actualStableConfig, "apm_configuration_default")
+	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
 func (s *packageApmInjectSuite) assertSocketPath() {

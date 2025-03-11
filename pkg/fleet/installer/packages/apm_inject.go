@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"go.uber.org/multierr"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -27,9 +28,10 @@ import (
 )
 
 const (
-	injectorPath    = "/opt/datadog-packages/datadog-apm-inject/stable"
-	ldSoPreloadPath = "/etc/ld.so.preload"
-	oldLauncherPath = "/opt/datadog/apm/inject/launcher.preload.so"
+	injectorPath          = "/opt/datadog-packages/datadog-apm-inject/stable"
+	ldSoPreloadPath       = "/etc/ld.so.preload"
+	oldLauncherPath       = "/opt/datadog/apm/inject/launcher.preload.so"
+	localStableConfigPath = "/etc/datadog-agent/application_monitoring.yaml"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -139,6 +141,10 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	err = os.Mkdir("/etc/datadog-agent/inject", 0755)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /etc/datadog-agent/inject: %w", err)
+	}
+	err = a.addLocalStableConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("error adding stable config file: %w", err)
 	}
 
 	err = a.addInstrumentScripts(ctx)
@@ -375,6 +381,65 @@ func (a *apmInjectorInstaller) removeInstrumentScripts(ctx context.Context) (ret
 			}
 		}
 	}
+	return nil
+}
+
+func (a *apmInjectorInstaller) addLocalStableConfig(ctx context.Context) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "add_local_stable_config")
+	defer func() { span.Finish(err) }()
+
+	type ApmConfigDefault struct {
+		RuntimeMetricsEnabled *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
+		LogsInjection         *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
+		APMTracingEnabled     *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
+		ProfilingEnabled      *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
+		DataStreamsEnabled    *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
+		AppsecEnabled         *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
+		IastEnabled           *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
+		DataJobsEnabled       *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+		AppsecScaEnabled      *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+	}
+	type ApplicationMonitoring struct {
+		Default ApmConfigDefault `yaml:"apm_configuration_default"`
+	}
+
+	appMonitoringConfigMutator := newFileMutator(
+		localStableConfigPath,
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			cfg := ApplicationMonitoring{
+				Default: ApmConfigDefault{
+					RuntimeMetricsEnabled: a.envs.InstallScript.RuntimeMetricsEnabled,
+					LogsInjection:         a.envs.InstallScript.LogsInjection,
+					APMTracingEnabled:     a.envs.InstallScript.APMTracingEnabled,
+					DataStreamsEnabled:    a.envs.InstallScript.DataStreamsEnabled,
+					AppsecEnabled:         a.envs.InstallScript.AppsecEnabled,
+					IastEnabled:           a.envs.InstallScript.IastEnabled,
+					DataJobsEnabled:       a.envs.InstallScript.DataJobsEnabled,
+					AppsecScaEnabled:      a.envs.InstallScript.AppsecScaEnabled,
+				},
+			}
+			if a.envs.InstallScript.ProfilingEnabled != nil {
+				profEnabled := "false"
+				if *a.envs.InstallScript.ProfilingEnabled {
+					profEnabled = "auto"
+				}
+				cfg.Default.ProfilingEnabled = &profEnabled
+			}
+
+			return yaml.Marshal(cfg)
+		},
+		nil, nil,
+	)
+	rollback, err := appMonitoringConfigMutator.mutate(ctx)
+	if err != nil {
+		return err
+	}
+	err = os.Chmod(localStableConfigPath, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to set permissions for application_monitoring.yaml: %w", err)
+	}
+
+	a.rollbacks = append(a.rollbacks, rollback)
 	return nil
 }
 
