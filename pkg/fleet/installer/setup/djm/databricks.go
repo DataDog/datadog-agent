@@ -155,7 +155,7 @@ func getJobAndRunIDs() (jobID, runID string, ok bool) {
 		return "", "", false
 	}
 	parts := strings.Split(clusterName, "-")
-	if len(parts) != 4 {
+	if len(parts) < 4 {
 		return "", "", false
 	}
 	if parts[0] != "job" || parts[2] != "run" {
