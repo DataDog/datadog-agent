@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -258,7 +257,7 @@ func (r *secretResolver) startRefreshRoutine() {
 	} else {
 		r.scatterDuration = r.refreshInterval
 	}
-	r.ticker = r.clk.Ticker(t.r.scatterDuration)
+	r.ticker = r.clk.Ticker(r.scatterDuration)
 
 	go func() {
 		<-r.ticker.C
@@ -408,20 +407,20 @@ var (
 		"additional_endpoints",
 	}
 	// tests override this to test refresh logic
-	// Using uint32 for atomic operations
-	allowlistEnabledAtomic uint32 = 1 // Default to true
+	allowlistEnabled = true
+	allowlistMutex   sync.RWMutex
 )
 
 func isAllowlistEnabled() bool {
-	return atomic.LoadUint32(&allowlistEnabledAtomic) == 1
+	allowlistMutex.RLock()
+	defer allowlistMutex.RUnlock()
+	return allowlistEnabled
 }
 
 func setAllowlistEnabled(value bool) {
-	var intValue uint32
-	if value {
-		intValue = 1
-	}
-	atomic.StoreUint32(&allowlistEnabledAtomic, intValue)
+	allowlistMutex.Lock()
+	defer allowlistMutex.Unlock()
+	allowlistEnabled = value
 }
 
 func secretMatchesAllowlist(secretCtx secretContext) bool {

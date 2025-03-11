@@ -827,18 +827,14 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create a new mock clock instance for every test case
-			mockClock := clock.NewMock()
-			originalNewClock := newClock
-			newClock = func() clock.Clock {
-				return mockClock
-			}
+			newClock = func() clock.Clock { return clock.NewMock() }
 			t.Cleanup(func() {
-				newClock = originalNewClock
+				newClock = clock.New
 			})
 			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
 			resolver := newEnabledSecretResolver(tel)
+			mockClock := resolver.clk.(*clock.Mock)
 			originalValue := isAllowlistEnabled()
 			setAllowlistEnabled(false)
 			defer func() {
