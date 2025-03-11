@@ -14,7 +14,7 @@
     - |
       # Assume role to fetch only once credentials and avoid rate limits
       echo Assuming ddbuild-agent-ci role
-      roleoutput="$(aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession)"
+      roleoutput="$(aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession --duration-seconds "$((3 * 3600))")"
       export AWS_ACCESS_KEY_ID="$(echo "$roleoutput" | jq -r '.Credentials.AccessKeyId')"
       export AWS_SECRET_ACCESS_KEY="$(echo "$roleoutput" | jq -r '.Credentials.SecretAccessKey')"
       export AWS_SESSION_TOKEN="$(echo "$roleoutput" | jq -r '.Credentials.SessionToken')"
