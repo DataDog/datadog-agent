@@ -153,6 +153,8 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
+
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
 
@@ -194,7 +196,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If we have already classified the encryption layer, we can skip the rest of the classification
-    if (is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)){
+    if (encryption_layer_known) {
         return;
     }
 
