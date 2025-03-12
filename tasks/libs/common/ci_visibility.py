@@ -55,7 +55,7 @@ class CIVisibilitySection:
 
 # TODO: Tags / measures...
 @contextmanager
-def ci_visibility_section(section_name, ignore_on_error=False, force=False):
+def ci_visibility_section(section_name, tags: dict[str, str] = None, measures: dict[str, str] = None, ignore_on_error=False, force=False):
     """Creates a ci visibility span with the given name.
 
     Args:
@@ -80,7 +80,7 @@ def ci_visibility_section(section_name, ignore_on_error=False, force=False):
         end_time = time.time()
 
     # Create the section, this section will be sent when invoke exits
-    CIVisibilitySection.create(section_name, start_time, end_time)
+    CIVisibilitySection.create(section_name, start_time, end_time, tags=tags, measures=measures)
 
 
 def ci_visibility_tag(ctx, name, value, level='job'):
