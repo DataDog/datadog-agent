@@ -892,12 +892,17 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
 	var ctrCtx model.ContainerContext
+	read, err := ctrCtx.UnmarshalBinary(procCache)
+	if err != nil {
+		return nil
+	}
+
 	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
 
-	if _, err := entry.UnmarshalProcEntryBinary(procCache[cgroupRead:]); err != nil {
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[read+cgroupRead:]); err != nil {
 		return nil
 	}
 
@@ -1325,7 +1330,7 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 184)
+	procCacheEntryB := make([]byte, 248)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1496,13 +1501,13 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // UpdateProcessCGroupContext updates the cgroup context and container ID of the process matching the provided PID
-func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessCacheEntry {
+func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	pce := p.resolve(pid, pid, 0, false, newEntryCb)
 	if pce == nil {
-		return nil
+		return false
 	}
 
 	pce.Process.CGroup = *cgroupContext
@@ -1512,7 +1517,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		pce.ContainerID = containerID
 		pce.Process.ContainerID = containerID
 	}
-	return pce
+	return true
 }
 
 // NewEBPFResolver returns a new process resolver

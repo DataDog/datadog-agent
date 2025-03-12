@@ -55,6 +55,7 @@ type API interface {
 	FetchOrgData(context.Context) (*pbgo.OrgDataResponse, error)
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 	UpdatePARJWT(string)
+	UpdateAPIKey(string)
 }
 
 // Auth defines the possible Authentication data to access the RC backend
@@ -242,6 +243,14 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Lock()
 	c.header["DD-PAR-JWT"] = []string{jwt}
+	c.headerLock.Unlock()
+}
+
+// UpdateAPIKey allows for dynamic setting of a Private Action Runners JWT
+// Token for authentication to the RC backend.
+func (c *HTTPClient) UpdateAPIKey(apiKey string) {
+	c.headerLock.Lock()
+	c.header["DD-Api-Key"] = []string{apiKey}
 	c.headerLock.Unlock()
 }
 
