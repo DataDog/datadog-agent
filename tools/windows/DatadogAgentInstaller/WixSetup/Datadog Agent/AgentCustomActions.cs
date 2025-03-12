@@ -474,7 +474,7 @@ namespace WixSetup.Datadog_Agent
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
                     CustomActions.InstallOciPackages,
-                    Return.asyncWait,
+                    Return.check,
                     When.Before,
                     Step.StartServices,
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
@@ -492,7 +492,7 @@ namespace WixSetup.Datadog_Agent
             UninstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallOciPackages)),
                     CustomActions.UninstallOciPackages,
-                    Return.asyncWait,
+                    Return.ignore,
                     When.Before,
                     Step.StopServices,
                     Conditions.Uninstalling
