@@ -70,31 +70,31 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
 	t.Run("NoContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), "")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // With no container, all devices should be returned
+		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "non-existent-at-all")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), "non-existent-at-all")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // If we can't find the container, all devices should be returned
+		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerID)
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), containerID)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
+		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()[deviceIndex:deviceIndex+1])
 	})
 
 	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
-		_, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerIDNoGpu)
+		_, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), containerIDNoGpu)
 		require.Error(t, err, "expected an error when filtering a container with no GPUs")
 	})
 
 	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
-		sysDevices := sysCtx.gpuDevices[:1]
+		sysDevices := sysCtx.deviceCache.GetAllDevices()[:1]
 		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
@@ -200,7 +200,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			for i, idx := range c.expectedDeviceIdx {
 				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
-				testutil.RequireDevicesEqual(t, sysCtx.gpuDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
+				testutil.RequireDevicesEqual(t, sysCtx.deviceCache.GetAllDevices()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
 		})
 	}

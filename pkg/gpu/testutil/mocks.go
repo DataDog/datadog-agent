@@ -23,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -176,24 +177,18 @@ func GetTelemetryMock(t testing.TB) telemetry.Component {
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
 // output than using require.Equal on the devices themselves
-func RequireDevicesEqual(t *testing.T, expected, actual nvml.Device, msgAndArgs ...interface{}) {
+func RequireDevicesEqual(t *testing.T, expected, actual *ddnvml.Device, msgAndArgs ...interface{}) {
 	extraFmt := ""
 	if len(msgAndArgs) > 0 {
 		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
 	}
 
-	expectedUUID, ret := expected.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%s%scannot retrieve UUID for expected device %v%s", extraFmt, expected)
-
-	actualUUID, ret := actual.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device %v%s", extraFmt, actual)
-
-	require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match", extraFmt)
+	require.Equal(t, expected.UUID, actual.UUID, "%sUUIDs do not match", extraFmt)
 }
 
 // RequireDeviceListsEqual checks that the two device lists are equal by comparing their UUIDs, which gives a better
 // output than using require.ElementsMatch on the lists themselves
-func RequireDeviceListsEqual(t *testing.T, expected, actual []nvml.Device, msgAndArgs ...interface{}) {
+func RequireDeviceListsEqual(t *testing.T, expected, actual []*ddnvml.Device, msgAndArgs ...interface{}) {
 	extraFmt := ""
 	if len(msgAndArgs) > 0 {
 		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
@@ -202,12 +197,6 @@ func RequireDeviceListsEqual(t *testing.T, expected, actual []nvml.Device, msgAn
 	require.Len(t, actual, len(expected), "%sdevice lists have different lengths", extraFmt)
 
 	for i := range expected {
-		expectedUUID, ret := expected[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for expected device index %d", extraFmt, i)
-
-		actualUUID, ret := actual[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device index %d", extraFmt, i)
-
-		require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match for element %d", extraFmt, i)
+		require.Equal(t, expected[i].UUID, actual[i].UUID, "%sUUIDs do not match for element %d", extraFmt, i)
 	}
 }
