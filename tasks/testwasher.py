@@ -154,10 +154,10 @@ class TestWasher:
                     continue
                 if test_result["Action"] == "start":
                     key = test_result["Package"], test_result["Test"]
-                    start_times[key].add(parse_date(test_result["Time"]))
+                    start_times[key] = parse_date(test_result["Time"])
                 if test_result["Action"] in ("pass", "fail"):
                     key = test_result["Package"], test_result["Test"]
-                    end_times[key].add(parse_date(test_result["Time"]))
+                    end_times[key] = parse_date(test_result["Time"])
 
         mapping = {}
         for key in end_times:
