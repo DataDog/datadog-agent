@@ -71,6 +71,7 @@ func (client *Client) authenticate() error {
 	defer client.authenticationMutex.Unlock()
 
 	if client.token == "" || client.tokenExpiry.Before(now) {
+		log.Warnf("Versa logging in again token: %s, expiry: %s, now: %s", client.token, client.tokenExpiry, now)
 		return client.login()
 	}
 	return nil
@@ -135,6 +136,7 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 		if cookie.Name == "VD-CSRF-TOKEN" {
 			client.token = cookie.Value
 			client.tokenExpiry = timeNow().Add(time.Minute * 15)
+			log.Warnf("CLIENT TOKEN: %s, EXPIRY: %s", client.token, client.tokenExpiry)
 		}
 	}
 

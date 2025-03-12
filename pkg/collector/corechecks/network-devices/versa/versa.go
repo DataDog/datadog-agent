@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/payload"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,18 +71,20 @@ func (v *VersaCheck) Run() error {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
-	// err = client.Authenticate()
-	// if err != nil {
-	// 	return fmt.Errorf("error logging in to Versa client: %w", err)
-	// }
-
 	appliances, err := client.GetAppliancesLite()
 	if err != nil {
 		return fmt.Errorf("error getting appliances from Versa client: %w", err)
 	}
 
+	// TODO: remove before merge
 	for _, appliance := range appliances {
 		log.Infof("Processing appliance: %+v", appliance)
+	}
+
+	devicesMetadata := payload.GetDevicesMetadata(v.config.Namespace, appliances)
+
+	if *v.config.SendNDMMetadata {
+		v.metricsSender.SendMetadata(devicesMetadata, nil, nil)
 	}
 
 	return nil
