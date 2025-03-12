@@ -589,11 +589,11 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 			Prefixes:    prefixes,
 		})
 		if err != nil {
-			t.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
 
-		t.log.Info("tagger stream established successfully")
+		t.log.Debug("tagger stream successfully initialized")
 
 		return nil
 	}, expBackoff)
