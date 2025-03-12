@@ -22,7 +22,6 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
-from tasks.libs.common.ci_visibility import ci_visibility_section
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -164,7 +163,7 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        with gitlab_section("Install embedded rtloader", collapsed=True, create_ci_visibility_section=True):
+        with gitlab_section("Install embedded rtloader", collapsed=True):
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
@@ -238,7 +237,7 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    with gitlab_section("Build agent", collapsed=True, create_ci_visibility_section=True):
+    with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
@@ -256,10 +255,9 @@ def build(
         if not os.path.exists(os.path.dirname(bundled_agent_bin)):
             os.mkdir(os.path.dirname(bundled_agent_bin))
 
-        with ci_visibility_section(f'Create launcher {build}'):
-            create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
+        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    with gitlab_section("Generate configuration files", collapsed=True, create_ci_visibility_section=True):
+    with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
             env=env,

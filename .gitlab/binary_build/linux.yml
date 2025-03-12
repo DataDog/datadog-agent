@@ -74,11 +74,7 @@ build_iot_agent-binary_x64:
   variables:
     KUBERNETES_CPU_REQUEST: 4
   before_script:
-    - !reference [.datadog-ci-amd64-fullsetup]
-    - starttime=$(date '+%s%N' | cut -b1-13)
     - !reference [.retrieve_linux_go_deps]
-    - endtime=$(date '+%s%N' | cut -b1-13)
-    - datadog-ci span --name 'retrieve_linux_go_deps' --start-time $starttime --end-time $endtime --tags agent-custom-span:true
   script:
     - dda inv check-go-version
     - dda inv -e agent.build --flavor iot

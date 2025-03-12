@@ -1261,15 +1261,54 @@ workflow:
 .datadog-ci-amd64-fullsetup:
   - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
   - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-  - datestart="$(date '+%s%N' | cut -b1-13)"
   - |
+    # Start a custom datadog span
+    datadog-ci-start-section()
+    {
+      export sectionname="$1"
+      if [ -z "$sectionname" ]; then
+        echo "datadog-ci-end-section: name is required as first argument"
+        return 1
+      fi
+      export datestart="$(date '+%s%N' | cut -b1-13)"
+    }
+    # Finish and send the span to Datadog
+    datadog-ci-end-section()
+    {
+      if [ "$1" = "--end-time" ]; then
+        shift
+        dateend="$1"
+        shift
+      else
+        dateend="$(date '+%s%N' | cut -b1-13)"
+      fi
+      name="$1"
+      if [ -z "$name" ]; then
+        echo "datadog-ci-end-section: name is required as first argument"
+        return 1
+      fi
+      if [ "$name" != "$sectionname" ]; then
+        echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)"
+        return 1
+      fi
+      if [ -z "$datestart" ]; then
+        echo "datadog-ci-end-section: datadog-ci-start-section was not called"
+        return 1
+      fi
+      datadog-ci span --name "$name" --start-time $datestart --end-time $dateend
+      export datestart=
+      export sectionname=
+    }
+  - |
+    datadog-ci-start-section install-python-dependencies
     python3 -m pip uninstall setuptools -y
     python3 -m pip install setuptools==75.8.2
     python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     python3 -m dda self dep sync -f legacy-tasks
-  - dateend="$(date '+%s%N' | cut -b1-13)"
+    # Need to explicitely compute end date because datadog-ci is not installed yet
+    dateend="$(date '+%s%N' | cut -b1-13)"
   - !reference [.get-custom-datadog-ci-amd64]
-  - datadog-ci span --name install-python-dependencies --start-time $datestart --end-time $dateend
+  - datadog-ci-end-section install-python-dependencies --end-time $dateend
 
 test-datadog-ci:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
