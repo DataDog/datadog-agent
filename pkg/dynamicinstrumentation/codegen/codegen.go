@@ -32,8 +32,13 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 
 		params = applyCaptureDepth(params, depth)
 		for i := range params {
+			err := generateParameterIndexText(i, out)
+			if err != nil {
+				return err
+			}
+
 			flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
-			err := generateHeadersText(flattenedParams, out)
+			err = generateHeadersText(flattenedParams, out)
 			if err != nil {
 				return err
 			}
@@ -72,6 +77,15 @@ func generateHeadersText(params []*ditypes.Parameter, out io.Writer) error {
 		}
 	}
 	return nil
+}
+
+func generateParameterIndexText(index int, out io.Writer) error {
+	expr := ditypes.SetParameterIndexLocationExpression(uint16(index))
+	t, err := resolveLocationExpressionTemplate(expr)
+	if err != nil {
+		return err
+	}
+	return t.Execute(out, expr)
 }
 
 func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
@@ -199,6 +213,8 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("print_statement").Parse(printStatementText)
 	case ditypes.OpComment:
 		return template.New("comment").Parse(commentText)
+	case ditypes.OpSetParameterIndex:
+		return template.New("set_parameter_index").Parse(setParameterIndexText)
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
