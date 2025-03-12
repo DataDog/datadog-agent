@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Metrics can now be sent over HTTP/2. A slight change to the connection
-    handling to take full advantage of this means multiple requests can be
-    in flight at any one time. This can be configured with the
+    Metrics are now sent over HTTP/2 when possible. A slight change to the
+    connection handling to take full advantage of this means multiple requests
+    can be in flight at any one time. This can be configured with the
     ``forwarder_max_concurrent_requests`` option, default is 10.

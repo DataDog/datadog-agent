@@ -283,13 +283,9 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 	case "http1":
 		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers))
 	case "auto":
-		fallthrough
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
 	default:
-		if transportConfig != "auto" {
-			// The diagnose package calls this function and doesn't have access to a logger,
-			// so we need to check if one is provided.
-			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
-		}
+		log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
 		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
 	}
 
