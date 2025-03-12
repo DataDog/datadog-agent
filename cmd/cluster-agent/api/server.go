@@ -56,7 +56,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, clusterChecksEnabled bool) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -69,6 +69,13 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 
 	// API V1 Language Detection APIs
 	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
+
+	// API V1 Cluster Check APIs
+	if clusterChecksEnabled {
+		v1.InstallChecksEndpoints(ctx, apiRouter, ac, taggerComp)
+	} else {
+		log.Debug("Cluster check Autodiscovery disabled")
+	}
 
 	// API V2 Series APIs
 	v2ApiRouter := router.PathPrefix("/api/v2").Subrouter()

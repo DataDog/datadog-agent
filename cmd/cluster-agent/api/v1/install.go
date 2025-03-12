@@ -9,9 +9,14 @@
 package v1
 
 import (
+	"context"
+
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,9 +33,29 @@ func InstallMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {
 	}
 }
 
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
+	handler, err := clusterchecks.NewHandler(ac, tagger)
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		handler.Run(ctx)
+		log.Info("Stopped cluster check Autodiscovery")
+	}()
+
+	log.Info("Started cluster check Autodiscovery")
+	return handler, nil
+}
+
 // InstallChecksEndpoints registers endpoints for cluster checks
-func InstallChecksEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
+func InstallChecksEndpoints(ctx context.Context, r *mux.Router, ac autodiscovery.Component, tagger tagger.Component) {
 	log.Debug("Registering checks endpoints")
+	clusterCheckHandler, err := setupClusterCheck(ctx, ac, tagger)
+	if err != nil {
+		log.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
+		return
+	}
+	sc := clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler}
 	installClusterCheckEndpoints(r, sc)
 	installEndpointsCheckEndpoints(r, sc)
 }
