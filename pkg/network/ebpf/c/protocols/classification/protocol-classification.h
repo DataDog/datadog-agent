@@ -161,7 +161,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
     tls_record_header_t tls_hdr = {0};
-    classification_prog_t tail_call = CLASSIFICATION_TLS_CLIENT_PROG;
 
     if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
         protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
@@ -183,11 +182,12 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
             __u32 data_end = classification_ctx->skb_info.data_end;
             if (is_tls_handshake_client_hello(skb, offset, data_end)) {
-                goto tls_handshake_inspect;
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_CLIENT_PROG);
+                return;
             }
             if (is_tls_handshake_server_hello(skb, offset, data_end)) {
-                tail_call = CLASSIFICATION_TLS_SERVER_PROG;
-                goto tls_handshake_inspect;
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
+                return;
             }
         }
         return;
@@ -224,8 +224,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
  next_program:
     classification_next_program(skb, classification_ctx);
- tls_handshake_inspect:
-    bpf_tail_call_compat(skb, &classification_progs, tail_call);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_client(struct __sk_buff *skb) {
