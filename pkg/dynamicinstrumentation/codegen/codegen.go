@@ -28,6 +28,9 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := procInfo.TypeMap.Functions[probe.FuncName]
+		depth := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+
+		params = applyCaptureDepth(params, depth)
 		for i := range params {
 			flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
 			err := generateHeadersText(flattenedParams, out)
