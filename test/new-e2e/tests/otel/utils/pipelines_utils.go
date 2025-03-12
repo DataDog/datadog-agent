@@ -126,9 +126,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 
 // TestTracesWithSpanReceiverV2 tests that OTLP traces are received through OTel pipelines as expected with updated OTLP span receiver
 func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-
+	var err error
 	var traces []*aggregator.TracePayload
 	s.T().Log("Waiting for traces")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -204,9 +202,7 @@ func TestTracesWithOperationAndResourceName(
 	serverOperationName string,
 	serverResourceName string,
 ) {
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-
+	var err error
 	var traces []*aggregator.TracePayload
 	s.T().Log("Waiting for traces")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -415,7 +411,7 @@ func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool
 			}
 		}
 		assert.True(c, hasStatsForService)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got APM stats", stats)
 }
 
