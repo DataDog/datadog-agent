@@ -6,6 +6,7 @@
 package apikey
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
 	"strings"
 
@@ -15,9 +16,19 @@ import (
 
 // decryptFunc is a function that takes in a value and retrieves it from
 // the appropriate AWS service. KMS, SM, etc.
-type decryptFunc func(string) (string, error)
+type decryptFunc func(string, aws.FIPSEndpointState) (string, error)
 
 func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc) map[string]string {
+	awsRegion := os.Getenv(lambdaRegionEnvVar)
+	isGovRegion := strings.HasPrefix(awsRegion, "us-gov-")
+	var fipsEndpointState aws.FIPSEndpointState
+	if isGovRegion {
+		fipsEndpointState = aws.FIPSEndpointStateEnabled
+		log.Info("Govcloud region detected. Using FIPs endpoints for secrets management.")
+	} else {
+		fipsEndpointState = aws.FIPSEndpointStateUnset
+	}
+
 	decryptedEnvVars := make(map[string]string)
 	for _, envVar := range envVars {
 		envKey, envVal, ok := strings.Cut(envVar, "=")
@@ -29,7 +40,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 		}
 		if strings.HasSuffix(envKey, kmsKeySuffix) {
 			log.Debugf("Decrypting %v", envVar)
-			secretVal, err := kmsFunc(envVal)
+			secretVal, err := kmsFunc(envVal, fipsEndpointState)
 			if err != nil {
 				log.Errorf("Couldn't read API key from KMS: %v", err)
 				continue
@@ -37,7 +48,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 			decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
 		}
 		if envKey == apiKeyKmsEnvVar {
-			secretVal, err := kmsFunc(envVal)
+			secretVal, err := kmsFunc(envVal, fipsEndpointState)
 			if err != nil {
 				log.Errorf("Couldn't read API key from KMS: %v", err)
 				continue
@@ -46,7 +57,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 		}
 		if strings.HasSuffix(envKey, secretArnSuffix) {
 			log.Debugf("Retrieving %v from secrets manager", envVar)
-			secretVal, err := smFunc(envVal)
+			secretVal, err := smFunc(envVal, fipsEndpointState)
 			if err != nil {
 				log.Errorf("Couldn't read API key from Secrets Manager: %v", err)
 				continue
