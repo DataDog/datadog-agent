@@ -19,9 +19,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 
@@ -477,6 +479,13 @@ func (t *remoteTagger) run() {
 			return err
 		}, streamRecvTimeout)
 		if err != nil {
+			// Since the auth token is initialized at startup for both coreAgent and subAgent,
+			// having different auth tokens is an unrecoverable error and should stop the retries.
+			if st, ok := status.FromError(err); ok && st.Code() == codes.Unauthenticated {
+				t.log.Errorf("unable to initiate an authenticated communication: access denied to the tagger server: %v", err)
+				return
+			}
+
 			t.streamCancel()
 
 			t.telemetryStore.ClientStreamErrors.Inc()
