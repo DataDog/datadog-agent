@@ -18,10 +18,6 @@
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
         "WINDOWS_DDPROCMON_VERSION": "1.1.0",
         "WINDOWS_DDPROCMON_SHASUM": "a75da24f2385ff41246cad4f19e99642ca55199ea9e5b0c25dc5b9df4af035d7",
-        "WINDOWS_APMINJECT_COMMENT": "The WINDOWS_APMINJECT entries below should NOT be added to the release targets",
-        "WINDOWS_APMINJECT_MODULE": "release-signed",
-        "WINDOWS_APMINJECT_VERSION": "1.1.3",
-        "WINDOWS_APMINJECT_SHASUM": "5fdd62a84e640204386b9c28dc2e3ac5d9b8adde6427cb9f5914619f94d7b5bd",
         "INTEGRATIONS_CORE_VERSION": "876413dd2cbd29f2d0c5f388c1b40f13901646fc"
     },
     "release": {
