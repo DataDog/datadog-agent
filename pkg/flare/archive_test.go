@@ -231,6 +231,11 @@ process_config:
 	})
 
 	t.Run("verify auth", func(t *testing.T) {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
 		setupProcessAPIServer(t, port)
 
 		cfg := configmock.New(t)
@@ -320,13 +325,16 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
 	})
 	t.Run("verify auth", func(t *testing.T) {
-		// Setting an unused port to avoid problem when test run next to running Process Agent
-		port := 56789
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
 		setupProcessAPIServer(t, port)
 
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		cfg.SetWithoutSource("process_config.cmd_port", 56789)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
