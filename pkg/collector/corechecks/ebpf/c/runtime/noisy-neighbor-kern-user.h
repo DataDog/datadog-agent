@@ -8,6 +8,8 @@ typedef struct {
     __u64 cgroup_id;
     __u64 runq_lat;
     __u64 ts;
+    __u64 pid;
+    __u64 prev_pid;
 
     char prev_cgroup_name[129];
     char cgroup_name[129];

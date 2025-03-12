@@ -119,6 +119,8 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			TimestampNs:    event.Timestamp,
 			PrevCgroupName: event.PrevCgroupName,
 			CgroupName:     event.CgroupName,
+			Pid:            event.Pid,
+			PrevPid:        event.PrevPid,
 		})
 	}
 	clear(p.events)

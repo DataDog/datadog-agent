@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && cgo
+//go:build linux
 
 package noisyneighbor
 
@@ -92,7 +92,7 @@ func (n *NoisyNeighborCheck) Run() error {
 			log.Debugf("Unable to extract prevContainerID from cgroup name: %s, err: %v", stat.PrevCgroupName, err)
 		}
 
-		sender.Distribution("noisy_neighbor.runq.latency", float64(stat.RunqLatencyNs), "", []string{"container_id:" + containerID})
+		sender.Distribution("noisy_neighbor.runq.latency", float64(stat.RunqLatencyNs), "", []string{"container_id:" + containerID, "pid:" + fmt.Sprintf("%d", stat.Pid)})
 		sender.Count("noisy_neighbor.sched.switch.out", 1, "", []string{"next_container_id:" + containerID, "prev_container_id:" + prevContainerID})
 	}
 

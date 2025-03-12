@@ -13,4 +13,6 @@ type NoisyNeighborStats struct {
 	TimestampNs    uint64
 	PrevCgroupName string
 	CgroupName     string
+	Pid            uint64
+	PrevPid        uint64
 }

@@ -20,6 +20,8 @@ type runqEvent struct {
 	Timestamp      uint64
 	PrevCgroupName string
 	CgroupName     string
+	Pid            uint64
+	PrevPid        uint64
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
@@ -31,5 +33,7 @@ func (r *runqEvent) UnmarshalBinary(data []byte) error {
 	r.Timestamp = e.Ts
 	r.PrevCgroupName = unix.ByteSliceToString(e.Prev_cgroup_name[:])
 	r.CgroupName = unix.ByteSliceToString(e.Cgroup_name[:])
+	r.Pid = e.Pid
+	r.PrevPid = e.Prev_pid
 	return nil
 }

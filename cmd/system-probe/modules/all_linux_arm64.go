@@ -31,6 +31,7 @@ var All = []module.Factory{
 	Traceroute,
 	DiscoveryModule,
 	GPUMonitoring, // GPU monitoring needs to be initialized afer EventMonitor, so that we have the event consumer ready
+	NoisyNeighbor,
 }
 
 func inactivityEventLog(_ time.Duration) {

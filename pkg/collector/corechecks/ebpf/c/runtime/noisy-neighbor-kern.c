@@ -41,7 +41,7 @@ SEC("tp_btf/sched_switch")
 int tp_sched_switch(u64 *ctx) {
     struct task_struct *prev = (struct task_struct *)ctx[1];
     struct task_struct *next = (struct task_struct *)ctx[2];
-    //u32 prev_pid = prev->pid;
+    u32 prev_pid = prev->pid;
     u32 next_pid = next->pid;
 
     // fetch timestamp of when the next task was enqueued
@@ -80,6 +80,8 @@ int tp_sched_switch(u64 *ctx) {
         event->cgroup_id = cgroup_id;
         event->runq_lat = runq_lat;
         event->ts = now;
+        event->pid = next_pid;
+        event->prev_pid = prev_pid;
 
         // read cgroup names
         bpf_rcu_read_lock();

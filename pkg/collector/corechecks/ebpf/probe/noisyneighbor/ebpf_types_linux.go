@@ -8,6 +8,8 @@ type ebpfRunqEvent struct {
 	Cgroup_id        uint64
 	Runq_lat         uint64
 	Ts               uint64
+	Pid              uint64
+	Prev_pid         uint64
 	Prev_cgroup_name [129]byte
 	Cgroup_name      [129]byte
 	Pad_cgo_0        [6]byte
