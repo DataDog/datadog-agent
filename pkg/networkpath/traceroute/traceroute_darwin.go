@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -32,9 +33,9 @@ type MacTraceroute struct {
 
 // New creates a new instance of MacTraceroute
 // based on an input configuration
-func New(cfg config.Config, telemetry telemetry.Component) (*MacTraceroute, error) {
+func New(cfg config.Config, telemetry telemetry.Component, hostnameComp hostname.Component) (*MacTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
-	runner, err := runner.New(telemetry)
+	runner, err := runner.New(telemetry, hostnameComp)
 	if err != nil {
 		return nil, err
 	}
