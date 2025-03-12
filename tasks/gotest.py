@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.common.ci_visibility import CIVisibilitySection
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -219,9 +220,10 @@ def process_test_result(
 
     success = process_module_results(flavor=flavor, module_results=test_results)
 
-    if success:
-        print(color_message("All tests passed", "green"))
-        return True
+    # TODO A
+    # if success:
+    #     print(color_message("All tests passed", "green"))
+    #     return True
 
     if test_washer or running_in_ci():
         if not test_washer:
@@ -231,6 +233,13 @@ def process_test_result(
         if extra_flakes_config is not None:
             flakes_configs.append(extra_flakes_config)
         tw = TestWasher(flakes_file_paths=flakes_configs)
+        # Send custom ci visibility spans
+        if running_in_ci():
+            print('Custom CI Visibility spans')
+            for module_result in test_results:
+                durations = tw.parse_times(module_result.path)
+                for (pkg, test), (start, end) in durations.items():
+                    CIVisibilitySection.create(f"{test}", start, end, tags={"package": pkg, "test": test})
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )

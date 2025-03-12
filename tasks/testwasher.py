@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import datetime
 import json
 import os
 import re
@@ -132,6 +133,38 @@ class TestWasher:
                 ):
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
+
+    def parse_times(self, module_path: str) -> dict[tuple[str, str], float]:
+        """Parses tests start / end times.
+
+        Returns:
+            A dictionary (package, test) -> (start / end time) in seconds.
+        """
+
+        start_times = {}
+        end_times = {}
+
+        def parse_date(date: str) -> float:
+            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
+
+        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
+            for line in f:
+                test_result = json.loads(line)
+                if "Test" not in test_result:
+                    continue
+                if test_result["Action"] == "start":
+                    key = test_result["Package"], test_result["Test"]
+                    start_times[key].add(parse_date(test_result["Time"]))
+                if test_result["Action"] in ("pass", "fail"):
+                    key = test_result["Package"], test_result["Test"]
+                    end_times[key].add(parse_date(test_result["Time"]))
+
+        mapping = {}
+        for key in end_times:
+            if key in start_times:
+                mapping[key] = start_times[key], end_times[key]
+
+        return mapping
 
     def is_flaky_from_log(self, package: str, test: str, log: str) -> bool:
         """Returns whether the test is flaky based on the log output."""
