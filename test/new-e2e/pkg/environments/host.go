@@ -11,8 +11,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -94,4 +97,42 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}
 	return dstPath, nil
+}
+
+// Coverage generates coverage files and downloads them to the given output directory
+func (e *Host) Coverage(outputDir string) error {
+	r, err := e.Agent.Client.CoverageWithError(agentclient.WithArgs([]string{"generate"}))
+	if err != nil {
+		return fmt.Errorf("failed to generate coverage: %w", err)
+	}
+	// find coverage folder in command output
+	re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+	matches := re.FindStringSubmatch(r)
+	if len(matches) < 2 {
+		return fmt.Errorf("output does not contain the path to the coverage folder, output: %s", r)
+	}
+	coveragePath := matches[1]
+	err = e.RemoteHost.GetFolder(coveragePath, outputDir)
+	if err != nil {
+		return fmt.Errorf("failed to download coverage folder: %w", err)
+	}
+	err = e.RemoteHost.GetFolder(client.LinuxTempFolder, outputDir)
+	if err != nil {
+		return fmt.Errorf("failed to download coverage folder: %w", err)
+	}
+
+	return nil
+}
+
+// SetupCoverage creates a temporary folder for coverage files
+func (e *Host) SetupCoverage() error {
+	coverageFolder := client.LinuxTempFolder
+	if e.RemoteHost.OSFamily == os.WindowsFamily {
+		coverageFolder = client.WindowsTempFolder
+	}
+	_, err := e.RemoteHost.Execute(fmt.Sprintf("mkdir -p %s", coverageFolder))
+	if err != nil {
+		return fmt.Errorf("failed to create coverage folder: %w", err)
+	}
+	return nil
 }

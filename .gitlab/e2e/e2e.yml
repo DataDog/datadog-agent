@@ -61,6 +61,7 @@
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_GO_COVERDIR: $CI_PROJECT_DIR/e2e-output/coverage
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
   script:
@@ -75,6 +76,7 @@
       - $E2E_OUTPUT_DIR
       # junit tarball, kept for investigations
       - junit-*.tgz
+      - E2E_GO_COVERDIR
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH

@@ -539,6 +539,13 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	if bs.initOnly {
 		bs.T().Skip("INIT_ONLY is set, skipping tests")
 	}
+
+	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		err := coverageEnv.SetupCoverage()
+		if err != nil {
+			bs.T().Logf("unable to setup coverage: %v", err)
+		}
+	}
 }
 
 func (bs *BaseSuite[Env]) getSuiteSessionSubdirectory() string {
@@ -610,12 +617,21 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	bs.endTime = time.Now()
 
-	if bs.params.devMode {
+	if bs.initOnly {
+		bs.T().Logf("INIT_ONLY is set, skipping deletion")
 		return
 	}
 
-	if bs.initOnly {
-		bs.T().Logf("INIT_ONLY is set, skipping deletion")
+	// If environment implement Coverage interface, retrieve code coverage before destroying stack
+	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		if os.Getenv("E2E_GOCOVERDIR") != "" {
+			err := coverageEnv.Coverage(os.Getenv("E2E_GOCOVERDIR"))
+			if err != nil {
+				bs.T().Logf("unable to get coverage: %v", err)
+			}
+		}
+	}
+	if bs.params.devMode {
 		return
 	}
 
@@ -627,7 +643,6 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	ctx, cancel := bs.providerContext(deleteTimeout)
 	defer cancel()
-
 	for id, provisioner := range bs.originalProvisioners {
 		// Run provisioner Diagnose before tearing down the stack
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
