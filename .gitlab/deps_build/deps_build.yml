@@ -65,12 +65,12 @@
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_PERMANENT_ARTIFACTS_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_DD_AGENT_OMNIBUS_LLVM_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_PERMANENT_ARTIFACTS_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $S3_DD_AGENT_OMNIBUS_LLVM_URI/llvm-strip-${CLANG_LLVM_VER}.${ARCH}${CLANG_TEST_SUFFIX} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
