@@ -40,7 +40,7 @@ class CIVisibilitySection:
         end_time = max(convert_time(self.end_time), start_time + 1)
 
         tags = ''
-        for key, value in self.tags.items():
+        for key, value in list(self.tags.items()) + [('custom-agent', 'true')]:
             tags += f'--tags "{key}:{value}" '
 
         measures = ''
