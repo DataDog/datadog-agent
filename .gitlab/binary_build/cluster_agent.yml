@@ -1,10 +1,13 @@
 ---
 .cluster_agent-build_common:
   stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_mod_tidy_check"]
   script:
     - inv check-go-version
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
+    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION"
     - $S3_CP_CMD $CI_PROJECT_DIR/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
     - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
@@ -15,8 +18,6 @@
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
-  rules:
-    !reference [.on_tag_or_a7]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
@@ -27,8 +28,6 @@ cluster_agent-build_amd64:
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
-  rules:
-    !reference [.on_tag_or_a7]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
