@@ -80,16 +80,17 @@ namespace Datadog.CustomActions
             {
                 _session.Log("Installing Oci Packages");
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+                var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
+                if (string.IsNullOrEmpty(instrumentationEnabled) || string.IsNullOrEmpty(librariesRaw))
+                {
+                    _session.Log($"instrumentation is disabled or no library is provided skipping");
+                    return ActionResult.Success;
+                }
                 if (instrumentationEnabled != "iis")
                 {
                     _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
                     return ActionResult.Failure;
-                }
-                var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
-                if (string.IsNullOrEmpty(librariesRaw))
-                {
-                    return ActionResult.Success;
                 }
                 var libraries = librariesRaw.Split(',');
                 foreach (var library in libraries)
