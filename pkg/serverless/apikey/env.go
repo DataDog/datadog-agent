@@ -21,12 +21,10 @@ type decryptFunc func(string, aws.FIPSEndpointState) (string, error)
 func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc) map[string]string {
 	awsRegion := os.Getenv(lambdaRegionEnvVar)
 	isGovRegion := strings.HasPrefix(awsRegion, "us-gov-")
-	var fipsEndpointState aws.FIPSEndpointState
+	fipsEndpointState := aws.FIPSEndpointStateUnset
 	if isGovRegion {
 		fipsEndpointState = aws.FIPSEndpointStateEnabled
-		log.Info("Govcloud region detected. Using FIPs endpoints for secrets management.")
-	} else {
-		fipsEndpointState = aws.FIPSEndpointStateUnset
+		log.Debug("Govcloud region detected. Using FIPs endpoints for secrets management.")
 	}
 
 	decryptedEnvVars := make(map[string]string)
