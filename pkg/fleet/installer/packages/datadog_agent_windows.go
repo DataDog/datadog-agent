@@ -188,3 +188,8 @@ func getAgentUserName() (string, error) {
 
 	return user, nil
 }
+
+// PostInstallAgent runs post install scripts for a given package. Noop for Windows
+func PostInstallAgent(_ context.Context, _, _ string) error {
+	return nil
+}
