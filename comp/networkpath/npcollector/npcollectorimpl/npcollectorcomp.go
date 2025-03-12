@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -30,6 +31,7 @@ type dependencies struct {
 	Telemetry   telemetry.Component
 	RDNSQuerier rdnsquerier.Component
 	Statsd      statsd.ClientInterface
+	Hostname    hostname.Component
 }
 
 type provides struct {
