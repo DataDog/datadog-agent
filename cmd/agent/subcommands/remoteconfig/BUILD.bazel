@@ -10,7 +10,7 @@ go_library(
         "//comp/core",
         "//comp/core/config",
         "//pkg/api/security",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/flare",
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",

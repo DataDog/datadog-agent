@@ -5,8 +5,6 @@ go_library(
     srcs = [
         "arch.go",
         "cpu.go",
-        "download_headers.go",
-        "find_headers.go",
         "fs.go",
         "fs_nolinux.go",
         "ip.go",
@@ -27,23 +25,12 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/util/archive",
             "//pkg/util/funcs",
             "//pkg/util/log",
-            "//pkg/version",
-            "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_cilium_ebpf//features",
-            "@com_github_datadog_agent_payload_v5//process",
-            "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_gopsutil//host",
-            "@com_github_datadog_nikos//apt",
-            "@com_github_datadog_nikos//cos",
-            "@com_github_datadog_nikos//rpm",
-            "@com_github_datadog_nikos//types",
-            "@com_github_datadog_nikos//wsl",
             "@com_github_moby_sys_mountinfo//:mountinfo",
             "@com_github_vishvananda_netns//:netns",
-            "@org_golang_x_exp//maps",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
@@ -67,23 +54,12 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/util/archive",
             "//pkg/util/funcs",
             "//pkg/util/log",
-            "//pkg/version",
-            "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_cilium_ebpf//features",
-            "@com_github_datadog_agent_payload_v5//process",
-            "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_gopsutil//host",
-            "@com_github_datadog_nikos//apt",
-            "@com_github_datadog_nikos//cos",
-            "@com_github_datadog_nikos//rpm",
-            "@com_github_datadog_nikos//types",
-            "@com_github_datadog_nikos//wsl",
             "@com_github_moby_sys_mountinfo//:mountinfo",
             "@com_github_vishvananda_netns//:netns",
-            "@org_golang_x_exp//maps",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -92,7 +68,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/util/funcs",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/funcs",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:solaris": [
@@ -110,8 +92,6 @@ go_test(
     name = "kernel_test",
     srcs = [
         "cpu_test.go",
-        "download_headers_test.go",
-        "find_headers_test.go",
         "lockdown_test.go",
         "platform_test.go",
         "proc_linux_test.go",
@@ -120,14 +100,10 @@ go_test(
     embed = [":kernel"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_datadog_nikos//apt",
-            "@com_github_datadog_nikos//types",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_datadog_nikos//apt",
-            "@com_github_datadog_nikos//types",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],

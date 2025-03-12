@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/asmscan",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/safeelf",
         "@org_golang_x_arch//arm64/arm64asm",
         "@org_golang_x_arch//x86/x86asm",
     ],

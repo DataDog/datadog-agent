@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "agent-package_test",
+    srcs = [
+        "agent-user_test.go",
+        "install_test.go",
+        "upgrade_test.go",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/components/datadog-installer",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/unix",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//require",
+    ],
+)

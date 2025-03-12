@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/proto",
         "//comp/core/workloadmeta/telemetry",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
         "//pkg/util/log",
-        "//pkg/util/proto",
     ],
 )

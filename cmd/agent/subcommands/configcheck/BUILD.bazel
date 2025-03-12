@@ -8,9 +8,11 @@ go_library(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/autodiscovery/integration",
         "//comp/core/config",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
         "//comp/core/secrets",
+        "//pkg/api/util",
         "//pkg/flare",
         "//pkg/util/fxutil",
         "@com_github_fatih_color//:color",

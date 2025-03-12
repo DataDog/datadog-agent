@@ -3,6 +3,9 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "seelog",
     srcs = ["seelog_config.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog",
-    visibility = ["//pkg/config/logs:__subpackages__"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog",
+    visibility = [
+        "//pkg/config/logs:__subpackages__",
+        "//pkg/util/log:__subpackages__",  # keep
+    ],
 )

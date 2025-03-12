@@ -8,6 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/networkpath/payload"],
 )
 
 go_test(

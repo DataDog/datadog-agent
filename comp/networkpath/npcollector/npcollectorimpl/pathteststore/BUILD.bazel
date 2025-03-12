@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/networkpath/npcollector/npcollectorimpl/common",
     ],
 )
@@ -16,10 +16,9 @@ go_test(
     srcs = ["pathteststore_test.go"],
     embed = [":pathteststore"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/mock",
         "//comp/networkpath/npcollector/npcollectorimpl/common",
-        "//pkg/util/fxutil",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
     ],
 )

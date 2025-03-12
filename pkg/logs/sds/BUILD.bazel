@@ -9,7 +9,10 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/sds",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/logs/message"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/logs/message",
+    ],
 )
 
 go_test(

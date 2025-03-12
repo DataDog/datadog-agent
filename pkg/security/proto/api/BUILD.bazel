@@ -1,6 +1,6 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
-load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 
 proto_library(
     name = "api_proto",
@@ -32,7 +32,7 @@ go_library(
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/rules",
         "@com_github_planetscale_vtprotobuf//protohelpers",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//encoding",
         "@org_golang_google_grpc//encoding/proto",

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "hostname_test",
+    srcs = ["imdsv2_transition_common_test.go"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "health_test",
     srcs = [
-        "health_commont_test.go",
+        "health_common_test.go",
         "health_nix_test.go",
         "health_win_test.go",
     ],
@@ -11,11 +11,12 @@ go_test(
         "//test/fakeintake/api",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
-        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/pkg/provisioners/aws/host",
         "@com_github_cenkalti_backoff//:backoff",
-        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
-        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
-        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

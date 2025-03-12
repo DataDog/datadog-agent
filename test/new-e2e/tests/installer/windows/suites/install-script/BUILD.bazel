@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "install-script_test",
+    srcs = ["agent-user_test.go"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//require",
+    ],
+)

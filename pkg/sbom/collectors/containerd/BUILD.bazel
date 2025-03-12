@@ -10,12 +10,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/sbom",
         "//pkg/sbom/collectors",
         "//pkg/util/containerd",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//pkg/util/trivy",
+        "@com_github_containerd_containerd//:containerd",
     ],
 )

@@ -5,18 +5,23 @@ go_library(
     srcs = [
         "agent_check_metadata.go",
         "collector.go",
+        "collector_endpoint_nopython.go",
+        "collector_endpoint_python.go",
         "collector_mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl",
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common",
+        "//comp/api/api/def",
         "//comp/collector/collector",
         "//comp/collector/collector/collectorimpl/internal/middleware",
         "//comp/core/autodiscovery/autodiscoveryimpl",
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
         "//comp/core/status",
+        "//comp/haagent/def",
         "//comp/metadata/host/hostimpl/utils",
         "//comp/metadata/runner/runnerimpl",
         "//pkg/aggregator/sender",
@@ -27,6 +32,8 @@ go_library(
         "//pkg/collector/runner",
         "//pkg/collector/runner/expvars",
         "//pkg/collector/scheduler",
+        "//pkg/sbom/collectors/host",
+        "//pkg/sbom/scanner",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/status/collector",
@@ -34,10 +41,57 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/hostname",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/python",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
@@ -55,8 +109,11 @@ go_test(
         "//comp/core",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/log/logimpl",
-        "//comp/serializer/compression/compressionimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/haagent/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
         "//pkg/aggregator",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -66,7 +123,7 @@ go_test(
         "//pkg/metrics",
         "//pkg/serializer",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",

@@ -16,11 +16,12 @@ go_library(
         "//pkg/serverless/invocationlifecycle",
         "//pkg/serverless/metrics",
         "//pkg/serverless/trigger",
+        "//pkg/trace/agent",
         "//pkg/trace/sampler",
         "//pkg/util/log",
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_datadog_appsec_internal_go//httpsec",
-        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
         "@com_github_json_iterator_go//:go",
     ],
 )

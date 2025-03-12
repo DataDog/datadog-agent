@@ -2,30 +2,25 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "proto",
-    srcs = [
-        "tagger.go",
-        "workloadmeta.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/util/proto",
+    srcs = ["proto.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/types",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/proto/pbgo/core",
-        "@org_golang_google_grpc//codes",
-        "@org_golang_google_grpc//status",
     ],
 )
 
 go_test(
     name = "proto_test",
-    srcs = ["workloadmeta_test.go"],
+    srcs = ["proto_test.go"],
     embed = [":proto"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/proto/pbgo/core",
         "//pkg/util/kubernetes",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
     ],
 )

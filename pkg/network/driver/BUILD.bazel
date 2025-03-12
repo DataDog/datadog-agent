@@ -16,6 +16,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//cmd/system-probe/config/types",
+            "//comp/core/telemetry",
             "//pkg/telemetry",
             "//pkg/util/log",
             "//pkg/util/winutil",

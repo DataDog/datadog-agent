@@ -5,30 +5,40 @@ go_library(
     srcs = [
         "config_endpoint.go",
         "docs.go",
+        "non_core_agents_sync_common.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/config-refresh",
-    visibility = ["//visibility:public"],
-)
-
-go_test(
-    name = "config-refresh_test",
-    srcs = ["non_core_agents_sync_test.go"],
-    embed = [":config-refresh"],
     embedsrcs = [
         "fixtures/config.yaml.tmpl",
         "fixtures/security-agent.yaml",
     ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/config-refresh",
+    visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/components",
-        "//test/new-e2e/pkg/e2e",
-        "//test/new-e2e/pkg/environments",
-        "//test/new-e2e/pkg/environments/aws/host",
-        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
-        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
-        "//test/new-e2e/tests/agent-shared-components/secretsutils",
-        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "config-refresh_test",
+    srcs = [
+        "non_core_agents_sync_nix_test.go",
+        "non_core_agents_sync_win_test.go",
+    ],
+    embed = [":config-refresh"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/agent-shared-components/secretsutils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

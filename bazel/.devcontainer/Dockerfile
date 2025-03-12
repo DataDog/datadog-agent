@@ -8,7 +8,7 @@ RUN groupadd --gid $USER_GID $USERNAME \
 # Install essential dependencies
 RUN apt-get update -y \
     && apt-get install -y \
-    curl git
+    curl git build-essential
 
 # Install bazelisk
 RUN curl -LO https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-arm64 \

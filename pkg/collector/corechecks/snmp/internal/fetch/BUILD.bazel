@@ -16,7 +16,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "//pkg/snmp/gosnmplib",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
@@ -30,7 +29,6 @@ go_test(
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

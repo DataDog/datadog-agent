@@ -9,6 +9,7 @@ go_library(
         "metadata.go",
         "metrics.go",
         "profile_definition.go",
+        "splitoids.go",
         "yaml_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
@@ -20,6 +21,7 @@ go_test(
     name = "profiledefinition_test",
     srcs = [
         "listmap_test.go",
+        "splitoids_test.go",
         "yaml_utils_test.go",
     ],
     embed = [":profiledefinition"],

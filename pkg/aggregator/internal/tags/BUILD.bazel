@@ -9,7 +9,7 @@ go_library(
         "//pkg/aggregator/ckey",
         "//pkg/tagset",
         "//pkg/telemetry",
-        "//pkg/util",
+        "//pkg/util/size",
         "@org_uber_go_atomic//:atomic",
     ],
 )

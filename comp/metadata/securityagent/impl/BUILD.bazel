@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["security_agent.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/securityagent/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/api/authtoken",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//comp/metadata/securityagent/def",
+        "//pkg/config/fetcher",
+        "//pkg/config/model",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/version",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["security_agent_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/config/fetcher",
+        "//pkg/config/model",
+        "//pkg/serializer/mocks",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

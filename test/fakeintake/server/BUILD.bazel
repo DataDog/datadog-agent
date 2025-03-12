@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "body.go",
         "http.go",
+        "redact.go",
         "server.go",
         "testhelper.go",
     ],
@@ -15,6 +16,7 @@ go_library(
         "//test/fakeintake/server/serverstore",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_google_uuid//:uuid",
         "@com_github_prometheus_client_golang//prometheus",
         "@com_github_prometheus_client_golang//prometheus/collectors",
         "@com_github_prometheus_client_golang//prometheus/promhttp",
@@ -52,7 +54,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "@com_github_stretchr_testify//require",
         ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
@@ -64,7 +72,10 @@ go_library(
 
 go_test(
     name = "server_test",
-    srcs = ["server_test.go"],
+    srcs = [
+        "redact_test.go",
+        "server_test.go",
+    ],
     embed = [":server"],
     embedsrcs = select({
         "@rules_go//go/platform:aix": [
@@ -100,7 +111,13 @@ go_test(
         "@rules_go//go/platform:openbsd": [
             "fixtures/log_bytes",
         ],
+        "@rules_go//go/platform:osx": [
+            "fixtures/log_bytes",
+        ],
         "@rules_go//go/platform:plan9": [
+            "fixtures/log_bytes",
+        ],
+        "@rules_go//go/platform:qnx": [
             "fixtures/log_bytes",
         ],
         "@rules_go//go/platform:solaris": [
@@ -175,7 +192,19 @@ go_test(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
+        "@rules_go//go/platform:osx": [
+            "//test/fakeintake/api",
+            "@com_github_benbjohnson_clock//:clock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//test/fakeintake/api",
+            "@com_github_benbjohnson_clock//:clock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//test/fakeintake/api",
             "@com_github_benbjohnson_clock//:clock",
             "@com_github_stretchr_testify//assert",

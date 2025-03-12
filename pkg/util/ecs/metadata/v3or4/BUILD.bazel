@@ -11,6 +11,8 @@ go_library(
     deps = [
         "//pkg/util/ecs/common",
         "//pkg/util/ecs/telemetry",
+        "//pkg/util/log",
+        "@com_github_cenkalti_backoff_v4//:backoff",
     ],
 )
 
@@ -21,6 +23,7 @@ go_test(
     embed = [":v3or4"],
     deps = [
         "//pkg/util/ecs/metadata/testutil",
+        "//pkg/util/pointer",
         "@com_github_stretchr_testify//require",
     ],
 )

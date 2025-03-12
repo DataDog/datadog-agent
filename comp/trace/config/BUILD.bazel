@@ -22,15 +22,17 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/tagger",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/origindetection",
         "//comp/core/tagger/types",
-        "//comp/otelcol/otlp",
+        "//comp/otelcol/otlp/configcheck",
         "//pkg/api/security",
         "//pkg/api/util",
-        "//pkg/config",
         "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/remote/client",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
@@ -46,42 +48,9 @@ go_library(
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
         "@com_github_google_uuid//:uuid",
         "@in_gopkg_yaml_v2//:yaml_v2",
-        "@io_opentelemetry_go_collector_component//componenttest",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@org_uber_go_fx//:fx",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:android": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/config/setup",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/config/setup",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/executable",
             "//pkg/util/winutil",
@@ -99,14 +68,17 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":config"],
+    embedsrcs = ["testdata/stringcode.go.tmpl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/mock",
         "//pkg/api/util",
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/trace/config",
         "//pkg/util/fxutil",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v2//:yaml_v2",

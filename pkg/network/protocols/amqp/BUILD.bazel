@@ -11,6 +11,9 @@ go_library(
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/protocols/testutil",
+        "//pkg/util/testutil",
+        "//pkg/util/testutil/docker",
         "@com_github_streadway_amqp//:amqp",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "kubelet",
     srcs = [
+        "conversion.go",
         "diagnosis.go",
         "doc.go",
         "json.go",
@@ -14,6 +15,7 @@ go_library(
         "kubelet_orchestrator.go",
         "metadata.go",
         "pod.go",
+        "podresources.go",
         "podwatcher.go",
         "telemetry.go",
         "types_kubelet.go",
@@ -21,7 +23,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//comp/core/config",
+        "//comp/core/tagger/types",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/errors",
         "//pkg/telemetry",
@@ -35,16 +40,22 @@ go_library(
         "@com_github_json_iterator_go//:go",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_client_go//kubernetes/scheme",
         "@io_k8s_client_go//transport",
+        "@io_k8s_kubelet//pkg/apis/podresources/v1:podresources",
         "@io_k8s_kubelet//pkg/apis/stats/v1alpha1",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
     ],
 )
 
 go_test(
     name = "kubelet_test",
     srcs = [
+        "conversion_test.go",
         "kubelet_common_test.go",
         "kubelet_hosts_test.go",
         "kubelet_orchestrator_test.go",
@@ -55,12 +66,19 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":kubelet"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/log",
+        "//pkg/util/log/setup",
         "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_utils//ptr",
     ],
 )

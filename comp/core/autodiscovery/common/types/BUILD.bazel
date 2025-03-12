@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "types",
-    srcs = ["prometheus.go"],
+    srcs = [
+        "consts.go",
+        "prometheus.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types",
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/log"],

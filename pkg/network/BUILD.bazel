@@ -11,8 +11,8 @@ go_library(
         "ephemeral_unsupported.go",
         "ephemeral_windows.go",
         "event_common.go",
-        "event_common_linux.go",
         "event_common_notlinux.go",
+        "event_common_string.go",
         "event_common_windows.go",
         "event_windows.go",
         "gateway_lookup.go",
@@ -28,21 +28,24 @@ go_library(
         "tags.go",
         "tags_linux.go",
         "tags_nolinux.go",
+        "time_converter_windows.go",
         "usm_connection_keys.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry",
         "//pkg/network/dns",
         "//pkg/network/protocols",
         "//pkg/network/protocols/http",
         "//pkg/network/protocols/kafka",
         "//pkg/network/protocols/postgres",
+        "//pkg/network/protocols/redis",
+        "//pkg/network/protocols/tls",
         "//pkg/network/slice",
         "//pkg/process/util",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_dustin_go_humanize//:go-humanize",
         "@com_github_vishvananda_netns//:netns",
         "@org_go4_intern//:intern",
@@ -51,7 +54,7 @@ go_library(
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/config",
+            "//pkg/config/setup",
             "//pkg/errors",
             "//pkg/network/config/sysctl",
             "//pkg/network/types",
@@ -81,7 +84,7 @@ go_library(
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config",
+            "//pkg/config/setup",
             "//pkg/errors",
             "//pkg/network/config/sysctl",
             "//pkg/network/types",
@@ -98,7 +101,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/network/types",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/network/types",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:solaris": [
@@ -107,6 +116,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/network/driver",
             "//pkg/network/types",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -126,7 +136,6 @@ go_test(
         "resolver_test.go",
         "route_cache_test.go",
         "state_intrahost_test.go",
-        "state_linux_test.go",
         "state_test.go",
         "usm_connection_keys_test.go",
     ],
@@ -143,7 +152,7 @@ go_test(
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/config",
+            "//pkg/config/setup",
             "//pkg/network/dns",
             "//pkg/network/protocols",
             "//pkg/network/protocols/http",
@@ -171,7 +180,7 @@ go_test(
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config",
+            "//pkg/config/setup",
             "//pkg/network/dns",
             "//pkg/network/protocols",
             "//pkg/network/protocols/http",
@@ -186,14 +195,20 @@ go_test(
         "@rules_go//go/platform:openbsd": [
             "//pkg/network/types",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/network/types",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/network/types",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/config",
+            "//pkg/config/setup",
             "//pkg/network/dns",
             "//pkg/network/protocols",
             "//pkg/network/protocols/http",

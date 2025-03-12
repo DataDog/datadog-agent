@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "service-test_test",
+    srcs = ["startstop_test.go"],
+    embedsrcs = [
+        "fixtures/datadog-pa-disabled.yaml",
+        "fixtures/datadog-ta-disabled.yaml",
+        "fixtures/datadog.yaml",
+        "fixtures/security-agent-disabled.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe-disabled.yaml",
+        "fixtures/system-probe-nofim.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

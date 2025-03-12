@@ -1,7 +1,0 @@
-load("@rules_go//go:def.bzl", "go_test")
-
-go_test(
-    name = "binarysize_test",
-    srcs = ["binary_size_test.go"],
-    deps = ["@com_github_stretchr_testify//assert"],
-)

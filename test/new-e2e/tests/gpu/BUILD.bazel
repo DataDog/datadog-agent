@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gpu",
+    srcs = ["provisioner.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/gpu",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners",
+        "@com_github_datadog_test_infra_definitions//common/utils",
+        "@com_github_datadog_test_infra_definitions//components/command",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/docker",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//components/remote",
+        "@com_github_datadog_test_infra_definitions//resources/aws",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+go_test(
+    name = "gpu_test",
+    srcs = ["gpu_test.go"],
+    embed = [":gpu"],
+    deps = [
+        "//pkg/util/testutil/flake",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

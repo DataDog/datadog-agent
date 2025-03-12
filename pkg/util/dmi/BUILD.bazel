@@ -50,7 +50,13 @@ go_test(
         "@rules_go//go/platform:openbsd": [
             "@com_github_stretchr_testify//assert",
         ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_stretchr_testify//assert",
+        ],
         "@rules_go//go/platform:plan9": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:solaris": [

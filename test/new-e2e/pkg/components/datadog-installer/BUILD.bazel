@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "datadog-installer",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/windows/common/pipeline",
+        "@com_github_datadog_test_infra_definitions//common",
+        "@com_github_datadog_test_infra_definitions//common/config",
+        "@com_github_datadog_test_infra_definitions//common/namer",
+        "@com_github_datadog_test_infra_definitions//components",
+        "@com_github_datadog_test_infra_definitions//components/command",
+        "@com_github_datadog_test_infra_definitions//components/remote",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

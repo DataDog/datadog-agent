@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jmxfetch",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/jmxfetch",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "jmxfetch_test",
+    srcs = ["jmxfetch_nix_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":jmxfetch"],
+    embedsrcs = ["testdata/docker-labels.yaml"],
+    deps = [
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/docker",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//common/config",
+        "@com_github_datadog_test_infra_definitions//common/utils",
+        "@com_github_datadog_test_infra_definitions//components/command",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps/jmxfetch",
+        "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
+        "@com_github_datadog_test_infra_definitions//components/docker",
+        "@com_github_datadog_test_infra_definitions//components/remote",
+        "@com_github_datadog_test_infra_definitions//resources/aws",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/secretsmanager",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

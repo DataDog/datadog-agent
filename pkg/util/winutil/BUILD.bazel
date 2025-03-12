@@ -6,13 +6,13 @@ go_library(
         "doc.go",
         "elevated.go",
         "eventlog.go",
-        "iisconfig.go",
         "process.go",
         "scmmonitor.go",
         "service.go",
         "shutil.go",
         "time.go",
         "users.go",
+        "winctrlhandler.go",
         "winmem.go",
         "winmem_386.go",
         "winmem_amd64.go",
@@ -25,7 +25,6 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/log",
-            "@com_github_fsnotify_fsnotify//:fsnotify",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",
@@ -39,7 +38,6 @@ go_library(
 go_test(
     name = "winutil_test",
     srcs = [
-        "iisconfig_test.go",
         "scmmonitor_test.go",
         "service_test.go",
         "time_test.go",

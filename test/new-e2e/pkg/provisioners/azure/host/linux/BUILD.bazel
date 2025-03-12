@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "linux",
+    srcs = [
+        "host.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/linux",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/pkg/utils/optional",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/datadog/updater",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//resources/azure",
+        "@com_github_datadog_test_infra_definitions//scenarios/azure/compute",
+        "@com_github_datadog_test_infra_definitions//scenarios/azure/fakeintake",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "sharedlibraries",
-    srcs = ["types_linux.go"],
+    srcs = [
+        "libset.go",
+        "types_linux.go",
+    ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries",
     visibility = ["//visibility:public"],

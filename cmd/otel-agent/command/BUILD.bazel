@@ -9,6 +9,7 @@ go_library(
         "//cmd/otel-agent/subcommands",
         "//cmd/otel-agent/subcommands/run",
         "//pkg/cli/subcommands/version",
+        "@com_github_kouhin_envflag//:envflag",
         "@com_github_spf13_cobra//:cobra",
         "@io_opentelemetry_go_collector_featuregate//:featuregate",
     ],

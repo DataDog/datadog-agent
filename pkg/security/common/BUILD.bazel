@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/logs/client",
         "//pkg/logs/client/http",
         "//pkg/util/cloudproviders/azure",

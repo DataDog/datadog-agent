@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/metadata/runner",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
@@ -20,10 +20,13 @@ go_test(
     embed = [":runnerimpl"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
         "//comp/metadata/runner",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxtest",
     ],

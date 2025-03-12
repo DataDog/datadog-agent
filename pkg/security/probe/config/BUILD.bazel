@@ -7,7 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/config",
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/ebpf",
         "//pkg/util/filesystem",
         "//pkg/util/log",

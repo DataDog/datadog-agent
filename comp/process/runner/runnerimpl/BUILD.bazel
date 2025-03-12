@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/core/sysprobeconfig",
         "//comp/process/agent",
         "//comp/process/hostinfo",
@@ -28,8 +28,9 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/log",
-        "//comp/core/workloadmeta",
+        "//comp/core/log/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
         "//comp/process/containercheck/containercheckimpl",
         "//comp/process/hostinfo/hostinfoimpl",
         "//comp/process/processcheck/processcheckimpl",

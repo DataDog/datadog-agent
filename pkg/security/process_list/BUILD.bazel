@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "process_list",
+    srcs = [
+        "exec_node.go",
+        "process_list.go",
+        "process_node.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/process_list",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/process/procutil",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/process/procutil",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

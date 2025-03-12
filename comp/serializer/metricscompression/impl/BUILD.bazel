@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["metricscompression.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/serializer/metricscompression/def",
+        "//pkg/util/compression/impl-zlib",
+        "//pkg/util/compression/selector",
+    ],
+)

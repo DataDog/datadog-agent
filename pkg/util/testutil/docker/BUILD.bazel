@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "docker",
+    srcs = [
+        "config.go",
+        "get.go",
+        "run.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/docker",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/testutil"],
+)

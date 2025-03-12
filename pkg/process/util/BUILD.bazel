@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//pkg/util/docker",
         "//pkg/util/filesystem",
+        "//pkg/util/sync",
         "@org_go4_netipx//:netipx",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -50,7 +51,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/util/log",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/log",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:solaris": [

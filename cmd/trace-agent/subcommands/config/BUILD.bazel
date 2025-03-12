@@ -11,7 +11,7 @@ go_library(
         "//comp/core/secrets",
         "//pkg/config/fetcher",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ],

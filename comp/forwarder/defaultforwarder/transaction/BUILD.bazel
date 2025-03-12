@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//pkg/telemetry",
         "//pkg/util/scrubber",
     ],
@@ -23,10 +23,8 @@ go_test(
     srcs = ["transaction_test.go"],
     embed = [":transaction"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
-        "//pkg/config/model",
-        "//pkg/util/fxutil",
+        "//comp/core/log/mock",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )

@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "cached_entity.go",
+        "doc.go",
+        "dump.go",
+        "flare_provider.go",
+        "store.go",
+        "workloadmeta.go",
+        "workloadmeta_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/mock",
+        "//comp/core/workloadmeta/telemetry",
+        "//comp/def",
+        "//pkg/errors",
+        "//pkg/status/health",
+        "//pkg/util/common",
+        "//pkg/util/fxutil",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@com_github_cenkalti_backoff//:backoff",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "dump_test.go",
+        "store_example_test.go",
+        "store_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/collectors/util",
+        "//comp/core/workloadmeta/def",
+        "//comp/def",
+        "//pkg/errors",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@org_uber_go_fx//:fx",
+    ],
+)

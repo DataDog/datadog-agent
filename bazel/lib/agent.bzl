@@ -2,32 +2,30 @@
 """
 
 AGENT_BUILD_TAGS = [
-        # Full list of known tags borrowed from /tasks/build_tags.py
-        "apm",
-        "consul",
-        "containerd",
-        "cri",
-        "datadog.no_waf",
-        "docker",
-        "ec2",
-        "etcd",
-        "gce",
-        "jetson",
-        "jmx",
-        "kubeapiserver",
-        "kubelet",
-        "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
-        "oracle",
-        "orchestrator",
-        "otlp",
-        "podman",
-        "process",
-        "python",
-        "systemd",
-        "trivy",
-        "zk",
-        "zlib",
-        "zstd",
+    # Full list of known tags borrowed from /tasks/build_tags.py
+    "consul",
+    "containerd",
+    "cri",
+    "datadog.no_waf",
+    "docker",
+    "ec2",
+    "etcd",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+    "no_dynamic_plugins",
+    "oracle",
+    "orchestrator",
+    "otlp",
+    "podman",
+    "python",
+    "systemd",
+    "trivy",
+    "zk",
+    "zlib",
+    "zstd",
 ]
 
 REPO_PATH = "github.com/DataDog/datadog-agent"

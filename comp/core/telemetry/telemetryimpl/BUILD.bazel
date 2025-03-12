@@ -10,7 +10,7 @@ go_library(
         "simple_prom_gauge.go",
         "simple_prom_histogram.go",
         "telemetry.go",
-        "telemtry_mock.go",
+        "telemetry_mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl",
     visibility = ["//visibility:public"],
@@ -21,9 +21,6 @@ go_library(
         "@com_github_prometheus_client_golang//prometheus/collectors",
         "@com_github_prometheus_client_golang//prometheus/promhttp",
         "@com_github_prometheus_client_model//go",
-        "@io_opentelemetry_go_otel_exporters_prometheus//:prometheus",
-        "@io_opentelemetry_go_otel_metric//:metric",
-        "@io_opentelemetry_go_otel_sdk_metric//:metric",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -39,7 +36,7 @@ go_test(
         "//comp/core/telemetry",
         "//pkg/util/fxutil",
         "@com_github_prometheus_client_golang//prometheus",
-        "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

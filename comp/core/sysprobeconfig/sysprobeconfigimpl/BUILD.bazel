@@ -14,9 +14,10 @@ go_library(
         "//cmd/system-probe/config",
         "//cmd/system-probe/config/types",
         "//comp/core/sysprobeconfig",
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
         "@org_uber_go_fx//:fx",
     ],
 )

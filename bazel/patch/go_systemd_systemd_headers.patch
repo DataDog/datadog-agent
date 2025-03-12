@@ -1,0 +1,10 @@
+--- sdjournal/BUILD.bazel
++++ sdjournal/BUILD.bazel
+@@ -11,6 +11,7 @@
+     importpath = "github.com/coreos/go-systemd/sdjournal",
+     visibility = ["//visibility:public"],
+     deps = ["@com_github_coreos_pkg//dlopen"],
++    cdeps = ["@@//deps/systemd_headers"],
+ )
+ 
+ alias(

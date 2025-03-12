@@ -11,6 +11,6 @@ go_library(
     deps = [
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/tests/windows/common",
-        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os",
     ],
 )

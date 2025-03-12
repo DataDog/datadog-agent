@@ -12,7 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/auditor",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/logs/agent/config",
+        "//pkg/config/setup",
         "//pkg/logs/message",
         "//pkg/status/health",
         "//pkg/util/log",

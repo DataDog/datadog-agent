@@ -40,63 +40,8 @@ go_library(
         "//rtloader",  # keep
     ],
     cgo = True,
+    # keep: This gets updated with #cgo directives that don't seem relevant for the Bazel build
     clinkopts = select({
-        "@rules_go//go/platform:aix": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:android": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:ios": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:js": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:linux": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
-            "-ldatadog-agent-rtloader -ldl",
-        ],
-        "@rules_go//go/platform:windows": [
-            "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static",
-            "-ldatadog-agent-rtloader -lstdc++ -static",
-        ],
         "//conditions:default": [],
     }),
     # keep
@@ -108,8 +53,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/tagger",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/tagger/mock",
         "//comp/core/tagger/types",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/logs/integrations/def",
+        "//comp/metadata/host/hostimpl/hosttags",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
@@ -119,7 +70,9 @@ go_library(
         "//pkg/collector/check/stats",
         "//pkg/collector/externalhost",
         "//pkg/collector/loaders",
-        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/diagnose/diagnosis",
         "//pkg/metrics",
@@ -129,7 +82,6 @@ go_library(
         "//pkg/persistentcache",
         "//pkg/tagset",
         "//pkg/telemetry",
-        "//pkg/util",
         "//pkg/util/cache",
         "//pkg/util/containers",
         "//pkg/util/executable",
@@ -137,15 +89,17 @@ go_library(
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
+        "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/version",
-        "@com_github_cihub_seelog//:seelog",
+        "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v2//:yaml_v2",
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@com_github_go_ole_go_ole//:go-ole",
         ],
         "//conditions:default": [],

@@ -18,8 +18,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/utils/clients",
-        "@com_github_aws_aws_sdk_go_v2//service/ssm",
-        "@com_github_aws_aws_sdk_go_v2//service/ssm/types",
+        "//test/new-e2e/pkg/utils/common",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@com_github_datadog_test_infra_definitions//components",
         "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

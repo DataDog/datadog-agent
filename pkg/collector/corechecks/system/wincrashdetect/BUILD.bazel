@@ -11,55 +11,63 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/collector/check",
-            "//pkg/util/optional",
+            "//pkg/util/option",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/autodiscovery/integration",
@@ -70,7 +78,7 @@ go_library(
             "//pkg/metrics/event",
             "//pkg/util/crashreport",
             "//pkg/util/log",
-            "//pkg/util/optional",
+            "//pkg/util/option",
             "@in_gopkg_yaml_v2//:yaml_v2",
             "@org_golang_x_sys//windows/registry",
         ],
@@ -84,12 +92,14 @@ go_test(
     embed = [":wincrashdetect"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//cmd/system-probe/api/server",
             "//cmd/system-probe/utils",
             "//pkg/aggregator/mocksender",
             "//pkg/collector/corechecks/system/wincrashdetect/probe",
-            "//pkg/config",
+            "//pkg/config/mock",
             "//pkg/metrics/event",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

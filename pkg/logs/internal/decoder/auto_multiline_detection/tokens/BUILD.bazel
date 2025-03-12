@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tokens",
+    srcs = ["tokens.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens",
+    visibility = ["//pkg/logs:__subpackages__"],
+)

@@ -7,10 +7,12 @@ go_library(
         "component_mock.go",
         "statsd.go",
         "statsd_mock.go",
+        "statsd_otel.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/otelcol/otlp/components/metricsclient",
         "//pkg/util/fxutil",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_fx//:fx",

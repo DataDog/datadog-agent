@@ -15,7 +15,7 @@ go_library(
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/report",
         "//pkg/snmp/utils",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

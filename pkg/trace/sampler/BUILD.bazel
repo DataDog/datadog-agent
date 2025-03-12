@@ -54,7 +54,7 @@ go_test(
         "@io_opentelemetry_go_collector_consumer//:consumer",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
-        "@io_opentelemetry_go_collector_processor//processortest",
+        "@io_opentelemetry_go_collector_processor_processortest//:processortest",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ],

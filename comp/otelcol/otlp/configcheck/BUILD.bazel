@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "configcheck",
+    srcs = ["configcheck.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/setup",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+    ],
+)

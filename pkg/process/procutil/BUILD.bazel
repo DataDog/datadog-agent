@@ -4,7 +4,7 @@ go_library(
     name = "procutil",
     srcs = [
         "data_scrubber.go",
-        "data_scrubber_notwin.go",
+        "data_scrubber_fallback.go",
         "data_scrubber_windows.go",
         "dirent_linux.go",
         "option_unsupported.go",
@@ -26,21 +26,21 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/util/filesystem",
             "//pkg/util/kernel",
-            "//pkg/util/native",
+            "//pkg/util/sync",
             "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/filesystem",
             "//pkg/util/kernel",
-            "//pkg/util/native",
+            "//pkg/util/sync",
             "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/pdhutil",
             "//pkg/util/winutil",
-            "@com_github_shirou_gopsutil_v3//process",
+            "@com_github_shirou_gopsutil_v4//process",
             "@com_github_shirou_w32//:w32",
             "@org_golang_x_sys//windows",
         ],
@@ -51,7 +51,9 @@ go_library(
 go_test(
     name = "procutil_test",
     srcs = [
+        "data_scrubber_fallback_test.go",
         "data_scrubber_test.go",
+        "data_scrubber_windows_test.go",
         "process_linux_test.go",
         "process_posix_test.go",
         "process_windows_test.go",
@@ -61,6 +63,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/util/testutil/flake",
             "@com_github_cihub_seelog//:seelog",
             "@com_github_datadog_gopsutil//host",
             "@com_github_datadog_gopsutil//process",
@@ -76,6 +79,7 @@ go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/util/testutil/flake",
             "@com_github_cihub_seelog//:seelog",
             "@com_github_datadog_gopsutil//host",
             "@com_github_datadog_gopsutil//process",

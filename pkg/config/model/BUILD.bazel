@@ -4,6 +4,7 @@ go_library(
     name = "model",
     srcs = [
         "config_overrides.go",
+        "config_overrides_test_helpers.go",
         "doc.go",
         "types.go",
         "viper.go",
@@ -15,9 +16,6 @@ go_library(
         "//pkg/util/log",
         "@com_github_datadog_viper//:viper",
         "@com_github_mohae_deepcopy//:deepcopy",
-        "@com_github_spf13_afero//:afero",
-        "@com_github_spf13_pflag//:pflag",
-        "@org_golang_x_exp//slices",
     ],
 )
 

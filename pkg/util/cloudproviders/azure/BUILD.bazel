@@ -9,7 +9,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/util/cachedfetch",
         "//pkg/util/hostname/validate",
@@ -22,7 +23,8 @@ go_test(
     srcs = ["azure_test.go"],
     embed = [":azure"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

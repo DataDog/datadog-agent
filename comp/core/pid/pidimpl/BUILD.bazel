@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/pid/pidimpl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/core/pid",
         "//pkg/pidfile",
         "//pkg/util/fxutil",

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "bound-port",
@@ -12,6 +12,13 @@ go_library(
     deps = [
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/tests/windows/common",
-        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os",
     ],
+)
+
+go_test(
+    name = "bound-port_test",
+    srcs = ["boundport_test.go"],
+    embed = [":bound-port"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

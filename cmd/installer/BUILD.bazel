@@ -8,7 +8,9 @@ go_library(
     deps = [
         "//cmd/installer/command",
         "//cmd/installer/subcommands",
-        "//cmd/internal/runcmd",
+        "//pkg/fleet/installer/errors",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_dig//:dig",
     ],
 )
 

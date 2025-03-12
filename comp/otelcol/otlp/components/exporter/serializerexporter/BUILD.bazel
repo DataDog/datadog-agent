@@ -20,10 +20,10 @@ go_library(
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_metrics//:metrics",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:quantile",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry//:resourcetotelemetry",
         "@com_github_tinylib_msgp//msgp",
         "@io_opentelemetry_go_collector_component//:component",
-        "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_consumer//:consumer",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter//exporterhelper",
@@ -35,7 +35,6 @@ go_library(
 go_test(
     name = "serializerexporter_test",
     srcs = [
-        "config_test.go",
         "consumer_test.go",
         "exporter_test.go",
         "factory_test.go",
@@ -54,10 +53,9 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
-        "@io_opentelemetry_go_collector_component//componenttest",
-        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_exporter//:exporter",
-        "@io_opentelemetry_go_collector_exporter//exportertest",
+        "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
         "@io_opentelemetry_go_collector_pdata//pmetric",
     ],
 )

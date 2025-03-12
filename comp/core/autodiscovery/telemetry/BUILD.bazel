@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/telemetry",
+        "//comp/core/telemetry",
         "@com_github_prometheus_client_golang//prometheus",
     ],
 )

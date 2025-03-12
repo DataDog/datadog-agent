@@ -9,7 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serverless/apikey",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/util/http",
         "//pkg/util/log",
         "@com_github_aws_aws_sdk_go_v2//aws/arn",

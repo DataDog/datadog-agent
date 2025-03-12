@@ -5,10 +5,7 @@ go_library(
     srcs = ["config_validate_enrich.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
-    deps = [
-        "//pkg/networkdevice/profile/profiledefinition",
-        "//pkg/util/log",
-    ],
+    deps = ["//pkg/networkdevice/profile/profiledefinition"],
 )
 
 go_test(
@@ -17,8 +14,6 @@ go_test(
     embed = [":configvalidation"],
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",
-        "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_stretchr_testify//assert",
     ],
 )

@@ -7,20 +7,20 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/eventmonitor/consumers",
             "//pkg/network/protocols/telemetry",
             "//pkg/runtime",
             "//pkg/util/kernel",
             "//pkg/util/log",
-            "@com_github_cihub_seelog//:seelog",
             "@com_github_vishvananda_netlink//:netlink",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/eventmonitor/consumers",
             "//pkg/network/protocols/telemetry",
             "//pkg/runtime",
             "//pkg/util/kernel",
             "//pkg/util/log",
-            "@com_github_cihub_seelog//:seelog",
             "@com_github_vishvananda_netlink//:netlink",
             "@org_uber_go_atomic//:atomic",
         ],

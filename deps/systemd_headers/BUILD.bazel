@@ -1,0 +1,6 @@
+cc_import(
+    name = "systemd_headers",
+    hdrs = ["@systemd//:headers"],
+    includes = ["external/+_repo_rules+systemd/src"],
+    visibility = ["//visibility:public"],
+)

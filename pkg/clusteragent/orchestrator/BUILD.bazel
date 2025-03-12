@@ -9,7 +9,7 @@ go_library(
     deps = [
         "//comp/core/status",
         "//pkg/clusteragent/clusterchecks",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/orchestrator/model",

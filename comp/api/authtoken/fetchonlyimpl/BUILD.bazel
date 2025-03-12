@@ -11,10 +11,9 @@ go_library(
     deps = [
         "//comp/api/authtoken",
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//pkg/api/util",
         "//pkg/util/fxutil",
-        "//pkg/util/optional",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -25,7 +24,9 @@ go_test(
     embed = [":fetchonlyimpl"],
     deps = [
         "//comp/core/config",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/api/security/cert",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

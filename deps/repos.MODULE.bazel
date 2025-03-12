@@ -1,0 +1,14 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# systemd
+SYSTEMD_VERSION = "253"
+
+http_archive(
+    name = "systemd",
+    build_file_content = """
+filegroup(name = "headers", srcs = glob(["src/systemd/*.h"]), visibility = ["//visibility:public"])
+""",
+    sha256 = "acbd86d42ebc2b443722cb469ad215a140f504689c7a9133ecf91b235275a491",
+    strip_prefix = "systemd-{0}".format(SYSTEMD_VERSION),
+    url = "https://github.com/systemd/systemd/archive/refs/tags/v{0}.tar.gz".format(SYSTEMD_VERSION),
+)

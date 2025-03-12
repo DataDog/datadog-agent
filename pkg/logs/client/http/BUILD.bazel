@@ -4,6 +4,7 @@ go_library(
     name = "http",
     srcs = [
         "destination.go",
+        "sync_destination.go",
         "test_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/client/http",
@@ -19,6 +20,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
+        "@org_golang_x_net//http2",
     ],
 )
 
@@ -28,9 +30,10 @@ go_test(
     embed = [":http"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config/model",
+        "//pkg/config/mock",
         "//pkg/logs/client",
         "//pkg/logs/message",
+        "//pkg/logs/metrics",
         "@com_github_stretchr_testify//assert",
     ],
 )

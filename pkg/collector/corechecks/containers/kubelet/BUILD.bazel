@@ -7,7 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
@@ -23,6 +24,6 @@ go_library(
         "//pkg/util/containers",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
     ],
 )

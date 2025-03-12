@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "consumers",
+    srcs = [
+        "doc.go",
+        "process.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/eventmonitor",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/eventmonitor",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/eventmonitor",
+            "//pkg/security/secl/model",
+        ],
+        "//conditions:default": [],
+    }),
+)

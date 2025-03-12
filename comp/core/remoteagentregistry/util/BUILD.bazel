@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = ["sanitize.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "util_test",
+    srcs = ["sanitize_test.go"],
+    embed = [":util"],
+)

@@ -9,7 +9,7 @@ go_library(
         "//cmd/process-agent/command",
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/core/sysprobeconfig",
         "//comp/process",
         "//pkg/process/checks",

@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubelet",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
         "//pkg/util/hostname/validate",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
@@ -23,7 +23,8 @@ go_test(
     srcs = ["hostname_test.go"],
     embed = [":kubelet"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/mock",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
         "@com_github_stretchr_testify//assert",

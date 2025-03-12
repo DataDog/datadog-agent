@@ -4,6 +4,8 @@ go_library(
     name = "config",
     srcs = [
         "config.go",
+        "config_linux.go",
+        "config_others.go",
         "dump.go",
         "enum_string.go",
     ],
@@ -12,7 +14,8 @@ go_library(
     deps = [
         "//cmd/system-probe/config",
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/logs/client/http",
         "//pkg/security/probe/config",
@@ -21,5 +24,6 @@ go_library(
         "//pkg/security/secl/model",
         "//pkg/security/seclog",
         "//pkg/security/utils",
+        "//pkg/util/fargate",
     ],
 )

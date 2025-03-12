@@ -20,3 +20,14 @@ go_library(
         "@org_uber_go_fx//:fx",
     ],
 )
+
+go_library(
+    name = "fx-mock",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/rdnsquerier/mock",
+        "//pkg/util/fxutil",
+    ],
+)

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "network-path-integration_test",
+    srcs = [
+        "common_test.go",
+        "netpath_int_nix_test.go",
+        "netpath_int_win_test.go",
+    ],
+    embedsrcs = [
+        "fixtures/network_path.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tagstore",
+    srcs = [
+        "entity_tags.go",
+        "source_tags.go",
+        "tagstore.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/tagstore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/generic_store",
+        "//comp/core/tagger/subscriber",
+        "//comp/core/tagger/telemetry",
+        "//comp/core/tagger/types",
+        "//pkg/status/health",
+        "//pkg/tagset",
+        "//pkg/util/flavor",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "tagstore_test",
+    srcs = [
+        "entity_tags_test.go",
+        "tagstore_bench_test.go",
+        "tagstore_test.go",
+    ],
+    embed = [":tagstore"],
+    deps = [
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/telemetry",
+        "//comp/core/tagger/types",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

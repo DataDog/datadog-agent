@@ -18,7 +18,7 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/cloudproviders",
         "//pkg/util/log",
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "@com_github_beevik_ntp//:ntp",
         "@in_gopkg_yaml_v2//:yaml_v2",
     ] + select({
@@ -41,7 +41,7 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/metrics/servicecheck",
         "//pkg/util/cloudproviders",
         "@com_github_beevik_ntp//:ntp",

@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface",
-        "//comp/logs/agent/config",
+        "//pkg/config/setup",
         "//pkg/logs/message",
     ],
 )

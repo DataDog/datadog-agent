@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "loadstore",
+    srcs = [
+        "doc.go",
+        "entity.go",
+        "store.go",
+        "storeimpl.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//gogen",
+    ],
+)
+
+go_test(
+    name = "loadstore_test",
+    srcs = ["store_test.go"],
+    embed = [":loadstore"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

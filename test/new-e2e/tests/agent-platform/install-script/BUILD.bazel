@@ -6,7 +6,7 @@ go_test(
     deps = [
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
-        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/pkg/provisioners/aws/host",
         "//test/new-e2e/pkg/utils/e2e/client",
         "//test/new-e2e/tests/agent-platform/common",
         "//test/new-e2e/tests/agent-platform/common/file-manager",
@@ -14,7 +14,7 @@ go_test(
         "//test/new-e2e/tests/agent-platform/install",
         "//test/new-e2e/tests/agent-platform/install/installparams",
         "//test/new-e2e/tests/agent-platform/platforms",
-        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
         "@com_github_stretchr_testify//require",
     ],
 )

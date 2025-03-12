@@ -17,7 +17,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/forwarder/defaultforwarder/transaction",
-        "//comp/serializer/compression",
+        "//comp/serializer/metricscompression/def",
         "//pkg/aggregator/ckey",
         "//pkg/metrics",
         "//pkg/metrics/event",
@@ -50,9 +50,9 @@ go_test(
     embed = [":metrics"],
     deps = [
         "//comp/forwarder/defaultforwarder/transaction",
-        "//comp/serializer/compression/compressionimpl",
+        "//comp/serializer/metricscompression/impl",
+        "//pkg/config/mock",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
@@ -61,6 +61,7 @@ go_test(
         "//pkg/serializer/split",
         "//pkg/tagger/types",
         "//pkg/tagset",
+        "//pkg/util/compression",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_gogo_protobuf//proto",
         "@com_github_json_iterator_go//:go",

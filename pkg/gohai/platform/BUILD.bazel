@@ -23,7 +23,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/gohai/utils",
-            "@com_github_cihub_seelog//:seelog",
+            "//pkg/util/log",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -37,7 +37,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/gohai/utils",
-            "@com_github_cihub_seelog//:seelog",
+            "//pkg/util/log",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:js": [
@@ -53,7 +53,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//pkg/gohai/utils",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/gohai/utils",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/gohai/utils",
         ],
         "@rules_go//go/platform:solaris": [

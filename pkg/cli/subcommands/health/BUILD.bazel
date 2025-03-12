@@ -8,10 +8,9 @@ go_library(
     deps = [
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
         "//pkg/api/util",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/status/health",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",

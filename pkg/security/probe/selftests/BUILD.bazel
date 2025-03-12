@@ -31,7 +31,7 @@ go_library(
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:windows": [
-            "@org_golang_x_sys//windows/registry",
+            "//pkg/security/utils/pathutils",
         ],
         "//conditions:default": [],
     }),

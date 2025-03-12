@@ -1,0 +1,176 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "vm-metrics_lib",
+    srcs = ["vm-metrics.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/vm-metrics",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_digitalocean_go_libvirt//socket/dialers",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "vm-metrics",
+    embed = [":vm-metrics_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "vm-metrics_test",
+    srcs = ["vm-metrics_test.go"],
+    embed = [":vm-metrics_lib"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/trace/teststatsd",
+            "@com_github_digitalocean_go_libvirt//:go-libvirt",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

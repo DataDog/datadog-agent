@@ -22,8 +22,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/docker",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/workloadmeta",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/diagnose/diagnosis",
         "//pkg/errors",
         "//pkg/util/cache",

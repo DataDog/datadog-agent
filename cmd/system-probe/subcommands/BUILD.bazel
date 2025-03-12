@@ -11,6 +11,7 @@ go_library(
         "//cmd/system-probe/subcommands/debug",
         "//cmd/system-probe/subcommands/modrestart",
         "//cmd/system-probe/subcommands/run",
+        "//cmd/system-probe/subcommands/runtime",
         "//cmd/system-probe/subcommands/version",
     ],
 )

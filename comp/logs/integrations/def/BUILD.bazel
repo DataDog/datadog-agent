@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/integrations/def",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/autodiscovery/integration"],
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["endpoint.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/util/http",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)

@@ -13,9 +13,9 @@ go_library(
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
         "//comp/core/workloadmeta/collectors/util",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
         "//pkg/errors",
         "//pkg/util/ecs",
         "//pkg/util/ecs/metadata",
@@ -40,7 +40,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":ecs"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/ecs/metadata/testutil",
         "//pkg/util/ecs/metadata/v1:metadata",
         "//pkg/util/ecs/metadata/v3or4",

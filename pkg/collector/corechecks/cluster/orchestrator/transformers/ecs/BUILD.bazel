@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger",
+        "//comp/core/tagger/def",
         "//comp/core/tagger/types",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/orchestrator",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
@@ -21,7 +21,9 @@ go_test(
     srcs = ["task_test.go"],
     embed = [":ecs"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/mock",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//require",
     ],

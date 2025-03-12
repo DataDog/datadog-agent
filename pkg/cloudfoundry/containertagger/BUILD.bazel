@@ -7,9 +7,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/utils",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//comp/metadata/host/hostimpl/hosttags",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/util/cloudproviders/cloudfoundry",
         "//pkg/util/log",
         "@org_cloudfoundry_code_garden//:garden",

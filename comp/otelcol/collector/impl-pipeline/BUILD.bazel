@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl-pipeline",
+    srcs = [
+        "flare_filler.go",
+        "pipeline.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/otlp.tmpl",
+        "status_templates/otlpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl-pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/authtoken",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/def",
+        "//comp/metadata/inventoryagent",
+        "//comp/otelcol/collector/def",
+        "//comp/otelcol/ddflareextension/def",
+        "//comp/otelcol/logsagentpipeline",
+        "//comp/otelcol/otlp",
+        "//comp/otelcol/otlp/configcheck",
+        "//comp/otelcol/otlp/datatype",
+        "//pkg/api/util",
+        "//pkg/logs/message",
+        "//pkg/serializer",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "impl-pipeline_test",
+    srcs = [
+        "flare_filler_test.go",
+        "status_test.go",
+    ],
+    embed = [":impl-pipeline"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

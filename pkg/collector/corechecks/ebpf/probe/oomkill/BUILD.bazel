@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "oomkill",
-    srcs = ["oom_kill_stub.go"],
+    srcs = [
+        "c_types_linux.go",
+        "oom_kill_stub.go",
+    ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill",
     visibility = ["//visibility:public"],

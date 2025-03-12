@@ -7,7 +7,6 @@ go_library(
         "profile.go",
         "profile_cache.go",
         "profile_initconfig.go",
-        "profile_json_bundle.go",
         "profile_resolver.go",
         "profile_yaml.go",
         "sysobjectid_resolver.go",
@@ -18,7 +17,7 @@ go_library(
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/configvalidation",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/networkdevice/utils",
         "//pkg/util/filesystem",
@@ -31,7 +30,6 @@ go_library(
 go_test(
     name = "profile_test",
     srcs = [
-        "profile_json_bundle_test.go",
         "profile_resolver_test.go",
         "profile_test.go",
         "profile_yaml_test.go",
@@ -40,10 +38,9 @@ go_test(
     ],
     embed = [":profile"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

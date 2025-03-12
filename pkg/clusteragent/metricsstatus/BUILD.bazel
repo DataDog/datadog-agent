@@ -9,8 +9,6 @@ go_library(
     deps = [
         "//comp/core/status",
         "//pkg/clusteragent/autoscaling/custommetrics",
-        "//pkg/clusteragent/autoscaling/externalmetrics",
-        "//pkg/config",
         "//pkg/util/kubernetes/apiserver",
     ],
 )

@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "uprobes",
+    srcs = [
+        "doc.go",
+        "procfs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/uprobes",
+    visibility = ["//visibility:public"],
+)

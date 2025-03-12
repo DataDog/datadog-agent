@@ -10,6 +10,7 @@ go_library(
         "//pkg/serverless/flush",
         "//pkg/serverless/invocationlifecycle",
         "//pkg/serverless/metrics",
+        "//pkg/serverless/proc",
         "//pkg/serverless/registration",
         "//pkg/serverless/tags",
         "//pkg/util/log",
@@ -24,7 +25,6 @@ go_test(
     deps = [
         "//pkg/serverless/daemon",
         "//pkg/serverless/invocationlifecycle",
-        "//pkg/serverless/trace",
         "//pkg/trace/testutil",
         "@com_github_stretchr_testify//assert",
     ],

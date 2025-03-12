@@ -4,6 +4,7 @@ go_library(
     name = "admission",
     srcs = [
         "api_discovery.go",
+        "doc.go",
         "start.go",
         "status.go",
         "util.go",
@@ -12,11 +13,14 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/config",
         "//comp/core/status",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/admission/controllers/secret",
         "//pkg/clusteragent/admission/controllers/webhook",
-        "//pkg/config",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
@@ -28,6 +32,7 @@ go_library(
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//kubernetes",
         "@io_k8s_client_go//tools/cache",
+        "@org_golang_x_mod//semver",
     ],
 )
 

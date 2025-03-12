@@ -10,6 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/api/def",
+        "//comp/api/api/utils/stream",
         "//comp/core/hostname/hostnameinterface",
         "//comp/forwarder/eventplatform",
         "//comp/forwarder/eventplatformreceiver",

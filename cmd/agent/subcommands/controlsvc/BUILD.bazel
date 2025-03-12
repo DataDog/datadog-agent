@@ -53,7 +53,15 @@ go_library(
             "//cmd/agent/command",
             "@com_github_spf13_cobra//:cobra",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/agent/command",
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/agent/command",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/agent/command",
             "@com_github_spf13_cobra//:cobra",
         ],

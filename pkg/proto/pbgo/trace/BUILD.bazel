@@ -8,7 +8,6 @@ go_library(
         "agent_payload_vtproto.pb.go",
         "decoder_bytes.go",
         "decoder_v05.go",
-        "hook.go",
         "span.pb.go",
         "span_gen.go",
         "span_utils.go",
@@ -26,6 +25,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
     visibility = ["//visibility:public"],
     deps = [
+        "@com_github_planetscale_vtprotobuf//protohelpers",
         "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_protobuf//reflect/protoreflect",
         "@org_golang_google_protobuf//runtime/protoimpl",
@@ -38,7 +38,6 @@ go_test(
         "agent_payload_gen_test.go",
         "decoder_bytes_test.go",
         "decoder_v05_test.go",
-        "hook_test.go",
         "span_gen_modifs_test.go",
         "span_gen_test.go",
         "stats_gen_test.go",

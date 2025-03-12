@@ -61,7 +61,17 @@ go_library(
             "//pkg/cli/subcommands/taggerlist",
             "@com_github_spf13_cobra//:cobra",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/cluster-agent/command",
+            "//pkg/cli/subcommands/taggerlist",
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/cluster-agent/command",
+            "//pkg/cli/subcommands/taggerlist",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/cluster-agent/command",
             "//pkg/cli/subcommands/taggerlist",
             "@com_github_spf13_cobra//:cobra",

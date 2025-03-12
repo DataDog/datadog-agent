@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "status.go",
         "status_mock.go",
+        "status_noop.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface",
     visibility = ["//visibility:public"],

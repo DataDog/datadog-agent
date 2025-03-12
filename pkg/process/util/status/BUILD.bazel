@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/metadata/host/hostimpl/utils",
         "//pkg/api/util",
-        "//pkg/config",
+        "//pkg/config/model",
         "//pkg/version",
     ],
 )
@@ -19,7 +19,8 @@ go_test(
     embed = [":status"],
     deps = [
         "//comp/metadata/host/hostimpl/utils",
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/mock",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

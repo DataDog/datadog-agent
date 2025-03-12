@@ -7,7 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom/types",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
     ],
 )

@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//comp/forwarder/eventplatform",
         "//comp/snmptraps/config",
         "//comp/snmptraps/formatter",

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pod_tag_provider",
+    srcs = [
+        "clc_provider.go",
+        "node_provider.go",
+        "provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/setup",
+        "@io_k8s_api//core/v1:core",
+    ],
+)

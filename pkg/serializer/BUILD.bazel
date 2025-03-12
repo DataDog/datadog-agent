@@ -2,10 +2,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "serializer",
-    srcs = [
-        "serializer.go",
-        "test_common.go",
-    ],
+    srcs = ["serializer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer",
     visibility = ["//visibility:public"],
     deps = [
@@ -13,7 +10,6 @@ go_library(
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/forwarder/orchestrator/orchestratorinterface",
-        "//comp/serializer/compression",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
@@ -23,9 +19,9 @@ go_library(
         "//pkg/serializer/marshaler",
         "//pkg/serializer/split",
         "//pkg/serializer/types",
+        "//pkg/util/compression",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_stretchr_testify//mock",
     ],
 )
 
@@ -40,9 +36,9 @@ go_test(
     deps = [
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/transaction",
-        "//comp/serializer/compression",
-        "//comp/serializer/compression/compressionimpl",
-        "//pkg/config/setup",
+        "//comp/serializer/metricscompression/def",
+        "//comp/serializer/metricscompression/impl",
+        "//pkg/config/mock",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
@@ -51,6 +47,7 @@ go_test(
         "//pkg/serializer/marshaler",
         "//pkg/serializer/split",
         "//pkg/tagset",
+        "//pkg/util/compression",
         "@com_github_json_iterator_go//:go",
         "@com_github_protocolbuffers_protoscope//:protoscope",
         "@com_github_stretchr_testify//assert",

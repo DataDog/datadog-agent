@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "utils",
-    srcs = ["common.go"],
+    srcs = ["grpc.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/utils",
     visibility = ["//visibility:public"],
     deps = ["//pkg/util/grpc/context"],

@@ -8,8 +8,9 @@ go_library(
     deps = [
         "//pkg/util/retry",
         "@com_github_containerd_containerd//:containerd",
-        "@com_github_containerd_containerd//api/types",
         "@com_github_containerd_containerd//containers",
+        "@com_github_containerd_containerd//mount",
         "@com_github_containerd_containerd//oci",
+        "@com_github_containerd_containerd_api//types",
     ],
 )

@@ -9,8 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
-        "//comp/core/workloadmeta",
-        "//pkg/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
         "//pkg/errors",
         "//pkg/util/containers",
         "//pkg/util/log",
@@ -24,7 +25,7 @@ go_test(
     srcs = ["podman_test.go"],
     embed = [":podman"],
     deps = [
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/podman",
         "@com_github_containernetworking_cni//pkg/types/100",
         "@com_github_cri_o_ocicni//pkg/ocicni",

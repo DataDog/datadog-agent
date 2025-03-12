@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "otel-agent_test",
+    srcs = [
+        "complete_test.go",
+        "infraattributes_eks_test.go",
+        "infraattributes_test.go",
+        "minimal_test.go",
+        "no_dd_exporter_test.go",
+        "receive_resource_spans_v2_test.go",
+        "sampling_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embedsrcs = [
+        "config/complete.yml",
+        "config/ia.yml",
+        "config/minimal.yml",
+        "config/no-dd-exporter.yml",
+        "config/sampling.yml",
+        "testdata/minimal-full-config.yml",
+        "testdata/minimal-provided-config.yml",
+        "testdata/no-dd-exporter-full-config.yml",
+        "testdata/no-dd-exporter-provided-config.yml",
+        "testdata/sources.json",
+    ],
+    deps = [
+        "//comp/core/tagger/types",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/kubernetes",
+        "//test/new-e2e/tests/otel/utils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/eks",
+    ],
+)

@@ -6,10 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec",
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = [
-        "//pkg/fleet/env",
-        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/repository",
+        "//pkg/fleet/internal/paths",
         "//pkg/fleet/telemetry",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+        "//pkg/util/log",
     ],
 )

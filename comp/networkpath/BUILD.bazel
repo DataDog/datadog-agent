@@ -18,6 +18,8 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/rdnsquerier/fx-mock",
+        "//comp/serializer/logscompression/fx-mock",
         "//pkg/util/fxutil",
     ],
 )

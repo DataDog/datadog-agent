@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "instrumented_lib",
+    srcs = ["instrumented.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm/testutil/instrumented",
+    visibility = ["//visibility:private"],
+    deps = ["@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer"],
+)
+
+go_binary(
+    name = "instrumented",
+    embed = [":instrumented_lib"],
+    visibility = ["//visibility:public"],
+)

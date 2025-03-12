@@ -15,7 +15,7 @@ go_library(
         "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
         "@io_k8s_cri_api//pkg/apis/testing",
         "@io_k8s_utils//exec",
-        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@io_k8s_apimachinery//pkg/util/rand",
@@ -50,7 +50,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "@io_k8s_apimachinery//pkg/util/rand",
         ],
+        "@rules_go//go/platform:osx": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
         "@rules_go//go/platform:plan9": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@io_k8s_apimachinery//pkg/util/rand",
         ],
         "@rules_go//go/platform:solaris": [

@@ -10,6 +10,7 @@ go_library(
         "options.go",
         "prometheus.go",
         "registry.go",
+        "registry_testutil.go",
         "reporters.go",
         "utils.go",
     ],

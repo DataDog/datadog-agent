@@ -9,12 +9,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//cmd/system-probe/api/client",
+        "//cmd/system-probe/config",
+        "//pkg/config/model",
         "//pkg/languagedetection/internal/detectors",
         "//pkg/languagedetection/languagemodels",
-        "//pkg/process/net",
+        "//pkg/proto/pbgo/languagedetection",
         "//pkg/telemetry",
         "//pkg/util/log",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
@@ -35,9 +38,9 @@ go_test(
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:android": [
-            "//pkg/config",
+            "//cmd/system-probe/api/server",
+            "//pkg/config/mock",
             "//pkg/languagedetection/languagemodels",
-            "//pkg/process/net",
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -68,9 +71,9 @@ go_test(
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/config",
+            "//cmd/system-probe/api/server",
+            "//pkg/config/mock",
             "//pkg/languagedetection/languagemodels",
-            "//pkg/process/net",
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -84,7 +87,15 @@ go_test(
             "//pkg/languagedetection/languagemodels",
             "@com_github_stretchr_testify//assert",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/languagedetection/languagemodels",
             "@com_github_stretchr_testify//assert",
         ],

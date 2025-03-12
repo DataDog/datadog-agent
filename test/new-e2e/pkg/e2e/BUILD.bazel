@@ -3,24 +3,23 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "e2e",
     srcs = [
-        "file_provisioner.go",
-        "provisioner.go",
-        "pulumi_provisioner.go",
         "suite.go",
         "suite_params.go",
         "suite_utils.go",
-        "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/new-e2e/pkg/provisioners",
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/runner/parameters",
+        "//test/new-e2e/pkg/utils/common",
         "//test/new-e2e/pkg/utils/infra",
-        "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
-        "@com_github_datadog_test_infra_definitions//components:go_default_library",
-        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common/utils",
+        "@com_github_datadog_test_infra_definitions//components",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//suite",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
     ],
 )
 
@@ -29,7 +28,9 @@ go_test(
     srcs = ["suite_test.go"],
     embed = [":e2e"],
     deps = [
-        "@com_github_datadog_test_infra_definitions//components:go_default_library",
+        "//test/new-e2e/pkg/provisioners",
+        "//test/new-e2e/pkg/utils/common",
+        "@com_github_datadog_test_infra_definitions//components",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],

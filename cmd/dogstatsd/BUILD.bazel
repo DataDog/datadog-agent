@@ -65,7 +65,17 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/util/log",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/dogstatsd/command",
             "//pkg/util/flavor",
             "//pkg/util/log",
@@ -80,7 +90,7 @@ go_library(
             "//cmd/dogstatsd/subcommands/start",
             "//comp/aggregator/demultiplexer",
             "//comp/core/config",
-            "//comp/core/log",
+            "//comp/core/log/def",
             "//comp/dogstatsd/server",
             "//pkg/util/flavor",
             "//pkg/util/log",

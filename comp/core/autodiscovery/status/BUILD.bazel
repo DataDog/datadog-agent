@@ -9,7 +9,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery",
         "//comp/core/status",
-        "//pkg/config",
+        "//pkg/config/env",
         "//pkg/util/containers",
     ],
 )

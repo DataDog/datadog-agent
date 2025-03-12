@@ -11,7 +11,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/config",
-        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
         "//pkg/ebpf",
         "//pkg/util/log",
         "@com_github_cilium_ebpf//:ebpf",
@@ -39,24 +41,21 @@ go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//cmd/system-probe/config",
-            "//pkg/config",
-            "//pkg/config/model",
+            "//pkg/config/mock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_vishvananda_netns//:netns",
         ],
         "@rules_go//go/platform:linux": [
             "//cmd/system-probe/config",
-            "//pkg/config",
-            "//pkg/config/model",
+            "//pkg/config/mock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@com_github_vishvananda_netns//:netns",
         ],
         "@rules_go//go/platform:windows": [
             "//cmd/system-probe/config",
-            "//pkg/config",
-            "//pkg/config/model",
+            "//pkg/config/mock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],

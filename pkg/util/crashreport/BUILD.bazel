@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//cmd/system-probe/api/client",
             "//cmd/system-probe/config",
             "//pkg/collector/corechecks/system/wincrashdetect/probe",
-            "//pkg/config",
-            "//pkg/process/net",
+            "//pkg/config/setup",
             "//pkg/util/log",
             "//pkg/util/retry",
             "@org_golang_x_sys//windows/registry",

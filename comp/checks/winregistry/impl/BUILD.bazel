@@ -16,7 +16,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/checks/winregistry",
             "//comp/core/autodiscovery/integration",
-            "//comp/core/log",
+            "//comp/core/log/def",
             "//comp/logs/agent",
             "//comp/logs/agent/config",
             "//pkg/aggregator/sender",
@@ -27,7 +27,7 @@ go_library(
             "//pkg/metrics",
             "//pkg/util/fxutil",
             "//pkg/util/log",
-            "//pkg/util/optional",
+            "//pkg/util/option",
             "@com_github_ghodss_yaml//:yaml",
             "@com_github_swaggest_jsonschema_go//:jsonschema-go",
             "@com_github_xeipuuv_gojsonschema//:gojsonschema",

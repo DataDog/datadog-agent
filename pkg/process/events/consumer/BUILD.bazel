@@ -4,6 +4,7 @@ go_library(
     name = "consumer",
     srcs = [
         "event_copy_linux.go",
+        "event_copy_other.go",
         "event_copy_windows.go",
         "events_consumer.go",
     ],

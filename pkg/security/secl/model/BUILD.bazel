@@ -8,12 +8,12 @@ go_library(
         "args_envs.go",
         "category.go",
         "consts_common.go",
+        "consts_darwin.go",
         "consts_linux.go",
         "consts_linux_amd64.go",
         "consts_linux_arm.go",
         "consts_linux_arm64.go",
-        "consts_map_names.go",
-        "consts_other.go",
+        "consts_map_names_linux.go",
         "consts_windows.go",
         "dns_helpers_linux.go",
         "errors.go",
@@ -29,9 +29,12 @@ go_library(
         "model_string.go",
         "model_unix.go",
         "model_windows.go",
+        "oo_packet_filter_unsupported.go",
         "oo_symlink_unix.go",
         "process_cache_entry_unix.go",
         "process_cache_entry_windows.go",
+        "security_profile.go",
+        "string_array_iter.go",
         "strings.go",
         "syscalls.go",
         "syscalls_linux_amd64.go",
@@ -47,9 +50,50 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model/sharedconsts",
         "//pkg/security/secl/model/usersession",
-        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        "@org_modernc_mathutil//:mathutil",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_google_gopacket//:gopacket",
+            "@com_github_google_gopacket//layers",
+            "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_google_gopacket//:gopacket",
+            "@com_github_google_gopacket//layers",
+            "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_google_gopacket//:gopacket",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "@rules_go//go/platform:android_386": [
             "@org_golang_x_sys//unix",
         ],
@@ -60,6 +104,24 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:android_arm64": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin_386": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin_amd64": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin_arm": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin_arm64": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios_amd64": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios_arm64": [
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux_386": [

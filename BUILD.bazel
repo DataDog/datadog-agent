@@ -11,7 +11,13 @@ load("//:bazel/lib/agent.bzl", "AGENT_BUILD_TAGS")
 # gazelle:exclude devenv/**
 # gazelle:exclude docs/**
 # gazelle:exclude tasks/**
-# gazelle:exclude test/**
+# gazelle:exclude test/benchmarks/**
+# gazelle:exclude test/e2e/**
+# gazelle:exclude test/files/**
+# gazelle:exclude test/integration/**
+# gazelle:exclude test/regression/**
+# gazelle:exclude test/required_files/**
+# gazelle:exclude test/system/**
 
 gazelle(
     name = "gazelle",
@@ -21,4 +27,3 @@ gazelle(
         ]
     ),
 )
-

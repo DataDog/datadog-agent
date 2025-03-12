@@ -11,12 +11,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//pkg/config/model",
         "//pkg/logs/metrics",
         "//pkg/logs/sources",
         "//pkg/logs/status/utils",
         "//pkg/logs/tailers",
-        "//pkg/util",
+        "//pkg/util/procfilestats",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -27,7 +27,7 @@ go_test(
     embed = [":status"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/logs/metrics",
         "//pkg/logs/sources",
         "//pkg/logs/util/testutils",

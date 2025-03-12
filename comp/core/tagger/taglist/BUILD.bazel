@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "taglist",
+    srcs = ["taglist.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taglist",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/setup"],
+)
+
+go_test(
+    name = "taglist_test",
+    srcs = ["taglist_test.go"],
+    embed = [":taglist"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

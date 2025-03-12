@@ -10,11 +10,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/telemetry",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
+        "//pkg/util/log/setup",
         "@com_github_prometheus_client_golang//prometheus",
     ],
 )

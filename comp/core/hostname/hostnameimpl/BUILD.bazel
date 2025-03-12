@@ -23,7 +23,7 @@ go_test(
     embed = [":hostnameimpl"],
     deps = [
         "//comp/core/hostname",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/util/cache",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",

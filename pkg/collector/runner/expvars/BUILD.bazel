@@ -14,6 +14,7 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/util/log",
+        "@com_github_mohae_deepcopy//:deepcopy",
     ],
 )
 

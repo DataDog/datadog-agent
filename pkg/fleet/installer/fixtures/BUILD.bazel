@@ -20,10 +20,10 @@ go_library(
         "simple-v2/executable-new.sh",
         "BUILD.bazel",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures",
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures",
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = [
-        "//pkg/fleet/internal/tar",
+        "//pkg/fleet/installer/tar",
         "@com_github_google_go_containerregistry//pkg/name",
         "@com_github_google_go_containerregistry//pkg/registry",
         "@com_github_google_go_containerregistry//pkg/v1/layout",

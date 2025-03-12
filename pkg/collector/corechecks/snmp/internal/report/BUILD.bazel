@@ -18,6 +18,7 @@ go_library(
         "//comp/forwarder/eventplatform",
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/common",
         "//pkg/collector/corechecks/snmp/internal/lldp",
         "//pkg/collector/corechecks/snmp/internal/metadata",
         "//pkg/collector/corechecks/snmp/internal/valuestore",
@@ -26,8 +27,8 @@ go_library(
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/networkdevice/utils",
         "//pkg/snmp/snmpintegration",
-        "//pkg/util",
         "//pkg/util/log",
+        "//pkg/util/sort",
     ],
 )
 
@@ -54,7 +55,6 @@ go_test(
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/snmpintegration",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:seelog",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@in_gopkg_yaml_v2//:yaml_v2",

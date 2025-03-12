@@ -1,0 +1,135 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "process",
+    srcs = [
+        "process_collector.go",
+        "process_collector_nop.go",
+        "process_data.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/workloadmeta/collectors/util",
+            "//comp/core/workloadmeta/def",
+            "//pkg/config/setup",
+            "//pkg/errors",
+            "//pkg/process/metadata",
+            "//pkg/process/metadata/workloadmeta",
+            "//pkg/process/procutil",
+            "//pkg/process/util/containers",
+            "//pkg/status/health",
+            "//pkg/util/log",
+            "@com_github_benbjohnson_clock//:clock",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/workloadmeta/collectors/util",
+            "//comp/core/workloadmeta/def",
+            "//pkg/config/setup",
+            "//pkg/errors",
+            "//pkg/process/metadata",
+            "//pkg/process/metadata/workloadmeta",
+            "//pkg/process/procutil",
+            "//pkg/process/util/containers",
+            "//pkg/status/health",
+            "//pkg/util/log",
+            "@com_github_benbjohnson_clock//:clock",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "process_test",
+    srcs = ["process_collector_test.go"],
+    embed = [":process"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core",
+            "//comp/core/config",
+            "//comp/core/workloadmeta/def",
+            "//comp/core/workloadmeta/fx-mock",
+            "//comp/core/workloadmeta/mock",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/process/metadata/workloadmeta",
+            "//pkg/process/procutil",
+            "//pkg/process/procutil/mocks",
+            "//pkg/process/util/containers/mocks",
+            "//pkg/util/flavor",
+            "//pkg/util/fxutil",
+            "@com_github_benbjohnson_clock//:clock",
+            "@com_github_golang_mock//gomock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core",
+            "//comp/core/config",
+            "//comp/core/workloadmeta/def",
+            "//comp/core/workloadmeta/fx-mock",
+            "//comp/core/workloadmeta/mock",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/process/metadata/workloadmeta",
+            "//pkg/process/procutil",
+            "//pkg/process/procutil/mocks",
+            "//pkg/process/util/containers/mocks",
+            "//pkg/util/flavor",
+            "//pkg/util/fxutil",
+            "@com_github_benbjohnson_clock//:clock",
+            "@com_github_golang_mock//gomock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "api",
     srcs = ["getlist.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api",
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/api",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",

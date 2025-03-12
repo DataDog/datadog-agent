@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "structure",
+    srcs = ["unmarshal.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/structure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "@com_github_datadog_viper//:viper",
+        "@com_github_spf13_cast//:cast",
+    ],
+)
+
+go_test(
+    name = "structure_test",
+    srcs = ["unmarshal_test.go"],
+    embed = [":structure"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "@com_github_spf13_cast//:cast",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

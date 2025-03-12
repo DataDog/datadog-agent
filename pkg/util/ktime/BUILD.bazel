@@ -15,3 +15,19 @@ go_library(
         "//conditions:default": [],
     }),
 )
+
+go_library(
+    name = "ktime",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ktime",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "//conditions:default": [],
+    }),
+)

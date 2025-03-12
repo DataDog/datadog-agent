@@ -6,7 +6,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config",
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],
     deps = [
-        "//pkg/config",
+        "//comp/api/api/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/common",
         "//pkg/util/log",
         "@com_github_gorilla_mux//:mux",
     ],
@@ -17,7 +20,9 @@ go_test(
     srcs = ["endpoint_test.go"],
     embed = [":config"],
     deps = [
-        "//pkg/config",
+        "//comp/api/api/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

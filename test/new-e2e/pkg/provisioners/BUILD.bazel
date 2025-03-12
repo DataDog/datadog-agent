@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "provisioners",
+    srcs = [
+        "file_provisioner.go",
+        "provisioners.go",
+        "pulumi_provisioner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/infra",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

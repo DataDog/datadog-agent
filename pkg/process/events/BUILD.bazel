@@ -11,22 +11,24 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/process/events",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/model",
         "//pkg/process/events/model",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
             "//pkg/eventmonitor/proto/api",
             "@com_github_cenkalti_backoff//:backoff",
-            "@org_golang_google_grpc//:go_default_library",
+            "@org_golang_google_grpc//:grpc",
             "@org_golang_google_grpc//credentials/insecure",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
             "//pkg/eventmonitor/proto/api",
             "@com_github_cenkalti_backoff//:backoff",
-            "@org_golang_google_grpc//:go_default_library",
+            "@org_golang_google_grpc//:grpc",
             "@org_golang_google_grpc//credentials/insecure",
         ],
         "//conditions:default": [],
@@ -42,7 +44,7 @@ go_test(
     ],
     embed = [":events"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/mock",
         "//pkg/process/events/model",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

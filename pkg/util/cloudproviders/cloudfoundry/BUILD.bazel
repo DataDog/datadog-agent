@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
-        "//pkg/util",
+        "//pkg/config/setup",
         "//pkg/util/log",
+        "//pkg/util/net",
         "//pkg/util/retry",
         "@org_cloudfoundry_code_garden//:garden",
         "@org_cloudfoundry_code_garden//client",
@@ -27,8 +27,8 @@ go_test(
     ],
     embed = [":cloudfoundry"],
     deps = [
-        "//pkg/config",
-        "//pkg/util",
+        "//pkg/config/mock",
+        "//pkg/util/net",
         "@com_github_stretchr_testify//assert",
         "@org_cloudfoundry_code_garden//:garden",
         "@org_cloudfoundry_code_garden//gardenfakes",

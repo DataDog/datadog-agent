@@ -39,7 +39,13 @@ go_library(
         "@rules_go//go/platform:openbsd": [
             "//test/new-e2e/system-probe",
         ],
+        "@rules_go//go/platform:osx": [
+            "//test/new-e2e/system-probe",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//test/new-e2e/system-probe",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//test/new-e2e/system-probe",
         ],
         "@rules_go//go/platform:solaris": [

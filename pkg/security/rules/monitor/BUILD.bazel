@@ -14,6 +14,7 @@ go_library(
         "//pkg/security/events",
         "//pkg/security/metrics",
         "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model",
         "//pkg/security/secl/rules",
         "//pkg/security/utils",

@@ -8,7 +8,6 @@ go_library(
     deps = [
         "@in_gopkg_yaml_v2//:yaml_v2",
         "@io_opentelemetry_go_collector_confmap//:confmap",
-        "@io_opentelemetry_go_collector_otelcol//:otelcol",
     ],
 )
 
@@ -21,7 +20,6 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_confmap//:confmap",
-        "@io_opentelemetry_go_collector_confmap_converter_expandconverter//:expandconverter",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
         "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
         "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",

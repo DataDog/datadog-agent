@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubernetesadmissionevents",
+    srcs = ["kubernetesadmissionevents.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/config",
+        "//pkg/aggregator",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/validate/common",
+        "//pkg/collector/check/id",
+        "//pkg/metrics/event",
+        "//pkg/util/log",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "kubernetesadmissionevents_test",
+    srcs = ["kubernetesadmissionevents_test.go"],
+    embed = [":kubernetesadmissionevents"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/aggregator/mocksender",
+        "//pkg/metrics/event",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//authentication/v1:authentication",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@org_uber_go_fx//:fx",
+    ],
+)

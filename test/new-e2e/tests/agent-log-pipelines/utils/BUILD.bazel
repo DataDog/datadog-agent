@@ -3,14 +3,14 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "utils",
     srcs = ["file_tailing_utils.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils",
     visibility = ["//visibility:public"],
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/environments",
-        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

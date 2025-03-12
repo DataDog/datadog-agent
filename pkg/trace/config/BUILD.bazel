@@ -5,15 +5,20 @@ go_library(
     srcs = [
         "client.go",
         "config.go",
+        "peer_tags.go",
     ],
+    embedsrcs = ["peer_tags.ini"],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/origindetection",
         "//pkg/obfuscate",
         "//pkg/remoteconfig/state",
         "//pkg/trace/log",
         "//pkg/trace/traceutil",
+        "//pkg/util/log",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@in_gopkg_ini_v1//:ini_v1",
     ],
 )
 
@@ -22,6 +27,7 @@ go_test(
     srcs = [
         "client_test.go",
         "config_test.go",
+        "peer_tags_test.go",
     ],
     embed = [":config"],
     deps = ["@com_github_stretchr_testify//assert"],

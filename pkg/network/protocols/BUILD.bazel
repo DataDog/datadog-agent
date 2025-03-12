@@ -5,17 +5,23 @@ go_library(
     srcs = [
         "common.go",
         "common_linux.go",
+        "ebpf.go",
+        "ebpf_types_linux.go",
         "types.go",
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "@com_github_datadog_sketches_go//ddsketch",
+    ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],

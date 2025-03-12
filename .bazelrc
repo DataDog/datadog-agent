@@ -7,7 +7,7 @@ build:macos --sandbox_add_mount_pair=/var/tmp
 build:windows --sandbox_add_mount_pair=C:\Temp
 
 # Don't fallback to local toolchains, only use the hermetic ones
-build --action_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+#build --action_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 
 # Load any settings & overrides specific to the current user from `/user.bazelrc`.
 #

@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util",
     visibility = ["//pkg/logs:__subpackages__"],
     deps = [
-        "//comp/core/tagger",
+        "//comp/core/tagger/types",
         "//pkg/logs/util/testutils",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
@@ -25,6 +25,7 @@ go_test(
     ],
     embed = [":util"],
     deps = [
+        "//comp/core/tagger/types",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
     ],

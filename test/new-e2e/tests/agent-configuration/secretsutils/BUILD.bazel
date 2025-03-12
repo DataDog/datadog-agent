@@ -6,14 +6,17 @@ go_library(
         "client.go",
         "helpers.go",
     ],
-    embedsrcs = ["fixtures/secret-resolver.py"],
+    embedsrcs = [
+        "fixtures/secret-resolver.py",
+        "fixtures/secret_wrapper.bat",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/optional",
+        "//pkg/util/option",
         "//test/new-e2e/pkg/components",
-        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
-        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams/filepermissions:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams/filepermissions",
         "@com_github_stretchr_testify//require",
     ],
 )

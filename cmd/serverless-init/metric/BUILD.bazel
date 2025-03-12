@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/aggregator",
         "//pkg/metrics",
+        "//pkg/util/log",
     ],
 )
 
@@ -19,9 +20,12 @@ go_test(
         "//comp/aggregator/demultiplexer",
         "//comp/aggregator/demultiplexer/demultiplexerimpl",
         "//comp/core/hostname/hostnameimpl",
-        "//comp/core/log/logimpl",
-        "//comp/serializer/compression/compressionimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/serializer/logscompression/fx-mock",
+        "//comp/serializer/metricscompression/fx-mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

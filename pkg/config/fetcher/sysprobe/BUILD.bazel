@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sysprobe",
+    srcs = ["from_sysprobe.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/api/client",
+        "//comp/core/config",
+        "//pkg/api/util",
+        "//pkg/config/settings/http",
+    ],
+)

@@ -10,7 +10,7 @@ go_library(
         "//cmd/system-probe/command",
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/log/logimpl",
+        "//comp/core/log/def",
         "//comp/core/sysprobeconfig",
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//pkg/api/util",

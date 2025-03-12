@@ -9,7 +9,7 @@ go_library(
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
-        "@com_github_datadog_test_infra_definitions//common:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common",
         "@com_github_stretchr_testify//assert",
     ],
 )

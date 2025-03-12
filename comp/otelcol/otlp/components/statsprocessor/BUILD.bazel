@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statsprocessor",
+    srcs = [
+        "agent.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/agent",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/timing",
+        "//pkg/trace/writer",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
+
+go_test(
+    name = "statsprocessor_test",
+    srcs = ["agent_test.go"],
+    embed = [":statsprocessor"],
+    deps = [
+        "//comp/otelcol/otlp/components/metricsclient",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+    ],
+)

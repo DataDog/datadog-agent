@@ -8,9 +8,8 @@ go_library(
     deps = [
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
-        "//pkg/flare",
+        "//comp/core/log/def",
+        "//pkg/flare/clusteragent",
         "//pkg/util/fxutil",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
@@ -67,7 +66,15 @@ go_test(
             "//pkg/util/fxutil",
             "@com_github_spf13_cobra//:cobra",
         ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//pkg/util/fxutil",
             "@com_github_spf13_cobra//:cobra",
         ],

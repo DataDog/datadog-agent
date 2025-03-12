@@ -6,5 +6,5 @@ go_library(
     embedsrcs = ["platforms.json"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_datadog_test_infra_definitions//components/os:go_default_library"],
+    deps = ["@com_github_datadog_test_infra_definitions//components/os"],
 )

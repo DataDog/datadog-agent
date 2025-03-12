@@ -4,16 +4,23 @@ go_library(
     name = "repository",
     srcs = [
         "link.go",
-        "link_windows.go",
+        "link_nix.go",
+        "link_win.go",
         "repositories.go",
         "repository.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/filesystem",
         "//pkg/util/log",
         "@com_github_datadog_gopsutil//process",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
@@ -24,46 +31,5 @@ go_test(
         "repository_test.go",
     ],
     embed = [":repository"],
-    deps = select({
-        "@rules_go//go/platform:aix": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:js": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "@com_github_stretchr_testify//assert",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = ["@com_github_stretchr_testify//assert"],
 )

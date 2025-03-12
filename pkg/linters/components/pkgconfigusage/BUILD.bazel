@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pkgconfigusage",
+    srcs = ["pkgconfigusage.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_golangci_plugin_module_register//register",
+        "@org_golang_x_tools//go/analysis",
+    ],
+)
+
+go_test(
+    name = "pkgconfigusage_test",
+    srcs = ["pkgconfigusage_test.go"],
+    embed = [":pkgconfigusage"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_tools//go/analysis/analysistest",
+    ],
+)

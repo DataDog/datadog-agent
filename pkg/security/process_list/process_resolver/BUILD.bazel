@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "process_resolver",
+    srcs = ["process_resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/process_list/process_resolver",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/process_list",
+            "//pkg/security/secl/model",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/process_list",
+            "//pkg/security/secl/model",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "process_resolver_test",
+    srcs = ["process_resolver_test.go"],
+    embed = [":process_resolver"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/process_list",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/process_list",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

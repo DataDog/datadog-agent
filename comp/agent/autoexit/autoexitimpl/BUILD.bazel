@@ -12,10 +12,10 @@ go_library(
     deps = [
         "//comp/agent/autoexit",
         "//comp/core/config",
-        "//comp/core/log",
+        "//comp/core/log/def",
         "//pkg/util/common",
         "//pkg/util/fxutil",
-        "@com_github_shirou_gopsutil_v3//process",
+        "@com_github_shirou_gopsutil_v4//process",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -25,9 +25,8 @@ go_test(
     srcs = ["manager_test.go"],
     embed = [":autoexitimpl"],
     deps = [
-        "//comp/core/log",
-        "//comp/core/log/logimpl",
-        "//pkg/util/fxutil",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
         "@com_github_stretchr_testify//require",
     ],
 )

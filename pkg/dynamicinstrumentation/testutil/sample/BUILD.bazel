@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sample",
+    srcs = [
+        "arrays.go",
+        "basics.go",
+        "complex.go",
+        "generics.go",
+        "interfaces.go",
+        "maps.go",
+        "multi_params.go",
+        "other.go",
+        "pointers.go",
+        "slices.go",
+        "stacktraces.go",
+        "strings.go",
+        "structs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample",
+    visibility = ["//visibility:public"],
+)

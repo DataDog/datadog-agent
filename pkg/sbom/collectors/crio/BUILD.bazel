@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "metric_lib",
@@ -22,8 +22,9 @@ go_library(
     ],
 )
 
-go_binary(
-    name = "metric",
-    embed = [":metric_lib"],
+go_library(
+    name = "crio",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio",
     visibility = ["//visibility:public"],
 )

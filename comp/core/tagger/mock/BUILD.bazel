@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = [
+        "fake_tagger.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/tagstore",
+        "//comp/core/tagger/telemetry",
+        "//comp/core/tagger/types",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+        "//pkg/util/fxutil",
+    ],
+)

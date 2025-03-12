@@ -13,7 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/api",
         "//pkg/languagedetection/util",
         "//pkg/proto/pbgo/process",
@@ -29,7 +29,9 @@ go_test(
     embed = [":languagedetection"],
     deps = [
         "//comp/core",
-        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
         "//pkg/languagedetection/util",
         "//pkg/proto/pbgo/process",
         "//pkg/util/fxutil",

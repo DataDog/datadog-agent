@@ -15,10 +15,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/config/types",
-        "//comp/core/workloadmeta",
+        "//comp/core/tagger/def",
+        "//comp/core/telemetry",
+        "//comp/core/workloadmeta/def",
+        "//comp/serializer/logscompression/def",
         "//pkg/util/log",
-        "//pkg/util/optional",
         "@com_github_gorilla_mux//:mux",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/network/driver",

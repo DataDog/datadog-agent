@@ -46,9 +46,11 @@ cc_library(name = "rtloader",
     'include/datadog_agent_rtloader.h',
     'include/rtloader.h',
     'include/rtloader_types.h',
+    'common/rtloader_mem.h',
   ],
   includes = [
     'include/',
+    'common/',
   ],
   copts = [
     '-Irtloader/common',

@@ -4,6 +4,7 @@ go_library(
     name = "test-runner_lib",
     srcs = [
         "main.go",
+        "testcontainer.go",
         "xml.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/test-runner",

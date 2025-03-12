@@ -34,6 +34,7 @@ go_test(
         "fixtures/api_v2_ndmflow_response",
         "fixtures/api_v2_sbom_response",
         "fixtures/api_v2_series_response",
+        "fixtures/api_v2_telemetry_response",
     ],
     deps = [
         "//test/fakeintake/aggregator",
@@ -75,7 +76,13 @@ go_test(
         "@rules_go//go/platform:openbsd": [
             "//test/fakeintake/server",
         ],
+        "@rules_go//go/platform:osx": [
+            "//test/fakeintake/server",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//test/fakeintake/server",
         ],
         "@rules_go//go/platform:solaris": [

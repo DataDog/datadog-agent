@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//pkg/api/security",
+        "//pkg/api/security/cert",
         "//pkg/config/model",
         "//pkg/util/log",
         "//pkg/util/system",
@@ -27,8 +28,10 @@ go_test(
     ],
     embed = [":util"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
     ],
 )

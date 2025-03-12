@@ -2,19 +2,24 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "installer",
-    srcs = ["command.go"],
+    srcs = [
+        "apm.go",
+        "command.go",
+        "umask_nix.go",
+        "umask_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/installer/subcommands/installer",
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/installer/command",
-        "//pkg/fleet/bootstraper",
-        "//pkg/fleet/env",
+        "//pkg/fleet/bootstrapper",
         "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/setup",
         "//pkg/fleet/telemetry",
         "//pkg/version",
         "@com_github_spf13_cobra//:cobra",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 

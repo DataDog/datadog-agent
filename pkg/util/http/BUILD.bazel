@@ -16,6 +16,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/log",
         "@org_golang_x_net//http/httpproxy",
+        "@org_golang_x_net//http2",
     ],
 )
 
@@ -30,6 +31,7 @@ go_test(
     ],
     embed = [":http"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

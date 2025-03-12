@@ -20,7 +20,7 @@ go_test(
     srcs = ["utils_test.go"],
     embed = [":utils"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
     ],

@@ -53,7 +53,15 @@ go_library(
             "//cmd/trace-agent/subcommands",
             "@com_github_spf13_cobra//:cobra",
         ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:plan9": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
             "//cmd/trace-agent/subcommands",
             "@com_github_spf13_cobra//:cobra",
         ],

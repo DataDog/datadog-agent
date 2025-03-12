@@ -11,7 +11,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//comp/logs/agent/config",
         "//pkg/logs/internal/decoder",
@@ -24,7 +25,6 @@ go_library(
         "//pkg/logs/status/utils",
         "//pkg/telemetry",
         "//pkg/util/cache",
-        "//pkg/util/containers",
         "//pkg/util/log",
         "@com_github_coreos_go_systemd//sdjournal",
     ],
@@ -38,8 +38,9 @@ go_test(
     ],
     embed = [":journald"],
     deps = [
+        "//comp/core/tagger/mock",
         "//comp/logs/agent/config",
-        "//pkg/config",
+        "//pkg/config/mock",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/util/cache",

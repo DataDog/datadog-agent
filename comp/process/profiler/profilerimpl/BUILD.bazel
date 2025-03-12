@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/process/profiler",
-        "//pkg/config",
+        "//pkg/config/setup",
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "//pkg/util/profiling",

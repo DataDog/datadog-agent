@@ -18,57 +18,66 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:android": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/util/log",
-            "@com_github_shirou_gopsutil_v3//disk",
+            "@com_github_shirou_gopsutil_v4//disk",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
             "@com_github_hectane_go_acl//:go-acl",
             "@org_golang_x_sys//windows",
         ],
@@ -78,60 +87,63 @@ go_library(
 
 go_test(
     name = "filesystem_test",
-    srcs = ["permission_nowindows_test.go"],
+    srcs = [
+        "file_test.go",
+        "permission_nowindows_test.go",
+        "permission_windows_test.go",
+    ],
     embed = [":filesystem"],
-    deps = select({
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
         "@rules_go//go/platform:aix": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
-            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
-            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

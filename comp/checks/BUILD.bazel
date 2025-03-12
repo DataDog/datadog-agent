@@ -21,6 +21,8 @@ go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core",
+            "//comp/core/tagger/def",
+            "//comp/core/tagger/mock",
             "//comp/trace/config",
             "//pkg/util/crashreport",
             "//pkg/util/fxutil",

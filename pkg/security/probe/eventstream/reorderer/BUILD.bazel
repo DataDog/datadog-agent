@@ -4,7 +4,6 @@ go_library(
     name = "reorderer",
     srcs = [
         "monitor.go",
-        "perf.go",
         "perfmap.go",
         "reorderer.go",
     ],
@@ -18,6 +17,7 @@ go_library(
             "//pkg/security/probe/eventstream",
             "//pkg/security/secl/model",
             "//pkg/security/seclog",
+            "//pkg/util/sync",
             "@com_github_cilium_ebpf//perf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
@@ -29,6 +29,7 @@ go_library(
             "//pkg/security/probe/eventstream",
             "//pkg/security/secl/model",
             "//pkg/security/seclog",
+            "//pkg/util/sync",
             "@com_github_cilium_ebpf//perf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",

@@ -23,7 +23,7 @@ go_library(
             "//pkg/util/crashreport",
             "//pkg/util/fxutil",
             "//pkg/util/log",
-            "//pkg/util/optional",
+            "//pkg/util/option",
             "@in_gopkg_yaml_v2//:yaml_v2",
             "@org_golang_x_sys//windows/registry",
             "@org_uber_go_fx//:fx",

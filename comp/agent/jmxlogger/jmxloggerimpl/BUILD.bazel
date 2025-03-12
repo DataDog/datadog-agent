@@ -9,12 +9,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/agent/common/path",
         "//comp/agent/jmxlogger",
         "//comp/core/config",
-        "//pkg/config",
+        "//pkg/config/setup",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/log",
+        "//pkg/util/log/setup",
         "@org_uber_go_fx//:fx",
     ],
 )

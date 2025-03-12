@@ -14,9 +14,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/runner/parameters",
-        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
-        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
-        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common/config",
+        "@com_github_datadog_test_infra_definitions//resources/aws",
+        "@com_github_datadog_test_infra_definitions//resources/azure",
+        "@com_github_datadog_test_infra_definitions//resources/gcp",
+        "@com_github_datadog_test_infra_definitions//resources/local",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto",
     ],
 )
 
@@ -29,7 +32,7 @@ go_test(
     embed = [":runner"],
     deps = [
         "//test/new-e2e/pkg/runner/parameters",
-        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

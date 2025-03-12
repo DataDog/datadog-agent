@@ -6,7 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",
@@ -22,7 +24,8 @@ go_test(
     srcs = ["clustername_test.go"],
     embed = [":clustername"],
     deps = [
-        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )
