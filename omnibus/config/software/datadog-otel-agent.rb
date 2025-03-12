@@ -9,7 +9,7 @@ require 'pathname'
 
 name 'datadog-otel-agent'
 
-source path: '..'
+source path: '..', force_fetch: true
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true

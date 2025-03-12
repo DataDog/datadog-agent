@@ -8,7 +8,7 @@ require 'pathname'
 
 name 'datadog-iot-agent'
 
-source path: '..'
+source path: '..', force_fetch: true
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do

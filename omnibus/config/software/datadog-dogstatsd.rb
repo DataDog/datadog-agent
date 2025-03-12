@@ -8,7 +8,7 @@ name 'datadog-dogstatsd'
 
 skip_transitive_dependency_licensing true
 
-source path: '..'
+source path: '..', force_fetch: true
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
