@@ -30,7 +30,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor heroku
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - !reference [.lint_linux_packages]
+    - !reference [.create_signature_and_lint_linux_packages]
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
