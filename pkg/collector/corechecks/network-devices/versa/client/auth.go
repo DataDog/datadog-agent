@@ -24,34 +24,35 @@ func (client *Client) login() error {
 	authPayload.Set("j_password", client.password)
 	// this is a hack to get a CSRF token then
 	// actually perform login
+	//
+	// ideally, we'd have a different endpoint to get a CSRF token
+	// from at the very least
 	err := client.runJSpringSecurityCheck(&authPayload)
 	if err != nil {
 		return fmt.Errorf("failed to run j_spring_security_check to get CSRF token: %w", err)
 	}
+
+	// now we can actually login and get a session cookie
 	err = client.runJSpringSecurityCheck(&authPayload)
 	if err != nil {
-		return fmt.Errorf("failed to run j_spring_security_check to perform login token: %w", err)
+		return fmt.Errorf("failed to run j_spring_security_check to get session token: %w", err)
 	}
 
 	// TODO: can we get a non-HTML response?
 
-	// if len(bodyBytes) > 0 {
-	// 	return fmt.Errorf("invalid credentials")
-	// }
-
 	// Request to /versa/analytics/login to obtain Analytics CSRF prevention token
 	analyticsPayload := url.Values{}
-	analyticsPayload.Set("endpoint", "https://10.0.225.103:8443")
+	analyticsPayload.Set("endpoint", "https://10.0.225.103:8443") // TODO: WHY? Where can we get this for others?
 
-	// Run this requrst twice to get the CSRF token from analytics
+	// Run this request twice to get the CSRF token from analytics
 	// the first succeeds but does not return the token
 	err = client.runAnalyticsLogin(&analyticsPayload)
 	if err != nil {
-		return fmt.Errorf("failed to run FIRST analytics login: %w", err)
+		return fmt.Errorf("failed to run analytics login: %w", err)
 	}
 	err = client.runAnalyticsLogin(&analyticsPayload)
 	if err != nil {
-		return fmt.Errorf("failed to run SECOND analytics login: %w", err)
+		return fmt.Errorf("failed to get analytics CSRF token: %w", err)
 	}
 
 	return nil
@@ -83,7 +84,7 @@ func (client *Client) clearAuth() {
 }
 
 // isAuthenticated determine if a request was successful from the headers
-// Cisco returns HTTP 200 when auth is invalid, with the HTML login page
+// Vera can return HTTP 200 when auth is invalid, with the HTML login page
 // API calls returns application/json when successful. We assume receiving HTML means we're unauthenticated.
 func isAuthenticated(headers http.Header) bool {
 	content := headers.Get("content-type")
@@ -94,9 +95,6 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	// TODO: this is pretty hacky at the moment, we're investigating
 	// how to properly handle the CSRF token and see if we could just
 	// use OAuth instead. For now, this gets us off the ground
-
-	// It looks like we may not have to set `_csrf` in the payload, but we'll
-	// see
 
 	// Request to /j_spring_security_check to obtain CSRF token and session cookie
 	req, err := client.newRequest("POST", "/versa/j_spring_security_check", strings.NewReader(authPayload.Encode()))
@@ -129,14 +127,14 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 
 	cookies := client.httpClient.Jar.Cookies(endpointUrl)
 
-	log.Infof("Client login URL: %s", endpointUrl)
-	log.Infof("Client login response headers: %+v", sessionRes.Header)
+	log.Tracef("Client login URL: %s", endpointUrl)
+	log.Tracef("Client login response headers: %+v", sessionRes.Header)
 	for _, cookie := range cookies {
-		log.Infof("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
+		log.Tracef("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
 		// TODO: better handling of cookie
 		if cookie.Name == "VD-CSRF-TOKEN" {
 			client.token = cookie.Value
-			client.tokenExpiry = timeNow().Add(time.Hour * 1)
+			client.tokenExpiry = timeNow().Add(time.Minute * 15)
 		}
 	}
 
@@ -174,22 +172,16 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 
 	cookies := client.httpClient.Jar.Cookies(endpointUrl)
 
-	log.Infof("Client ANALYTICS login URL: %s", endpointUrl)
-	log.Infof("Client ANALYTICS login response headers: %+v", loginRes.Header)
+	log.Tracef("Client ANALYTICS login URL: %s", endpointUrl)
+	log.Tracef("Client ANALYTICS login response headers: %+v", loginRes.Header)
 	for _, cookie := range cookies {
-		log.Infof("Versa Analytics cookie: %s=%s;Secure:%t;Path:%s", cookie.Name, cookie.Value, cookie.Secure, cookie.Path)
-		// TODO: better handling of cookie
-		// if cookie.Name == "VD-CSRF-TOKEN" {
-		// 	client.token = cookie.Value
-		// 	client.tokenExpiry = timeNow().Add(time.Hour * 1)
-		// }
+		log.Tracef("Versa Analytics cookie: %s=%s;Secure:%t;Path:%s", cookie.Name, cookie.Value, cookie.Secure, cookie.Path)
 	}
 
 	if loginRes.StatusCode != 200 {
 		return fmt.Errorf("analytics authentication failed, status code: %v: %s", loginRes.StatusCode, string(bodyBytes))
-	} else {
-		log.Infof("Analytics login successful!! %s", string(bodyBytes))
 	}
+	log.Tracef("Analytics login successful!! %s", string(bodyBytes))
 
 	return nil
 }

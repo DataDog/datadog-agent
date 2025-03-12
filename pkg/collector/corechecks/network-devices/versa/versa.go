@@ -70,9 +70,18 @@ func (v *VersaCheck) Run() error {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
-	err = client.Authenticate()
+	// err = client.Authenticate()
+	// if err != nil {
+	// 	return fmt.Errorf("error logging in to Versa client: %w", err)
+	// }
+
+	appliances, err := client.GetAppliancesLite()
 	if err != nil {
-		return fmt.Errorf("error logging in to Versa client: %w", err)
+		return fmt.Errorf("error getting appliances from Versa client: %w", err)
+	}
+
+	for _, appliance := range appliances {
+		log.Infof("Processing appliance: %+v", appliance)
 	}
 
 	return nil

@@ -173,3 +173,29 @@ func (client *Client) statisticsTimeRange() (string, string) {
 	startDate := endDate.Add(-client.lookback)
 	return startDate.Format(timeFormat), endDate.Format(timeFormat)
 }
+
+func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
+	var appliances []ApplianceLite
+
+	params := map[string]string{
+		"limit":  client.maxCount,
+		"offset": "0",
+	}
+
+	resp, err := get(client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
+	}
+	appliances = resp.Appliances
+
+	for len(appliances) < resp.TotalCount {
+		params["offset"] = fmt.Sprintf("%d", len(appliances))
+		resp, err = get(client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
+		}
+		appliances = append(appliances, resp.Appliances...)
+	}
+
+	return appliances, nil
+}
