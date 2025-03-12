@@ -15,9 +15,10 @@ go_library(
     deps = [
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/installinfo",
         "//pkg/fleet/installer/oci",
-        "//pkg/fleet/telemetry",
-        "//pkg/util/installinfo",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
         "//pkg/version",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],

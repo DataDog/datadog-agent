@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/util/log",
-        "@com_github_datadog_viper//:viper",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
     ],
 )

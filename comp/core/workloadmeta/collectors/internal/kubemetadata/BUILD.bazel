@@ -17,7 +17,6 @@ go_library(
         "//pkg/errors",
         "//pkg/util/clusteragent",
         "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/apiserver/controllers",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/retry",

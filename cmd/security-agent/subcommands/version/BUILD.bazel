@@ -11,7 +11,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/secrets",
-        "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/version",
         "@com_github_fatih_color//:color",

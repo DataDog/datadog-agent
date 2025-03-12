@@ -21,7 +21,6 @@ go_test(
         "//pkg/network/protocols",
         "//pkg/network/protocols/http",
         "//pkg/network/protocols/kafka",
-        "//pkg/network/protocols/telemetry",
         "//pkg/network/protocols/tls",
         "//pkg/process/util",
         "@com_github_datadog_agent_payload_v5//process",

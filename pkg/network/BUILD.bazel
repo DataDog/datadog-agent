@@ -18,6 +18,7 @@ go_library(
         "gateway_lookup.go",
         "gateway_lookup_linux.go",
         "gateway_lookup_unsupported.go",
+        "mock_gateway_lookup.go",
         "nat.go",
         "network_filter.go",
         "port.go",
@@ -36,6 +37,7 @@ go_library(
     deps = [
         "//comp/core/telemetry",
         "//pkg/network/dns",
+        "//pkg/network/payload",
         "//pkg/network/protocols",
         "//pkg/network/protocols/http",
         "//pkg/network/protocols/kafka",
@@ -47,6 +49,7 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/log",
         "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_golang_mock//gomock",
         "@com_github_vishvananda_netns//:netns",
         "@org_go4_intern//:intern",
     ] + select({

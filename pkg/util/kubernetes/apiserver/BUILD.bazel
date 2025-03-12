@@ -11,6 +11,7 @@ go_library(
         "hostname.go",
         "openshift.go",
         "openshift_types.go",
+        "resourcetypes.go",
         "roundtrip.go",
         "services.go",
         "services_kubelet.go",
@@ -33,7 +34,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/pointer",
         "//pkg/util/retry",
-        "@com_github_datadog_watermarkpodautoscaler_apis//datadoghq/v1alpha1",
         "@io_k8s_api//authorization/v1:authorization",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apiextensions_apiserver//pkg/client/clientset/clientset",
@@ -70,6 +70,7 @@ go_test(
     srcs = [
         "endpoints_test.go",
         "events_test.go",
+        "resourcetypes_test.go",
         "services_kubelet_test.go",
         "services_test.go",
         "warning_handler_test.go",
@@ -84,5 +85,7 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_apimachinery//pkg/util/sets",
+        "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//kubernetes/fake",
     ],
 )

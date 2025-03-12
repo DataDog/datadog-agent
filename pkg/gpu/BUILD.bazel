@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "gpu",
     srcs = [
+        "cgroups.go",
+        "const.go",
         "doc.go",
         "probe_stub.go",
     ],
@@ -15,6 +17,8 @@ go_library(
             "//pkg/collector/corechecks/gpu/model",
             "//pkg/ebpf",
             "//pkg/gpu/config",
+            "//pkg/security/utils",
+            "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "@rules_go//go/platform:linux": [
@@ -23,6 +27,8 @@ go_library(
             "//pkg/collector/corechecks/gpu/model",
             "//pkg/ebpf",
             "//pkg/gpu/config",
+            "//pkg/security/utils",
+            "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "//conditions:default": [],

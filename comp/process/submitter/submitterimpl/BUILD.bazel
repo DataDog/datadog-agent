@@ -19,6 +19,7 @@ go_library(
         "//pkg/process/runner",
         "//pkg/process/runner/mocks",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//mock",
         "@org_uber_go_fx//:fx",
     ],
@@ -34,6 +35,7 @@ go_test(
         "//comp/process/hostinfo/hostinfoimpl",
         "//comp/process/submitter",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_fx//:fx",
     ],
 )

@@ -14,6 +14,7 @@ go_library(
         "@com_github_datadog_appsec_internal_go//limiter",
         "@com_github_datadog_appsec_internal_go//log",
         "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v3//errors",
         "@com_github_json_iterator_go//:go",
     ],
 )

@@ -58,7 +58,7 @@ go_test(
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/utils/e2e/client",
         "//test/new-e2e/pkg/utils/e2e/client/agentclient",
-        "//test/new-e2e/tests/agent-shared-components/secretsutils",
+        "//test/new-e2e/tests/agent-configuration/secretsutils",
         "@com_github_aws_aws_sdk_go//aws",
         "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
         "@com_github_datadog_test_infra_definitions//common/config",

@@ -65,6 +65,7 @@ go_test(
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
         "//pkg/tagset",
+        "//pkg/util/kubernetes/apiserver",
         "@com_github_openshift_api//quota/v1:quota",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@com_github_stretchr_testify//assert",
@@ -72,5 +73,7 @@ go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//kubernetes/fake",
     ],
 )

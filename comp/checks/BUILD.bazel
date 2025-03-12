@@ -21,9 +21,9 @@ go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core",
+            "//comp/core/agenttelemetry/fx",
             "//comp/core/tagger/def",
             "//comp/core/tagger/mock",
-            "//comp/trace/config",
             "//pkg/util/crashreport",
             "//pkg/util/fxutil",
             "@org_uber_go_fx//:fx",

@@ -22,6 +22,7 @@ go_library(
         "field_accessors_windows.go",
         "field_handlers_unix.go",
         "field_handlers_windows.go",
+        "iterator.go",
         "legacy_secl.go",
         "marshallers_linux.go",
         "model.go",
@@ -34,7 +35,6 @@ go_library(
         "process_cache_entry_unix.go",
         "process_cache_entry_windows.go",
         "security_profile.go",
-        "string_array_iter.go",
         "strings.go",
         "syscalls.go",
         "syscalls_linux_amd64.go",
@@ -53,14 +53,13 @@ go_library(
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model/sharedconsts",
         "//pkg/security/secl/model/usersession",
-        "@org_modernc_mathutil//:mathutil",
+        "//pkg/security/secl/model/utils",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_google_gopacket//:gopacket",
         ],
         "@rules_go//go/platform:android": [
             "@com_github_google_gopacket//:gopacket",
-            "@com_github_google_gopacket//layers",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
         ],
         "@rules_go//go/platform:darwin": [
@@ -80,7 +79,6 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_google_gopacket//:gopacket",
-            "@com_github_google_gopacket//layers",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
         ],
         "@rules_go//go/platform:netbsd": [

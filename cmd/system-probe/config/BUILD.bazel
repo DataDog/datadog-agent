@@ -25,7 +25,6 @@ go_library(
         "//pkg/util/kernel",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@com_github_datadog_viper//:viper",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/prebuilt",

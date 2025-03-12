@@ -46,6 +46,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/retry",
         "//pkg/util/scrubber",
+        "@com_github_cenkalti_backoff//:backoff",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",

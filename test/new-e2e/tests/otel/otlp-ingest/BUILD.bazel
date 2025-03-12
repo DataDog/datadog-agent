@@ -3,16 +3,21 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "otlp-ingest_test",
     srcs = [
+        "docker_pipelines_test.go",
         "operation_and_resource_name_logic_v2_test.go",
         "pipelines_sampling_test.go",
         "pipelines_test.go",
         "receive_resource_spans_v2_test.go",
     ],
+    embedsrcs = ["compose/otlp_ingest_compose.yaml"],
     deps = [
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/docker",
         "//test/new-e2e/pkg/provisioners/aws/kubernetes",
         "//test/new-e2e/tests/otel/utils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
         "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

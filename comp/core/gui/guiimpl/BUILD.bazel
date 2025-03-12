@@ -48,7 +48,6 @@ go_library(
         "//pkg/util/system",
         "//pkg/version",
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
-        "@com_github_dvsekhvalnov_jose2go//base64url",
         "@com_github_gorilla_mux//:mux",
         "@in_gopkg_yaml_v2//:yaml_v2",
         "@org_uber_go_fx//:fx",

@@ -39,6 +39,7 @@ go_library(
         "splice.go",
         "syscall_helpers.go",
         "syscall_monitor.go",
+        "sysctl.go",
         "tc.go",
         "unlink.go",
         "xattr.go",

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "seelog",
@@ -8,4 +8,12 @@ go_library(
         "//pkg/config/logs:__subpackages__",
         "//pkg/util/log:__subpackages__",  # keep
     ],
+)
+
+go_test(
+    name = "seelog_test",
+    srcs = ["seelog_config_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":seelog"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

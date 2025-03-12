@@ -12,7 +12,7 @@ go_library(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/tar",
-        "//pkg/fleet/telemetry",
+        "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",
         "@com_github_google_go_containerregistry//pkg/authn",
         "@com_github_google_go_containerregistry//pkg/name",

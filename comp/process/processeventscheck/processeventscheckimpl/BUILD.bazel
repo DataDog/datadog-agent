@@ -11,6 +11,7 @@ go_library(
         "//comp/process/types",
         "//pkg/process/checks",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_fx//:fx",
     ],
 )

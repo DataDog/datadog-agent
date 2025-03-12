@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "local",
+    srcs = [
+        "doc.go",
+        "recommendation_settings.go",
+        "recommender.go",
+        "recommender_testutils.go",
+        "replica_calculator.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/common",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/telemetry",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_utils//clock",
+    ],
+)
+
+go_test(
+    name = "local_test",
+    srcs = [
+        "recommendation_settings_test.go",
+        "recommender_test.go",
+        "replica_calculator_test.go",
+    ],
+    embed = [":local"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/util/kubernetes",
+        "//pkg/util/pointer",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

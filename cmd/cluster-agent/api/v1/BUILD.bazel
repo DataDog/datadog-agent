@@ -18,7 +18,6 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
-        "//pkg/util/kubernetes/apiserver/controllers",
         "//pkg/util/log",
         "@com_github_gorilla_mux//:mux",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",

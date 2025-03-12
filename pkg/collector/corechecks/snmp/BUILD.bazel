@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
+        "//comp/remote-config/rcclient",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",

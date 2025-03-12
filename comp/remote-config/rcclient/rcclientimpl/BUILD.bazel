@@ -24,6 +24,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
         "@com_github_pkg_errors//:errors",
         "@org_uber_go_fx//:fx",
     ],

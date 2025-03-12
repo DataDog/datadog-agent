@@ -17,7 +17,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//pkg/languagedetection/languagemodels",
-        "//pkg/languagedetection/util",
         "//pkg/util/containers/image",
         "//pkg/util/scrubber",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",

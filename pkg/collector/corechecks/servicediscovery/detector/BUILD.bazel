@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "detector",
+    srcs = ["service_detector.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/servicediscovery/language",
+        "//pkg/collector/corechecks/servicediscovery/usm",
+        "//pkg/trace/traceutil",
+    ],
+)
+
+go_test(
+    name = "detector_test",
+    srcs = ["service_detector_test.go"],
+    embed = [":detector"],
+    deps = [
+        "//pkg/collector/corechecks/servicediscovery/language",
+        "//pkg/collector/corechecks/servicediscovery/usm",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -14,7 +14,7 @@ go_library(
         "//cmd/trace-agent/subcommands",
         "//comp/agent/autoexit",
         "//comp/agent/autoexit/autoexitimpl",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/createandfetchimpl",
         "//comp/core/config",
         "//comp/core/configsync/configsyncimpl",
         "//comp/core/log/def",

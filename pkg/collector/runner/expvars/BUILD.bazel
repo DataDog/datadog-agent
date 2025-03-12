@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/haagent/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
@@ -27,6 +28,7 @@ go_test(
     ],
     embed = [":expvars"],
     deps = [
+        "//comp/haagent/mock",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",

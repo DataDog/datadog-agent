@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "apm-library-dotnet-package_test",
+    srcs = [
+        "install_no_iis_test.go",
+        "install_test.go",
+    ],
+    embedsrcs = [
+        "resources/index.aspx",
+        "resources/web.config",
+    ],
+    deps = [
+        "//pkg/util/testutil/flake",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/unix",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows",
+    ],
+)

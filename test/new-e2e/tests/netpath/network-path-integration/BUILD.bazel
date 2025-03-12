@@ -4,14 +4,21 @@ go_test(
     name = "network-path-integration_test",
     srcs = [
         "common_test.go",
+        "fake_traceroute_test.go",
         "netpath_int_nix_test.go",
         "netpath_int_win_test.go",
     ],
     embedsrcs = [
         "fixtures/network_path.yaml",
         "fixtures/system-probe.yaml",
+        "fake-traceroute/datadog_ttl.yaml",
+        "fake-traceroute/network_path.yaml",
+        "fake-traceroute/router_setup.sh",
+        "fake-traceroute/router_teardown.sh",
     ],
     deps = [
+        "//pkg/networkpath/payload",
+        "//pkg/util/testutil/flake",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "//test/new-e2e/pkg/components",

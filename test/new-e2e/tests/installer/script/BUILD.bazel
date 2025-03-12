@@ -8,6 +8,7 @@ go_test(
         "default_script_test.go",
     ],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/host",

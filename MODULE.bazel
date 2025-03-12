@@ -44,35 +44,23 @@ python.toolchain(
 ##################
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.23.1")
+go_sdk.download(version = "1.23.5")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_work = "//:go.work")
-
 go_deps.gazelle_default_attributes(
     directives = [
         # Generally speaking we don't need to generate code from protos from 3rd party repos,
         # and they trip up rules_go, so we disable them by default
         "gazelle:proto disable",
         # Resolve dependencies that depend back on this same repo (cyclical deps) to references to this repo
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/hostname/validate @@//pkg/util/hostname/validate",
         "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace @@//pkg/proto/pbgo/trace",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/stats @@//pkg/trace/stats",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/hostname/validate @@//pkg/util/hostname/validate",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/log @@//pkg/trace/log",
     ],
-)
-
-# grpc-gateway comes with BUILD files of its own, but I have no clue how to make use of that
-# This is my best attempt so far at making this dependency work
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_naming_convention import",
-        "gazelle:prefix github.com/grpc-ecosystem/grpc-gateway",
-        "gazelle:exclude third_party",
-        "gazelle:exclude vendor",
-        "gazelle:exclude _output",
-    ],
-    path = "github.com/grpc-ecosystem/grpc-gateway",
 )
 
 # go-systemd requires systemd headers to build, this patch adds them as a dependency
@@ -95,7 +83,6 @@ go_deps.module_override(
     ],
     path = "github.com/godror/godror",
 )
-
 use_repo(
     go_deps,
     "com_github_acobaugh_osrelease",
@@ -147,18 +134,26 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_api_api_def",
     "com_github_datadog_datadog_agent_comp_api_authtoken",
     "com_github_datadog_datadog_agent_comp_core_config",
+    "com_github_datadog_datadog_agent_comp_core_configsync",
     "com_github_datadog_datadog_agent_comp_core_flare_builder",
     "com_github_datadog_datadog_agent_comp_core_flare_types",
     "com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface",
     "com_github_datadog_datadog_agent_comp_core_log_def",
+    "com_github_datadog_datadog_agent_comp_core_log_fx",
     "com_github_datadog_datadog_agent_comp_core_log_impl",
     "com_github_datadog_datadog_agent_comp_core_log_impl_trace",
     "com_github_datadog_datadog_agent_comp_core_log_mock",
     "com_github_datadog_datadog_agent_comp_core_secrets",
     "com_github_datadog_datadog_agent_comp_core_status",
     "com_github_datadog_datadog_agent_comp_core_status_statusimpl",
+    "com_github_datadog_datadog_agent_comp_core_tagger_def",
+    "com_github_datadog_datadog_agent_comp_core_tagger_fx_remote",
+    "com_github_datadog_datadog_agent_comp_core_tagger_generic_store",
+    "com_github_datadog_datadog_agent_comp_core_tagger_impl_remote",
     "com_github_datadog_datadog_agent_comp_core_tagger_origindetection",
+    "com_github_datadog_datadog_agent_comp_core_tagger_subscriber",
     "com_github_datadog_datadog_agent_comp_core_tagger_tags",
+    "com_github_datadog_datadog_agent_comp_core_tagger_telemetry",
     "com_github_datadog_datadog_agent_comp_core_tagger_types",
     "com_github_datadog_datadog_agent_comp_core_tagger_utils",
     "com_github_datadog_datadog_agent_comp_core_telemetry",
@@ -173,6 +168,9 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_otelcol_converter_impl",
     "com_github_datadog_datadog_agent_comp_otelcol_ddflareextension_def",
     "com_github_datadog_datadog_agent_comp_otelcol_ddflareextension_impl",
+    "com_github_datadog_datadog_agent_comp_otelcol_ddflareextension_types",
+    "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_def",
+    "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_impl",
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline",
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline_logsagentpipelineimpl",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
@@ -182,6 +180,8 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_processor_infraattributesprocessor",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_statsprocessor",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_testutil",
+    "com_github_datadog_datadog_agent_comp_otelcol_status_def",
+    "com_github_datadog_datadog_agent_comp_otelcol_status_impl",
     "com_github_datadog_datadog_agent_comp_serializer_logscompression",
     "com_github_datadog_datadog_agent_comp_serializer_metricscompression",
     "com_github_datadog_datadog_agent_comp_trace_agent_def",
@@ -200,7 +200,10 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_config_structure",
     "com_github_datadog_datadog_agent_pkg_config_teeconfig",
     "com_github_datadog_datadog_agent_pkg_config_utils",
+    "com_github_datadog_datadog_agent_pkg_config_viperconfig",
     "com_github_datadog_datadog_agent_pkg_errors",
+    "com_github_datadog_datadog_agent_pkg_fips",
+    "com_github_datadog_datadog_agent_pkg_fleet_installer",
     "com_github_datadog_datadog_agent_pkg_gohai",
     "com_github_datadog_datadog_agent_pkg_logs_auditor",
     "com_github_datadog_datadog_agent_pkg_logs_client",
@@ -216,7 +219,9 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_logs_status_utils",
     "com_github_datadog_datadog_agent_pkg_logs_util_testutils",
     "com_github_datadog_datadog_agent_pkg_metrics",
+    "com_github_datadog_datadog_agent_pkg_network_payload",
     "com_github_datadog_datadog_agent_pkg_networkdevice_profile",
+    "com_github_datadog_datadog_agent_pkg_networkpath_payload",
     "com_github_datadog_datadog_agent_pkg_obfuscate",
     "com_github_datadog_datadog_agent_pkg_orchestrator_model",
     "com_github_datadog_datadog_agent_pkg_process_util_api",
@@ -250,6 +255,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_util_log_setup",
     "com_github_datadog_datadog_agent_pkg_util_option",
     "com_github_datadog_datadog_agent_pkg_util_pointer",
+    "com_github_datadog_datadog_agent_pkg_util_prometheus",
     "com_github_datadog_datadog_agent_pkg_util_scrubber",
     "com_github_datadog_datadog_agent_pkg_util_sort",
     "com_github_datadog_datadog_agent_pkg_util_startstop",
@@ -292,7 +298,6 @@ use_repo(
     "com_github_docker_docker",
     "com_github_docker_go_connections",
     "com_github_dustin_go_humanize",
-    "com_github_dvsekhvalnov_jose2go",
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
     "com_github_evanphx_json_patch",
@@ -314,6 +319,7 @@ use_repo(
     "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
+    "com_github_gofrs_flock",
     "com_github_gogo_protobuf",
     "com_github_golang_groupcache",
     "com_github_golang_mock",
@@ -329,7 +335,7 @@ use_repo(
     "com_github_gosnmp_gosnmp",
     "com_github_goware_modvendor",
     "com_github_grpc_ecosystem_go_grpc_middleware",
-    "com_github_grpc_ecosystem_grpc_gateway",
+    "com_github_grpc_ecosystem_grpc_gateway_v2",
     "com_github_h2non_filetype",
     "com_github_hairyhenderson_go_codeowners",
     "com_github_hashicorp_consul_api",
@@ -353,6 +359,7 @@ use_repo(
     "com_github_knqyf263_go_rpmdb",
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
+    "com_github_kraken_hpc_go_fork",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",
     "com_github_lxn_win",
@@ -360,6 +367,7 @@ use_repo(
     "com_github_masterminds_semver",
     "com_github_masterminds_semver_v3",
     "com_github_masterminds_sprig_v3",
+    "com_github_mattn_go_sqlite3",
     "com_github_mdlayher_netlink",
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",
@@ -509,6 +517,7 @@ use_repo(
     "io_opentelemetry_go_collector_confmap_provider_httpprovider",
     "io_opentelemetry_go_collector_confmap_provider_httpsprovider",
     "io_opentelemetry_go_collector_confmap_provider_yamlprovider",
+    "io_opentelemetry_go_collector_confmap_xconfmap",
     "io_opentelemetry_go_collector_connector",
     "io_opentelemetry_go_collector_consumer",
     "io_opentelemetry_go_collector_consumer_consumertest",
@@ -548,6 +557,7 @@ use_repo(
     "org_go4_mem",
     "org_go4_netipx",
     "org_golang_google_genproto_googleapis_api",
+    "org_golang_google_genproto_googleapis_rpc",
     "org_golang_google_grpc",
     "org_golang_google_grpc_examples",
     "org_golang_google_protobuf",
@@ -565,7 +575,6 @@ use_repo(
     "org_golang_x_time",
     "org_golang_x_tools",
     "org_golang_x_xerrors",
-    "org_modernc_mathutil",
     "org_modernc_sqlite",
     "org_mongodb_go_mongo_driver",
     "org_uber_go_atomic",

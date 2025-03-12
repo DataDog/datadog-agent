@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//cmd/otel-agent/subcommands",
         "//cmd/otel-agent/subcommands/run",
+        "//cmd/otel-agent/subcommands/status",
         "//pkg/cli/subcommands/version",
         "@com_github_kouhin_envflag//:envflag",
         "@com_github_spf13_cobra//:cobra",

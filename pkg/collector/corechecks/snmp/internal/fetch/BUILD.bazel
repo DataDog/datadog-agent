@@ -10,7 +10,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
-        "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/common",
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/collector/corechecks/snmp/internal/valuestore",

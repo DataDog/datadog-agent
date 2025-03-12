@@ -13,6 +13,7 @@ go_library(
         "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/logs/diagnostic",
+        "//pkg/util/filesystem",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",

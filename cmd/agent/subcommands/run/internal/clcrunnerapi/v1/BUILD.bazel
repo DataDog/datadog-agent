@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1",
     visibility = ["//cmd/agent/subcommands/run:__subpackages__"],
     deps = [
-        "//cmd/agent/common",
         "//comp/core/autodiscovery",
+        "//pkg/api/version",
         "//pkg/collector/check/id",
         "//pkg/status",
         "//pkg/util/log",

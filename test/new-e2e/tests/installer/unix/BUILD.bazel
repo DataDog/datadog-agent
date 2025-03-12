@@ -8,11 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix",
     visibility = ["//visibility:public"],
-    deps = [
-        "//test/new-e2e/pkg/runner",
-        "//test/new-e2e/pkg/runner/parameters",
-        "@com_github_datadog_test_infra_definitions//components/os",
-    ],
+    deps = ["@com_github_datadog_test_infra_definitions//components/os"],
 )
 
 go_test(
@@ -26,6 +22,7 @@ go_test(
     ],
     embed = [":unix"],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/host",

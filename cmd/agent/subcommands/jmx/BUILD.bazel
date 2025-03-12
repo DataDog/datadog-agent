@@ -41,7 +41,6 @@ go_library(
         "//comp/dogstatsd/replay/def",
         "//comp/dogstatsd/server",
         "//comp/haagent/fx",
-        "//comp/logs/agent",
         "//comp/logs/integrations/def",
         "//comp/remote-config/rcservice",
         "//comp/remote-config/rcservicemrf",

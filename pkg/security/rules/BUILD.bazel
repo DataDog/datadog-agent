@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "rules",
-    srcs = ["engine.go"],
+    srcs = [
+        "engine.go",
+        "engine_linux.go",
+        "engine_others.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rules",
     visibility = ["//visibility:public"],
     deps = [
@@ -12,6 +16,7 @@ go_library(
         "//pkg/security/events",
         "//pkg/security/metrics",
         "//pkg/security/probe",
+        "//pkg/security/proto/api",
         "//pkg/security/rconfig",
         "//pkg/security/rules/autosuppression",
         "//pkg/security/rules/bundled",

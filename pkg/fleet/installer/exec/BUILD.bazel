@@ -3,14 +3,13 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "exec",
     srcs = ["installer_exec.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec",
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec",
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
-        "//pkg/fleet/internal/paths",
-        "//pkg/fleet/telemetry",
-        "//pkg/util/log",
+        "//pkg/fleet/installer/telemetry",
     ],
 )

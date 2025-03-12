@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "oomkill",
@@ -13,4 +13,19 @@ go_library(
         "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
         "//pkg/ebpf",
     ],
+)
+
+go_test(
+    name = "oomkill_test",
+    srcs = ["c_types_linux_test.go"],
+    embed = [":oomkill"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
 )

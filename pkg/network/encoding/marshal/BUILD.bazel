@@ -15,7 +15,6 @@ go_library(
         "usm_kafka.go",
         "usm_lookup.go",
         "usm_lookup_windows.go",
-        "usm_payload_telemetry.go",
         "usm_postgres.go",
         "usm_protocols.go",
         "usm_redis.go",
@@ -37,7 +36,6 @@ go_library(
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_gogo_protobuf//jsonpb",
-        "@com_github_gogo_protobuf//proto",
         "@com_github_twmb_murmur3//:murmur3",
     ],
 )
@@ -53,6 +51,7 @@ go_test(
         "usm_http2_test.go",
         "usm_http_test.go",
         "usm_kafka_test.go",
+        "usm_latency_encoding_test.go",
         "usm_lookup_test.go",
         "usm_lookup_windows_test.go",
         "usm_postgres_test.go",

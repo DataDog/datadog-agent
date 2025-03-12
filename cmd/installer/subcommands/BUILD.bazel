@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//cmd/installer/command",
         "//cmd/installer/subcommands/daemon",
-        "//cmd/installer/subcommands/installer",
         "//cmd/installer/user",
+        "//pkg/fleet/installer/commands",
         "@com_github_spf13_cobra//:cobra",
     ],
 )

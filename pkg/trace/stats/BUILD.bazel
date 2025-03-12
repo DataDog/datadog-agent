@@ -30,6 +30,7 @@ go_library(
         "@com_github_golang_protobuf//proto",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_semconv//v1.17.0:v1_17_0",
+        "@org_golang_google_genproto_googleapis_rpc//code",
         "@org_golang_google_protobuf//proto",
     ],
 )

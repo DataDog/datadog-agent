@@ -22,7 +22,7 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/util/log",
-        "@com_github_datadog_viper//:viper",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_spf13_cast//:cast",
         "@in_gopkg_yaml_v2//:yaml_v2",

@@ -31,7 +31,14 @@ go_library(
 
 go_test(
     name = "cloudproviders_test",
-    srcs = ["cloudproviders_test.go"],
+    srcs = [
+        "cloudproviders_test.go",
+        "network_test.go",
+    ],
     embed = [":cloudproviders"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

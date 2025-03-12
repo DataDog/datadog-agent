@@ -42,6 +42,7 @@ go_test(
         "install_subservices_test.go",
         "install_test.go",
         "npm_test.go",
+        "persisting_integrations_test.go",
         "upgrade_test.go",
     ],
     embed = [":install-test"],

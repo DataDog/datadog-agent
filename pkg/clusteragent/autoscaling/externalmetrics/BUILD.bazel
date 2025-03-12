@@ -23,6 +23,7 @@ go_library(
         "//pkg/util/backoff",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/controllers",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/kubernetes/autoscalers",

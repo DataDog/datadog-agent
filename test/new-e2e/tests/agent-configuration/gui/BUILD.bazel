@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "gui",
     srcs = ["gui_common.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/gui",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/gui",
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/components",

@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/config/viperconfig",
         "@com_github_stretchr_testify//require",
     ],
 )

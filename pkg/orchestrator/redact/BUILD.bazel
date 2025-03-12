@@ -4,6 +4,7 @@ go_library(
     name = "redact",
     srcs = [
         "data_scrubber.go",
+        "metadata.go",
         "pod.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/redact",

@@ -13,7 +13,7 @@ go_library(
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/clusteragent",
-        "//pkg/util/ec2",
+        "//pkg/util/ec2/tags",
         "//pkg/util/kubernetes/hostinfo",
         "//pkg/util/log",
     ],

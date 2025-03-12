@@ -11,7 +11,9 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/setup",
         "//pkg/sbom",
+        "//pkg/util/containers",
         "//pkg/util/option",
         "@com_github_stretchr_testify//mock",
     ],

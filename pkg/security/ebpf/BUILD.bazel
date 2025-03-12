@@ -16,7 +16,6 @@ go_library(
             "//pkg/security/ebpf/probes",
             "//pkg/security/probe/config",
             "//pkg/security/seclog",
-            "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
@@ -24,7 +23,6 @@ go_library(
             "//pkg/security/ebpf/probes",
             "//pkg/security/probe/config",
             "//pkg/security/seclog",
-            "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "//conditions:default": [],

@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "bootstrap",
+    srcs = [
+        "bootstrap.go",
+        "bootstrap_nix.go",
+        "bootstrap_windows.go",
+        "bootstrapper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/paths",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/msi",
+        ],
+        "//conditions:default": [],
+    }),
+)

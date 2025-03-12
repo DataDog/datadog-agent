@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config.go",
         "configstore.go",
+        "envconfmap.go",
         "extension.go",
         "factory.go",
         "server.go",
@@ -15,9 +16,12 @@ go_library(
     deps = [
         "//comp/otelcol/ddflareextension/def",
         "//comp/otelcol/ddflareextension/impl/internal/metadata",
+        "//comp/otelcol/ddflareextension/types",
         "//pkg/api/util",
         "//pkg/version",
+        "@com_github_google_uuid//:uuid",
         "@com_github_gorilla_mux//:mux",
+        "@com_github_mohae_deepcopy//:deepcopy",
         "@in_gopkg_yaml_v2//:yaml_v2",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_component_componentstatus//:componentstatus",
@@ -35,6 +39,7 @@ go_test(
     srcs = [
         "config_test.go",
         "configstore_test.go",
+        "envconfmap_test.go",
         "extension_test.go",
         "factory_test.go",
     ],

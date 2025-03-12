@@ -4,9 +4,12 @@ go_library(
     name = "portlist",
     srcs = [
         "netstat.go",
+        "netstat_darwin.go",
+        "netstat_noimpl.go",
+        "netstat_windows.go",
         "poller.go",
+        "poller_darwin.go",
         "poller_linux.go",
-        "poller_macos.go",
         "poller_windows.go",
         "portlist.go",
     ],
@@ -33,6 +36,10 @@ go_library(
             "@org_go4_mem//:mem",
             "@org_golang_x_sys//unix",
         ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//cpu",
+            "@org_golang_x_sys//windows",
+        ],
         "//conditions:default": [],
     }),
 )
@@ -41,8 +48,8 @@ go_test(
     name = "portlist_test",
     srcs = [
         "netstat_test.go",
+        "poller_darwin_test.go",
         "poller_linux_test.go",
-        "poller_macos_test.go",
         "poller_test.go",
     ],
     embed = [":portlist"],

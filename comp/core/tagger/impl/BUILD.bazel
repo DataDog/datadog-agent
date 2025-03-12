@@ -4,7 +4,6 @@ go_library(
     name = "impl",
     srcs = [
         "local_tagger.go",
-        "replay_tagger.go",
         "tagger.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/impl",
@@ -31,7 +30,6 @@ go_library(
         "//pkg/util/containers/metrics",
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/http",
-        "//pkg/util/log",
         "//pkg/util/option",
     ],
 )

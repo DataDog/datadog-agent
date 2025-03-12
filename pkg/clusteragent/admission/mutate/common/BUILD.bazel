@@ -4,7 +4,8 @@ go_library(
     name = "common",
     srcs = [
         "common.go",
-        "ns_injection_filter.go",
+        "filter.go",
+        "mutator.go",
         "test_utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common",
@@ -19,8 +20,10 @@ go_library(
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/metrics",
         "//pkg/config/setup",
-        "//pkg/languagedetection/util",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/containers",
         "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/log",
         "@com_github_wi2l_jsondiff//:jsondiff",
         "@io_k8s_api//apps/v1:apps",
@@ -34,10 +37,16 @@ go_library(
 
 go_test(
     name = "common_test",
-    srcs = ["common_test.go"],
+    srcs = [
+        "common_test.go",
+        "filter_test.go",
+        "mutator_test.go",
+    ],
     embed = [":common"],
     deps = [
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_client_go//dynamic",
     ],
 )

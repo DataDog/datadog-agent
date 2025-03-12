@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "kafka",
@@ -13,6 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/network/protocols",
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/types",
         "//pkg/process/util",
@@ -25,4 +26,20 @@ go_library(
         "@com_github_twmb_franz_go//pkg/kgo",
         "@com_github_twmb_franz_go_pkg_kadm//:kadm",
     ],
+)
+
+go_test(
+    name = "kafka_test",
+    srcs = ["types_linux_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":kafka"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
 )

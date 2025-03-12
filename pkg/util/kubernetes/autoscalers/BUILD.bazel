@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "autoscalers.go",
         "datadogexternal.go",
+        "datadogexternal_errors.go",
         "datadogexternal_util.go",
         "discover.go",
         "processor.go",
@@ -25,9 +26,9 @@ go_library(
         "@io_k8s_api//autoscaling/v2beta2",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime/schema",
-        "@io_k8s_apimachinery//pkg/util/errors",
         "@io_k8s_client_go//discovery",
         "@io_k8s_client_go//kubernetes",
+        "@org_golang_x_sync//errgroup",
     ],
 )
 
@@ -35,6 +36,7 @@ go_test(
     name = "autoscalers_test",
     srcs = [
         "autoscalers_test.go",
+        "datadogexternal_errors_test.go",
         "datadogexternal_test.go",
         "datadogexternal_util_test.go",
         "processor_test.go",
@@ -44,6 +46,8 @@ go_test(
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/telemetry",
         "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/pointer",

@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/version",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/version",
         "@com_github_fatih_color//:color",

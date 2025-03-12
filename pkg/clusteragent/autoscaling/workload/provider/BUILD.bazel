@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "provider",
+    srcs = [
+        "doc.go",
+        "provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
+        "//pkg/clusteragent/autoscaling",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/local",
+        "//pkg/clusteragent/autoscaling/workload/model",
+        "//pkg/config/setup",
+        "//pkg/util/kubernetes/apiserver",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//tools/record",
+    ],
+)

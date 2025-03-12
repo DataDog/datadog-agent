@@ -2,7 +2,12 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "tagsfromlabels",
-    srcs = ["tags.go"],
+    srcs = [
+        "filter.go",
+        "mutator.go",
+        "owner.go",
+        "tags.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels",
     visibility = ["//visibility:public"],
     deps = [
@@ -26,14 +31,16 @@ go_library(
 
 go_test(
     name = "tagsfromlabels_test",
-    srcs = ["tags_test.go"],
+    srcs = [
+        "owner_test.go",
+        "tags_test.go",
+    ],
     embed = [":tagsfromlabels"],
     deps = [
         "//comp/core",
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
-        "//pkg/clusteragent/admission/mutate/autoinstrumentation",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/util/cache",
         "//pkg/util/fxutil",

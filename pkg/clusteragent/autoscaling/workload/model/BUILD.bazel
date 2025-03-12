@@ -16,7 +16,9 @@ go_library(
     deps = [
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//autoscaling/kubernetes",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_stretchr_testify//assert",
@@ -32,7 +34,8 @@ go_test(
     srcs = ["pod_autoscaler_test.go"],
     embed = [":model"],
     deps = [
-        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/common",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@com_github_stretchr_testify//assert",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

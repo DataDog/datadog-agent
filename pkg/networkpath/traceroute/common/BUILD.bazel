@@ -2,26 +2,21 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "common",
-    srcs = ["common.go"],
+    srcs = [
+        "common.go",
+        "traceroute_parallel.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/log",
-        "@com_github_google_gopacket//:gopacket",
-        "@com_github_google_gopacket//layers",
         "@org_golang_x_net//ipv4",
+        "@org_golang_x_sync//errgroup",
     ],
 )
 
 go_test(
     name = "common_test",
-    srcs = ["common_test.go"],
+    srcs = ["traceroute_parallel_test.go"],
     embed = [":common"],
-    deps = [
-        "//pkg/networkpath/traceroute/testutils",
-        "@com_github_google_gopacket//layers",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@org_golang_x_net//ipv4",
-    ],
+    deps = ["@com_github_stretchr_testify//require"],
 )

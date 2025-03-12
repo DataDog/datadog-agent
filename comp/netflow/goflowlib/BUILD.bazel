@@ -17,13 +17,11 @@ go_library(
         "//comp/netflow/config",
         "//comp/netflow/goflowlib/netflowstate",
         "//pkg/metrics",
-        "//pkg/util/log",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
         "@com_github_netsampler_goflow2//pb",
         "@com_github_netsampler_goflow2//utils",
         "@com_github_prometheus_client_model//go",
-        "@com_github_sirupsen_logrus//:logrus",
         "@org_uber_go_atomic//:atomic",
     ],
 )

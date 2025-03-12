@@ -33,6 +33,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",

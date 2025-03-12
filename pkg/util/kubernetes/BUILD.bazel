@@ -8,15 +8,26 @@ go_library(
         "doc.go",
         "helpers.go",
         "hostname_stub.go",
+        "resource.go",
         "time.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/pointer",
+        "@io_k8s_apimachinery//pkg/api/resource",
+    ],
 )
 
 go_test(
     name = "kubernetes_test",
-    srcs = ["helpers_test.go"],
+    srcs = [
+        "helpers_test.go",
+        "resource_test.go",
+    ],
     embed = [":kubernetes"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/api/resource",
+    ],
 )

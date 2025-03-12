@@ -4,6 +4,7 @@ go_library(
     name = "api",
     srcs = [
         "check.go",
+        "secrets.go",
         "server.go",
         "status.go",
         "tagger_list.go",
@@ -15,6 +16,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/secrets",
         "//comp/core/settings",
         "//comp/core/status",
         "//comp/core/tagger/def",

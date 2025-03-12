@@ -10,7 +10,7 @@ go_library(
         "fixtures/secret-resolver.py",
         "fixtures/secret_wrapper.bat",
     ],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/option",

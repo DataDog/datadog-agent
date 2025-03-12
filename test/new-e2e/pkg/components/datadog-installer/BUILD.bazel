@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common/pipeline",
         "@com_github_datadog_test_infra_definitions//common",
         "@com_github_datadog_test_infra_definitions//common/config",

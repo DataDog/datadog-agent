@@ -8,6 +8,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core",
+            "//comp/core/telemetry",
+            "//comp/core/telemetry/telemetryimpl",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/fx-mock",
             "//comp/core/workloadmeta/mock",
@@ -19,6 +21,8 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core",
+            "//comp/core/telemetry",
+            "//comp/core/telemetry/telemetryimpl",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/fx-mock",
             "//comp/core/workloadmeta/mock",

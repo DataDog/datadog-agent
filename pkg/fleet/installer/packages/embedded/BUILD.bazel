@@ -21,6 +21,8 @@ go_library(
         "dd-host-install",
         "embed.go",
         "BUILD.bazel",
+        "datadog-agent-installer-exp.service",
+        "datadog-agent-installer.service",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
     visibility = ["//visibility:public"],

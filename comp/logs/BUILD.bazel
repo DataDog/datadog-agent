@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/agentimpl",
+        "//comp/logs/streamlogs/fx",
         "//pkg/util/fxutil",
     ],
 )

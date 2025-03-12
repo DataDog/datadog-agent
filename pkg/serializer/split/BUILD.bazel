@@ -6,11 +6,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/split",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/serializer/metricscompression/def",
         "//pkg/serializer/marshaler",
         "//pkg/telemetry",
-        "//pkg/util/log",
     ],
 )
 
@@ -19,6 +19,7 @@ go_test(
     srcs = ["split_test.go"],
     embed = [":split"],
     deps = [
+        "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/serializer/metricscompression/impl",
         "//pkg/config/mock",

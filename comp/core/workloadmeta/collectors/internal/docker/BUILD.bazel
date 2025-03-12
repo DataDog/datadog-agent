@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "docker",
@@ -35,5 +35,18 @@ go_library(
         "@com_github_docker_go_connections//nat",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "docker_test",
+    srcs = ["docker_test.go"],
+    embed = [":docker"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "@com_github_docker_docker//api/types",
+        "@com_github_docker_docker//api/types/image",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@com_github_stretchr_testify//assert",
     ],
 )

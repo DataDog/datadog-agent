@@ -23,7 +23,7 @@ go_library(
         "//comp/def",
         "//comp/metadata/inventoryagent",
         "//comp/otelcol/collector/def",
-        "//comp/otelcol/ddflareextension/def",
+        "//comp/otelcol/ddflareextension/types",
         "//comp/otelcol/logsagentpipeline",
         "//comp/otelcol/otlp",
         "//comp/otelcol/otlp/configcheck",

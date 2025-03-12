@@ -13,6 +13,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//common/utils",
         "@com_github_datadog_test_infra_definitions//components/datadog/agent",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/dogstatsd",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps/redis",
         "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
         "@com_github_datadog_test_infra_definitions//components/docker",
         "@com_github_datadog_test_infra_definitions//components/remote",

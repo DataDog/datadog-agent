@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/cache",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_hashicorp_golang_lru_v2//simplelru",
+        "//pkg/security/utils/lru/simplelru",
         "@org_uber_go_atomic//:atomic",
     ],
 )

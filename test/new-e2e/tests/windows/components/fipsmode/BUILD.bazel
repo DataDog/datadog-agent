@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fipsmode",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/windows/common/powershell",
+        "@com_github_datadog_test_infra_definitions//common",
+        "@com_github_datadog_test_infra_definitions//common/config",
+        "@com_github_datadog_test_infra_definitions//common/namer",
+        "@com_github_datadog_test_infra_definitions//components/command",
+        "@com_github_datadog_test_infra_definitions//components/remote",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

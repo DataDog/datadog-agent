@@ -9,4 +9,10 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/installer/user",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
 )

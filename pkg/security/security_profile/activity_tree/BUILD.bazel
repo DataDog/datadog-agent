@@ -25,6 +25,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
@@ -37,7 +38,6 @@ go_library(
             "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
-            "@com_github_prometheus_procfs//:procfs",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
             "@org_golang_x_text//runes",
@@ -45,6 +45,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/process",
             "//pkg/security/secl/compiler/eval",
@@ -57,7 +58,6 @@ go_library(
             "@com_github_datadog_agent_payload_v5//cws/dumpsv1",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
-            "@com_github_prometheus_procfs//:procfs",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
             "@org_golang_x_text//runes",

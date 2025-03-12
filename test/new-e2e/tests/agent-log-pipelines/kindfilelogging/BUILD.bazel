@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "kindfilelogging",
     srcs = ["kind.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/kindfilelogging",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging",
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/environments",

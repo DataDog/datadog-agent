@@ -33,6 +33,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/transformers",
         "//pkg/util/kubernetes",
         "@com_github_datadog_agent_payload_v5//process",
@@ -86,6 +87,7 @@ go_test(
     ],
     embed = [":k8s"],
     deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/util/kubernetes",
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//process",

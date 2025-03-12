@@ -7,12 +7,14 @@ go_library(
         "common_linux.go",
         "ebpf.go",
         "ebpf_types_linux.go",
+        "sketchespool.go",
         "types.go",
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/sync",
         "@com_github_datadog_sketches_go//ddsketch",
     ] + select({
         "@rules_go//go/platform:android": [

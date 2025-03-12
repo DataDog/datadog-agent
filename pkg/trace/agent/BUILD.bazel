@@ -62,6 +62,8 @@ go_test(
         "//pkg/trace/traceutil",
         "//pkg/trace/writer",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_datadog_go_v5//statsd/mocks",
+        "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",

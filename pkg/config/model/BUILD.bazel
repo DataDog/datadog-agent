@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "model",
@@ -7,21 +7,9 @@ go_library(
         "config_overrides_test_helpers.go",
         "doc.go",
         "types.go",
-        "viper.go",
         "warnings.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/model",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/util/log",
-        "@com_github_datadog_viper//:viper",
-        "@com_github_mohae_deepcopy//:deepcopy",
-    ],
-)
-
-go_test(
-    name = "model_test",
-    srcs = ["viper_test.go"],
-    embed = [":model"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = ["@com_github_mitchellh_mapstructure//:mapstructure"],
 )

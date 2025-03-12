@@ -12,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/system-probe/config/types",
+        "//pkg/telemetry",
         "//pkg/util/funcs",
     ] + select({
         "@rules_go//go/platform:windows": [

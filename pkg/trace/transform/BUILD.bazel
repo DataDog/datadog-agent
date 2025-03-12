@@ -15,6 +15,7 @@ go_library(
         "//pkg/trace/sampler",
         "//pkg/trace/traceutil",
         "//pkg/util/log",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",

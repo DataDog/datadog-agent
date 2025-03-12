@@ -11,7 +11,7 @@ go_library(
         "fixtures/config.yaml.tmpl",
         "fixtures/security-agent.yaml",
     ],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/config-refresh",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/config-refresh",
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/components",
@@ -24,6 +24,7 @@ go_library(
 go_test(
     name = "config-refresh_test",
     srcs = [
+        "api_key_refresh_test.go",
         "non_core_agents_sync_nix_test.go",
         "non_core_agents_sync_win_test.go",
     ],
@@ -34,7 +35,7 @@ go_test(
         "//test/new-e2e/pkg/provisioners/aws/host",
         "//test/new-e2e/pkg/utils/e2e/client/agentclient",
         "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
-        "//test/new-e2e/tests/agent-shared-components/secretsutils",
+        "//test/new-e2e/tests/agent-configuration/secretsutils",
         "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
         "@com_github_datadog_test_infra_definitions//components/os",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",

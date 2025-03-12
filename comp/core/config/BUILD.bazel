@@ -25,7 +25,6 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@com_github_datadog_viper//:viper",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [

@@ -17,7 +17,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/tagger/def",
         "//comp/core/tagger/types",
-        "//comp/core/workloadmeta/collectors/util",
         "//comp/otelcol/otlp/components/exporter/logsagentexporter",
         "//comp/otelcol/otlp/components/exporter/serializerexporter",
         "//comp/otelcol/otlp/components/processor/infraattributesprocessor",

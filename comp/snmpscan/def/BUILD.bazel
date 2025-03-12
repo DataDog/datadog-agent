@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkdevice/metadata",
+        "//pkg/snmp/snmpparse",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

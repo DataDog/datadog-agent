@@ -24,6 +24,7 @@ go_library(
         "//pkg/diagnose",
         "//pkg/diagnose/diagnosis",
         "//pkg/flare",
+        "//pkg/flare/common",
         "//pkg/status/render",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/log",

@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "filter.go",
         "filtercontainerimages.go",
+        "filterevents.go",
         "filterlogs.go",
         "filtermetrics.go",
         "filtersbom.go",
@@ -19,6 +20,8 @@ go_library(
         "getcontainerimagenames.go",
         "getcontainerlifecycle.go",
         "getcontainers.go",
+        "getevent.go",
+        "geteventsources.go",
         "getflare.go",
         "getlogservice.go",
         "getlogservicenames.go",
@@ -36,6 +39,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/cmd/client/cmd",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/metrics/event",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "@com_github_olekukonko_tablewriter//:tablewriter",

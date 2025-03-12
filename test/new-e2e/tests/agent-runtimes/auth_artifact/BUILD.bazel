@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auth_artifact",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/auth_artifact",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "auth_artifact_test",
+    srcs = [
+        "ipc_security_common_test.go",
+        "ipc_security_nix_test.go",
+        "ipc_security_win_test.go",
+    ],
+    embed = [":auth_artifact"],
+    embedsrcs = [
+        "fixtures/config.yaml",
+        "fixtures/security-agent.yaml",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/agent-platform/common/svc-manager",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

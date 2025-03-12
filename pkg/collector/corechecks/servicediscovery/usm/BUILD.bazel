@@ -4,6 +4,7 @@ go_library(
     name = "usm",
     srcs = [
         "java.go",
+        "java_utils.go",
         "jboss.go",
         "jee.go",
         "laravel.go",
@@ -35,6 +36,7 @@ go_library(
 go_test(
     name = "usm_test",
     srcs = [
+        "java_utils_test.go",
         "jboss_test.go",
         "jee_test.go",
         "laravel_test.go",

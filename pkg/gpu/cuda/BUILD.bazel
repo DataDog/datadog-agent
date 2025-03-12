@@ -1,10 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "cuda",
     srcs = [
         "cubin.go",
         "cubin_string.go",
+        "elf.go",
         "fatbin.go",
         "fatbin_string.go",
         "symbols.go",
@@ -15,4 +16,23 @@ go_library(
         "//pkg/util/safeelf",
         "@com_github_pierrec_lz4_v4//:lz4",
     ],
+)
+
+go_test(
+    name = "cuda_test",
+    srcs = ["elf_test.go"],
+    embed = [":cuda"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

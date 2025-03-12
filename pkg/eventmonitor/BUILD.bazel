@@ -22,7 +22,6 @@ go_library(
         "@rules_go//go/platform:android": [
             "//cmd/system-probe/api/module",
             "//pkg/eventmonitor/config",
-            "//pkg/process/statsd",
             "//pkg/security/config",
             "//pkg/security/secl/model",
             "//pkg/security/seclog",
@@ -63,7 +62,6 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//cmd/system-probe/api/module",
             "//pkg/eventmonitor/config",
-            "//pkg/process/statsd",
             "//pkg/security/config",
             "//pkg/security/secl/model",
             "//pkg/security/seclog",
@@ -104,7 +102,6 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//cmd/system-probe/api/module",
             "//pkg/eventmonitor/config",
-            "//pkg/process/statsd",
             "//pkg/security/config",
             "//pkg/security/secl/model",
             "//pkg/security/seclog",

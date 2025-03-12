@@ -41,7 +41,6 @@ go_library(
         "//pkg/util/jsonquery",
         "//pkg/util/log",
         "//pkg/util/option",
-        "//pkg/version",
         "@com_github_fatih_color//:color",
         "@in_gopkg_yaml_v2//:yaml_v2",
         "@io_k8s_apimachinery//pkg/util/errors",

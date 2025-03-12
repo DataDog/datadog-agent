@@ -6,7 +6,8 @@ toolchain go1.23.6
 // This was causing errors with AWS Network Firewall
 // See https://github.com/DataDog/datadog-agent/issues/34323 for details.
 // This will be revisited once we update to 1.24.x
-godebug tlskyber=0
+// TODO: SKIPPING FOR NOW FOR BAZEL WORK, WE'LL FIGURE IT OUT LATER
+// godebug tlskyber=0
 
 use (
 	.

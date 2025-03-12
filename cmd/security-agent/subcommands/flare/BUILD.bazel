@@ -13,7 +13,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/secrets",
         "//pkg/api/util",
-        "//pkg/flare",
+        "//pkg/flare/securityagent",
         "//pkg/util/fxutil",
         "//pkg/util/input",
         "@com_github_fatih_color//:color",

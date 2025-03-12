@@ -15,6 +15,7 @@ go_library(
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/runner/parameters",
+        "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

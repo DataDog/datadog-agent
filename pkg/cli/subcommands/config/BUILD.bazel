@@ -9,6 +9,7 @@ go_library(
         "//comp/core",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/otelcol/ddflareextension/types",
         "//pkg/api/util",
         "//pkg/config/settings",
         "//pkg/util/fxutil",

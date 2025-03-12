@@ -8,9 +8,7 @@ go_library(
         "run.go",
         "run_nix.go",
         "run_windows.go",
-        "status.go",
     ],
-    embedsrcs = ["status.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon",
     visibility = ["//visibility:public"],
     deps = [
@@ -32,7 +30,6 @@ go_library(
         "//pkg/config/remote/service",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
-        "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ] + select({
@@ -130,6 +127,7 @@ go_library(
             "//comp/core/pid",
             "//comp/updater/localapi",
             "//comp/updater/telemetry",
+            "//pkg/util/log",
             "@com_github_judwhite_go_svc//:go-svc",
         ],
         "//conditions:default": [],
@@ -142,18 +140,63 @@ go_test(
         "api_test.go",
         "run_nix_test.go",
         "run_windows_test.go",
-        "status_test.go",
     ],
     embed = [":daemon"],
     deps = [
         "//cmd/installer/command",
         "//pkg/util/fxutil",
-        "@com_github_spf13_cobra//:cobra",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_spf13_cobra//:cobra",
+        ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/commands",
+            "//pkg/fleet/installer/paths",
+            "@com_github_spf13_cobra//:cobra",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
-            "@org_golang_x_sys//windows",
             "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],

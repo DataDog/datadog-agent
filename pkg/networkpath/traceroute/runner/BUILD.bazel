@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "runner",
-    srcs = ["runner.go"],
+    srcs = [
+        "runner.go",
+        "runner_unix.go",
+        "runner_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner",
     visibility = ["//visibility:public"],
     deps = [
@@ -21,15 +25,72 @@ go_library(
         "//pkg/util/kernel",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
-        "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
         "@com_github_vishvananda_netns//:netns",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/probes/probev4",
+            "@com_github_datadog_dublin_traceroute//go/dublintraceroute/results",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/networkpath/traceroute/udp",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
     name = "runner_test",
     srcs = ["runner_test.go"],
     embed = [":runner"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//pkg/network",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/common",
+        "//pkg/version",
+        "@com_github_golang_mock//gomock",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

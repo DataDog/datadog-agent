@@ -17,6 +17,7 @@ go_library(
         "process.go",
         "report.go",
         "splice.go",
+        "sysctl.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/kfilters",
     visibility = ["//visibility:public"],

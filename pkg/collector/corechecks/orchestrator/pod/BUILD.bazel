@@ -19,6 +19,7 @@ go_library(
         "//pkg/orchestrator/config",
         "//pkg/process/checks",
         "//pkg/util/hostname",
+        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",

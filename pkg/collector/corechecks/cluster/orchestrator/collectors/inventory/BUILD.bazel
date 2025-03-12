@@ -11,5 +11,6 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors",
         "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
+        "//pkg/config/utils",
     ],
 )

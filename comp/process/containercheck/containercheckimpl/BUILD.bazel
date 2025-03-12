@@ -16,6 +16,7 @@ go_library(
         "//pkg/process/checks",
         "//pkg/process/checks/mocks",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//mock",
         "@org_uber_go_fx//:fx",
     ],

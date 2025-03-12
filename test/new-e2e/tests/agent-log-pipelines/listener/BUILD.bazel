@@ -13,7 +13,7 @@ go_test(
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/docker",
-        "//test/new-e2e/tests/agent-metrics-logs/log-agent/utils",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/logger",
         "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

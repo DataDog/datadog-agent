@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
-        "@com_github_datadog_viper//:viper",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
         "@com_github_spf13_cast//:cast",
     ],
 )
@@ -20,6 +20,7 @@ go_test(
     deps = [
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
+        "//pkg/config/viperconfig",
         "@com_github_spf13_cast//:cast",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

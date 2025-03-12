@@ -11,12 +11,12 @@ go_library(
     visibility = ["//pkg/serializer:__subpackages__"],
     deps = [
         "//comp/core/config",
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/serializer/metricscompression/def",
         "//pkg/serializer/marshaler",
         "//pkg/telemetry",
         "//pkg/util/compression",
-        "//pkg/util/log",
         "@com_github_json_iterator_go//:go",
     ],
 )
@@ -27,6 +27,7 @@ go_test(
     embed = [":stream"],
     deps = [
         "//comp/core/config",
+        "//comp/core/log/mock",
         "//comp/serializer/metricscompression/impl",
         "//pkg/config/mock",
         "//pkg/serializer/marshaler",

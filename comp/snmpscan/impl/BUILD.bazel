@@ -12,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/aggregator/demultiplexer",
+        "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/forwarder/eventplatform",
@@ -20,6 +21,7 @@ go_library(
         "//pkg/logs/message",
         "//pkg/networkdevice/metadata",
         "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpparse",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

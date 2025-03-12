@@ -10,6 +10,7 @@ go_library(
         "//comp/otelcol/otlp/components/exporter/datadogexporter",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//:datadog",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
@@ -31,5 +32,6 @@ go_test(
         "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
+        "@io_opentelemetry_go_collector_featuregate//:featuregate",
     ],
 )

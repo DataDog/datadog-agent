@@ -9,6 +9,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/flare",
         "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

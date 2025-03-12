@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/api/commonendpoints/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//cmd/agent/common",
         "//cmd/agent/common/signals",
         "//comp/api/api/def",
+        "//pkg/api/version",
         "//pkg/util/hostname",
         "//pkg/util/log",
     ],

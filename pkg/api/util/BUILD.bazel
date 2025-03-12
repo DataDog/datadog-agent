@@ -30,6 +30,7 @@ go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
+        "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",

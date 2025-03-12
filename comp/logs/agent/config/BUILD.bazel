@@ -21,7 +21,9 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/util/log",
-        "@com_github_datadog_viper//:viper",
+        "//pkg/util/scrubber",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -45,7 +47,9 @@ go_test(
         "//pkg/util/fxutil",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
+        "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
     ],
 )

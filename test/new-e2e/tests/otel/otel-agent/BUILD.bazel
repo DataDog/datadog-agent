@@ -4,6 +4,7 @@ go_test(
     name = "otel-agent_test",
     srcs = [
         "complete_test.go",
+        "host_metrics_receiver_test.go",
         "infraattributes_eks_test.go",
         "infraattributes_test.go",
         "minimal_test.go",
@@ -23,6 +24,7 @@ go_test(
         "testdata/no-dd-exporter-full-config.yml",
         "testdata/no-dd-exporter-provided-config.yml",
         "testdata/sources.json",
+        "config/hostmetricsreceiver.yml",
     ],
     deps = [
         "//comp/core/tagger/types",

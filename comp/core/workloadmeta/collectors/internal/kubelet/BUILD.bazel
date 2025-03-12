@@ -19,7 +19,6 @@ go_library(
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
-        "//pkg/util/pointer",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -32,6 +31,7 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",

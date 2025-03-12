@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
-    srcs = ["config.go"],
+    srcs = [
+        "config.go",
+        "filter.go",
+        "mutator.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,6 +18,7 @@ go_library(
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/log",
+        "//pkg/util/pointer",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
         "@io_k8s_api//core/v1:core",
@@ -34,7 +39,6 @@ go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/clusteragent/admission/common",
-        "//pkg/clusteragent/admission/mutate/autoinstrumentation",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/apiserver/common",

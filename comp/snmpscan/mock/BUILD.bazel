@@ -9,6 +9,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/snmpscan/def",
         "//pkg/networkdevice/metadata",
+        "//pkg/snmp/snmpparse",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "msi",
+    srcs = [
+        "msiexec.go",
+        "msilog.go",
+        "product.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/msi",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "@org_golang_x_sys//windows/registry",
+            "@org_golang_x_text//encoding/unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "msi_test",
+    srcs = ["msilog_test.go"],
+    embed = [":msi"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_text//encoding/unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)

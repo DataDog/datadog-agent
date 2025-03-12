@@ -15,7 +15,6 @@ go_library(
         "//pkg/config/settings",
         "//pkg/config/settings/http",
         "//pkg/config/setup",
-        "//pkg/flare",
         "//pkg/flare/clusteragent",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",

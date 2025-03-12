@@ -1,25 +1,57 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_test(
     name = "fips-compliance_test",
     srcs = [
         "fips_ciphers_nix_test.go",
+        "fips_ciphers_win_test.go",
         "fips_nix_test.go",
+        "fips_win_test.go",
     ],
+    embed = [":fips-compliance"],
     embedsrcs = [
         "fixtures/docker-compose.yaml",
         "fixtures/openssl-default.cnf",
+        "fixtures/docker-compose-fips-server.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe.yaml",
     ],
     deps = [
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners",
         "//test/new-e2e/pkg/provisioners/aws/docker",
         "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "//test/new-e2e/tests/windows/components/fipsmode",
+        "@com_github_datadog_test_infra_definitions//common/utils",
         "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
         "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams",
+        "@com_github_datadog_test_infra_definitions//components/docker",
         "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//resources/aws",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_library(
+    name = "fips-compliance",
+    srcs = ["common.go"],
+    embedsrcs = ["fixtures/e2e_fips_test.py"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fips-compliance",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/utils/e2e/client",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

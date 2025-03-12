@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model/sharedconsts",
-        "@org_modernc_mathutil//:mathutil",
+        "//pkg/security/secl/model/utils",
     ],
 )

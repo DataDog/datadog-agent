@@ -10,7 +10,7 @@ go_test(
     deps = [
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
-        "//test/new-e2e/tests/agent-metrics-logs/kindfilelogging",
+        "//test/new-e2e/tests/agent-log-pipelines/kindfilelogging",
         "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

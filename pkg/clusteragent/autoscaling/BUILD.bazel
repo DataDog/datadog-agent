@@ -17,7 +17,7 @@ go_library(
     deps = [
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/util/log",
-        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha2",
         "@com_github_google_go_cmp//cmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_twmb_murmur3//:murmur3",

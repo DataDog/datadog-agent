@@ -6,7 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/process/status",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/model",
+        "//comp/core/config",
+        "//pkg/process/runner/endpoint",
         "//pkg/process/util/api/config",
         "//pkg/util/filesystem",
         "//pkg/version",

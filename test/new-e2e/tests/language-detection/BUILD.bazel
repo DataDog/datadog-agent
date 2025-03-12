@@ -5,6 +5,7 @@ go_test(
     srcs = [
         "language_detection_test.go",
         "node_test.go",
+        "php_test.go",
         "python_test.go",
         "setup_test.go",
     ],

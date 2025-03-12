@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "jmxfetch",
     srcs = ["docs.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/jmxfetch",
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/jmxfetch",
     visibility = ["//visibility:public"],
 )
 

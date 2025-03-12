@@ -15,10 +15,59 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
         "//pkg/sbom",
-        "//pkg/sbom/collectors",
         "//pkg/sbom/types",
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/trivy",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/sbom/collectors",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/sbom/collectors",
+        ],
+        "//conditions:default": [],
+    }),
 )

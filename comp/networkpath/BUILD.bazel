@@ -21,5 +21,7 @@ go_test(
         "//comp/rdnsquerier/fx-mock",
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
     ],
 )

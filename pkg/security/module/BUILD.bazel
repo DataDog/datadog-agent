@@ -44,6 +44,7 @@ go_library(
         "//pkg/security/serializers",
         "//pkg/security/telemetry",
         "//pkg/security/utils",
+        "//pkg/security/utils/hostnameutils",
         "//pkg/util/fargate",
         "//pkg/util/log",
         "//pkg/util/startstop",

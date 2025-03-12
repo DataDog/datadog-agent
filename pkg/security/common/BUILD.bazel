@@ -6,6 +6,7 @@ go_library(
         "account_id.go",
         "logs_context.go",
         "raw_reporter.go",
+        "status_provider.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/common",
     visibility = ["//visibility:public"],

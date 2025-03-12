@@ -6,13 +6,14 @@ go_library(
         "installer_paths.go",
         "installer_paths_windows.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/paths",
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "//pkg/fleet/internal/winregistry",
+            "//pkg/util/log",
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),

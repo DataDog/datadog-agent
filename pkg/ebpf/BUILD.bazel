@@ -7,6 +7,7 @@ go_library(
         "common.go",
         "config.go",
         "debug_handlers.go",
+        "kernel_bugs.go",
         "ksyms.go",
         "lockcontention_noop.go",
         "mappings.go",
@@ -44,6 +45,7 @@ go_test(
     srcs = [
         "ksyms_test.go",
         "time_test.go",
+        "types_linux_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":ebpf"],
@@ -51,9 +53,11 @@ go_test(
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

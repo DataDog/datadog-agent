@@ -46,6 +46,7 @@ go_library(
     srcs = [
         "autoconfigure.go",
         "converter.go",
+        "coreconfig.go",
         "datadogconnector.go",
         "extensions.go",
         "infraattributes.go",
@@ -56,6 +57,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/otelcol/converter/def",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//:datadog",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@org_uber_go_zap//:zap",
     ],

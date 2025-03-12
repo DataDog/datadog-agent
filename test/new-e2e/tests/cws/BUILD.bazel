@@ -6,9 +6,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws",
     visibility = ["//visibility:public"],
     deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
         "//test/new-e2e/tests/cws/api",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+        "@org_golang_x_crypto//ssh",
     ],
 )
 
@@ -17,6 +23,7 @@ go_test(
     srcs = [
         "ec2_test.go",
         "fargate_test.go",
+        "gcp_test.go",
         "kind_test.go",
         "windows_test.go",
     ],
@@ -26,6 +33,7 @@ go_test(
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/host",
         "//test/new-e2e/pkg/provisioners/aws/kubernetes",
+        "//test/new-e2e/pkg/provisioners/gcp/host/linux",
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/runner/parameters",
         "//test/new-e2e/tests/agent-platform/platforms",
@@ -46,6 +54,5 @@ go_test(
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_x_crypto//ssh",
     ],
 )

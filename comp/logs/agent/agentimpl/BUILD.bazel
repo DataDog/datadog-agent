@@ -19,6 +19,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/api/def",
+        "//comp/api/api/utils/stream",
         "//comp/core/config",
         "//comp/core/flare/types",
         "//comp/core/hostname",
@@ -61,7 +63,6 @@ go_library(
         "//pkg/status/health",
         "//pkg/util/fxutil",
         "//pkg/util/goroutinesdump",
-        "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/startstop",
         "@com_github_hashicorp_go_multierror//:go-multierror",

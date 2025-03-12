@@ -9,6 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stats",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/haagent/def",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/utils",

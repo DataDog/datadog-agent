@@ -30,6 +30,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/profile",
         "//pkg/collector/corechecks/snmp/internal/session",
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",

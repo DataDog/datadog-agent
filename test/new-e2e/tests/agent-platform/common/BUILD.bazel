@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/util/testutil/flake",
         "//pkg/version",
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/utils/common",

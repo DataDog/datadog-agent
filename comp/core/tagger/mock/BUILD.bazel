@@ -17,5 +17,6 @@ go_library(
         "//pkg/tagger/types",
         "//pkg/tagset",
         "//pkg/util/fxutil",
+        "//pkg/util/log",
     ],
 )

@@ -23,7 +23,6 @@ go_library(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/status",
         "//comp/core/workloadmeta/def",
-        "//comp/logs/agent/agentimpl",
         "//comp/logs/agent/config",
         "//comp/serializer/logscompression/def",
         "//pkg/compliance/aptconfig",
@@ -64,7 +63,6 @@ go_library(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
-        "@io_k8s_client_go//discovery",
         "@io_k8s_client_go//dynamic",
     ] + select({
         "@rules_go//go/platform:aix": [

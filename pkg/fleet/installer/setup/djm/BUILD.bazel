@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/setup/common",
-        "//pkg/fleet/telemetry",
+        "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",
         "@com_google_cloud_go_compute_metadata//:metadata",
     ],
@@ -33,7 +33,7 @@ go_test(
     ],
     deps = [
         "//pkg/fleet/installer/setup/common",
-        "//pkg/fleet/telemetry",
+        "//pkg/fleet/installer/telemetry",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_google_cloud_go_compute_metadata//:metadata",

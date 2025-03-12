@@ -12,7 +12,7 @@ go_library(
         "//cmd/agent/common",
         "//cmd/otel-agent/config",
         "//cmd/otel-agent/subcommands",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/createandfetchimpl",
         "//comp/core/config",
         "//comp/core/configsync",
         "//comp/core/configsync/configsyncimpl",

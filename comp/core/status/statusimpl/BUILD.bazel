@@ -22,6 +22,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/status",
         "//pkg/config/setup",
+        "//pkg/fips",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",

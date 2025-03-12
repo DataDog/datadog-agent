@@ -12,6 +12,7 @@ go_library(
         "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
         "//test/new-e2e/pkg/utils/optional",
         "//test/new-e2e/tests/windows/components/defender",
+        "//test/new-e2e/tests/windows/components/fipsmode",
         "@com_github_datadog_test_infra_definitions//components/activedirectory",
         "@com_github_datadog_test_infra_definitions//components/datadog/agent",
         "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",

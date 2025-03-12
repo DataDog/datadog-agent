@@ -16,6 +16,7 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_datadog_zstd//:zstd",
         "@com_github_gorilla_mux//:mux",
         "@io_k8s_client_go//util/workqueue",
         "@org_golang_x_time//rate",

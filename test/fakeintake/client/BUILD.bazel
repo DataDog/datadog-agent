@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/metrics/event",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
@@ -35,6 +36,7 @@ go_test(
         "fixtures/api_v2_sbom_response",
         "fixtures/api_v2_series_response",
         "fixtures/api_v2_telemetry_response",
+        "fixtures/api_v2_netpath_response",
     ],
     deps = [
         "//test/fakeintake/aggregator",

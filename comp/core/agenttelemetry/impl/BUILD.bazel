@@ -96,6 +96,7 @@ go_test(
         "//comp/core/telemetry",
         "//comp/core/telemetry/telemetryimpl",
         "//pkg/util/fxutil",
+        "//pkg/util/jsonquery",
         "@com_github_datadog_zstd//:zstd",
         "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",

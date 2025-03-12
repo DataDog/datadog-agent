@@ -26,6 +26,7 @@ go_library(
 go_test(
     name = "state_test",
     srcs = [
+        "agent_config_test.go",
         "configs_test.go",
         "path_test.go",
         "repository_test.go",

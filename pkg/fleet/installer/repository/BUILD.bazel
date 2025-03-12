@@ -12,9 +12,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/filesystem",
+        "//pkg/fleet/installer/paths",
         "//pkg/util/log",
-        "@com_github_datadog_gopsutil//process",
+        "@com_github_shirou_gopsutil_v4//disk",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows",

@@ -16,7 +16,6 @@ go_library(
         "//comp/core/workloadmeta/collectors/internal/docker",
         "//comp/core/workloadmeta/collectors/internal/ecs",
         "//comp/core/workloadmeta/collectors/internal/ecsfargate",
-        "//comp/core/workloadmeta/collectors/internal/kubeapiserver",
         "//comp/core/workloadmeta/collectors/internal/kubelet",
         "//comp/core/workloadmeta/collectors/internal/kubemetadata",
         "//comp/core/workloadmeta/collectors/internal/nvml",

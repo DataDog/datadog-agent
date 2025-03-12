@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "dotnet_detector.go",
         "go_detector.go",
+        "injector.go",
         "jruby_detector.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors",
@@ -33,6 +34,7 @@ go_test(
     srcs = [
         "dotnet_detector_test.go",
         "go_detector_test.go",
+        "injector_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":detectors"],
@@ -44,6 +46,7 @@ go_test(
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/languagedetection/languagemodels",
@@ -52,6 +55,7 @@ go_test(
             "//pkg/proto/pbgo/languagedetection",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

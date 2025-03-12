@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/defaultscript",
         "//pkg/fleet/installer/setup/djm",
-        "//pkg/fleet/internal/exec",
-        "//pkg/fleet/internal/paths",
     ],
 )
