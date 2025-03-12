@@ -1,5 +1,11 @@
 package expansion
 
+/*
+NOTE: The MappingFuncFor and Expand method in this 3rd party package have
+been modified. Changed functionality involves also returning a boolean
+indicating whether all the variables in the input were found in the provided context.
+*/
+
 import (
 	"bytes"
 )

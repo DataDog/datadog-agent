@@ -6,6 +6,40 @@ import (
 	api "k8s.io/api/core/v1"
 )
 
+func TestMappingFuncFor(t *testing.T) {
+	context := map[string]string{
+		"VAR_A": "A",
+	}
+	mapping := MappingFuncFor(context)
+
+	cases := []struct {
+		input             string
+		expectedExpansion string
+		expectedStatus    bool
+	}{
+		{
+			input:             "VAR_A",
+			expectedExpansion: "A",
+			expectedStatus:    true,
+		},
+		{
+			input:             "VAR_DNE",
+			expectedExpansion: "$(VAR_DNE)",
+			expectedStatus:    false,
+		},
+	}
+
+	for _, tc := range cases {
+		expanded, success := mapping(tc.input)
+		if e, a := tc.expectedExpansion, expanded; e != a {
+			t.Errorf("expected expansion=%q, got %q", e, a)
+		}
+		if e, a := tc.expectedStatus, success; e != a {
+			t.Errorf("expected status=%v, got %v", e, a)
+		}
+	}
+}
+
 func TestMapReference(t *testing.T) {
 	envs := []api.EnvVar{
 		{
@@ -20,33 +54,54 @@ func TestMapReference(t *testing.T) {
 			Name:  "BLU",
 			Value: "$(ZOO)-2",
 		},
+		{
+			Name:  "INCOMPLETE",
+			Value: "$(ZOO)-2-$(DNE)",
+		},
 	}
 
 	declaredEnv := map[string]string{
-		"FOO": "bar",
-		"ZOO": "$(FOO)-1",
-		"BLU": "$(ZOO)-2",
+		"FOO":  "bar",
+		"ZOO":  "$(FOO)-1",
+		"BLU":  "$(ZOO)-2",
+		"FAIL": "$(ZOO)-2-$(DNE)",
 	}
+	declaredStatus := map[string]bool{}
 
 	serviceEnv := map[string]string{}
 
 	mapping := MappingFuncFor(declaredEnv, serviceEnv)
 
 	for _, env := range envs {
-		declaredEnv[env.Name], _ = Expand(env.Value, mapping)
+		declaredEnv[env.Name], declaredStatus[env.Name] = Expand(env.Value, mapping)
 	}
 
 	expectedEnv := map[string]string{
-		"FOO": "bar",
-		"ZOO": "bar-1",
-		"BLU": "bar-1-2",
+		"FOO":  "bar",
+		"ZOO":  "bar-1",
+		"BLU":  "bar-1-2",
+		"FAIL": "bar-1-2-$(DNE)",
+	}
+	expectedStatus := map[string]bool{
+		"FOO":  true,
+		"ZOO":  true,
+		"BLU":  true,
+		"FAIL": false,
 	}
 
 	for k, v := range expectedEnv {
 		if e, a := v, declaredEnv[k]; e != a {
-			t.Errorf("Expected %v, got %v", e, a)
+			t.Errorf("Expected expansion %v, got %v", e, a)
 		} else {
 			delete(declaredEnv, k)
+		}
+	}
+
+	for k, v := range expectedStatus {
+		if e, a := v, declaredStatus[k]; e != a {
+			t.Errorf("Expected status %v, got %v", e, a)
+		} else {
+			delete(declaredStatus, k)
 		}
 	}
 
@@ -220,6 +275,12 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 			name:           "undefined vars are passed through",
 			input:          "$(VAR_DNE)",
 			expected:       "$(VAR_DNE)",
+			expectedStatus: false,
+		},
+		{
+			name:           "undefined vars are passed through",
+			input:          "$(VAR_A)-$(VAR_DNE)",
+			expected:       "A-$(VAR_DNE)",
 			expectedStatus: false,
 		},
 		{
