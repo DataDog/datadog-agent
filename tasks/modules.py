@@ -331,8 +331,8 @@ def add_all_replace(ctx: Context):
     and no replace rule is missing.
 
     It's meant to be used as the following:
-    - running `inv modules.add-all-replace` to add all possible replace rules to all go.mod
-    - `inv tidy` to update all the go.mod
+    - running `dda inv modules.add-all-replace` to add all possible replace rules to all go.mod
+    - `dda inv tidy` to update all the go.mod
 
     This solves the problem of `go mod tidy` failing if some replace rules are missing but needing `go mod tidy` to run
     successfully to know which replace rules are needed. This is a major pain point when creating/moving go.mod.

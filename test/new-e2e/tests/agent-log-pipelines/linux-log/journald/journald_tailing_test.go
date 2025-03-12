@@ -8,10 +8,12 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +72,7 @@ func (s *LinuxJournaldFakeintakeSuite) TearDownSuite() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
+	flake.Mark(s.T())
 	// Run test cases
 	s.Run("journaldLogCollection", s.journaldLogCollection)
 
@@ -79,7 +82,6 @@ func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
-
 	t := s.T()
 	// Add dd-agent user to systemd-journal group
 	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")

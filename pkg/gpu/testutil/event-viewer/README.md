@@ -13,6 +13,6 @@ curl --unix-socket $DD_SYSPROBE_SOCKET http://unix/gpu/debug/collect-events?coun
 Build and use the event viewer:
 
 ```bash
-inv system-probe.build-gpu-event-viewer
+dda inv system-probe.build-gpu-event-viewer
 pkg/gpu/testutil/event-viewer/event-viewer path-to-events-file
 ```
