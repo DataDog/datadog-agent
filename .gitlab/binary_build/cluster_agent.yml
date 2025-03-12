@@ -2,13 +2,14 @@
 .cluster_agent-build_common:
   stage: binary_build
   rules:
-    !reference [.on_tag_or_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv check-go-version
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
+    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION"
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
@@ -17,7 +18,6 @@
     exclude:
       - Dockerfiles/cluster-agent/security-agent-policies/.git/**/*
       - Dockerfiles/cluster-agent/security-agent-policies/.github/**/*
-
   variables:
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"

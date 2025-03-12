@@ -252,7 +252,9 @@ docker_build_agent7_full_arm64:
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
   extends: [.docker_build_job_definition_amd64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
@@ -270,7 +272,9 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_job_definition_arm64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
@@ -288,7 +292,9 @@ docker_build_cluster_agent_arm64:
 
 docker_build_cluster_agent_fips_amd64:
   extends: [.docker_build_job_definition_amd64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent_fips-build_amd64
       artifacts: true
@@ -308,7 +314,9 @@ docker_build_cluster_agent_fips_amd64:
 
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_job_definition_arm64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent_fips-build_arm64
       artifacts: true
@@ -329,7 +337,9 @@ docker_build_cluster_agent_fips_arm64:
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
   extends: [.docker_build_job_definition_amd64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cws_instrumentation-build_amd64
       artifacts: true
@@ -341,7 +351,9 @@ docker_build_cws_instrumentation_amd64:
 
 docker_build_cws_instrumentation_arm64:
   extends: [.docker_build_job_definition_arm64]
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cws_instrumentation-build_arm64
       artifacts: true
