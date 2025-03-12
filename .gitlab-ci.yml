@@ -1295,7 +1295,7 @@ workflow:
         echo "datadog-ci-end-section: datadog-ci-start-section was not called"
         return 1
       fi
-      datadog-ci span --name "$name" --start-time $datestart --end-time $dateend
+      datadog-ci span --name "$name" --start-time $datestart --end-time $dateend --tags agent-custom-span:true
       export datestart=
       export sectionname=
     }

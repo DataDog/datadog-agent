@@ -1,5 +1,4 @@
 .agent_build_script:
-  - !reference [.datadog-ci-amd64-fullsetup]
   - echo "About to build for $RELEASE_VERSION"
   - |
     datadog-ci-start-section 'Retrieve  linux go deps'
@@ -35,6 +34,7 @@
     - when: on_success
   stage: package_build
   script:
+    - !reference [.datadog-ci-amd64-fullsetup]
     - !reference [.agent_build_script]
   variables:
     KUBERNETES_CPU_REQUEST: 16
