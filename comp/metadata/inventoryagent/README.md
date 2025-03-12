@@ -32,7 +32,7 @@ The payload is a JSON dict with the following fields
   - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
-  - `is_fips` - **bool**: True if the Datadog Agent is in FIPS mode.
+  - `fips_mode` - **bool**: True if the Datadog Agent is in FIPS mode.
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
   - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
   - `config_site` - **string**: the configuration value `site` (scrubbed)
