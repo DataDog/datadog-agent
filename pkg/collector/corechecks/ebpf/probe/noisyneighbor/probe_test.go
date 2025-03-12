@@ -33,7 +33,7 @@ func TestNoisyNeighborProbe(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			for _, r := range probe.GetAndFlush() {
-				if r.Name != "" {
+				if r.CgroupName != "" {
 					return true
 				}
 			}

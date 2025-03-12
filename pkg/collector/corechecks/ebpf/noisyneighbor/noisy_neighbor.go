@@ -22,6 +22,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -68,7 +70,7 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 // Run executes the check
 func (n *NoisyNeighborCheck) Run() error {
 	// TODO noisy: use the stats returned here
-	_, err := sysprobeclient.GetCheck[model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
+	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
 		return fmt.Errorf("get noisy neighbor check: %s", err)
 	}
@@ -79,6 +81,20 @@ func (n *NoisyNeighborCheck) Run() error {
 	}
 
 	// TODO noisy: emit your metrics here using `sender`
+	for _, stat := range stats {
+		containerID, err := cgroups.ContainerFilter("", stat.CgroupName)
+		if err != nil {
+			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", stat.CgroupName, err)
+		}
+
+		prevContainerID, err := cgroups.ContainerFilter("", stat.PrevCgroupName)
+		if err != nil {
+			log.Debugf("Unable to extract prevContainerID from cgroup name: %s, err: %v", stat.PrevCgroupName, err)
+		}
+
+		sender.Distribution("noisy_neighbor.runq.latency", float64(stat.RunqLatencyNs), "", []string{"container_id:" + containerID})
+		sender.Count("noisy_neighbor.sched.switch.out", 1, "", []string{"next_container_id:" + containerID, "prev_container_id:" + prevContainerID})
+	}
 
 	sender.Commit()
 	return nil

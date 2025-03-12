@@ -7,8 +7,10 @@ package model
 
 // NoisyNeighborStats contains the statistics from the noisy neighbor check
 type NoisyNeighborStats struct {
-	Name       string
-	MaxLatency uint64
-
-	// TODO noisy: structure of JSON stats that are sent from system-probe to core agent check go here
+	PrevCgroupID   uint64
+	CgroupID       uint64
+	RunqLatencyNs  uint64
+	TimestampNs    uint64
+	PrevCgroupName string
+	CgroupName     string
 }

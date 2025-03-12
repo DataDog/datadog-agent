@@ -31,10 +31,7 @@ var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 type Probe struct {
 	mgr *ddebpf.Manager
 
-	// cgroup id -> max ts
-	stats map[uint64]uint64
-	// cgroup id -> name
-	names map[uint64]string
+	events []runqEvent
 }
 
 // NewProbe creates a [Probe]
@@ -48,8 +45,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 
 	p := &Probe{
-		stats: make(map[uint64]uint64),
-		names: make(map[uint64]string),
+		events: make([]runqEvent, 0),
 	}
 	// TODO noisy: figure out what you want these sizes to be. ringbuf size must be power of 2
 	ringbufSize := 2 * os.Getpagesize()
@@ -115,26 +111,21 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	// TODO noisy: populate stats you want to return to the core check here
 	// this is just an example
 	var nnstats []model.NoisyNeighborStats
-	for id, maxLatency := range p.stats {
-		name := p.names[id]
+	for _, event := range p.events {
 		nnstats = append(nnstats, model.NoisyNeighborStats{
-			Name:       name,
-			MaxLatency: maxLatency,
+			PrevCgroupID:   event.PrevCgroupID,
+			CgroupID:       event.CgroupID,
+			RunqLatencyNs:  event.RunqLatency,
+			TimestampNs:    event.Timestamp,
+			PrevCgroupName: event.PrevCgroupName,
+			CgroupName:     event.CgroupName,
 		})
 	}
-	clear(p.stats)
-	clear(p.names)
+	clear(p.events)
 	return nnstats
 }
 
 func (p *Probe) handleEvent(e *runqEvent) {
-	// log.Debugf("noisy neighbor event: %+v", e)
 	// TODO noisy: handle ebpf data here, this is just an example
-	v := p.stats[e.CgroupID]
-	if e.RunqLatency > v {
-		p.stats[e.CgroupID] = e.RunqLatency
-	}
-	if _, ok := p.names[e.CgroupID]; !ok {
-		p.names[e.CgroupID] = e.CgroupName
-	}
+	p.events = append(p.events, *e)
 }
