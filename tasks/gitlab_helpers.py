@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 
 import yaml
 from invoke import task
@@ -26,7 +27,8 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import experimental
+from tasks.libs.common.utils import experimental, gitlab_section, gitlab_section
+from tasks.libs.common.ci_visibility import ci_visibility_section, ci_visibility_measure, ci_visibility_tag
 
 
 @task
@@ -325,3 +327,62 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+@task
+def download_artifact(ctx, job_id=0, name='datadog-ci_linux-x64'):
+    repo = get_gitlab_repo('DataDog/datadog-ci')
+    job = repo.jobs.get(job_id)
+
+    ctx.run(f'rm -rf /tmp/artifacts.zip /tmp/{name}')
+    with open('/tmp/artifacts.zip', 'wb') as f:
+        job.artifacts(streamed=True, action=f.write)
+
+    with ctx.cd('/tmp'):
+        ctx.run('unzip artifacts.zip')
+
+    ctx.run(f'mv /tmp/{name} .')
+    print(f'Artifact {name} downloaded and extracted')
+
+
+@task
+def celian(ctx):
+    ci_visibility_tag(ctx, 'my-tag', 'my-value')
+    ci_visibility_tag(ctx, 'pipeline-tag', 'my-value-2', level='pipeline')
+
+    with ci_visibility_section('my-first-section'):
+        print('Sleeping...')
+        time.sleep(0.618)
+        print('End sleep')
+
+    with ci_visibility_section('my-nested-section'):
+        print('Sleeping...')
+        time.sleep(0.1)
+        print('Launching child...')
+        with ci_visibility_section('my-child-section'):
+            print('Sleeping...')
+            time.sleep(0.1)
+            print('End child section...')
+        time.sleep(0.1)
+        print('End nested section...')
+
+@task
+def celian2(ctx):
+    ci_visibility_measure(ctx, 'my-measure', 42)
+    ci_visibility_measure(ctx, 'pipeline-measure', 618, level='pipeline')
+
+    with gitlab_section('my-first-section'):
+        print('Sleeping...')
+        time.sleep(0.618)
+        print('End sleep')
+
+    with gitlab_section('my-nested-section'):
+        print('Sleeping...')
+        time.sleep(0.1)
+        print('Launching child...')
+        with gitlab_section('my-child-section'):
+            print('Sleeping...')
+            time.sleep(0.1)
+            print('End child section...')
+        time.sleep(0.1)
+        print('End nested section...')
