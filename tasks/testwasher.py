@@ -145,7 +145,7 @@ class TestWasher:
         end_times = {}
 
         def parse_date(date: str) -> float:
-            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
+            return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
 
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
