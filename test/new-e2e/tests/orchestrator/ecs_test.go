@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/process"
@@ -17,6 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 )
 
@@ -27,7 +32,12 @@ type ecsSuite struct {
 func TestECSSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsecs.Provisioner(
-			awsecs.WithTestingWorkload(),
+			awsecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				return cpustress.EcsAppDefinition(e, clusterArn)
+			}),
+			awsecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+			}),
 			awsecs.WithECSOptions(
 				ecs.WithFargateCapacityProvider(),
 				ecs.WithLinuxNodeGroup(),
