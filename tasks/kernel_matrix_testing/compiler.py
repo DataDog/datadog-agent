@@ -29,6 +29,7 @@ DOCKER_BASE_IMAGES = {
     "arm64": f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/linux-glibc-2.23-arm64",
 }
 
+
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)

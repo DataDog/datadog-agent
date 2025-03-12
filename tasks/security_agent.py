@@ -280,9 +280,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(
-    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"
-):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")

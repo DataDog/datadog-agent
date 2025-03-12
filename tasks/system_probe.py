@@ -15,12 +15,14 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
@@ -82,7 +84,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION_RUNTIME = "12.0.1"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
@@ -130,7 +131,7 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command=f"/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
     strip = "&& /opt/datadog-agent/embedded/bin/llvm-strip -g $out" if strip_object_files else ""
@@ -145,7 +146,7 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
 
     nw.rule(
         name="ebpfcoreclang",
-        command=f"/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -624,9 +625,7 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(
-                nw, strip_object_files, kernel_release, with_unit_test, arch=arch
-            )
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
@@ -1383,6 +1382,16 @@ def run_ninja(
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
+def get_clang_version_and_suffix() -> tuple[str, str]:
+    gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    with open(gitlab_ci_file) as f:
+        ci_config = yaml.safe_load(f)
+
+    ci_vars = ci_config['variables']
+    return ci_vars['CLANG_LLVM_VER'], ci_vars['CLANG_TEST_SUFFIX']
+
+
 def setup_runtime_clang(
     ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
 ) -> None:
@@ -1393,10 +1402,12 @@ def setup_runtime_clang(
     if arch is None:
         arch = Arch.local()
 
+    clang_version, clang_suffix = get_clang_version_and_suffix()
+
     runtime_binaries = {
-        "clang-bpf": { "url_prefix": "clang", "version_line": 0, "needs_download": False },
-        "llc-bpf": { "url_prefix": "llc", "version_line": 1, "needs_download": False },
-        "llvm-strip": { "url_prefix": "llvm-strip", "version_line": 2, "needs_download": False },
+        "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
+        "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
+        "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
     }
 
     for binary, meta in runtime_binaries.items():
@@ -1413,8 +1424,8 @@ def setup_runtime_clang(
             res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
             if res is not None and res.ok:
                 version_str = res.stdout.split("\n")[meta["version_line"]].strip().split(" ")[2].strip()
-                if version_str != CLANG_VERSION_RUNTIME:
-                    print(f"'{binary}' version '{version_str}' is not required version '{CLANG_VERSION_RUNTIME}'")
+                if version_str != clang_version:
+                    print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
                     runtime_binaries[binary]["needs_download"] = True
         else:
             # If we're cross-compiling we cannot check the version of clang and llc on the system,
@@ -1429,7 +1440,7 @@ def setup_runtime_clang(
             continue
 
         # download correct version from dd-agent-omnibus S3 bucket
-        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{CLANG_VERSION_RUNTIME}.{arch.name}"
+        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}{clang_suffix}"
         binary_path = target_dir / binary
         print(f"'{binary}' downloading...")
         ctx.run(f"{sudo} wget -nv {binary_url} -O {binary_path}")
