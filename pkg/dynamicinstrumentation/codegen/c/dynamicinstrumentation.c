@@ -46,6 +46,10 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     if (err != 0) {
         log_debug("could not write probe id to output");
     }
+    err = bpf_probe_read_kernel(&event->base.param_indicies, sizeof(event->base.param_indicies), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out param indicies");
+    }
 
     // Get tid and tgid
     u64 pidtgid = bpf_get_current_pid_tgid();

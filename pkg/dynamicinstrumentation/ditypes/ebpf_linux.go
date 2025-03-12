@@ -8,7 +8,8 @@ type BaseEvent struct {
 	Uid              uint32
 	Program_counters [10]uint64
 	Probe_id         [36]byte
+	Param_indicies   [20]uint16
 	Pad_cgo_0        [4]byte
 }
 
-const SizeofBaseEvent = 0x80
+const SizeofBaseEvent = 0xa8
