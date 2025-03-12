@@ -8,6 +8,12 @@
 
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
+INSTALL_DIR=/opt/datadog-agent
+
+# Run FIPS installation script if available. Mandatory to execute the agent binary in FIPS mode.
+if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
+    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+fi
 
 # Run postinstall script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent.go
 /opt/datadog-agent/embedded/bin/installer postinst datadog-agent rpm

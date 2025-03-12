@@ -210,15 +210,6 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 		}
 	}
 
-	// 7. Run FIPS install if required
-	// XXX: We should port this to Go
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/fipsinstall.sh")); err == nil {
-		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/fipsinstall.sh"))
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to run fipsinstall.sh: %v", err)
-		}
-	}
-
 	return nil
 }
 
