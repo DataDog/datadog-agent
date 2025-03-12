@@ -102,6 +102,10 @@ func TestFIMPermError(t *testing.T) {
 			ID:         "test_perm_rename_rule",
 			Expression: `rename.file.destination.path == "{{.Root}}/test-file" && rename.file.path == "{{.Root}}/rename-file" && rename.retval == -13`,
 		},
+		{
+			ID:         "test_perm_utimes_rule",
+			Expression: `utimes.file.path == "{{.Root}}/test-file" && utimes.retval == -1`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -227,6 +231,23 @@ func TestFIMPermError(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_rename_rule")
 			assert.Equal(t, -int64(syscall.EACCES), event.Rename.Retval)
+		})
+	})
+
+	test.Run(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"utimes", testFile,
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_utimes_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Utimes.Retval)
 		})
 	})
 }
