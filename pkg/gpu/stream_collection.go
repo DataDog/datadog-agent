@@ -215,7 +215,7 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid int) {
 	for handler := range sc.allStreams() {
 		if handler.metadata.pid == uint32(pid) {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
-			handler.markEnd()
+			_ = handler.markEnd()
 			sc.telemetry.finalizedProcesses.Inc()
 		}
 	}
