@@ -37,6 +37,7 @@ type AgentMetadata struct {
 	Version      string    `json:"version"`
 	APIKeyHash   string    `json:"api-key-hash"`
 	CreationTime time.Time `json:"creation-time"`
+	URL          string    `json:"url"`
 }
 
 // hashAPIKey hashes the API key to avoid storing it in plain text using SHA256
@@ -44,7 +45,7 @@ func hashAPIKey(apiKey string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(apiKey)))
 }
 
-func recreate(path string, agentVersion string, apiKeyHash string) (*bbolt.DB, error) {
+func recreate(path string, agentVersion string, apiKeyHash string, url string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -69,10 +70,10 @@ func recreate(path string, agentVersion string, apiKeyHash string) (*bbolt.DB, e
 		}
 		return nil, err
 	}
-	return db, addMetadata(db, agentVersion, apiKeyHash)
+	return db, addMetadata(db, agentVersion, apiKeyHash, url)
 }
 
-func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string) error {
+func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string, url string) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(metaBucket))
 		if err != nil {
@@ -82,6 +83,7 @@ func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string) error {
 			Version:      agentVersion,
 			APIKeyHash:   apiKeyHash,
 			CreationTime: time.Now(),
+			URL:          url,
 		})
 		if err != nil {
 			return err
@@ -90,7 +92,7 @@ func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string) error {
 	})
 }
 
-func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, error) {
+func openCacheDB(path string, agentVersion string, apiKey string, url string) (*bbolt.DB, error) {
 	apiKeyHash := hashAPIKey(apiKey)
 
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{
@@ -101,10 +103,10 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
 		log.Infof("Failed to open remote configuration database %s", err)
-		return recreate(path, agentVersion, apiKeyHash)
+		return recreate(path, agentVersion, apiKeyHash, url)
 	}
 
-	metadata := new(AgentMetadata)
+	var metadata AgentMetadata
 	err = db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(metaBucket))
 		if bucket == nil {
@@ -116,7 +118,7 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 			log.Infof("Missing meta file in meta bucket")
 			return err
 		}
-		err = json.Unmarshal(metadataBytes, metadata)
+		err = json.Unmarshal(metadataBytes, &metadata)
 		if err != nil {
 			log.Infof("Invalid metadata")
 			return err
@@ -126,13 +128,13 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 	if err != nil {
 		_ = db.Close()
 		log.Infof("Failed to validate remote configuration database %s", err)
-		return recreate(path, agentVersion, apiKeyHash)
+		return recreate(path, agentVersion, apiKeyHash, url)
 	}
 
-	if metadata.Version != agentVersion || metadata.APIKeyHash != apiKeyHash {
-		log.Infof("Different agent version or API Key detected")
+	if metadata.Version != agentVersion || metadata.APIKeyHash != apiKeyHash || metadata.URL != url {
+		log.Infof("Different agent version, API Key or URL detected")
 		_ = db.Close()
-		return recreate(path, agentVersion, apiKeyHash)
+		return recreate(path, agentVersion, apiKeyHash, url)
 	}
 
 	return db, nil

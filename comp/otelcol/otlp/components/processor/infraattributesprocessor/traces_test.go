@@ -131,7 +131,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			factory := NewFactoryForAgent(tc)
 			fmp, err := factory.CreateTraces(
 				context.Background(),
-				processortest.NewNopSettings(),
+				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)

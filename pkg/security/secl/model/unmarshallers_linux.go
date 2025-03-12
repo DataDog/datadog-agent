@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -54,18 +52,6 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return 8 + n, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
-	if err != nil {
-		return 0, err
-	}
-
-	e.ContainerID = containerutils.ContainerID(id)
-
-	return ContainerIDLen, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -967,17 +953,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
-
-	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -1372,61 +1352,6 @@ func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := e.NetworkContext.Device.UnmarshalBinary(data)
-	if err != nil {
-		return 0, ErrNotEnoughData
-	}
-	data = data[read:]
-
-	e.Size = binary.NativeEndian.Uint32(data)
-	data = data[4:]
-	e.Data = data
-	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
-	e.CaptureInfo.Length = int(e.NetworkContext.Size)
-	e.CaptureInfo.CaptureLength = len(data)
-
-	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
-	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
-		if rl, ok := layer.(*layers.IPv4); ok {
-			e.L3Protocol = unix.ETH_P_IP
-			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
-			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
-		}
-	} else if layer := packet.Layer(layers.LayerTypeIPv6); layer != nil {
-		if rl, ok := layer.(*layers.IPv4); ok {
-			e.L3Protocol = unix.ETH_P_IPV6
-			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
-			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
-		}
-	}
-
-	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
-		if rl, ok := layer.(*layers.UDP); ok {
-			e.L4Protocol = unix.IPPROTO_UDP
-			e.Source.Port = uint16(rl.SrcPort)
-			e.Destination.Port = uint16(rl.DstPort)
-		}
-	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
-		if rl, ok := layer.(*layers.TCP); ok {
-			e.L4Protocol = unix.IPPROTO_TCP
-			e.Source.Port = uint16(rl.SrcPort)
-			e.Destination.Port = uint16(rl.DstPort)
-		}
-	}
-
-	if layer := packet.Layer(layers.LayerTypeTLS); layer != nil {
-		if rl, ok := layer.(*layers.TLS); ok {
-			if len(rl.AppData) > 0 {
-				e.TLSContext.Version = uint16(rl.AppData[0].Version)
-			}
-		}
-	}
-
-	return len(data), nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
 func (e *NetworkStats) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -1504,4 +1429,61 @@ func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return total, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	var cursor int
+
+	e.Action = binary.NativeEndian.Uint32(data[0:4])
+	e.FilePosition = binary.NativeEndian.Uint32(data[4:8])
+
+	nameLen := int(binary.NativeEndian.Uint16(data[8:10]))
+	oldValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
+	newValueLen := int(binary.NativeEndian.Uint16(data[12:14]))
+	flags := binary.NativeEndian.Uint16(data[14:16])
+
+	// handle truncated fields
+	e.NameTruncated = flags&(1<<0) > 0
+	e.OldValueTruncated = flags&(1<<1) > 0
+	e.ValueTruncated = flags&(1<<2) > 0
+	cursor += 16
+
+	// parse name and values
+	if nameLen+oldValueLen+newValueLen > len(data[cursor:]) {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	e.Name, err = UnmarshalString(data[cursor:cursor+nameLen], nameLen)
+	if err != nil {
+		return 0, err
+	}
+	e.Name = strings.TrimSpace(e.Name)
+	cursor += nameLen
+
+	e.OldValue, err = UnmarshalString(data[cursor:cursor+oldValueLen], oldValueLen)
+	if err != nil {
+		return 0, err
+	}
+	e.OldValue = strings.TrimSpace(e.OldValue)
+	cursor += oldValueLen
+
+	if e.Action == uint32(SysCtlReadAction) {
+		e.Value = e.OldValue
+	} else if e.Action == uint32(SysCtlWriteAction) {
+		e.Value, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
+		if err != nil {
+			return 0, err
+		}
+		e.Value = strings.TrimSpace(e.Value)
+	}
+
+	// make sure the cursor is incremented either way
+	cursor += newValueLen
+
+	return cursor, nil
 }

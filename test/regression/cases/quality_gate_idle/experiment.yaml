@@ -36,7 +36,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "335.0 MiB"
+      upper_bound: "255.0 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

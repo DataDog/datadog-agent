@@ -43,6 +43,7 @@ var (
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",
+		"php":    "v1",
 	}
 
 	// TODO: Add new entry when a new language is supported
@@ -52,6 +53,7 @@ var (
 		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
 		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
 		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 )
 
@@ -459,6 +461,7 @@ func TestExtractLibInfo(t *testing.T) {
 		defaultLibInfo(python),
 		defaultLibInfo(dotnet),
 		defaultLibInfo(ruby),
+		defaultLibInfo(php),
 	}
 
 	var mockConfig model.Config
@@ -875,7 +878,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "php (opt-in)",
+			name:              "php",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{

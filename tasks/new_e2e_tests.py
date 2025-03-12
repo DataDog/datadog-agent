@@ -25,7 +25,12 @@ from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
-from tasks.libs.common.utils import REPO_PATH, color_message, gitlab_section, running_in_ci
+from tasks.libs.common.utils import (
+    REPO_PATH,
+    color_message,
+    gitlab_section,
+    running_in_ci,
+)
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
@@ -44,17 +49,17 @@ class TestState:
 
 
 @task(
-    iterable=['tags', 'targets', 'configparams'],
+    iterable=["tags", "targets", "configparams"],
     help={
-        'profile': 'Override auto-detected runner profile (local or CI)',
-        'tags': 'Build tags to use',
-        'targets': 'Target packages (same as inv test)',
-        'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
-        'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
-        'run': 'Only run tests matching the regular expression',
-        'skip': 'Only run tests not matching the regular expression',
-        'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
-        'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "profile": "Override auto-detected runner profile (local or CI)",
+        "tags": "Build tags to use",
+        "targets": "Target packages (same as dda inv test)",
+        "configparams": "Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)",
+        "verbose": "Verbose output: log all tests as they are run (same as gotest -v) [default: True]",
+        "run": "Only run tests matching the regular expression",
+        "skip": "Only run tests not matching the regular expression",
+        "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
+        "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
     },
 )
 def run(
@@ -97,7 +102,7 @@ def run(
         )
 
     e2e_module = get_default_modules()["test/new-e2e"]
-    e2e_module.should_test_condition = 'always'
+    e2e_module.should_test_condition = "always"
     if targets:
         e2e_module.test_targets = targets
 
@@ -109,7 +114,10 @@ def run(
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
-            raise Exit(message=f"wrong format given for config parameter, expects key=value, actual: {param}", code=1)
+            raise Exit(
+                message=f"wrong format given for config parameter, expects key=value, actual: {param}",
+                code=1,
+            )
         parsed_params[parts[0]] = parts[1]
 
     if agent_image:
@@ -128,13 +136,13 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     # Create temporary file for flaky patterns config
-    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete_on_close=False)
-    tmp_flaky_patterns_config.write(b"{}")
-    tmp_flaky_patterns_config.close()
-    flaky_patterns_config = tmp_flaky_patterns_config.name
-    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
+    if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+        if os.path.exists(os.environ.get("FLAKY_PATTERNS_CONFIG")):
+            os.remove(os.environ.get("FLAKY_PATTERNS_CONFIG"))
+        with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
+            f.write("{}")
 
-    cmd = f'gotestsum --format {gotestsum_format} '
+    cmd = f"gotestsum --format {gotestsum_format} "
     scrubber_raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
     if running_in_ci():
@@ -147,25 +155,24 @@ def run(
     args = {
         "go_mod": "readonly",
         "timeout": "4h",
-        "verbose": '-v' if verbose else '',
-        "nocache": '-count=1' if not cache else '',
+        "verbose": "-v" if verbose else "",
+        "nocache": "-count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + run if run else '',
-        "skip": '-test.skip ' + skip if skip else '',
+        "run": "-test.run " + run if run else "",
+        "skip": "-test.skip " + skip if skip else "",
         "test_run_arg": test_run_arg,
-        "osversion": f"-osversion {osversion}" if osversion else '',
-        "platform": f"-platform {platform}" if platform else '',
-        "arch": f"-arch {arch}" if arch else '',
-        "flavor": f"-flavor {flavor}" if flavor else '',
-        "major_version": f"-major-version {major_version}" if major_version else '',
+        "osversion": f"-osversion {osversion}" if osversion else "",
+        "platform": f"-platform {platform}" if platform else "",
+        "arch": f"-arch {arch}" if arch else "",
+        "flavor": f"-flavor {flavor}" if flavor else "",
+        "major_version": f"-major-version {major_version}" if major_version else "",
         "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
         if cws_supported_osversion
-        else '',
-        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
-        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
-        "keep_stacks": '-keep-stacks' if keep_stacks else '',
-        "flaky_patterns_config": f'--flaky-patterns-config={flaky_patterns_config}' if flaky_patterns_config else '',
+        else "",
+        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
+        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
+        "keep_stacks": '-keep-stacks' if keep_stacks else "",
         "extra_flags": extra_flags,
     }
 
@@ -182,24 +189,43 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(
-        test_res, junit_tar, AgentFlavor.base, test_washer, extra_flakes_config=flaky_patterns_config
-    )
+    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
-        params = [f'--targets {t}' for t in targets]
+        params = [f"--targets {t}" for t in targets]
 
-        param_keys = ('osversion', 'platform', 'arch')
+        param_keys = ("osversion", "platform", "arch")
         for param_key in param_keys:
             if args.get(param_key):
-                params.append(f'-{args[param_key]}')
+                params.append(f"-{args[param_key]}")
 
-        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
+        configparams_to_retain = {
+            "ddagent:imagePullRegistry",
+            "ddagent:imagePullUsername",
+        }
+
+        registry_to_password_commands = {
+            "669783387624.dkr.ecr.us-east-1.amazonaws.com": "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password"
+        }
+
+        for configparam in configparams:
+            parts = configparam.split("=", 1)
+            key = parts[0]
+            if key in configparams_to_retain:
+                params.append(f"-c {configparam}")
+
+                if key == "ddagent:imagePullRegistry" and len(parts) > 1:
+                    registry = parts[1]
+                    password_cmd = registry_to_password_commands.get(registry)
+                    if password_cmd is not None:
+                        params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
+
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -e new-e2e-tests.run {' '.join(params)}"
         print(
-            f'To run this test locally, use: `{command}`. '
+            f"To run this test locally, use: `{command}`. "
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
-            '\nYou can troubleshoot e2e test failures with this documentation: https://datadoghq.atlassian.net/wiki/x/7gIo0'
+            "\nYou can troubleshoot e2e test failures with this documentation: https://datadoghq.atlassian.net/wiki/x/7gIo0"
         )
 
     if logs_post_processing:
@@ -208,12 +234,15 @@ def run(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
             os.makedirs(logs_folder, exist_ok=True)
-            write_result_to_log_files(post_processed_output, logs_folder, test_depth=logs_post_processing_test_depth)
+            write_result_to_log_files(
+                post_processed_output,
+                logs_folder,
+                test_depth=logs_post_processing_test_depth,
+            )
 
             pretty_print_logs(
                 test_res[0].result_json_path,
                 post_processed_output,
-                flakes_files=["flakes.yaml", flaky_patterns_config],
                 test_depth=logs_post_processing_test_depth,
             )
         else:
@@ -228,10 +257,10 @@ def run(
 
 @task(
     help={
-        'locks': 'Cleans up lock files, default True',
-        'stacks': 'Cleans up local stack state, default False',
-        'output': 'Cleans up local test output directory, default False',
-        'skip_destroy': 'Skip stack\'s resources removal. Use it only if your resources are already removed by other means, default False',
+        "locks": "Cleans up lock files, default True",
+        "stacks": "Cleans up local stack state, default False",
+        "output": "Cleans up local test output directory, default False",
+        "skip_destroy": "Skip stack's resources removal. Use it only if your resources are already removed by other means, default False",
     },
 )
 def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
@@ -346,28 +375,31 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
         json_line for json_line in lines if "Package" in json_line and "Test" in json_line and "Output" in json_line
     ]
 
-    tests = {(json_line['Package'], json_line['Test']): [] for json_line in lines}
+    tests = {(json_line["Package"], json_line["Test"]): [] for json_line in lines}
 
     # Used to preserve order, line where a test appeared first
-    test_order = {(json_line['Package'], json_line['Test']): i for (i, json_line) in list(enumerate(lines))[::-1]}
+    test_order = {(json_line["Package"], json_line["Test"]): i for (i, json_line) in list(enumerate(lines))[::-1]}
 
     for json_line in lines:
-        if json_line['Action'] == 'output':
-            output: str = json_line['Output']
-            if '===' in output:
+        if json_line["Action"] == "output":
+            output: str = json_line["Output"]
+            if "===" in output:
                 continue
 
             # Append logs to all children tests + this test
-            current_test_name_splitted = json_line['Test'].split('/')
+            current_test_name_splitted = json_line["Test"].split("/")
             for (package, test_name), logs in tests.items():
-                if package != json_line['Package']:
+                if package != json_line["Package"]:
                     continue
 
                 if is_parent(current_test_name_splitted, test_name.split("/")):
                     logs.append(json_line["Output"])
 
     # Rebuild order
-    return sorted([(package, name, logs) for (package, name), logs in tests.items()], key=lambda x: test_order[x[:2]])
+    return sorted(
+        [(package, name, logs) for (package, name), logs in tests.items()],
+        key=lambda x: test_order[x[:2]],
+    )
 
 
 def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
@@ -375,7 +407,7 @@ def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
     # (package, test_name) -> logs
     merged_logs = defaultdict(list)
     for package, test_name, logs in logs_per_test:
-        merged_logs[package, '/'.join(test_name.split('/')[:test_depth])].extend(logs)
+        merged_logs[package, "/".join(test_name.split("/")[:test_depth])].extend(logs)
 
     for (package, test), logs in merged_logs.items():
         sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
@@ -403,7 +435,7 @@ def pretty_print_test_logs(logs_per_test: dict[tuple[str, str], str], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_files=None, test_depth=1):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_depth=1, flakes_files=None):
     """Pretty prints logs with a specific order.
 
     Print order:
@@ -412,12 +444,14 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
         3. Successful and non flaky tests
         4. Successful and flaky tests
     """
+    if flakes_files is None:
+        flakes_files = []
 
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files or ["flakes.yaml"])
-    failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
-    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files)
+    failing_tests = washer.get_failing_tests(result_json_dir)
+    flaky_failures = washer.get_flaky_failures(result_json_dir)
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]
@@ -426,15 +460,15 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
         # Split flaky / non flaky tests
         for package, test_name, logs in logs_per_test:
             # The name of the parent / nth parent if test_depth is lower than the test name depth
-            group_name = '/'.join(test_name.split('/')[:test_depth])
+            group_name = "/".join(test_name.split("/")[:test_depth])
 
-            package_flaky = all_known_flakes.get(package, set())
+            package_flaky = flaky_failures.get(package, set())
             package_failing = failing_tests.get(package, set())
 
             # Flaky if one of its parents is flaky as well
             is_flaky = False
-            for i in range(test_name.count('/') + 1):
-                parent_name = '/'.join(test_name.split('/')[: i + 1])
+            for i in range(test_name.count("/") + 1):
+                parent_name = "/".join(test_name.split("/")[: i + 1])
                 if parent_name in package_flaky:
                     is_flaky = True
                     break
@@ -442,7 +476,12 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             state = test_name in package_failing, is_flaky
             categorized_logs[state].append((package, group_name, logs))
 
-        for failing, flaky in [TestState.FAILED, TestState.FLAKY_FAILED, TestState.SUCCESS, TestState.FLAKY_SUCCESS]:
+        for failing, flaky in [
+            TestState.FAILED,
+            TestState.FLAKY_FAILED,
+            TestState.SUCCESS,
+            TestState.FLAKY_SUCCESS,
+        ]:
             logs_to_print = categorized_logs[failing, flaky]
             if not logs_to_print:
                 continue
@@ -453,7 +492,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
             for package, test_name, logs in logs_to_print:
                 merged_logs[package, test_name].extend(logs)
 
-            print(f'* {color_message(TestState.get_human_readable_state(failing, flaky), Color.BOLD)} job logs:')
+            print(f"* {color_message(TestState.get_human_readable_state(failing, flaky), Color.BOLD)} job logs:")
             # Print till the size limit is reached
             max_size -= pretty_print_test_logs(merged_logs, max_size)
     except TooManyLogsError:
@@ -506,13 +545,17 @@ def _clean_output():
         return
 
     if not output_dir.is_dir():
-        raise Exit(message=f"e2e-output directory {output_dir} is not a directory, aborting", code=1)
+        raise Exit(
+            message=f"e2e-output directory {output_dir} is not a directory, aborting",
+            code=1,
+        )
 
     # sanity check to avoid deleting the wrong directory, e2e-output should only contain directories
     for entry in output_dir.iterdir():
         if not entry.is_dir():
             raise Exit(
-                message=f"e2e-output directory {output_dir} contains more than just directories, aborting", code=1
+                message=f"e2e-output directory {output_dir} contains more than just directories, aborting",
+                code=1,
             )
 
     shutil.rmtree(output_dir)
@@ -550,7 +593,11 @@ def _clean_stacks(ctx: Context, skip_destroy: bool):
 
 def _get_existing_stacks(ctx: Context) -> list[str]:
     e2e_stacks: list[str] = []
-    output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
+    output = ctx.run(
+        "pulumi stack ls --all --project e2elocal --json",
+        hide=True,
+        env=_get_default_env(),
+    )
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -596,11 +643,18 @@ def _destroy_stack(ctx: Context, stack: str):
                 env=_get_default_env(),
             )
         if ret is not None and ret.exited != 0:
-            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"), 1)
+            raise Exit(
+                color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"),
+                1,
+            )
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"pulumi stack rm --force --yes --stack {stack}", hide=True, env=_get_default_env())
+    ctx.run(
+        f"pulumi stack rm --force --yes --stack {stack}",
+        hide=True,
+        env=_get_default_env(),
+    )
 
 
 def _get_pulumi_about(ctx: Context) -> dict:

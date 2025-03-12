@@ -9,6 +9,7 @@ import (
 	"context"
 	"testing"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -62,6 +64,10 @@ func TestBundleDependencies(t *testing.T) {
 		npcollectorimpl.MockModule(),
 		statsd.MockModule(),
 		fetchonlyimpl.MockModule(),
+		fx.Provide(func() ddgostatsd.ClientInterface {
+			return &ddgostatsd.NoOpClient{}
+		}),
+		secretsimpl.MockModule(),
 	)
 }
 
@@ -105,6 +111,9 @@ func TestBundleOneShot(t *testing.T) {
 		rdnsquerier.MockModule(),
 		npcollectorimpl.Module(),
 		statsd.MockModule(),
+		fx.Provide(func() ddgostatsd.ClientInterface {
+			return &ddgostatsd.NoOpClient{}
+		}),
 		Bundle(),
 	)
 	require.NoError(t, err)

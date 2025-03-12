@@ -75,13 +75,14 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
 
     set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, 0);
 
+    syscall->retval = retval;
+
     syscall->resolver.key = syscall->chdir.file.path_key;
     syscall->resolver.dentry = syscall->chdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_CHDIR_CALLBACK_KPROBE_KEY, DR_CHDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
-    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -111,7 +112,7 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
         return 0;
     }
 
-    s64 retval = syscall->resolver.sysretval;
+    s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
