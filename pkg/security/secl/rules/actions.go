@@ -35,7 +35,7 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 		}
 
 		if a.Set.Name == "" {
-			return errors.New("action name is empty")
+			return errors.New("variable name is empty")
 		}
 
 		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
