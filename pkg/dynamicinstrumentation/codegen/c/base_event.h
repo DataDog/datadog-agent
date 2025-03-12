@@ -12,6 +12,7 @@ struct base_event {
     __u64 program_counters[STACK_DEPTH_LIMIT]; // program counters representing the stack trace of the instrumented function invocation
     __u64 param_indicies[MAX_FIELD_AND_PARAM_COUNT]; // indicies of where each parameter starts in argument buffer
     char probe_id[36]; // identifier for each user-configured instrumentation point, it's a standard 36 character UUID
+    __u16 param_indicies[20];
 };
 
 #endif
