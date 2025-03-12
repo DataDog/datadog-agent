@@ -54,6 +54,7 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
+	initialUpdateDeadline   = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -133,6 +134,9 @@ func (s *Service) getTargetFiles(uptaneClient uptaneClient, targetFilePaths []st
 type CoreAgentService struct {
 	Service
 	firstUpdate bool
+
+	// We record the startup time to ensure we flush client configs if we can't contact the backend in time
+	startupTime time.Time
 
 	defaultRefreshInterval         time.Duration
 	refreshIntervalOverrideAllowed bool
@@ -440,12 +444,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
+	now := clock.Now().UTC()
 	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
 			db:     db,
 		},
 		firstUpdate:                    true,
+		startupTime:                    now,
 		defaultRefreshInterval:         options.refresh,
 		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
 		backoffErrorCount:              0,
@@ -826,13 +832,19 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	expires, err := s.uptane.TimestampExpires()
-	if err != nil {
-		return nil, err
-	}
-	if expires.Before(time.Now()) {
-		log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
-		return s.flushCacheResponse()
+	// If we have made our initial update (or the deadline has expired)
+	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+		// get the expiration time of timestamp.json
+		expires, err := s.uptane.TimestampExpires()
+		if err != nil {
+			return nil, err
+		}
+		// If timestamp.json has expired and we've waited to ensure connection to the backend,
+		// all clients must flush their configuration state.
+		if expires.Before(time.Now()) {
+			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+			return s.flushCacheResponse()
+		}
 	}
 
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
