@@ -434,7 +434,6 @@ new-e2e-process:
     TEAM: processes
     ON_NIGHTLY_FIPS: "true"
 
-
 new-e2e-orchestrator:
   extends:
     - .new_e2e_template_needs_container_deploy

@@ -51,7 +51,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
             kept_job[job] = job_details
 
     # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
-    for job in list(kept_job.values()):
+    for job in kept_job.values():
         remove_fields(job)
         if "needs" in job:
             job["needs"] = update_needs_parent(
