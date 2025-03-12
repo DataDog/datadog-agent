@@ -145,6 +145,9 @@ class TestWasher:
         end_times = {}
 
         def parse_date(date: str) -> float:
+            date, nano_and_tz = date.split(".")
+            # Cannot parse nanoseconds but microseconds
+            date = f"{date}.{nano_and_tz[:6]}{nano_and_tz[-1]}"
             return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
 
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
