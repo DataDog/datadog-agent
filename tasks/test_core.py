@@ -63,7 +63,7 @@ class ModuleTestResult(ModuleResult):
         self.result_type = "Tests"
         # Path to the result.json file output by gotestsum (should always be present)
         self.result_json_path = None
-        # Path to the junit file output by gotestsum (only present if specified in inv test)
+        # Path to the junit file output by gotestsum (only present if specified in dda inv test)
         self.junit_file_path = None
 
     def get_failure(self, flavor):
@@ -167,7 +167,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
+    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:

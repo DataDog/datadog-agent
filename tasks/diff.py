@@ -57,6 +57,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/security-agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
     },
+    "sbomgen": {
+        "entrypoint": "cmd/sbomgen",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
     "trace-agent": {
@@ -253,7 +257,7 @@ def _list_tasks_rec(collection, prefix='', res=None):
 def _list_invoke_tasks(ctx) -> dict[str, str]:
     """Returns a dictionary of invoke tasks and their descriptions."""
 
-    tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
+    tasks = json.loads(ctx.run('dda inv --list -F json', hide=True).stdout)
 
     # Remove 'tasks.' prefix
     return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in _list_tasks_rec(tasks).items()}

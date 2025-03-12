@@ -44,10 +44,6 @@ const (
 )
 
 var (
-	// AgentPayloadVersion is the versions of the agent-payload repository
-	// used to serialize to protobuf
-	AgentPayloadVersion string
-
 	expvars                                 = expvar.NewMap("serializer")
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
@@ -69,7 +65,7 @@ func initExtraHeaders(s *Serializer) {
 	}
 
 	s.protobufExtraHeaders.Set("Content-Type", protobufContentType)
-	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 
 	s.protobufExtraHeadersWithCompression = make(http.Header)
 	for k := range s.protobufExtraHeaders {

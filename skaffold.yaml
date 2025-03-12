@@ -45,10 +45,10 @@ profiles:
       artifacts:
       - image: agent
         custom:
-          buildCommand: "inv agent.hacky-dev-image-build --target-image=$IMAGE"
+          buildCommand: "dda inv agent.hacky-dev-image-build --target-image=$IMAGE"
       - image: clusteragent
         custom:
-          buildCommand: "inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE"
+          buildCommand: "dda inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE"
   - name: minikube
     activation:
     - kubeContext: minikube
@@ -58,8 +58,8 @@ profiles:
       - image: agent
         custom:
           buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
-            inv agent.hacky-dev-image-build --target-image=$IMAGE\""
+            dda inv agent.hacky-dev-image-build --target-image=$IMAGE\""
       - image: clusteragent
         custom:
           buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
-            inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE\""
+            dda inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE\""

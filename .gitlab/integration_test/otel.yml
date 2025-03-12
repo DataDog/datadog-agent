@@ -9,19 +9,12 @@ integration_tests_otel:
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
-    - inv check-otel-build
-    - inv check-otel-module-versions
-    - inv otel-agent.integration-test
+    - dda inv check-otel-build
+    - dda inv check-otel-module-versions
+    - dda inv otel-agent.integration-test
   rules:
-    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-      when: never
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
-      when: never
-    - when: always
+    - !reference [.except_mergequeue]
+    - when: on_success
 
 
 docker_image_build_otel:
@@ -46,40 +39,28 @@ docker_image_build_otel:
     - docker build --build-arg AGENT_BRANCH=$CI_COMMIT_BRANCH --tag agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
     - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
   rules:
-    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-      when: never
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
-      when: never
-    - when: always
+    - !reference [.except_mergequeue]
+    - when: on_success
 
 
-# datadog_otel_components_ocb_build:
-#   stage: integration_test
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#   tags: ["arch:amd64"]
-#   needs: ["go_deps"]
-#   artifacts:
-#     paths:
-#       - ocb-output.log
-#       - otelcol-custom.log
-#       - flare-info.log
-#     when: always
-#   before_script:
-#     - !reference [.retrieve_linux_go_deps]
-#   script:
-#     - echo "Building custom collector with datadog components"
-#     - test/otel/testdata/ocb_build_script.sh
-#     - echo "see artifacts for job logs"
-#   rules:
-#     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-#       when: never
-#     - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
-#       when: never
-#     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
-#       when: never
-#     - when: always
-#   timeout: 15 minutes
+datadog_otel_components_ocb_build:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  timeout: 15 minutes

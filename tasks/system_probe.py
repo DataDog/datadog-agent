@@ -1527,9 +1527,6 @@ def build_object_files(
         ebpf_compiler=ebpf_compiler,
     )
 
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
-
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     if not is_windows:
@@ -1566,22 +1563,6 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
-def copy_bundled_ebpf_files(
-    ctx,
-    arch: str | Arch = CURRENT_ARCH,
-):
-    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-    # as we cannot use the go:embed directive with variables that depend on the build architecture
-    arch = Arch.from_str(arch)
-    ebpf_build_dir = get_ebpf_build_dir(arch)
-
-    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-    # where the files are listed
-    ctx.run(
-        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-    )
-
-
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1603,9 +1584,6 @@ def build_cws_object_files(
         with_unit_test=with_unit_test,
         ebpf_compiler=ebpf_compiler,
     )
-
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):

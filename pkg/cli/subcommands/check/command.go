@@ -290,10 +290,11 @@ func run(
 		cliParams.cmd.Help() //nolint:errcheck
 		return nil
 	}
-
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	pkgcollector.InitPython(common.GetPythonPaths()...)
+	if !config.GetBool("python_lazy_loading") {
+		python.InitPython(common.GetPythonPaths()...)
+	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
@@ -772,5 +773,6 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some time.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }

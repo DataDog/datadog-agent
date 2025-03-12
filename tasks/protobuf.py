@@ -154,7 +154,7 @@ def generate(ctx, do_mockgen=True):
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
     if any(proto_file.search(line) for line in git_status.split("\n")):
         raise Exit(
-            f"Generated files were not properly committed.\n{git_status}\nPlease run `inv protobuf.generate` and commit the changes.",
+            f"Generated files were not properly committed.\n{git_status}\nPlease run `dda inv protobuf.generate` and commit the changes.",
             code=1,
         )
 
@@ -165,14 +165,14 @@ def check_tools(ctx):
     """
     tools = [tool.split("/")[-1] for tool in TOOL_LIST_PROTO]
     if not check_tools_installed(tools):
-        raise Exit("Please install the required tools with `inv install-tools` before running this task.", code=1)
+        raise Exit("Please install the required tools with `dda inv install-tools` before running this task.", code=1)
     try:
         current_version = ctx.run("protoc --version", hide=True).stdout.strip().removeprefix("libprotoc ")
         with open(".protoc-version") as f:
             expected_version = f.read().strip()
         if current_version != expected_version:
             raise Exit(
-                f"Expected protoc version {expected_version}, found {current_version}. Please run `inv install-protoc` before running this task.",
+                f"Expected protoc version {expected_version}, found {current_version}. Please run `dda inv install-protoc` before running this task.",
                 code=1,
             )
     except UnexpectedExit as e:
