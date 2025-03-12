@@ -161,46 +161,6 @@ func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
 	return false
 }
 
-type translation struct {
-	source netip.AddrPort
-	dest   netip.AddrPort
-}
-
-func applyTranslation(conn *model.Connection) (translation, error) {
-	translatedSource := conn.Laddr.Ip
-	translatedSrcPort := conn.Laddr.Port
-	translatedDest := conn.Raddr.Ip
-	translatedDstPort := conn.Raddr.Port
-	if conn.IpTranslation != nil {
-		if conn.IpTranslation.ReplSrcIP != "" {
-			translatedSource = conn.IpTranslation.ReplSrcIP
-		}
-		if conn.IpTranslation.ReplSrcPort != 0 {
-			translatedSrcPort = conn.IpTranslation.ReplSrcPort
-		}
-		if conn.IpTranslation.ReplDstIP != "" {
-			translatedDest = conn.IpTranslation.ReplDstIP
-		}
-		if conn.IpTranslation.ReplDstPort != 0 {
-			translatedDstPort = conn.IpTranslation.ReplDstPort
-		}
-	}
-	sourceAddr, err := netip.ParseAddr(translatedSource)
-	if err != nil {
-		return translation{}, err
-	}
-	destAddr, err := netip.ParseAddr(translatedDest)
-	if err != nil {
-		return translation{}, err
-	}
-
-	translation := translation{
-		source: netip.AddrPortFrom(sourceAddr, uint16(translatedSrcPort)),
-		dest:   netip.AddrPortFrom(destAddr, uint16(translatedDstPort)),
-	}
-	return translation, nil
-}
-
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
 	if conn == nil {
 		return false
@@ -219,26 +179,43 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
-	// TODO translation should probably be applied to the traceroute as well right?gi
-	translation, err := applyTranslation(conn)
+	sourceAddr, err := netip.ParseAddr(conn.Laddr.Ip)
+	if err != nil {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_source_ip"}, 1) //nolint:errcheck
+		return false
+	}
+	source := netip.AddrPortFrom(sourceAddr, uint16(conn.Laddr.Port))
+
+	translatedDest := conn.Raddr.Ip
+	// prefer IP translation if it's available
+	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+		translatedDest = conn.IpTranslation.ReplDstIP
+	}
+	destAddr, err := netip.ParseAddr(translatedDest)
+	if err != nil {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_dest_ip"}, 1) //nolint:errcheck
+		return false
+	}
+	dest := netip.AddrPortFrom(destAddr, uint16(conn.Raddr.Port))
+
 	if err != nil {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_ip"}, 1) //nolint:errcheck
 		return false
 	}
-	if translation.dest.Addr().IsLoopback() {
+	if dest.Addr().IsLoopback() {
 		// is this case possible, given that we already filter out IntraHost?
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
 		return false
 	}
-	if doSubnetsContainIP(vpcSubnets, translation.dest.Addr()) {
+	if doSubnetsContainIP(vpcSubnets, dest.Addr()) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
 		return false
 	}
 
 	filterable := filter.FilterableConnection{
 		Type:   conn.Type,
-		Source: translation.source,
-		Dest:   translation.dest,
+		Source: source,
+		Dest:   dest,
 	}
 	if filter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1) //nolint:errcheck

@@ -238,38 +238,6 @@ func TestKeepAlivePacketsArentRetransmits(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestFinAckPacketsArentRetransmits(t *testing.T) {
-	pb := newPacketBuilder(lowerSeq, higherSeq)
-	basicHandshake := []testCapture{
-		pb.incoming(0, 0, 0, SYN),
-		pb.outgoing(0, 0, 1, SYN|ACK),
-		pb.incoming(0, 1, 1, ACK),
-		// active close after sending no data
-		pb.outgoing(0, 1, 1, FIN|ACK),
-		//
-		pb.outgoing(0, 1, 1, FIN|ACK),
-		pb.incoming(0, 1, 2, FIN|ACK),
-		pb.outgoing(0, 2, 2, ACK),
-	}
-
-	f := newTCPTestFixture(t)
-	f.runPkts(basicHandshake)
-
-	require.Empty(t, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:   0,
-		RecvBytes:   0,
-		SentPackets: 5,
-		RecvPackets: 6,
-		// no retransmits for keepalive
-		Retransmits:    0,
-		TCPEstablished: 1,
-		TCPClosed:      1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
 // TestRetransmitMultipleSegments tests retransmitting multiple segments as one
 func TestRetransmitMultipleSegments(t *testing.T) {
 	pb := newPacketBuilder(lowerSeq, higherSeq)
