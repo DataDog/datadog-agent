@@ -6,6 +6,7 @@
 package apikey
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var getFunc = func(string) (string, error) {
+var getFunc = func(string, aws.FIPSEndpointState) (string, error) {
 	return "DECRYPTED_VAL", nil
 }
 
@@ -42,6 +43,44 @@ func TestGetSecretEnvVars(t *testing.T) {
 		"TEST_SM":    "DECRYPTED_VAL",
 		apiKeyEnvVar: "DECRYPTED_VAL",
 	}, decryptedEnvVars)
+}
+
+func TestGetSecretEnvVarsWithFIPSEndpoint(t *testing.T) {
+	tests := []struct {
+		region       string
+		expectedFIPS aws.FIPSEndpointState
+	}{
+		{"us-gov-west-1", aws.FIPSEndpointStateEnabled},
+		{"us-west-2", aws.FIPSEndpointStateUnset},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.region, func(t *testing.T) {
+			os.Setenv(lambdaRegionEnvVar, tc.region)
+
+			var kmsFIPS aws.FIPSEndpointState
+			var smFIPS aws.FIPSEndpointState
+			mockKMSFunc := func(val string, fips aws.FIPSEndpointState) (string, error) {
+				kmsFIPS = fips
+				return "decrypted", nil
+			}
+			mockSMFunc := func(val string, fips aws.FIPSEndpointState) (string, error) {
+				smFIPS = fips
+				return "decrypted", nil
+			}
+
+			testEnvVars := []string{
+				"TEST_KMS_KMS_ENCRYPTED=test",
+				"TEST_SM_SECRET_ARN=test",
+			}
+			getSecretEnvVars(testEnvVars, mockKMSFunc, mockSMFunc)
+
+			assert.Equal(t, tc.expectedFIPS, kmsFIPS,
+				"kmsFunc received wrong FIPS state for region %s", tc.region)
+			assert.Equal(t, tc.expectedFIPS, smFIPS,
+				"smFunc received wrong FIPS state for region %s", tc.region)
+		})
+	}
 }
 
 func TestDDApiKey(t *testing.T) {
