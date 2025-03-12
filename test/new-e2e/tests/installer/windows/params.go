@@ -5,7 +5,12 @@
 
 package installer
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+)
 
 // Params contains the optional parameters for the Datadog Install Script command
 type Params struct {
@@ -39,6 +44,19 @@ func WithExtraEnvVars(envVars map[string]string) Option {
 func WithInstallerURL(installerURL string) Option {
 	return func(params *Params) error {
 		params.installerURL = installerURL
+		return nil
+	}
+}
+
+func WithURLFromPipeline(pipelineID string) Option {
+	return func(params *Params) error {
+		artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+			return strings.Contains(artifact, "datadog-agent") && strings.HasSuffix(artifact, ".msi")
+		})
+		if err != nil {
+			return err
+		}
+		params.installerURL = artifactURL
 		return nil
 	}
 }

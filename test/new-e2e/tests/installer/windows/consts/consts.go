@@ -20,7 +20,7 @@ const (
 	// InstallerPackage is the name of the Datadog Installer package
 	InstallerPackage string = "datadog-installer"
 	// Path is the path where the Datadog Installer is installed on disk
-	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	Path string = "C:\\Program Files\\Datadog\\Datadog Agent\\bin"
 	// BinaryName is the name of the Datadog Installer binary on disk
 	BinaryName string = "datadog-installer.exe"
 	// ServiceName the installer service name

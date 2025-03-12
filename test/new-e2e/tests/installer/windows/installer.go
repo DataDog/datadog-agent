@@ -7,6 +7,7 @@
 package installer
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -126,6 +127,23 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
+func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
+	serializedCatalog, err := json.Marshal(newCatalog)
+	if err != nil {
+		return "", err
+	}
+	// s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
+	// escaping the quotes really shouldn't be necessary because powershell will not parse them
+	// when inside the single quotes but it seems like Golang is doing something weird with the
+	// quotes, but only on Windows since this works fine on Linux without escaping.
+	catalog := strings.ReplaceAll(string(serializedCatalog), `"`, `\"`)
+	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
+}
+
+func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon start-experiment %s %s", packageName, packageVersion))
+}
+
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
 // version: A function that returns the version of the package to install. By default, it will install
 // the package matching the current pipeline. This is a function so that it can be combined with
@@ -189,7 +207,10 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
-	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists {
+	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists || strings.HasPrefix(msiPath, "file://") {
+		if strings.HasPrefix(msiPath, "file://") {
+			localMSIPath = strings.TrimPrefix(msiPath, "file://")
+		}
 		// developer provided a local file, put it on the remote host
 		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
 		if err != nil {

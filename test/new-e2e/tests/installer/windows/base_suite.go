@@ -7,10 +7,14 @@
 package installer
 
 import (
+	"path/filepath"
+
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
+
 	"os"
 )
 
@@ -80,7 +84,7 @@ func (s *BaseSuite) SetupSuite() {
 	s.currentAgentVersion, err = agentVersion.New(os.Getenv("CURRENT_AGENT_VERSION"), "")
 	s.Require().NoError(err, "Agent version was in an incorrect format")
 
-	s.stableAgentVersion = newVersionFromPackageVersion(os.Getenv("STABLE_AGENT_VERSION_PACKAGE"))
+	s.stableAgentVersion = NewVersionFromPackageVersion(os.Getenv("STABLE_AGENT_VERSION_PACKAGE"))
 	if s.stableAgentVersion.PackageVersion() == "" {
 		s.FailNow("STABLE_AGENT_VERSION_PACKAGE was not set")
 	}
@@ -89,6 +93,12 @@ func (s *BaseSuite) SetupSuite() {
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
 func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-	s.installer = NewDatadogInstaller(s.Env(), s.SessionOutputDir())
+
+	// Create a new subdir per test since these suites often have multiple tests
+	testPart := common.SanitizeDirectoryName(testName)
+	outputDir := filepath.Join(s.SessionOutputDir(), testPart)
+	s.Require().NoError(os.MkdirAll(outputDir, 0755))
+
+	s.installer = NewDatadogInstaller(s.Env(), outputDir)
 	s.installScript = NewDatadogInstallScript(s.Env())
 }
