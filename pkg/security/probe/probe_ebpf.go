@@ -12,8 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"math"
 	"net"
 	"net/netip"
@@ -23,6 +21,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
@@ -749,22 +750,26 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
+	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.NoCopy)
 
-	for _, layer := range packet.Layers() {
-		switch layer := layer.(type) {
-		case *layers.DNS:
-			for _, answer := range layer.Answers {
-				if answer.Type == layers.DNSTypeCNAME {
-					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-				} else {
-					ip, ok := netip.AddrFromSlice(answer.IP)
-					if ok {
-						p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
-					} else {
-						seclog.Errorf("DNS response with an invalid IP received: %v", ip)
-					}
-				}
+	layer := packet.Layer(layers.LayerTypeDNS)
+	if layer == nil {
+		return
+	}
+	dnsLayer, ok := layer.(*layers.DNS)
+	if !ok {
+		return
+	}
+
+	for _, answer := range dnsLayer.Answers {
+		if answer.Type == layers.DNSTypeCNAME {
+			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+		} else {
+			ip, ok := netip.AddrFromSlice(answer.IP)
+			if ok {
+				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
+			} else {
+				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
 			}
 		}
 	}
@@ -1024,7 +1029,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if !event.CGroupContext.CGroupFile.IsNull() {
 			cgroupContext, _, err := p.resolveCGroupAndContainer(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
 			if err != nil {
-				seclog.Debugf("failed to resolve cgroup context for event %s: %s", err, eventType.String())
+				seclog.Debugf("failed to resolve cgroup context for event %s: %s", eventType, err)
 			} else {
 				event.CGroupContext.Merge(cgroupContext)
 			}
