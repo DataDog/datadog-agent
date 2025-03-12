@@ -440,7 +440,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	return &CoreAgentService{
+	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
 			db:     db,
@@ -475,7 +475,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopOrgPoller:         make(chan struct{}),
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
-	}, nil
+	}
+
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+
+	return cas, nil
 }
 
 func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
@@ -905,6 +909,41 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	}
 
 	return filteredList, nil
+}
+
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
+	return func(setting string, _, newvalue any) {
+		if setting != "api_key" {
+			return
+		}
+
+		newKey, ok := newvalue.(string)
+
+		if !ok {
+			log.Errorf("Could not convert API key to string")
+			return
+		}
+		s.Lock()
+		defer s.Unlock()
+
+		s.api.UpdateAPIKey(newKey)
+
+		// Verify that the Org UUID hasn't changed
+		storedOrgUUID, err := s.uptane.StoredOrgUUID()
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+		newOrgUUID, err := s.api.FetchOrgData(context.Background())
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+
+		if storedOrgUUID != newOrgUUID.Uuid {
+			log.Errorf("Error switching API key: new API key is from a different organization")
+		}
+	}
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
