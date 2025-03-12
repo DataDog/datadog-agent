@@ -1,12 +1,13 @@
 import time
 import os
 import glob
+from collections import defaultdict
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.ci_visibility import ci_visibility_section
+from tasks.libs.common.ci_visibility import ci_visibility_section, CIVisibilitySection
 
 TEST_ENV = {
     'INVOKE_UNIT_TESTS': '1',
@@ -75,9 +76,18 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
             # Will raise an error if the tests fail
             return True
         else:
+            start_time = time.time()
             runner = unittest.TextTestRunner(buffer=buffer, verbosity=verbosity)
+            res = runner.run(suite)
 
-            return runner.run(suite).wasSuccessful()
+            # print(res.failures)
+            for name, duration in res.collectedDurations:
+                print(f'Test {name} took {duration:.2f}s')
+                # TODO: Add tag for error etc.
+                simple_name = name.split(' ')[0]
+                CIVisibilitySection.create(simple_name, start_time, start_time + duration, tags={'test_name': name})
+
+            return res.wasSuccessful()
     finally:
         # Restore env
         os.environ.clear()
@@ -88,7 +98,8 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
 def run_and_profile(ctx):
     import unittest
 
-    tests = sorted(list(glob.glob('tasks/unit_tests/**/*_tests.py', recursive=True)))
+    # tests = sorted(list(glob.glob('tasks/unit_tests/**/*_tests.py', recursive=True)))
+    tests = sorted(list(glob.glob('tasks/unit_tests/**/*y_tests.py', recursive=True)))
     print(len(tests), 'tests found')
     print(tests)
 
@@ -103,7 +114,9 @@ def run_and_profile(ctx):
                 loader = unittest.TestLoader()
                 suite = loader.discover(dir, pattern=filename)
                 runner = unittest.TextTestRunner()
-                error = not runner.run(suite).wasSuccessful()
+                res = runner.run(suite)
+                error = not res.wasSuccessful()
+                print('durations', res.collectedDurations)
             except:
                 error = True
 

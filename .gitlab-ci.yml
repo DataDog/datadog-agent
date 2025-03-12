@@ -1307,4 +1307,5 @@ invoke_unit_tests:
   #   - !reference [.on_invoke_tasks_changes]
   script:
     - !reference [.datadog-ci-amd64-fullsetup]
-    - dda inv -e invoke-unit-tests.run-and-profile
+    # - dda inv -e invoke-unit-tests.run-and-profile
+    - dda inv -e invoke-unit-tests

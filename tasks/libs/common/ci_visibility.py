@@ -11,19 +11,22 @@ class CIVisibilitySection:
     name: str
     start_time: float
     end_time: float
+    tags: dict[str, str]
+    measures: dict[str, float | int]
     sections: ClassVar = set()
 
     @staticmethod
     def send_all(ctx):
-        print('Sending CI visibility sections')
-        for section in CIVisibilitySection.sections:
-            section.send(ctx)
+        if running_in_gitlab_ci() and CIVisibilitySection.sections:
+            print('Sending CI visibility sections')
+            for section in CIVisibilitySection.sections:
+                section.send(ctx)
 
-        CIVisibilitySection.sections.clear()
+            CIVisibilitySection.sections.clear()
 
     @staticmethod
-    def create(section_name, start_time: float, end_time: float):
-        section = CIVisibilitySection(section_name, start_time, end_time)
+    def create(section_name, start_time: float, end_time: float, tags: dict[str, str] = None, measures: dict[str, float | int] = None):
+        section = CIVisibilitySection(section_name, start_time, end_time, tags or {}, measures or {})
         CIVisibilitySection.sections.add(section)
 
         return section
@@ -36,7 +39,15 @@ class CIVisibilitySection:
         # Ensure the section is at least 1 ms long to avoid errors
         end_time = max(convert_time(self.end_time), start_time + 1)
 
-        ctx.run(f"datadog-ci span --name '{self.section_name}' --start-time {start_time} --end-time {end_time}")
+        tags = ''
+        for key, value in self.tags.items():
+            tags += f'--tags "{key}:{value}" '
+
+        measures = ''
+        for key, value in self.measures.items():
+            measures += f'--measures "{key}:{value}" '
+
+        ctx.run(f"datadog-ci span {tags}{measures}--name '{self.name}' --start-time {start_time} --end-time {end_time}")
 
     def __hash__(self):
         return hash((self.name, self.start_time, self.end_time))
@@ -59,6 +70,7 @@ def ci_visibility_section(section_name, ignore_on_error=False, force=False):
     start_time = time.time()
 
     # TODO: Test cases etc...
+    # TODO: Add error trace if exception is raised
     try:
         yield
     except:
