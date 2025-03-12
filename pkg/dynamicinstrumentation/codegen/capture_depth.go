@@ -75,7 +75,10 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 			top.parameter.NotCaptureReason = ditypes.CaptureDepthReached
 		}
 
-		if top.parameter.Kind == uint(reflect.Struct) || top.parameter.Kind == uint(reflect.Array) {
+		switch reflect.Kind(top.parameter.Kind) {
+		case reflect.Struct:
+			fallthrough
+		case reflect.Array:
 			if top.depth+1 > targetDepth {
 				top.parameter.DoNotCapture = true
 				top.parameter.NotCaptureReason = ditypes.CaptureDepthReached
@@ -84,7 +87,7 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 				queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
 			}
 
-		} else if top.parameter.Kind == uint(reflect.Slice) {
+		case reflect.Slice:
 			// If we do want to capture the slice, it means that we at least capture the first
 			// layer of the slice elements. Only this layer counts towards capture depth, but
 			// if it's set to DoNotCapture, then this slice layer header should be set to it as well
@@ -100,14 +103,14 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 			elementType := top.parameter.ParameterPieces[0].ParameterPieces[0]
 			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: elementType})
 
-		} else if top.parameter.Kind == uint(reflect.Pointer) {
+		case reflect.Pointer:
 			if len(top.parameter.ParameterPieces) == 0 {
 				continue
 			}
 			valueType := top.parameter.ParameterPieces[0]
 			queue = append(queue, &captureDepthItem{depth: top.depth, parameter: valueType})
 
-		} else if top.parameter.Kind == uint(reflect.String) {
+		case reflect.String:
 			// Propagate DoNotCapture/NotCaptureReason value to string fields (char*, len) for clarity
 			if len(top.parameter.ParameterPieces) == 2 &&
 				top.parameter.ParameterPieces[0] != nil &&
@@ -121,10 +124,9 @@ func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
 				top.parameter.ParameterPieces[1].DoNotCapture = top.parameter.DoNotCapture
 				top.parameter.ParameterPieces[1].NotCaptureReason = top.parameter.NotCaptureReason
 			}
-
 			continue
 
-		} else {
+		default:
 			for _, child := range top.parameter.ParameterPieces {
 				queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
 			}
