@@ -127,13 +127,16 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
+
+	// dupes for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
-	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 
-	// dupes for backward compatibility
+	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
+	setIfExists(s, "DATABRICKS_WORKSPACE", "workspace", nil)
+
 	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
