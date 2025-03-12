@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package dump holds dump related files
-package dump
+// Package storage holds files related to storages for security profiles
+package storage
 
 import (
 	"bytes"
@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -37,14 +38,10 @@ type tooLargeEntityStatsEntry struct {
 	compression   bool
 }
 
-type remoteEndpoint struct {
-	logsEndpoint logsconfig.Endpoint
-	url          string
-}
-
 // ActivityDumpRemoteStorage is a remote storage that forwards dumps to the backend
 type ActivityDumpRemoteStorage struct {
-	endpoints        []remoteEndpoint
+	urls             []string
+	apiKeys          []string
 	tooLargeEntities map[tooLargeEntityStatsEntry]*atomic.Uint64
 
 	client *http.Client
@@ -74,10 +71,10 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		storage.endpoints = append(storage.endpoints, remoteEndpoint{
-			logsEndpoint: endpoint,
-			url:          utils.GetEndpointURL(endpoint, "api/v2/secdump"),
-		})
+		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
+		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
+		// security agent support API key refresh at runtime.
+		storage.apiKeys = append(storage.apiKeys, endpoint.GetAPIKey())
 	}
 
 	return storage, nil
@@ -88,7 +85,7 @@ func (storage *ActivityDumpRemoteStorage) GetStorageType() config.StorageType {
 	return config.RemoteStorage
 }
 
-func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.Writer, ad *ActivityDump) error {
+func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.Writer, p *profile.Profile) error {
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", `form-data; name="event"; filename=""`)
 	h.Set("Content-Type", "application/json")
@@ -99,10 +96,10 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	}
 
 	// prepare tags for serialisation
-	ad.DDTags = strings.Join(ad.Tags, ",")
+	p.Header.DDTags = strings.Join(p.GetTags(), ",")
 
 	// marshal event metadata
-	metadata, err := json.Marshal(ad.ActivityDumpHeader)
+	metadata, err := json.Marshal(p.Header)
 	if err != nil {
 		return fmt.Errorf("couldn't marshall event metadata")
 	}
@@ -129,7 +126,7 @@ func (storage *ActivityDumpRemoteStorage) writeDump(writer *multipart.Writer, re
 	return nil
 }
 
-func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) (*multipart.Writer, *bytes.Buffer, error) {
+func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) (*multipart.Writer, *bytes.Buffer, error) {
 	body := bytes.NewBuffer(nil)
 	var multipartWriter *multipart.Writer
 
@@ -143,9 +140,9 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageReques
 	defer multipartWriter.Close()
 
 	// set activity dump size
-	ad.Metadata.Size = uint64(len(raw.Bytes()))
+	p.Metadata.Size = uint64(len(raw.Bytes()))
 
-	if err := storage.writeEventMetadata(multipartWriter, ad); err != nil {
+	if err := storage.writeEventMetadata(multipartWriter, p); err != nil {
 		return nil, nil, err
 	}
 
@@ -186,17 +183,17 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
-	writer, body, err := storage.buildBody(request, ad, raw)
+func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error {
+	writer, body, err := storage.buildBody(request, p, raw)
 	if err != nil {
 		return fmt.Errorf("couldn't build request: %w", err)
 	}
 
-	for _, endpoint := range storage.endpoints {
-		if err := storage.sendToEndpoint(endpoint.url, endpoint.logsEndpoint.GetAPIKey(), request, writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", endpoint.url, body.Len(), ad.Size, err)
+	for i, url := range storage.urls {
+		if err := storage.sendToEndpoint(url, storage.apiKeys[i], request, writer, body); err != nil {
+			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), p.Metadata.Size, err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), endpoint.url)
+			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, p.GetSelectorStr(), url)
 		}
 	}
 
