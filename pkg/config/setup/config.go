@@ -89,7 +89,7 @@ const (
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
 	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
+	DefaultZstdCompressionLevel = 9
 
 	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
 	DefaultGzipCompressionLevel = 6
