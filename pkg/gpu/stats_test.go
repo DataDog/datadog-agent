@@ -86,7 +86,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	shmemSize := uint64(10)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "containerID")
+	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
@@ -101,7 +101,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "containerID")
+	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.memAllocEvents = map[uint64]gpuebpf.CudaMemEvent{
 		0: {
@@ -119,7 +119,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricsKey, stats)
-	require.NotNil(t, metrics)
+	require.NotNil(t, metrics, "did not find metrics for key %+v", metricsKey)
 	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
 
@@ -137,7 +137,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	numThreads := uint64(5)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "containerID")
+	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelSpans = []*kernelSpan{
 		{
@@ -149,7 +149,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "containerID")
+	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.allocations = []*memoryAllocation{
 		{
@@ -188,7 +188,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "containerID")
+	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
@@ -212,7 +212,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "containerID")
+	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.allocations = []*memoryAllocation{
 		{
@@ -263,7 +263,7 @@ func TestGetStatsMultiGPU(t *testing.T) {
 	// Add kernels for all devices
 	for i, uuid := range testutil.GPUUUIDs {
 		streamID := uint64(i)
-		stream := addNonglobalStream(streamHandlers, pid, streamID, uuid, "containerID")
+		stream := addNonglobalStream(streamHandlers, pid, streamID, uuid, "")
 		stream.processEnded = false
 		stream.kernelSpans = []*kernelSpan{
 			{
