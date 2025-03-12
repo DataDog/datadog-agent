@@ -494,6 +494,8 @@ func (t *remoteTagger) run() {
 			continue
 		}
 
+		t.log.Info("tagger stream successfully initialized")
+
 		t.telemetryStore.Receives.Inc()
 
 		err = t.processResponse(response)
@@ -592,8 +594,6 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
-
-		t.log.Debug("tagger stream successfully initialized")
 
 		return nil
 	}, expBackoff)
