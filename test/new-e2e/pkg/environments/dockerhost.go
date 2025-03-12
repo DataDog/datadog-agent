@@ -25,3 +25,13 @@ var _ common.Initializable = &DockerHost{}
 func (e *DockerHost) Init(_ common.Context) error {
 	return nil
 }
+
+// SetupCoverage creates a temporary folder for coverage files
+func (e *DockerHost) SetupCoverage() error {
+	return nil
+}
+
+// Coverage generates coverage files and downloads them to the given output directory
+func (e *DockerHost) Coverage(_ string) error {
+	return nil
+}

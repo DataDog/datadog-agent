@@ -11,16 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -67,7 +68,7 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 	containerID = strings.TrimSuffix(containerID, "\n")
 	t.Logf("service container ID: %v", containerID)
 
-	services := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "curl", "-s", "--unix-socket", "/opt/datadog-agent/run/sysprobe.sock", "http://unix/discovery/services")
+	services := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, []string{"curl", "-s", "--unix-socket", "/opt/datadog-agent/run/sysprobe.sock", "http://unix/discovery/services"})
 	t.Logf("system-probe services: %v", services)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

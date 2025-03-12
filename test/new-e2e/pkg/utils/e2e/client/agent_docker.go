@@ -9,11 +9,13 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/dockerexecuteparams"
 )
 
 type agentDockerExecutor struct {
 	dockerClient       *Docker
 	agentContainerName string
+	envVar             map[string]string
 }
 
 var _ agentCommandExecutor = &agentDockerExecutor{}
@@ -23,9 +25,12 @@ func newAgentDockerExecutor(context common.Context, dockerAgentOutput agent.Dock
 	if err != nil {
 		panic(err)
 	}
+	envVariables := make(map[string]string)
+	envVariables["GOCOVERDIR"] = LinuxTempFolder
 	return &agentDockerExecutor{
 		dockerClient:       dockerClient,
 		agentContainerName: dockerAgentOutput.ContainerName,
+		envVar:             envVariables,
 	}
 }
 
@@ -34,5 +39,5 @@ func (ae agentDockerExecutor) execute(arguments []string) (string, error) {
 	// It's mostly incorrect but it's what we have ATM.
 	// TODO: Support all agents and Windows
 	arguments = append([]string{"agent"}, arguments...)
-	return ae.dockerClient.ExecuteCommandWithErr(ae.agentContainerName, arguments...)
+	return ae.dockerClient.ExecuteCommandWithErr(ae.agentContainerName, arguments, dockerexecuteparams.WithEnvVariables(ae.envVar))
 }
