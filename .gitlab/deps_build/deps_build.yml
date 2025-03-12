@@ -7,8 +7,8 @@
     !reference [.manual]
   stage: deps_build
   variables:
-    KUBERNETES_MEMORY_REQUEST: 6Gi
-    KUBERNETES_MEMORY_LIMIT: 6Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 12Gi
     KUBERNETES_CPU_REQUEST: 4
   script:
     # use tmpdir to prevent git remote capture by clang build
