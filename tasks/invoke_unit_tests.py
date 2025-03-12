@@ -6,7 +6,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import gitlab_section, create_ci_visibility_section
+from tasks.libs.common.ci_visibility import ci_visibility_section
 
 TEST_ENV = {
     'INVOKE_UNIT_TESTS': '1',
@@ -98,13 +98,14 @@ def run_and_profile(ctx):
         start_time = time.time()
         dir, filename = os.path.split(test)
         test_name = filename.removesuffix("_tests.py")
-        try:
-            loader = unittest.TestLoader()
-            suite = loader.discover(dir, pattern=filename)
-            runner = unittest.TextTestRunner()
-            error = not runner.run(suite).wasSuccessful()
-        except:
-            error = True
+        with ci_visibility_section(test_name):
+            try:
+                loader = unittest.TestLoader()
+                suite = loader.discover(dir, pattern=filename)
+                runner = unittest.TextTestRunner()
+                error = not runner.run(suite).wasSuccessful()
+            except:
+                error = True
 
         if error:
             print('Error in', test)
@@ -112,10 +113,10 @@ def run_and_profile(ctx):
 
         times.append((test_name, start_time, time.time()))
 
-    # Create ci visibility sections
-    print('Creating CI visibility spans')
-    for test_name, start_time, end_time in times:
-        create_ci_visibility_section(ctx, test_name, start_time, end_time)
+    # # Create ci visibility sections
+    # print('Creating CI visibility spans')
+    # for test_name, start_time, end_time in times:
+    #     create_ci_visibility_section(ctx, test_name, start_time, end_time)
 
     if error:
         raise Exit(color_message('Some tests are failing', Color.RED), code=1)

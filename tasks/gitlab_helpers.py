@@ -27,7 +27,8 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import experimental, gitlab_section, ci_visibility_section, gitlab_section, ci_visibility_measure, ci_visibility_tag
+from tasks.libs.common.utils import experimental, gitlab_section, gitlab_section
+from tasks.libs.common.ci_visibility import ci_visibility_section, ci_visibility_measure, ci_visibility_tag
 
 
 @task
@@ -349,16 +350,16 @@ def celian(ctx):
     ci_visibility_tag(ctx, 'my-tag', 'my-value')
     ci_visibility_tag(ctx, 'pipeline-tag', 'my-value-2', level='pipeline')
 
-    with ci_visibility_section(ctx, 'my-first-section'):
+    with ci_visibility_section('my-first-section'):
         print('Sleeping...')
         time.sleep(0.618)
         print('End sleep')
 
-    with ci_visibility_section(ctx, 'my-nested-section'):
+    with ci_visibility_section('my-nested-section'):
         print('Sleeping...')
         time.sleep(0.1)
         print('Launching child...')
-        with ci_visibility_section(ctx, 'my-child-section'):
+        with ci_visibility_section('my-child-section'):
             print('Sleeping...')
             time.sleep(0.1)
             print('End child section...')

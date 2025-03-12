@@ -17,6 +17,7 @@ from invoke import Context
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import running_in_ci, running_in_pre_commit, running_in_pyapp
+from tasks.libs.common.ci_visibility import CIVisibilitySection
 
 DD_INVOKE_LOGS_FILE = "dd_invoke.log"
 WIN_TEMP_FOLDER = "C:\\Windows\\Temp"
@@ -144,9 +145,14 @@ def custom__call__(self, *args, **kwargs):
         # TODO: raise a custom subclass _of_ TypeError instead
         raise TypeError(err.format(type(args[0])))
 
-    ## DATADOG INVOKE LOGGER CODE ##
-    with InvokeLogger(self):
-        result = self.body(*args, **kwargs)
+    try:
+        ## DATADOG INVOKE LOGGER CODE ##
+        with InvokeLogger(self):
+            result = self.body(*args, **kwargs)
+    finally:
+        ## DATADOG CI VISIBILITY SECTIONS CODE ##
+        # This will send the CI visibility sections when the invoke task exits
+        CIVisibilitySection.send_all(args[0])
 
     ## LEGACY INVOKE LIB CODE ##
     self.times_called += 1  # noqa

@@ -513,11 +513,14 @@ def set_gitconfig_in_ci(ctx):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibility_section=True):
+def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibility_section=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything.
     - create_ci_visibility_section: If True, will create a ci visibility section with the same name (see ci_visibility_section for more details).
     """
+
+    from tasks.libs.common.ci_visibility import ci_visibility_section
+
     # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
     section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
@@ -525,7 +528,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibili
         if create_ci_visibility_section:
             # Create a temporary context only to pass it to the ci_visibility_section
             ctx = Context()
-            ci_vis_manager = ci_visibility_section(ctx, section_name)
+            ci_vis_manager = ci_visibility_section(section_name)
             ci_vis_manager.__enter__()
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
@@ -541,54 +544,6 @@ def gitlab_section(section_name, collapsed=False, echo=False, create_ci_visibili
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
         if create_ci_visibility_section:
             ci_vis_manager.__exit__(None, None, None)
-
-
-# TODO: Tags / measures...
-@contextmanager
-def ci_visibility_section(ctx, section_name, ignore_on_error=False, force=False):
-    """Creates a ci visibility span with the given name.
-
-    Args:
-        - ignore_on_error: If True, the section won't be created on error.
-    """
-
-    in_ci = running_in_gitlab_ci()
-    if not in_ci and not force:
-        yield
-        return
-
-    start_time = time.time()
-
-    # TODO: Test cases etc...
-    try:
-        yield
-    except:
-        if ignore_on_error:
-            return
-    finally:
-        end_time = time.time()
-
-    create_ci_visibility_section(ctx, section_name, start_time, end_time)
-
-
-def create_ci_visibility_section(ctx, section_name, start_time: float, end_time: float):
-    def convert_time(t):
-        return int(t * 1000)
-
-    start_time = convert_time(start_time)
-    # Ensure the section is at least 1 ms long to avoid errors
-    end_time = max(convert_time(end_time), start_time + 1)
-
-    ctx.run(f"datadog-ci span --name '{section_name}' --start-time {start_time} --end-time {end_time}")
-
-
-def ci_visibility_tag(ctx, name, value, level='job'):
-    ctx.run(f'datadog-ci tag --tags "{name}:{value}" --level {level}')
-
-
-def ci_visibility_measure(ctx, name, value, level='job'):
-    ctx.run(f'datadog-ci measure --measures "{name}:{value}" --level {level}')
-
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
