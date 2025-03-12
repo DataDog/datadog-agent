@@ -136,7 +136,7 @@ var metricNameToFieldID = []fieldValueMetric{
 	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType},
 	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType},
 	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType},
-	{"nvlink.speed_common", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType},
+	{"nvlink.speed", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType},
 	{"nvlink.nvswitch_connected", nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, 0, metrics.GaugeType},
 	{"nvlink.errors.crc.data", nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, 0, metrics.CountType},
 	{"nvlink.errors.crc.flit", nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, 0, metrics.CountType},
