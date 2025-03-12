@@ -1,14 +1,13 @@
 .agent_build_script:
+  - !reference [.datadog-ci-amd64-fullsetup]
   - echo "About to build for $RELEASE_VERSION"
-  - |
-    datadog-ci-start-section 'Retrieve  linux go deps'
-    # TODO: Move this code within the !reference once installed in build images
-    !reference [.retrieve_linux_go_deps]
-    datadog-ci-end-section 'Retrieve  linux go deps'
-  - |
-    datadog-ci-start-section 'Cache omnibus ruby deps'
-    !reference [.cache_omnibus_ruby_deps, setup]
-    datadog-ci-end-section 'Cache omnibus ruby deps'
+  # TODO: Move this code within the !reference once installed in build images
+  - datadog-ci-start-section 'Retrieve  linux go deps'
+  - !reference [.retrieve_linux_go_deps]
+  - datadog-ci-end-section 'Retrieve  linux go deps'
+  - datadog-ci-start-section 'Cache omnibus ruby deps'
+  - !reference [.cache_omnibus_ruby_deps, setup]
+  - datadog-ci-end-section 'Cache omnibus ruby deps'
   # remove artifacts from previous pipelines that may come from the cache
   - rm -rf $OMNIBUS_PACKAGE_DIR/*
   # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -23,10 +22,9 @@
   - datadog-ci-end-section 'Sysprobe cache'
   - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
-  - |
-    datadog-ci-start-section 'Sysprobe cache'
-    !reference [.upload_sbom_artifacts]
-    datadog-ci-end-section 'Sysprobe cache'
+  - datadog-ci-start-section 'Sysprobe cache'
+  - !reference [.upload_sbom_artifacts]
+  - datadog-ci-end-section 'Sysprobe cache'
 
 .agent_build_common:
   rules:
@@ -34,7 +32,6 @@
     - when: on_success
   stage: package_build
   script:
-    - !reference [.datadog-ci-amd64-fullsetup]
     - !reference [.agent_build_script]
   variables:
     KUBERNETES_CPU_REQUEST: 16
