@@ -802,7 +802,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					},
 				},
 			},
-			targetDepth: 1,
+			targetDepth: 2,
 		},
 		{
 			name: "Struct Pointer, dont capture",
@@ -1110,7 +1110,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					},
 				},
 			},
-			targetDepth: 1,
+			targetDepth: 2,
 		},
 		{
 			name: "struct with int and string pointer - capture none",
@@ -1364,7 +1364,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					},
 				},
 			},
-			targetDepth: 1,
+			targetDepth: 2,
 		},
 		{
 			name: "Uint array dont capture",
@@ -1448,7 +1448,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			applyCaptureDepth(test.parameters, test.targetDepth)
+			setDoNotCapture(test.parameters, test.targetDepth)
 			assert.Equal(t, test.expectedResult, test.parameters)
 		})
 	}
