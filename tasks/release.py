@@ -644,7 +644,7 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
 @task
 def alert_ci_on_call(ctx, release_branch):
     gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-    message = f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    message = f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ndda inv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
     post_message(ctx, "agent-ci-on-call", message)
 
 
