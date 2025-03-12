@@ -1390,8 +1390,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
 
     rj = load_release_json()
 
-    for nightly in ["nightly", "nightly-a7"]:
-        rj[nightly][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
+    rj["nightly"][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
 
     _save_release_json(rj)
 
