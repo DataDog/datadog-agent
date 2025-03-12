@@ -70,7 +70,7 @@ func newNpCollector(deps dependencies) provides {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			collector = newNoopNpCollectorImpl()
 		} else {
-			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier, deps.Statsd)
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier, deps.Statsd, deps.Hostname)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -68,6 +69,7 @@ func TestBundleDependencies(t *testing.T) {
 			return &ddgostatsd.NoOpClient{}
 		}),
 		secretsimpl.MockModule(),
+		fx.Replace(hostnameinterface.MockHostname("testhost")),
 	)
 }
 
@@ -115,6 +117,7 @@ func TestBundleOneShot(t *testing.T) {
 			return &ddgostatsd.NoOpClient{}
 		}),
 		Bundle(),
+		fx.Replace(hostnameinterface.MockHostname("testhost")),
 	)
 	require.NoError(t, err)
 }

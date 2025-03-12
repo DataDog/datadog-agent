@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
@@ -49,6 +50,7 @@ var testOptions = fx.Options(
 	eventplatformimpl.MockModule(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
+	hostnameimpl.MockModule(),
 )
 
 func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
