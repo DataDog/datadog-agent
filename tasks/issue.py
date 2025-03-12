@@ -124,4 +124,3 @@ def add_reviewers(ctx, pr_id, dry_run=False):
         return
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
     pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
-    pr.add_to_labels("ask-review")
