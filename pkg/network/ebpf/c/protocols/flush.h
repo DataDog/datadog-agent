@@ -9,9 +9,14 @@
 #include "protocols/postgres/decoding.h"
 #include "protocols/redis/decoding.h"
 
-
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_http(void *ctx) {
+    http_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+SEC("kprobe/__netif_receive_skb_core")
+int netif_receive_skb_core_http_4_14(void *ctx) {
     http_batch_flush_with_telemetry(ctx);
     return 0;
 }
@@ -29,14 +34,32 @@ int tracepoint__net__netif_receive_skb_kafka(void *ctx) {
     return 0;
 }
 
+SEC("kprobe/__netif_receive_skb_core")
+int netif_receive_skb_core_kafka_4_14(void *ctx) {
+    kafka_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_postgres(void *ctx) {
     postgres_batch_flush_with_telemetry(ctx);
     return 0;
 }
 
+SEC("kprobe/__netif_receive_skb_core")
+int netif_receive_skb_core_postgres_4_14(void *ctx) {
+    postgres_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_redis(void *ctx) {
+    redis_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+SEC("kprobe/__netif_receive_skb_core")
+int netif_receive_skb_core_redis_4_14(void *ctx) {
     redis_batch_flush_with_telemetry(ctx);
     return 0;
 }

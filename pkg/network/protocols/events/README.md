@@ -32,11 +32,11 @@ This will instantiate the necessary eBPF maps along with two functions:
 Please note that `<protocol>_batch_flush` requires access to the
 `bpf_perf_event_output` helper, which is typically not available to socket
 filter programs. Because of that we recommend to call it from
-`netif_receive_skb` which is associated to the execution of socket filter programs:
+`__netif_receive_skb_core` which is associated to the execution of socket filter programs:
 
 ```c
-SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb_<protocol>(struct pt_regs* ctx) {
+SEC("kprobe/__netif_receive_skb_core")
+int BPF_KPROBE(netif_receive_skb_core_<protocol>) {
     <protocol>_batch_flush_with_telemetry(ctx);
     return 0;
 }

@@ -128,6 +128,7 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe,
+				UID:          eventStream,
 			},
 		},
 	},
@@ -274,7 +275,12 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          eventStream,
+			EBPFFuncName: netifProbe,
+		},
+	})
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
