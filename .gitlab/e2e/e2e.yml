@@ -146,7 +146,6 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    ON_NIGHTLY_FIPS: "false"
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -325,7 +324,6 @@ new-e2e-npm-eks-init:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
-    ON_NIGHTLY_FIPS: "false"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
