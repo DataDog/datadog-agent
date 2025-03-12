@@ -654,6 +654,103 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 }
 
+func TestActionSetVariableExpression(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:       "var1",
+						Value:      123,
+						Expression: "${var1} + ${var1} + 1",
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:  "var2",
+						Value: "foo",
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:       "var3",
+						Expression: `"${var2}:${var2}"`,
+						Value:      "",
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	existingVariable2 := opts.VariableStore.Get("var3")
+	assert.NotNil(t, existingVariable2)
+
+	intVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intVar)
+	assert.True(t, ok)
+	value, set := intVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	strVar, ok := existingVariable2.(eval.Variable)
+	assert.NotNil(t, strVar)
+	assert.True(t, ok)
+	value, set = strVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = intVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, 1, value)
+
+	value, set = strVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, "foo:foo", value)
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = intVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, 3, value)
+}
+
 func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
 	rs := newRuleSet()
 
