@@ -40,6 +40,13 @@ var (
 		"4XX status code. This might be related to the proxy settings. " +
 			"Please make sure the agent can reach Remote Configuration with the proxy setup",
 	)
+	ErrGatewayTimeout = fmt.Errorf(
+		"non-200 response code: 504",
+	)
+
+	ErrServiceUnavailable = fmt.Errorf(
+		"non-200 response code: 503",
+	)
 )
 
 // API is the interface to implement for a configuration fetcher

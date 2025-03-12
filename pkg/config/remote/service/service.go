@@ -54,8 +54,10 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
-	// Number of refreshes until the log level is increased to ERROR
-	maxRefreshUntilLogLevelErrors = 5
+	// Number of /configurations where we get 503 or 504 errors until the log level is increased to ERROR
+	maxFetchConfigsUntilLogLevelErrors = 5
+	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
+	maxFetchOrgStatusUntilLogLevelErrors = 5
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -168,8 +170,11 @@ type CoreAgentService struct {
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
 	lastFetchErrorType error
-	// Number of remote configuration refreshes
-	refreshErrorCount uint64
+	//  Number of /configurations calls where we get 503 or 504 errors
+	fetchConfigs503And504ErrCount uint64
+
+	//  Number of /status calls where we get 503 or 504 errors
+	fetchOrgStatus503And504ErrCount uint64
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
@@ -526,10 +531,7 @@ func (s *CoreAgentService) UpdatePARJWT(jwt string) {
 func startWithAgentPollLoop(s *CoreAgentService) {
 	err := s.refresh()
 	if err != nil {
-		s.refreshErrorCount++
 		logRefreshError(s, err)
-	} else {
-		s.refreshErrorCount = 0
 	}
 
 	for {
@@ -552,10 +554,7 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		}
 
 		if err != nil {
-			s.refreshErrorCount++
 			logRefreshError(s, err)
-		} else {
-			s.refreshErrorCount = 0
 		}
 	}
 }
@@ -573,10 +572,7 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 		}
 		close(response)
 		if err != nil {
-			s.refreshErrorCount++
 			logRefreshError(s, err)
-		} else {
-			s.refreshErrorCount = 0
 		}
 	}
 }
@@ -584,7 +580,7 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 func logRefreshError(s *CoreAgentService, err error) {
 	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 		exportedLastUpdateErr.Set(err.Error())
-		if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
+		if s.fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
@@ -608,17 +604,18 @@ func (s *CoreAgentService) pollOrgStatus() {
 	if err != nil {
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
 		// and it limits the error log.
-		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
-			s.refreshErrorCount++
-			if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
-				log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-			} else {
-				log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-			}
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			s.fetchOrgStatus503And504ErrCount++
+		}
+
+		if s.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+		} else {
+			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 		return
 	}
-	s.refreshErrorCount = 0
+	s.fetchOrgStatus503And504ErrCount = 0
 
 	// Print info log when the new status is different from the previous one, or if it's the first run
 	if s.previousOrgStatus == nil ||
@@ -700,9 +697,14 @@ func (s *CoreAgentService) refresh() error {
 			log.Debugf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 			return nil
 		}
+
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			s.fetchConfigs503And504ErrCount++
+		}
 		return err
 	}
 	s.fetchErrorCount = 0
+	s.fetchConfigs503And504ErrCount = 0
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
