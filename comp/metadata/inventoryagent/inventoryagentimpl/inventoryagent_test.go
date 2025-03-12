@@ -182,7 +182,7 @@ func TestInitData(t *testing.T) {
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
-		"is_fips":                          isFips,
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",

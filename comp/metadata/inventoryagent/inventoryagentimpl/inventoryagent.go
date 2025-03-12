@@ -182,7 +182,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 	if val, err := fips.Enabled(); err == nil {
-		ia.data["is_fips"] = val
+		ia.data["fips_mode"] = val
 	} else {
 		ia.log.Warnf("could not check if fips is enabled: %s", err)
 	}
