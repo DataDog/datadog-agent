@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
@@ -94,7 +95,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	assert.True(t, npCollector.running)
 
-	npCollector.runTraceroute = func(cfg config.Config, _ *npCollectorImpl) (payload.NetworkPath, error) {
+	npCollector.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{

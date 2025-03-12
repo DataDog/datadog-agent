@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -33,7 +32,7 @@ type LinuxTraceroute struct {
 
 // New creates a new instance of LinuxTraceroute
 // based on an input configuration
-func New(cfg config.Config, _ telemetry.Component, _ hostname.Component) (*LinuxTraceroute, error) {
+func New(cfg config.Config, _ telemetry.Component) (*LinuxTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &LinuxTraceroute{
 		cfg:            cfg,

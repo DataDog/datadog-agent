@@ -12,7 +12,6 @@
 package process
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
@@ -61,7 +60,5 @@ func Bundle() fxutil.BundleOptions {
 		logscompression.Module(),
 
 		gpusubscriber.Module(),
-
-		remotehostnameimpl.Module(),
 	)
 }
