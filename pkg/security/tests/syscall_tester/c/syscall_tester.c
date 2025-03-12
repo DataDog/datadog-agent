@@ -22,6 +22,7 @@
 #include <linux/un.h>
 #include <err.h>
 #include <limits.h>
+#include <sys/time.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -1196,6 +1197,23 @@ int test_rename(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_utimes(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a file name and a time\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    struct timeval times[2] = {0, 0};
+    if (utimes(filename, times) < 0) {
+        perror("utimes");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1285,6 +1303,8 @@ int main(int argc, char **argv) {
             exit_code = test_chown(sub_argc, sub_argv);
         } else if (strcmp(cmd, "rename") == 0) {
             return test_rename(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "utimes") == 0) {
+            return test_utimes(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
