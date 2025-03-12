@@ -918,13 +918,14 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
 		}
 
 		newKey, ok := newvalue.(string)
-		s.Lock()
-		defer s.Unlock()
 
 		if !ok {
 			log.Errorf("Could not convert API key to string")
 			return
 		}
+		s.Lock()
+		defer s.Unlock()
+
 		s.api.UpdateAPIKey(newKey)
 
 		// Verify that the Org UUID hasn't changed
