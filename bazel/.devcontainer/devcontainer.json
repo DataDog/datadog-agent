@@ -2,8 +2,6 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "containerUser": "bazel-user",
-  "updateRemoteUserUID": true,
   "mounts": [
     {
       "source": "/tmp/bazel-devcontainer-output",
