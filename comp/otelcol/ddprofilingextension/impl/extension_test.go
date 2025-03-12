@@ -152,7 +152,7 @@ func TestOSSExtension(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 5,
 		},
-	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), nil)
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(
@@ -232,7 +232,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default,agent_version:6.0.0", out)
+		assert.Equal(t, "agent_version:6.0.0,orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
