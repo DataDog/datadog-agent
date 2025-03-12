@@ -24,8 +24,10 @@ AMD64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/up
 ARM64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb"
 
 DOCKER_REGISTRY = "486234852809.dkr.ecr.us-east-1.amazonaws.com"
-DOCKER_IMAGE_BASE = f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/system-probe"
-
+DOCKER_BASE_IMAGES = {
+    "x64": f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/linux-glibc-2.17-x64",
+    "arm64": f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/linux-glibc-2.23-arm64",
+}
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
@@ -34,7 +36,7 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
-    return ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
+    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
 
 
 def get_docker_image_name(ctx: Context, container: str) -> str:
@@ -74,7 +76,7 @@ class CompilerImage:
     def image(self):
         suffix, version = get_build_image_suffix_and_version()
 
-        return f"{DOCKER_IMAGE_BASE}_{self.arch.ci_arch}{suffix}:{version}"
+        return f"{DOCKER_BASE_IMAGES[self.arch.ci_arch]}{suffix}:{version}"
 
     def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
