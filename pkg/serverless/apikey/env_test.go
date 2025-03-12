@@ -60,11 +60,11 @@ func TestGetSecretEnvVarsWithFIPSEndpoint(t *testing.T) {
 
 			var kmsFIPS aws.FIPSEndpointState
 			var smFIPS aws.FIPSEndpointState
-			mockKMSFunc := func(val string, fips aws.FIPSEndpointState) (string, error) {
+			mockKMSFunc := func(_ string, fips aws.FIPSEndpointState) (string, error) {
 				kmsFIPS = fips
 				return "decrypted", nil
 			}
-			mockSMFunc := func(val string, fips aws.FIPSEndpointState) (string, error) {
+			mockSMFunc := func(_ string, fips aws.FIPSEndpointState) (string, error) {
 				smFIPS = fips
 				return "decrypted", nil
 			}
