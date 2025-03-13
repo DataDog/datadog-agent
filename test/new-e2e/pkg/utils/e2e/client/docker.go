@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -118,6 +119,11 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	}
 
 	return stdout, stderr, err
+}
+
+// ListContainers returns a list of container names.
+func (docker *Docker) CopyToContainer(ctx context.Context, containerID string, dstPath string, content io.Reader, options container.CopyToContainerOptions) error {
+	docker.client.CopyToContainer(ctx, containerID, dstPath, content, options)
 }
 
 // ListContainers returns a list of container names.

@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/util/secrets"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxTestSuite struct {
@@ -50,7 +50,7 @@ func (s *linuxTestSuite) SetupSuite() {
 func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp")
+	secretClient := secrets.NewHostClient(t, s.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 	config := processAgentRefreshStr + secretClient.GetAgentConfiguration()
 
@@ -80,7 +80,7 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp")
+	secretClient := secrets.NewHostClient(t, s.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 	config := coreAgentRefreshStr + secretClient.GetAgentConfiguration()
 
