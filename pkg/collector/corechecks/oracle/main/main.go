@@ -15,7 +15,7 @@ import (
 
 func main() {}
 
-// oracleLoadCheck exports the Oracle check factory
+// oracleLoadCheck exports an Oracle check instance
 //
 //export oracleLoadCheck
 func oracleLoadCheck(retPtr *unsafe.Pointer) {

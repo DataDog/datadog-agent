@@ -25,6 +25,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -32,7 +33,10 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -44,6 +48,10 @@ func Initialize() {
 	loaders.RegisterLoader(40, func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, error) {
 		return newCsharedLoader()
 	})
+}
+
+func newCsharedLoader() (check.Loader, error) {
+	return &csharedLoader{}, nil
 }
 
 func (*csharedLoader) Name() string {
@@ -72,9 +80,11 @@ func (*csharedLoader) Load(senderManager sender.SenderManager, config integratio
 		return nil, fmt.Errorf("could not load check %s from %s: %s", config.Name, libname, C.GoString(errmsg))
 	}
 	log.Infof("successfully loaded check from %s", libname)
-	log.Flush()
 
-	c := *(*check.Check)(checkPtr)
+	c := &cSharedCheck{
+		handle: checkPtr,
+		name:   config.Name,
+	}
 
 	log.Infof("configuring check %s", c)
 	if err := c.Configure(senderManager, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
@@ -82,13 +92,130 @@ func (*csharedLoader) Load(senderManager sender.SenderManager, config integratio
 			return c, err
 		}
 		log.Errorf("cshared.loader: could not configure check %s: %s", c, err)
-		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
-		return c, errors.New(msg)
+		return c, fmt.Errorf("Could not configure check %s: %s", c, err)
 	}
 
 	return c, nil
 }
 
-func newCsharedLoader() (check.Loader, error) {
-	return &csharedLoader{}, nil
+type cSharedCheck struct {
+	handle unsafe.Pointer
+
+	name           string
+	senderManager  sender.SenderManager
+	initConfig     string
+	instanceConfig string
+	checkID        checkid.ID
+	source         string
 }
+
+func (c *cSharedCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, initConfig integration.Data, instanceConfig integration.Data, source string) error {
+	c.senderManager = senderManager
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(instanceConfig)
+	c.checkID = checkid.BuildID(c.name, integrationConfigDigest, initConfig, instanceConfig)
+	c.source = source
+	return nil
+}
+
+func (c *cSharedCheck) Run() error {
+	return nil
+}
+
+func (c *cSharedCheck) Stop() {
+}
+
+func (c *cSharedCheck) Cancel() {
+}
+
+func (c *cSharedCheck) String() string {
+	return c.name
+}
+
+func (c *cSharedCheck) Loader() string {
+	return "cshared"
+}
+
+func (c *cSharedCheck) Interval() time.Duration {
+	return 0
+}
+
+func (c *cSharedCheck) ID() checkid.ID {
+	return c.checkID
+}
+
+func (c *cSharedCheck) GetWarnings() []error {
+	return nil
+}
+
+func (c *cSharedCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.SenderStats{}, nil
+}
+
+func (c *cSharedCheck) Version() string {
+	return ""
+}
+
+func (c *cSharedCheck) ConfigSource() string {
+	return c.source
+}
+
+func (c *cSharedCheck) IsTelemetryEnabled() bool {
+	return false
+}
+
+func (c *cSharedCheck) InitConfig() string {
+	return c.initConfig
+}
+
+func (c *cSharedCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
+func (c *cSharedCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
+}
+
+func (c *cSharedCheck) IsHASupported() bool {
+	return false
+}
+
+/*
+	// Run runs the check
+	Run() error
+	// Stop stops the check if it's running
+	Stop()
+	// Cancel cancels the check. Cancel is called when the check is unscheduled:
+	// - unlike Stop, it is called even if the check is not running when it's unscheduled
+	// - if the check is running, Cancel is called after Stop and may be called before the call to Stop completes
+	Cancel()
+	// String provides a printable version of the check name
+	String() string
+	// Loader returns the name of the check loader
+	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
+	Loader() string
+	// Configure configures the check
+	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
+	// Interval returns the interval time for the check
+	Interval() time.Duration
+	// ID provides a unique identifier for every check instance
+	ID() checkid.ID
+	// GetWarnings returns the last warning registered by the check
+	GetWarnings() []error
+	// GetSenderStats returns the stats from the last run of the check.
+	GetSenderStats() (stats.SenderStats, error)
+	// Version returns the version of the check if available
+	Version() string
+	// ConfigSource returns the configuration source of the check
+	ConfigSource() string
+	// IsTelemetryEnabled returns if telemetry is enabled for this check
+	IsTelemetryEnabled() bool
+	// InitConfig returns the init_config configuration of the check
+	InitConfig() string
+	// InstanceConfig returns the instance configuration of the check
+	InstanceConfig() string
+	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+	GetDiagnoses() ([]diagnosis.Diagnosis, error)
+	// IsHASupported returns if the check is compatible with High Availability
+	IsHASupported() bool
+*/

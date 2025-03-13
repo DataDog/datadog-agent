@@ -8,7 +8,6 @@
 package oracle
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -136,7 +135,7 @@ func (c *Check) locks() error {
 		return nil
 	}
 
-	hname, _ := csharedapi.GetHostname(context.TODO())
+	hname := csharedapi.GetHostname()
 	ts := float64(c.clock.Now().UnixMilli())
 	m := metricsPayload{
 		Host:                  c.dbHostname,

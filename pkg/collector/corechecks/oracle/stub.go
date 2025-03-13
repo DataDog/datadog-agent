@@ -8,7 +8,7 @@
 package oracle
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checktypes "github.com/DataDog/datadog-agent/pkg/collector/check/types"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -20,6 +20,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.None[func() check.Check]()
+func Factory() option.Option[func() checktypes.Check] {
+	return option.None[func() checktypes.Check]()
 }
