@@ -204,9 +204,11 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 	// 6. Call post.py for integration persistence. Allowed to fail.
 	// XXX: We should port this to Go
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "embedded/bin/post.py"))
+		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			log.Warnf("failed to run post.py: %v", err)
+			fmt.Printf("failed to run integration persistence in post.py: %s\n", err.Error())
 		}
 	}
 
