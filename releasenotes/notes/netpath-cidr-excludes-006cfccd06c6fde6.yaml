@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added configurations ``network_path.collector.source_excludes`` and ``network_path.collector.dest_excludes`` which allow ignoring CIDR ranges in the Network Path collector.
+    Added configurations ``network_path.collector.source_excludes`` and ``network_path.collector.dest_excludes``, which allow ignoring CIDR ranges in the Network Path collector.
