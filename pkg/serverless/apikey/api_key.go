@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"net/http"
 	"os"
 	"regexp"
@@ -30,6 +31,9 @@ const encryptionContextKey = "LambdaFunctionName"
 
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+
+// lambdaRegionEnvVar is the environment variable that holds which region the Lambda is currently in.
+const lambdaRegionEnvVar = "AWS_REGION"
 
 // one of those env variable must be set
 const apiKeyEnvVar = "DD_API_KEY"
@@ -87,7 +91,7 @@ func decryptKMS(kmsClient kmsAPI, ciphertext string) (string, error) {
 
 // readAPIKeyFromKMS gets and decrypts an API key encrypted with KMS if the env var DD_KMS_API_KEY has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromKMS(cipherText string) (string, error) {
+func readAPIKeyFromKMS(cipherText string, fipsEndpointState aws.FIPSEndpointState) (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
@@ -97,6 +101,7 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 		awsconfig.WithHTTPClient(&http.Client{
 			Transport: datadogHttp.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		}),
+		awsconfig.WithUseFIPSEndpoint(fipsEndpointState),
 	)
 	if err != nil {
 		return "", err
@@ -112,13 +117,13 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 
 // readAPIKeyFromSecretsManager reads an API Key from AWS Secrets Manager if the env var DD_API_KEY_SECRET_ARN has been set.
 // If none has been set, it returns an empty string and a nil error.
-func readAPIKeyFromSecretsManager(arn string) (string, error) {
+func readAPIKeyFromSecretsManager(arn string, fipsEndpointState aws.FIPSEndpointState) (string, error) {
 	if arn == "" {
 		return "", nil
 	}
 	log.Debugf("Found %s value, trying to use it.", arn)
 
-	region, err := extractRegionFromSecretsManagerArn(arn)
+	secretsManagerRegion, err := extractRegionFromSecretsManagerArn(arn)
 	if err != nil {
 		return "", err
 	}
@@ -127,7 +132,8 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		awsconfig.WithHTTPClient(&http.Client{
 			Transport: datadogHttp.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		}),
-		awsconfig.WithRegion(region),
+		awsconfig.WithRegion(secretsManagerRegion),
+		awsconfig.WithUseFIPSEndpoint(fipsEndpointState),
 	)
 	if err != nil {
 		return "", err
