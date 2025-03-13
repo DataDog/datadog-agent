@@ -341,7 +341,7 @@ notify_ebpf_complexity_changes:
     # TODO: Remove this override once the standard build image supports building system probe
     - echo "libvirt-python; sys_platform == 'never'" >> /tmp/uv-overrides.txt
     - export UV_OVERRIDE=/tmp/uv-overrides.txt
-    - python3 -m dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
+    - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
