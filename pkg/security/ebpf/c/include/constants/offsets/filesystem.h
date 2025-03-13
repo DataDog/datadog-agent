@@ -383,7 +383,6 @@ static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() 
     u64 vfs_link_target_dentry_position;
     LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
     return vfs_link_target_dentry_position;
-    ;
 }
 
 static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {

@@ -109,7 +109,7 @@ struct syscall_cache_t {
 
         struct {
             struct file_t src_file;
-            struct path *target_path;
+            struct path *src_path;
             struct dentry *src_dentry;
             struct dentry *target_dentry;
             struct file_t target_file;

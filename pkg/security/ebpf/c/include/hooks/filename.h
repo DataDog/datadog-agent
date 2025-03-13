@@ -14,9 +14,9 @@ int __attribute__((always_inline)) filename_create_common(struct path *p) {
     case EVENT_MKDIR:
         syscall->mkdir.path = p;
         break;
-    case EVENT_LINK:
-        syscall->link.target_path = p;
-        break;
+    // case EVENT_LINK:
+    //     syscall->link.target_path = p;
+    //     break;
     }
     return 0;
 }
@@ -25,6 +25,17 @@ HOOK_ENTRY("filename_create")
 int hook_filename_create(ctx_t *ctx) {
     struct path *p = (struct path *)CTX_PARM3(ctx);
     return filename_create_common(p);
+}
+
+HOOK_EXIT("filename_create")
+int rethook_filename_create(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return 0;
+    }
+    syscall->link.target_dentry = (struct dentry *)CTX_PARMRET(ctx);
+
+    return 0;
 }
 
 HOOK_ENTRY("security_path_link")

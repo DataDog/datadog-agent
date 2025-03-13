@@ -40,51 +40,27 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_ENTRY("vfs_link")
-int hook_vfs_link(ctx_t *ctx) {
+HOOK_ENTRY("complete_walk")
+int hook_complete_walk(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
     }
 
-    if (syscall->link.target_dentry) {
+    if (syscall->link.src_path) {
         return 0;
     }
 
-    struct dentry *src_dentry = (struct dentry *)CTX_PARM1(ctx);
-    syscall->link.src_dentry = src_dentry;
-
-    syscall->link.target_dentry = (struct dentry *)CTX_PARM3(ctx);
-    // change the register based on the value of vfs_link_target_dentry_position
-    if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
-        // prevent the verifier from whining
-        bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
-        syscall->link.target_dentry = (struct dentry *)CTX_PARM4(ctx);
-    }
-
-    // this is a hard link, source and target dentries are on the same filesystem & mount point
-    // target_path was set by kprobe/filename_create before we reach this point.
-    syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
+    // struct path is the first field of struct nameidata
+    syscall->link.src_path = (struct path *)CTX_PARM1(ctx);
+    syscall->link.src_dentry = get_path_dentry(syscall->link.src_path);
+    syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.src_path);
 
     // force a new path id to force path resolution
-    set_file_inode(src_dentry, &syscall->link.src_file, 1);
+    set_file_inode(syscall->link.src_dentry, &syscall->link.src_file, 1);
+    fill_file(syscall->link.src_dentry, &syscall->link.src_file);
 
-    if (approve_syscall(syscall, link_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
-    }
-
-    fill_file(src_dentry, &syscall->link.src_file);
-    syscall->link.target_file.metadata = syscall->link.src_file.metadata;
-
-    // we generate a fake target key as the inode is the same
-    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
-    syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
-    if (is_overlayfs(src_dentry)) {
-        syscall->link.target_file.flags |= UPPER_LAYER;
-    }
-
-    syscall->resolver.dentry = src_dentry;
+    syscall->resolver.dentry = syscall->link.src_dentry;
     syscall->resolver.key = syscall->link.src_file.path_key;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
@@ -98,6 +74,105 @@ int hook_vfs_link(ctx_t *ctx) {
 
     return 0;
 }
+
+// HOOK_ENTRY("may_linkat")
+// int hook_may_linkat(ctx_t *ctx) {
+//     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+//     if (!syscall) {
+//         return 0;
+//     }
+
+//     if (syscall->link.src_dentry) {
+//         return 0;
+//     }
+
+//     struct path *src_path = (struct path *)CTX_PARM2(ctx);
+//     if (get_vfs_link_target_dentry_position() != VFS_ARG_POSITION4) {
+//         bpf_probe_read(&src_path, sizeof(src_path), &src_path); // fix llvm missing up with ctx pointer
+//         src_path = (struct path *)CTX_PARM1(ctx);
+//     }
+
+//     syscall->link.src_dentry = get_path_dentry(src_path);
+//     // this is a hard link, source and target dentries are on the same filesystem & mount point
+//     // target_path was set by kprobe/filename_create before we reach this point.
+//     syscall->link.src_file.path_key.mount_id = get_path_mount_id(src_path);
+
+//     // force a new path id to force path resolution
+//     set_file_inode(syscall->link.src_dentry, &syscall->link.src_file, 1);
+//     fill_file(syscall->link.src_dentry, &syscall->link.src_file);
+
+//     syscall->resolver.dentry = syscall->link.src_dentry;
+//     syscall->resolver.key = syscall->link.src_file.path_key;
+//     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+//     syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
+//     syscall->resolver.iteration = 0;
+//     syscall->resolver.ret = 0;
+
+//     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
+//     // if the tail call fails, we need to pop the syscall cache entry
+//     pop_syscall(EVENT_LINK);
+
+//     return 0;
+// }
+
+// HOOK_ENTRY("vfs_link")
+// int hook_vfs_link(ctx_t *ctx) {
+//     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+//     if (!syscall) {
+//         return 0;
+//     }
+
+//     if (syscall->link.target_dentry) {
+//         return 0;
+//     }
+
+//     // struct dentry *src_dentry = (struct dentry *)CTX_PARM1(ctx);
+//     // syscall->link.src_dentry = src_dentry;
+
+//     syscall->link.target_dentry = (struct dentry *)CTX_PARM3(ctx);
+//     // change the register based on the value of vfs_link_target_dentry_position
+//     if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
+//         // prevent the verifier from whining
+//         bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
+//         syscall->link.target_dentry = (struct dentry *)CTX_PARM4(ctx);
+//     }
+
+//     // // this is a hard link, source and target dentries are on the same filesystem & mount point
+//     // // target_path was set by kprobe/filename_create before we reach this point.
+//     // syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
+
+//     // // force a new path id to force path resolution
+//     // set_file_inode(src_dentry, &syscall->link.src_file, 1);
+    
+//     if (approve_syscall(syscall, link_approvers) == DISCARDED) {
+//         // do not pop, we want to invalidate the inode even if the syscall is discarded
+//         return 0;
+//     }
+
+//     syscall->link.target_file.metadata = syscall->link.src_file.metadata;
+
+//     // we generate a fake target key as the inode is the same
+//     syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
+//     syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+//     if (is_overlayfs(syscall->link.src_dentry)) {
+//         syscall->link.target_file.flags |= UPPER_LAYER;
+//     }
+
+//     // syscall->resolver.dentry = src_dentry;
+//     // syscall->resolver.key = syscall->link.src_file.path_key;
+//     // syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+//     // syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
+//     // syscall->resolver.iteration = 0;
+//     // syscall->resolver.ret = 0;
+
+//     // resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
+//     // // if the tail call fails, we need to pop the syscall cache entry
+//     // pop_syscall(EVENT_LINK);
+
+//     return 0;
+// }
 
 TAIL_CALL_TARGET("dr_link_src_callback")
 int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
@@ -132,8 +207,35 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
     }
 
+    // now that we invalidated the inode, we can pop the syscall cache entry if it was previously marked as discarded
+    if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_LINK);
+        return 0;
+    }
+
+    if (IS_ERR(syscall->link.target_dentry)) {
+        pop_syscall(EVENT_LINK);
+        return 0;
+    }
+
+    // target_dentry was set by kretprobe/filename_create before we reach this point, so we can now check for approvers
+    syscall->state = approve_syscall(syscall, link_approvers);
+    if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_LINK);
+        return 0;
+    }
+
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
         syscall->retval = retval;
+
+        syscall->link.target_file.metadata = syscall->link.src_file.metadata;
+        // we generate a fake target key as the inode is the same
+        syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
+        // this is a hard link, source and target dentries are on the same filesystem & mount point
+        syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+        if (is_overlayfs(syscall->link.src_dentry)) {
+            syscall->link.target_file.flags |= UPPER_LAYER;
+        }
 
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;

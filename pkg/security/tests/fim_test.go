@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -106,6 +107,10 @@ func TestFIMPermError(t *testing.T) {
 			ID:         "test_perm_utimes_rule",
 			Expression: `utimes.file.path == "{{.Root}}/test-file" && utimes.retval == -1`,
 		},
+		{
+			ID:         "test_perm_link_rule",
+			Expression: `link.file.path == "{{.Root}}/test-file" && link.file.destination.path == "{{.Root}}/link-file" && link.retval == -1`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -144,9 +149,39 @@ func TestFIMPermError(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	linkFile, _, err := test.Path("link-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fi, err := os.Stat(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("Created test file %s with inode: %d\n", testFile, fi.Sys().(*syscall.Stat_t).Ino)
+
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Set the fs.protected_hardlinks sysctl to 1 to cause the link syscall to fail with EPERM
+	// when the user is not the owner of the source file.
+	const fsProcHardlinks = "fs/protected_hardlinks"
+	initialValue, err := readSysctlValue(fsProcHardlinks)
+	if err != nil {
+		t.Fatalf("couldn't read %s: %v", fsProcHardlinks, err)
+	}
+	defer func() {
+		// reset initial value
+		if err = writeSysctlValue(fsProcHardlinks, initialValue); err != nil {
+			t.Fatalf("couldn't reset %s to %s: %v", fsProcHardlinks, initialValue, err)
+		}
+	}()
+
+	// make sure the correct value is set before the test starts
+	if err := writeSysctlValue(fsProcHardlinks, "1"); err != nil {
+		t.Fatalf("couldn't set %s: %v", fsProcHardlinks, err)
 	}
 
 	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -248,6 +283,23 @@ func TestFIMPermError(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_utimes_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Utimes.Retval)
+		})
+	})
+
+	test.Run(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"link", testFile, linkFile,
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_link_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Link.Retval)
 		})
 	})
 }

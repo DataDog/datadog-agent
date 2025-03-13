@@ -12,10 +12,16 @@ import manager "github.com/DataDog/ebpf-manager"
 
 func getLinkProbe(fentry bool) []*manager.Probe {
 	var linkProbes = []*manager.Probe{
+		// {
+		// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		// 		UID:          SecurityAgentUID,
+		// 		EBPFFuncName: "hook_vfs_link",
+		// 	},
+		// },
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_vfs_link",
+				EBPFFuncName: "hook_complete_walk",
 			},
 		},
 		{
@@ -28,6 +34,12 @@ func getLinkProbe(fentry bool) []*manager.Probe {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "rethook_do_linkat",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_create",
 			},
 		},
 	}
