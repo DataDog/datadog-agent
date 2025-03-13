@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	commonos "os"
+
 	"github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -38,6 +40,9 @@ var _ common.Diagnosable = (*Host)(nil)
 
 // Diagnose returns a string containing the diagnosis of the environment
 func (e *Host) Diagnose(outputDir string) (string, error) {
+	if e.Agent == nil || e.RemoteHost == nil {
+		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
+	}
 	diagnoses := []string{}
 	if e.RemoteHost == nil {
 		return "", fmt.Errorf("RemoteHost component is not initialized")
@@ -101,9 +106,16 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 
 // Coverage generates coverage files and downloads them to the given output directory
 func (e *Host) Coverage(outputDir string) error {
+	if e.Agent == nil || e.RemoteHost == nil {
+		return fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
+	}
 	r, err := e.Agent.Client.CoverageWithError(agentclient.WithArgs([]string{"generate"}))
 	if err != nil {
 		return fmt.Errorf("failed to generate coverage: %w", err)
+	}
+
+	if err := commonos.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create coverage folder: %w", err)
 	}
 	// find coverage folder in command output
 	re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
@@ -126,6 +138,9 @@ func (e *Host) Coverage(outputDir string) error {
 
 // SetupCoverage creates a temporary folder for coverage files
 func (e *Host) SetupCoverage() error {
+	if e.RemoteHost == nil {
+		return fmt.Errorf("Agent or RemoteHost component is not initialized, cannot create coverage folder")
+	}
 	coverageFolder := client.LinuxTempFolder
 	if e.RemoteHost.OSFamily == os.WindowsFamily {
 		coverageFolder = client.WindowsTempFolder
