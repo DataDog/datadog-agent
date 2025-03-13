@@ -308,7 +308,7 @@ def test(
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    build_cpus_opt = f"-p {cpus} -parallel {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
 
