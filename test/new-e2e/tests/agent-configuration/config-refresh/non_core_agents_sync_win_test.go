@@ -20,7 +20,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 )
 
 type configRefreshWindowsSuite struct {
@@ -37,7 +37,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "C:/tmp/")
+	secretClient := secrets.NewHostClient(v.T(), v.Env().RemoteHost, "C:/tmp/")
 	secretClient.ConfigureRefreshInterval(configRefreshIntervalSec)
 	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", apiKey1)

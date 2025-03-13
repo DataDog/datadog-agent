@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 )
 
 const (
@@ -528,7 +528,7 @@ hostname: ENC[` + rootDir + "/hostname]"
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secrets.NewHostClient(v.T(), v.Env().RemoteHost, rootDir)
 	secretClient.AllowExecGroup()
 	secretClient.SetSecret("hostname", "e2e.test")
 	config += secretClient.GetAgentConfiguration()

@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +37,7 @@ func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {
 	// Create config that has an encoded (secret) api key
 	config := "api_key: ENC[/tmp/api_key]"
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient := secrets.NewHostClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", firstAPIKey)
 	config += secretClient.GetAgentConfiguration()
 
