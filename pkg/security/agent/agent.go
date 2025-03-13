@@ -20,15 +20,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
+	statsdClient            statsd.ClientInterface
 	hostname                string
 	reporter                common.RawReporter
 	client                  *RuntimeSecurityClient
@@ -42,7 +47,7 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage *dump.ActivityDumpStorageManager
+	storage storage.ActivityDumpStorage
 }
 
 // RSAOptions represents the runtime security agent options
@@ -184,21 +189,25 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
 	// parse dump from message
-	dump, err := dump.NewActivityDumpFromMessage(msg.GetDump())
+	p, storageRequests, err := profile.NewProfileFromActivityDumpMessage(msg.GetDump())
 	if err != nil {
 		seclog.Errorf("%v", err)
 		return
 	}
 	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
-		imageName, imageTag := dump.GetImageNameTag()
+		imageName, imageTag := p.GetImageNameTag()
 		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
 
 		raw := bytes.NewBuffer(msg.GetData())
 
-		for _, requests := range dump.StorageRequests {
-			if err := rsa.storage.PersistRaw(requests, dump, raw); err != nil {
-				seclog.Errorf("%v", err)
+		for _, requests := range storageRequests {
+			for _, request := range requests {
+				if request.Type == sconfig.RemoteStorage {
+					if err := rsa.storage.Persist(request, p, raw); err != nil {
+						seclog.Errorf("%v", err)
+					}
+				}
 			}
 		}
 	}
@@ -224,7 +233,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.C
 			return
 		case <-metricsTicker.C:
 			if rsa.storage != nil {
-				rsa.storage.SendTelemetry()
+				rsa.storage.SendTelemetry(rsa.statsdClient)
 			}
 		}
 	}

@@ -63,6 +63,7 @@
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
+    FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
   script:
     - dda inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
@@ -116,6 +117,7 @@ new-e2e-containers:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
+    ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       # Temporarily disable old version of Kubernetes
@@ -161,6 +163,7 @@ new-e2e-containers-eks:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -170,6 +173,7 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -188,6 +192,7 @@ new-e2e-agent-runtimes:
   variables:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -197,6 +202,7 @@ new-e2e-agent-subcommands:
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-configuration
+    ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -255,6 +261,7 @@ new-e2e-windows-service-test:
   variables:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-agent
+    ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
@@ -271,6 +278,7 @@ new-e2e-language-detection:
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
@@ -286,6 +294,7 @@ new-e2e-npm-packages:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-docker:
   extends: .new_e2e_template
@@ -300,7 +309,7 @@ new-e2e-npm-docker:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
-
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-eks-init:
   stage: e2e_init
@@ -333,6 +342,21 @@ new-e2e-npm-eks:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-npm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run TestCiliumLBConntracker
 
 new-e2e-amp:
   extends: .new_e2e_template
@@ -350,6 +374,7 @@ new-e2e-amp:
   variables:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-alp:
   extends: .new_e2e_template
@@ -383,6 +408,7 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
@@ -404,6 +430,7 @@ new-e2e-discovery:
   variables:
     TARGETS: ./tests/discovery
     TEAM: universal-service-monitoring
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-process:
   extends: .new_e2e_template
@@ -419,6 +446,7 @@ new-e2e-process:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:
   extends:
@@ -429,6 +457,7 @@ new-e2e-orchestrator:
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
+    ON_NIGHTLY_FIPS: "true"
   timeout: 55m
 
 new-e2e-apm:
@@ -443,6 +472,7 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
+    ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -529,6 +559,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallerRollback$"
       - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
       - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+      # apm-library-dotnet
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
 
 
 new-e2e-installer-ansible:
@@ -562,6 +595,7 @@ new-e2e-ndm-netflow:
   variables:
     TARGETS: ./tests/ndm/netflow
     TEAM: ndm-integrations
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ndm-snmp:
   extends: .new_e2e_template
@@ -574,6 +608,7 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: ndm-core
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ha-agent:
   extends: .new_e2e_template_needs_deb_x64
@@ -583,6 +618,7 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -592,6 +628,7 @@ new-e2e-netpath:
   variables:
     TARGETS: ./tests/netpath
     TEAM: network-performance-monitoring
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
@@ -637,7 +674,6 @@ new-e2e-otel-eks-init:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-
   allow_failure: true
 
 new-e2e-otel-eks:
@@ -671,12 +707,14 @@ new-e2e-otel:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
+    ON_NIGHTLY_FIPS: "true"
 
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-package-signing-debian-a7-x86_64:
   extends:
@@ -704,6 +742,7 @@ new-e2e-cspm:
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
+    ON_NIGHTLY_FIPS: "true"
   timeout: 35m
 
 new-e2e-gpu:
@@ -715,6 +754,7 @@ new-e2e-gpu:
     TARGETS: ./tests/gpu                          # the target path where tests are
     TEAM: ebpf-platform
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
+    ON_NIGHTLY_FIPS: "true"
   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
@@ -767,6 +807,54 @@ trigger-flakes-finder:
       - artifact: flake-finder-gitlab-ci.yml
         job: generate-flakes-finder-pipeline
   allow_failure: true
+
+generate-fips-e2e-pipeline:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: e2e
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    # - !reference [.on_deploy_nightly_repo_branch] # TODO: Should be kept manual until all the FIPS tests are passing
+    - !reference [.manual]
+  needs:
+    - compute_gitlab_ci_config
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_ot
+    - tests_windows_sysprobe_x64
+  tags: ["arch:amd64"]
+  script:
+    - inv -e fips.generate-fips-e2e-pipeline
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
+
+trigger-fips-e2e:
+  stage: e2e
+  needs: [generate-fips-e2e-pipeline]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    # - !reference [.on_deploy_nightly_repo_branch] # TODO: Should be kept manual until all the FIPS tests are passing
+    - !reference [.manual]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: fips-e2e-gitlab-ci.yml
+        job: generate-fips-e2e-pipeline
+    strategy: depend
 
 new-e2e-eks-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
