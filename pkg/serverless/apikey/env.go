@@ -18,11 +18,9 @@ import (
 // the appropriate AWS service. KMS, SM, etc.
 type decryptFunc func(string, aws.FIPSEndpointState) (string, error)
 
-func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc) map[string]string {
-	awsRegion := os.Getenv(lambdaRegionEnvVar)
-	isGovRegion := strings.HasPrefix(awsRegion, "us-gov-")
+func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc, shouldUseFips bool) map[string]string {
 	fipsEndpointState := aws.FIPSEndpointStateUnset
-	if isGovRegion {
+	if shouldUseFips {
 		fipsEndpointState = aws.FIPSEndpointStateEnabled
 		log.Debug("Govcloud region detected. Using FIPs endpoints for secrets management.")
 	}
@@ -75,7 +73,9 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
 func setSecretsFromEnv(envVars []string) {
-	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
+	awsRegion := os.Getenv(lambdaRegionEnvVar)
+	shouldUseFips := strings.HasPrefix(awsRegion, "us-gov-")
+	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager, shouldUseFips) {
 		os.Setenv(envKey, strings.TrimSpace(envVal))
 	}
 }
