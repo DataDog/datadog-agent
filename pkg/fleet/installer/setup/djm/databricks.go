@@ -128,7 +128,7 @@ func setupCommonHostTags(s *common.Setup) {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
 
-	// dupes for backward compatibility
+	// duplicated for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
