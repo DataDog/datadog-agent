@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/util/secrets"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type VMFakeintakeSuite struct {
@@ -425,7 +425,7 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 
 	s.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient := secrets.NewHostClient(s.T(), s.Env().RemoteHost, rootDir)
 	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", apiKey1)
 
