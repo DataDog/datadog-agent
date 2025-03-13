@@ -46,7 +46,6 @@ def generate(ctx, pre_commit=False):
     """
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
-    print("old_unstaged_proto_files", old_unstaged_proto_files)
     # Key: path, Value: grpc_gateway, inject_tags
     check_tools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
@@ -156,14 +155,10 @@ def generate(ctx, pre_commit=False):
 
     # Check the generated files were properly committed
     current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
-    print("current_unstaged_proto_files", current_unstaged_proto_files)
     if old_unstaged_proto_files != current_unstaged_proto_files:
         if pre_commit:
             updated_files = [f"- {file}\n" for file in current_unstaged_proto_files - old_unstaged_proto_files]
-            raise Exit(
-                f"Generated files were not properly committed\n{''.join(updated_files)}Please run `dda inv protobuf.generate` and commit the changes.",
-                code=1,
-            )
+            raise Exit(f"Files modified\n{''.join(updated_files)}", code=1)
         else:
             print("Generation complete and new files were updated, don't forget to commit and push")
     else:
