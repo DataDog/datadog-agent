@@ -55,8 +55,8 @@ func (e *symbolsEntry) updateLastUsedTime() {
 	e.lastUsedTime = time.Now()
 }
 
-// KernelCache caches fatbin kernels and handles background loading of missing kernels
-type KernelCache struct {
+// kernelCache caches fatbin kernels and handles background loading of missing kernels
+type kernelCache struct {
 	// cache is a map of kernel key to its kernel data
 	cache map[kernelKey]*kernelData
 
@@ -107,9 +107,9 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 	}
 }
 
-// NewKernelCache creates a new kernel cache with background processing
-func NewKernelCache(sysCtx *systemContext) *KernelCache {
-	kc := &KernelCache{
+// newKernelCache creates a new kernel cache with background processing
+func newKernelCache(sysCtx *systemContext) *kernelCache {
+	kc := &kernelCache{
 		cache:        make(map[kernelKey]*kernelData),
 		cudaSymbols:  make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:      make(map[int][]*procfs.ProcMap),
@@ -122,11 +122,13 @@ func NewKernelCache(sysCtx *systemContext) *KernelCache {
 	return kc
 }
 
-func (kc *KernelCache) Start() {
+// Start starts the kernel cache background processing goroutine.
+func (kc *kernelCache) Start() {
 	go kc.processRequests()
 }
 
-func (kc *KernelCache) Stop() {
+// Stop stops the kernel cache background processing goroutine.
+func (kc *kernelCache) Stop() {
 	close(kc.done)
 }
 
@@ -141,7 +143,7 @@ func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
 
 // getCudaSymbols gets the CUDA symbols for a given path. Uses an internal cache to avoid reading the file multiple times.
 // Uses internal caches, so should only be called in the processRequests goroutine, to avoid race issues.
-func (kc *KernelCache) getCudaSymbols(path string) (*symbolsEntry, error) {
+func (kc *kernelCache) getCudaSymbols(path string) (*symbolsEntry, error) {
 	fileIdent, err := buildSymbolFileIdentifier(path)
 	if err != nil {
 		return nil, fmt.Errorf("error building symbol file identifier: %w", err)
@@ -182,7 +184,7 @@ var errKernelNotProcessedYet = errors.New("kernel not processed yet")
 // GetKernelData attempts to get kernel data from cache or triggers background loading. If the kernel is not found, it returns nil.
 // This function can return errKernelNotProcessedYet if the kernel is not processed yet, so it's not available in the cache
 // but a request has been made to load it in the background. In that case, the caller should retry later.
-func (kc *KernelCache) GetKernelData(pid int, addr uint64, smVersion uint32) (*cuda.CubinKernel, error) {
+func (kc *kernelCache) GetKernelData(pid int, addr uint64, smVersion uint32) (*cuda.CubinKernel, error) {
 	key := kernelKey{pid: pid, address: addr, smVersion: smVersion}
 
 	// Try to get from cache first
@@ -201,7 +203,7 @@ func (kc *KernelCache) GetKernelData(pid int, addr uint64, smVersion uint32) (*c
 }
 
 // getExistingKernelData returns the kernel data for a given key if it exists.
-func (kc *KernelCache) getExistingKernelData(key kernelKey) *kernelData {
+func (kc *kernelCache) getExistingKernelData(key kernelKey) *kernelData {
 	kc.cacheMutex.RLock()
 	defer kc.cacheMutex.RUnlock()
 
@@ -210,7 +212,7 @@ func (kc *KernelCache) getExistingKernelData(key kernelKey) *kernelData {
 
 // loadKernelData loads the kernel data for a given key. This function uses some internal caches
 // for symbols and CUDA files, so it should only be called in the processRequests goroutine, to avoid race issues.
-func (kc *KernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) {
+func (kc *kernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) {
 	maps, err := kc.getProcessMemoryMaps(key.pid)
 	if err != nil {
 		return nil, fmt.Errorf("error reading process memory maps: %w", err)
@@ -245,7 +247,7 @@ func (kc *KernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) 
 // processRequests is a goroutine that processes the kernel requests in the background. It's also responsible for
 // receiving PIDs to delete from the cache, and cleaning up the cache when the process exits. This ensures the internal
 // caches are only accessed in the processRequests goroutine, to avoid race issues.
-func (kc *KernelCache) processRequests() {
+func (kc *kernelCache) processRequests() {
 	fatbinCleanup := time.NewTicker(fatbinFileCacheCleanupInterval)
 
 	for {
@@ -277,7 +279,7 @@ func (kc *KernelCache) processRequests() {
 }
 
 // getProcessMemoryMaps gets the memory maps for a process.
-func (kc *KernelCache) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) {
+func (kc *kernelCache) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) {
 	// pidMaps only gets accessed in the processRequests goroutine, so we don't need to lock it
 	maps, ok := kc.pidMaps[pid]
 	if ok {
@@ -300,7 +302,7 @@ func (kc *KernelCache) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) 
 	return maps, nil
 }
 
-func (kc *KernelCache) cleanDataForPid(pid int) {
+func (kc *kernelCache) cleanDataForPid(pid int) {
 	kc.cacheMutex.Lock()
 	defer kc.cacheMutex.Unlock()
 
@@ -318,7 +320,7 @@ func (kc *KernelCache) cleanDataForPid(pid int) {
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while.
 // Should only be called in the processRequests goroutine, to avoid race issues.
-func (kc *KernelCache) cleanupOldEntries() {
+func (kc *kernelCache) cleanupOldEntries() {
 	maxFatbinAge := 5 * time.Minute
 	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
 

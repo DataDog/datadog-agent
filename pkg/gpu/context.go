@@ -66,7 +66,7 @@ type systemContext struct {
 	telemetry *contextTelemetry
 
 	// kernelCache caches kernel data and handles background loading
-	kernelCache *KernelCache
+	kernelCache *kernelCache
 }
 
 // contextTelemetry holds telemetry elements for the context
@@ -107,7 +107,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
 	}
 
-	ctx.kernelCache = NewKernelCache(ctx)
+	ctx.kernelCache = newKernelCache(ctx)
 
 	return ctx, nil
 }

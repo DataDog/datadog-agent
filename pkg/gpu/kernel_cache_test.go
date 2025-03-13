@@ -80,7 +80,7 @@ func TestKernelCache_LoadKernelData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create kernel cache
-	kc := NewKernelCache(sysCtx)
+	kc := newKernelCache(sysCtx)
 	kc.Start()
 	defer kc.Stop()
 
@@ -137,7 +137,7 @@ func TestKernelCache_LoadKernelDataError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create kernel cache
-	kc := NewKernelCache(sysCtx)
+	kc := newKernelCache(sysCtx)
 	kc.Start()
 	defer kc.Stop()
 
