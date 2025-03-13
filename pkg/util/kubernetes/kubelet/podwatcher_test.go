@@ -389,7 +389,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
 	defer os.Remove(kubelet.testingCertificate)
