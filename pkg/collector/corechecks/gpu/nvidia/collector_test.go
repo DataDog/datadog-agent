@@ -11,12 +11,17 @@ import (
 	"errors"
 	"testing"
 
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
+
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 )
 
 // this mock returns proper values only for devices with index 0 and 1, otherwise it will return an error
@@ -41,6 +46,15 @@ func getBasicNvmlDeviceMock(index int) nvml.Device {
 			default:
 				return "", nvml.ERROR_UNKNOWN
 			}
+		},
+		GetNumGpuCoresFunc: func() (int, nvml.Return) {
+			return 10, nvml.SUCCESS
+		},
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: 1000000}, nvml.SUCCESS
+		},
+		GetIndexFunc: func() (int, nvml.Return) {
+			return index, nvml.SUCCESS
 		},
 	}
 }
@@ -156,7 +170,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			nvmlMock, fakeTagger := tc.mockSetup()
 
 			// Execute
-			tagsMapping := GetDeviceTagsMapping(nvmlMock, fakeTagger)
+			deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+			require.NoError(t, err)
+			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
 			tc.expected(t, tagsMapping)
