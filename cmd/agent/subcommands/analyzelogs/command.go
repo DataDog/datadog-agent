@@ -142,6 +142,12 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	}
 
 	for _, source := range sources {
+		err := source.Config.Validate()
+		fmt.Println("WOW123", err)
+		if err != nil {
+			fmt.Println("Error with config", err)
+			continue
+		}
 		if source.Config.TailingMode == "" {
 			source.Config.TailingMode = "beginning"
 		}

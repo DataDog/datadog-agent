@@ -8,6 +8,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -31,6 +32,7 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	var yamlConfigsWrapper yamlLogsConfigsWrapper
 	err := yaml.Unmarshal(data, &yamlConfigsWrapper)
+	fmt.Println("err when parsing yaml is ", err)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
 	}
