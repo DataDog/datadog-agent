@@ -642,6 +642,12 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
         },
     )
+    verifier_stats_constants = "./pkg/ebpf/verifier/constants.json"
+    nw.build(
+            rule="copyfiles",
+            outputs=[f"{kmt_paths.arch_dir}/opt/{os.path.basename(verifier_stats_constants)}"],
+            inputs=[os.path.abspath(verifier_stats_constants)],
+    )
 
 
 def ninja_copy_ebpf_files(
