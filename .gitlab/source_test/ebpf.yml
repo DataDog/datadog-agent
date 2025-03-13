@@ -2,8 +2,9 @@
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH$CLANG_TEST_SUFFIX /tmp/clang-bpf
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH$CLANG_TEST_SUFFIX /tmp/llc-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH$CLANG_TEST_SUFFIX /opt/datadog-agent/embedded/bin/clang-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH$CLANG_TEST_SUFFIX /opt/datadog-agent/embedded/bin/llc-bpf
+  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llvm-strip-$CLANG_LLVM_VER.$ARCH$CLANG_TEST_SUFFIX /opt/datadog-agent/embedded/bin/llvm-strip
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
@@ -92,9 +93,6 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - !reference [.retrieve_sysprobe_deps]
   script:
     - dda inv -e kmt.prepare --ci --component="security-agent"
-    - mkdir -p /opt/datadog-agent/embedded/bin
-    - cp /tmp/clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
-    - cp /tmp/llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
 
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
