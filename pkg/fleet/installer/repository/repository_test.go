@@ -286,3 +286,120 @@ func TestDeleteHookDenyDoesNotPreventReinstall(t *testing.T) {
 	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }
+
+func createTestDirectory(t *testing.T, files map[string]string) string {
+	dir := t.TempDir()
+	for path, content := range files {
+		fullPath := filepath.Join(dir, path)
+		err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+		assert.NoError(t, err)
+		err = os.WriteFile(fullPath, []byte(content), 0644)
+		assert.NoError(t, err)
+	}
+	return dir
+}
+
+func verifyDirectoryContent(t *testing.T, dir string, files map[string]string) {
+	for path, content := range files {
+		targetPath := filepath.Join(dir, path)
+		data, err := os.ReadFile(targetPath)
+		assert.NoError(t, err)
+		assert.Equal(t, content, string(data))
+	}
+}
+
+func TestRepairDirectoryEmptyTarget(t *testing.T) {
+	sourceFiles := map[string]string{
+		"file1.txt":         "content1",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "content3",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+	targetFiles := map[string]string{}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.NoError(t, err)
+
+	verifyDirectoryContent(t, targetDir, sourceFiles)
+}
+
+func TestRepairDirectoryMissingFiles(t *testing.T) {
+	sourceFiles := map[string]string{
+		"file1.txt":         "content1",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "content3",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+	targetFiles := map[string]string{
+		"file2.txt":         "content2",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.NoError(t, err)
+
+	verifyDirectoryContent(t, targetDir, sourceFiles)
+}
+
+func TestRepairDirectoryDifferentContent(t *testing.T) {
+	sourceFiles := map[string]string{
+		"file1.txt":         "content1",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "content3",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+	targetFiles := map[string]string{
+		"file1.txt":         "wrong_content",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "wrong_content",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.Error(t, err)
+}
+
+func TestRepairDirectoryExtraFiles(t *testing.T) {
+	sourceFiles := map[string]string{
+		"file1.txt":         "content1",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "content3",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+	}
+	targetFiles := map[string]string{
+		"file1.txt":         "content1",
+		"file2.txt":         "content2",
+		"subdir/file3.txt":  "content3",
+		"subdir/file4.txt":  "content4",
+		"subdir2/file5.txt": "content5",
+		"subdir2/file6.txt": "content6",
+		"extra.txt":         "extra content",
+	}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.Error(t, err)
+}

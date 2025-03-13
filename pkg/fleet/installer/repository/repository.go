@@ -7,12 +7,16 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -359,6 +363,16 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	if err == nil {
 		// TODO: Do we want to differentiate between packages that cannot be deleted
 		// due to the pre-remove hook and other reasons?
+		// On Windows, if directory exists, check contents and copy missing files
+		if runtime.GOOS == "windows" {
+			if err := repairDirectory(sourcePath, targetPath); err != nil {
+				return "", fmt.Errorf("target package directory exists and could not be repaired: %w", err)
+			}
+			if err := paths.SetRepositoryPermissions(targetPath); err != nil {
+				return "", fmt.Errorf("could not set permissions on package: %w", err)
+			}
+			return targetPath, nil
+		}
 		return "", fmt.Errorf("target package already exists")
 	}
 	if !errors.Is(err, os.ErrNotExist) {
@@ -480,4 +494,140 @@ func (l *link) Delete() error {
 	}
 	l.packagePath = nil
 	return nil
+}
+
+func buildFileMap(rootPath string) (map[string]struct{}, error) {
+	files := make(map[string]struct{})
+	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			relPath, err := filepath.Rel(rootPath, path)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path: %w", err)
+			}
+			files[relPath] = struct{}{}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk directory: %w", err)
+	}
+	return files, nil
+}
+
+// repairDirectory compares files between source and target directories,
+// copying any missing files or files with mismatched content from source to target.
+// It preserves the directory structure and file permissions.
+func repairDirectory(sourcePath, targetPath string) error {
+	// Build maps of source and target files
+	sourceFiles, err := buildFileMap(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to build source file map: %w", err)
+	}
+
+	targetFiles, err := buildFileMap(targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to build target file map: %w", err)
+	}
+
+	// Check for extra files in target
+	for relPath := range targetFiles {
+		if _, exists := sourceFiles[relPath]; !exists {
+			return fmt.Errorf("extra file found in target directory: %s", relPath)
+		}
+	}
+
+	// Walk through source directory and compare/copy files
+	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path from source root
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		// Construct target path
+		targetFilePath := filepath.Join(targetPath, relPath)
+
+		if info.IsDir() {
+			// Create directory if it doesn't exist
+			return os.MkdirAll(targetFilePath, info.Mode())
+		}
+
+		// Check if file exists in target
+		_, exists := targetFiles[relPath]
+		if !exists {
+			// File doesn't exist in target, copy it
+			return copyFile(path, targetFilePath)
+		}
+
+		// File exists, compare content
+		match, err := compareFiles(path, targetFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to compare files: %w", err)
+		}
+
+		if !match {
+			// Content doesn't match, return error
+			return fmt.Errorf("file content mismatch: %s", relPath)
+		}
+
+		return nil
+	})
+}
+
+// compareFiles checks if two files have identical content by comparing their hashes
+func compareFiles(file1, file2 string) (bool, error) {
+	f1, err := os.Open(file1)
+	if err != nil {
+		return false, err
+	}
+	defer f1.Close()
+
+	f2, err := os.Open(file2)
+	if err != nil {
+		return false, err
+	}
+	defer f2.Close()
+
+	h1 := sha256.New()
+	h2 := sha256.New()
+
+	if _, err := io.Copy(h1, f1); err != nil {
+		return false, err
+	}
+
+	if _, err := io.Copy(h2, f2); err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(h1.Sum(nil), h2.Sum(nil)), nil
+}
+
+// copyFile copies a file from src to dst, preserving file mode
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
 }
