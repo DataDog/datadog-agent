@@ -40,15 +40,16 @@ func init() {
 type providerCb func(ctx context.Context, currentHostname string) (string, error)
 
 type provider struct {
-	name string
-	cb   providerCb
+	cb providerCb
 
-	// Should we stop going down the list of provider if this one is successful
-	stopIfSuccessful bool
+	name string
 
 	// expvarName is the name to use to store the error in expvar. This is legacy behavior to match the expvar name
 	// from the previous hostname detection logic.
 	expvarName string
+
+	// Should we stop going down the list of provider if this one is successful
+	stopIfSuccessful bool
 }
 
 // List of hostname providers

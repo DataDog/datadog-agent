@@ -45,26 +45,26 @@ func (cc CollectorCatalog) merge(otherID string, othCatalog CollectorCatalog) {
 
 // CollectorMetadata contains the characteristics of a collector to be registered with RegisterCollector
 type CollectorMetadata struct {
-	ID         string
 	Collectors CollectorCatalog
+	ID         string
 }
 
 // CollectorFactory allows to register a factory to dynamically create Collector at startup
 type CollectorFactory struct {
-	ID          string
 	Constructor func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error)
+	ID          string
 }
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type collectorRegistry struct {
-	discoveryOnce sync.Once
-
 	catalogUpdatedCallback func(CollectorCatalog)
 
-	registeredCollectors     map[string]CollectorFactory // key is catalogEntry.id
-	registeredCollectorsLock sync.Mutex
+	registeredCollectors map[string]CollectorFactory // key is catalogEntry.id
 
 	effectiveCollectors CollectorCatalog
+	discoveryOnce       sync.Once
+
+	registeredCollectorsLock sync.Mutex
 }
 
 func newCollectorRegistry() *collectorRegistry {

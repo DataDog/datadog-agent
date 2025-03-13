@@ -94,15 +94,15 @@ const (
 
 // Filter holds the state for the container filtering logic
 type Filter struct {
+	Errors               map[string]struct{}
 	FilterType           FilterType
-	Enabled              bool
 	ImageIncludeList     []*regexp.Regexp
 	NameIncludeList      []*regexp.Regexp
 	NamespaceIncludeList []*regexp.Regexp
 	ImageExcludeList     []*regexp.Regexp
 	NameExcludeList      []*regexp.Regexp
 	NamespaceExcludeList []*regexp.Regexp
-	Errors               map[string]struct{}
+	Enabled              bool
 }
 
 var sharedFilter *Filter

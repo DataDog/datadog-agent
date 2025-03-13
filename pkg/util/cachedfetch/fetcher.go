@@ -22,12 +22,12 @@ import (
 //
 // Callers should instantiate one fetcher per piece of data required.
 type Fetcher struct {
+
+	// previous successfully fetched value
+	lastValue interface{}
+
 	// function that attempts to fetch the value
 	Attempt func(context.Context) (interface{}, error)
-
-	// the name of the thing being fetched, used in the default log message.  At
-	// least one of Name and LogFailure must be non-nil.
-	Name string
 
 	// function to log a fetch failure, given the error and the last successful
 	// value.  This function is not called if there is no last successful value.
@@ -35,8 +35,9 @@ type Fetcher struct {
 	// Name.
 	LogFailure func(error, interface{})
 
-	// previous successfully fetched value
-	lastValue interface{}
+	// the name of the thing being fetched, used in the default log message.  At
+	// least one of Name and LogFailure must be non-nil.
+	Name string
 
 	// mutex to protect access to lastValue
 	sync.Mutex

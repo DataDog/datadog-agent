@@ -62,8 +62,8 @@ func (v *StringValue) Get() string {
 // StringInterner interns strings while allowing them to be cleaned up by the GC.
 // It can handle both string and []byte types without allocation.
 type StringInterner struct {
-	mu     sync.Mutex
 	valMap map[string]uintptr
+	mu     sync.Mutex
 }
 
 // NewStringInterner creates a new StringInterner
