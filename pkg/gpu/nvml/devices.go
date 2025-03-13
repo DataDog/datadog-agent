@@ -22,6 +22,7 @@ type Device struct {
 	UUID      string
 	CoreCount int
 	Index     int
+	Memory    uint64
 }
 
 // NewDevice creates a new Device from an nvml.Device and caches some properties
@@ -47,12 +48,18 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 		return nil, fmt.Errorf("error getting index: %s", nvml.ErrorString(ret))
 	}
 
+	memInfo, ret := dev.GetMemoryInfo()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
+	}
+
 	return &Device{
 		Device:    dev,
 		SMVersion: smVersion,
 		UUID:      uuid,
 		CoreCount: cores,
 		Index:     index,
+		Memory:    memInfo.Total,
 	}, nil
 }
 
