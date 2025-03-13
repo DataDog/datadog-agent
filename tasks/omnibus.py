@@ -213,7 +213,7 @@ def build(
     fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
-        with timed(quiet=True) as durations['Deps'], ci_visibility_section('Download omnibus deps'):
+        with timed(quiet=True) as durations['Deps'], ci_visibility_section('Download omnibus deps', tags={'agent-category': 'build'}):
             deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
@@ -256,7 +256,7 @@ def build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    with timed(quiet=True) as durations['Bundle'], ci_visibility_section('Bundle'):
+    with timed(quiet=True) as durations['Bundle'], ci_visibility_section('Bundle', tags={'agent-category': 'build'}):
         bundle_install_omnibus(ctx, gem_path, env)
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
@@ -293,7 +293,7 @@ def build(
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
-                with timed(quiet=True) as durations['Restoring omnibus cache'], ci_visibility_section('Restoring omnibus cache'):
+                with timed(quiet=True) as durations['Restoring omnibus cache'], ci_visibility_section('Restoring omnibus cache', tags={'agent-category': 'build'}):
                     # Allow failure in case the cache was evicted
                     if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
                         print(f'Successfully retrieved cache {cache_key}')
@@ -309,7 +309,7 @@ def build(
                             ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
                         )
 
-    with timed(quiet=True) as durations['Omnibus'], ci_visibility_section('Omnibus'):
+    with timed(quiet=True) as durations['Omnibus'], ci_visibility_section('Omnibus', tags={'agent-category': 'build'}):
         omni_flavor = env.get('AGENT_FLAVOR')
         print(f'We are building omnibus with flavor: {omni_flavor}')
         omnibus_run_task(
@@ -334,7 +334,7 @@ def build(
         # in case they were included in the bundle in a previous build
         for _, tag in enumerate(stale_tags.split(os.linesep)):
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache'], ci_visibility_section('Updating omnibus cache'):
+        with timed(quiet=True) as durations['Updating omnibus cache'], ci_visibility_section('Updating omnibus cache', tags={'agent-category': 'build'}):
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                 ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")

@@ -29,22 +29,22 @@
     - !reference [.datadog-ci-amd64-fullsetup]
     - datadog-ci-start-section 'Retrieve go tools dependencies'
     - !reference [.retrieve_linux_go_tools_deps]
-    - datadog-ci-end-section 'Retrieve go tools dependencies'
+    - datadog-ci-end-section --category unit-tests 'Retrieve go tools dependencies'
     - datadog-ci-start-section 'Install tools'
     - dda inv -e install-tools
-    - datadog-ci-end-section 'Install tools'
+    - datadog-ci-end-section --category unit-tests 'Install tools'
     - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - datadog-ci-start-section 'Sds build library'
     - dda inv -e sds.build-library
-    - datadog-ci-end-section 'Sds build library'
+    - datadog-ci-end-section --category unit-tests 'Sds build library'
     - datadog-ci-start-section 'Agent build'
     - dda inv -e agent.build
-    - datadog-ci-end-section 'Agent build'
+    - datadog-ci-end-section --category unit-tests 'Agent build'
     - datadog-ci-start-section 'Unit tests'
     - dda inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
-    - datadog-ci-end-section 'Unit tests'
+    - datadog-ci-end-section --category unit-tests 'Unit tests'
   artifacts:
     expire_in: 2 weeks
     when: always

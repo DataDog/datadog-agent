@@ -1282,6 +1282,11 @@ workflow:
       else
         dateend="$(date '+%s%N' | cut -b1-13)"
       fi
+      if [ "$1" = "--category" ]; then
+        shift
+        category=--tags agent-category:"$1"
+        shift
+      fi
       name="$1"
       if [ -z "$name" ]; then
         echo "datadog-ci-end-section: name is required as first argument"
@@ -1295,7 +1300,7 @@ workflow:
         echo "datadog-ci-end-section: datadog-ci-start-section was not called"
         return 1
       fi
-      datadog-ci span --name "$name" --start-time $datestart --end-time $dateend --tags agent-custom-span:true
+      datadog-ci span --name "$name" --start-time $datestart --end-time $dateend --tags agent-custom-span:true $category
       export datestart=
       export sectionname=
     }
