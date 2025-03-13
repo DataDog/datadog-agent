@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
     steps:
-      - uses: actions/create-github-app-token@0d564482f06ca65fa9e77e2510873638c82206f2 # v1.11.5
+      - uses: actions/create-github-app-token@21cfef2b496dd8ef5b904c159339626a10ad380e # v1.11.6
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
@@ -33,8 +33,10 @@ jobs:
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           cache: "pip"
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Update every golang.org/x/... package
         run: |
           go get -u golang.org/x/arch golang.org/x/crypto \
@@ -43,11 +45,11 @@ jobs:
                     golang.org/x/sys golang.org/x/term \
                     golang.org/x/text golang.org/x/time \
                     golang.org/x/xerrors golang.org/x/tools \
-                    golang.org/x/exp
+                    golang.org/x/exp golang.org/x/oauth2
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
-          inv -e tidy
-          inv -e tidy
+          dda inv -e tidy
+          dda inv -e tidy
       - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: autocommit
         with:

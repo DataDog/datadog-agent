@@ -67,28 +67,28 @@ jobs:
       - run:
           name: check go version
           command: |
-            inv -e check-go-version
+            dda inv -e check-go-version
       - run:
           name: grab go deps
           command: |
-            inv -e deps
+            dda inv -e deps
       - run:
           name: build rtloader
           command: |
-            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
+            dda inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            dda inv rtloader.install
       - run:
           name: lint rtloader
           command: |
-            inv rtloader.format --raise-if-changed
+            dda inv rtloader.format --raise-if-changed
       - run:
           name: test rtloader
           command: |
-            inv rtloader.test
+            dda inv rtloader.test
       - run:
           name: install go tooling
           command: |
-            inv -e install-tools
+            dda inv -e install-tools
       - save_cache:
           <<: *save_deps
           paths:
@@ -107,7 +107,7 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --coverage --race --profile --cpus 8 --build-stdlib
+          command: dda inv -e test --rerun-fails=2 --coverage --race --profile --cpus 8 --build-stdlib
 
   integration_tests:
     <<: *job_template
@@ -118,7 +118,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run integration tests
-          command: inv -e integration-tests --race --remote-docker
+          command: dda inv -e integration-tests --race --remote-docker
 
   release_note:
     <<: *job_template
@@ -126,7 +126,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          command: inv -e linter.releasenote
+          command: dda inv -e linter.releasenote
           name: run PR check for release note
 
   team_label:
@@ -135,7 +135,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          command: inv -e lint-teamassignment
+          command: dda inv -e lint-teamassignment
           name: run PR check for team assignment labels
 
   milestone:
@@ -144,7 +144,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          command: inv -e lint-milestone
+          command: dda inv -e lint-milestone
           name: run PR check for milestone assignment
 
   go_linting:
@@ -156,7 +156,7 @@ jobs:
       - run:
           name: run go linters
           no_output_timeout: 20m
-          command: inv -e linter.go
+          command: dda inv -e linter.go
 
   licenses_linting:
     <<: *job_template
@@ -165,7 +165,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run license linting
-          command: inv -e lint-licenses
+          command: dda inv -e lint-licenses
 
   copyrights_linting:
     <<: *job_template
@@ -174,7 +174,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run copyrights linting
-          command: inv -e linter.copyrights
+          command: dda inv -e linter.copyrights
 
   filename_linting:
     <<: *job_template
@@ -183,7 +183,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run filename linting
-          command: inv -e linter.filenames
+          command: dda inv -e linter.filenames
 
   shell_linting:
     <<: *job_template
@@ -192,7 +192,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: Install shellcheck
-          command: inv -e install-shellcheck
+          command: dda inv -e install-shellcheck
       - run:
           name: Print shellcheck version
           command: shellcheck --version
@@ -215,7 +215,7 @@ jobs:
               echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
-          command: inv -e linter.python
+          command: dda inv -e linter.python
 
   component_linting:
     <<: *job_template
@@ -224,7 +224,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run component linting
-          command: inv -e lint-components
+          command: dda inv -e lint-components
 
   codeowner_linting:
     <<: *job_template
@@ -233,7 +233,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run CODEOWNER linting
-          command: inv -e github.lint-codeowner
+          command: dda inv -e github.lint-codeowner
 
   docker_tests:
     <<: *job_template
@@ -243,10 +243,10 @@ jobs:
       - setup_remote_docker
       - run:
           name: run docker image tests
-          command: inv -e docker.test
+          command: dda inv -e docker.test
       - run:
           name: run docker image integration tests
-          command: inv -e docker.integration-tests
+          command: dda inv -e docker.integration-tests
 
   build_binaries:
     <<: *job_template
@@ -255,10 +255,10 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build dogstatsd
-          command: inv -e dogstatsd.build --static
+          command: dda inv -e dogstatsd.build --static
       - run:
           name: build agent
-          command: inv -e agent.build --exclude-rtloader
+          command: dda inv -e agent.build --exclude-rtloader
 
   build_iot_agent:
     <<: *job_template
@@ -267,7 +267,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build iot agent
-          command: inv -e agent.build --flavor iot
+          command: dda inv -e agent.build --flavor iot
       - run:
           name: test iot agent
           command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
@@ -279,7 +279,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: generate doxygen documentation
-          command: inv -e rtloader.generate-doc
+          command: dda inv -e rtloader.generate-doc
 
 workflows:
   version: 2

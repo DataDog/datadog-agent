@@ -21,7 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
@@ -105,7 +105,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil)
+		filePath, e = securityagent.CreateSecurityAgentArchive(true, logFile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
@@ -123,7 +123,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 		}
 	}
 
-	response, e := flare.SendFlare(config, filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
+	response, e := helpers.SendFlare(config, filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
