@@ -331,14 +331,14 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	// No tasks should equal no utilization
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0)
 
 	// High util checks should be reflected in expvars
 
 	pendingChecksChan <- blockingCheck
 
-	time.Sleep(2000 * time.Millisecond)
+	time.Sleep(1200 * time.Millisecond)
 	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
 
 	blockingCheck.Unlock()
@@ -347,7 +347,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	pendingChecksChan <- longRunningCheck
 
-	time.Sleep(2000 * time.Millisecond)
+	time.Sleep(1200 * time.Millisecond)
 	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
 
 	longRunningCheck.Unlock()
