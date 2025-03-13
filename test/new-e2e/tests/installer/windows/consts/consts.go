@@ -33,7 +33,7 @@ const (
 	NamedPipe string = `\\.\pipe\dd_installer`
 
 	// baseConfigPath is the base path for the Installer configuration
-	baseConfigPath = "C:/ProgramData/Datadog Installer"
+	baseConfigPath = "C:/ProgramData/Datadog/Installer"
 )
 
 var (
@@ -51,10 +51,10 @@ var (
 
 // GetExperimentDirFor is the path to the experiment symbolic link on disk
 func GetExperimentDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\experiment", packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\experiment", baseConfigPath, packageName)
 }
 
 // GetStableDirFor is the path to the stable symbolic link on disk
 func GetStableDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\stable", packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\stable", baseConfigPath, packageName)
 }

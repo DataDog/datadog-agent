@@ -140,8 +140,19 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
 }
 
+// StartExperiment will use the Datadog Installer service to start an experiment
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon start-experiment %s %s", packageName, packageVersion))
+	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
+}
+
+// PromoteExperiment will use the Datadog Installer service to promote an experiment
+func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon promote-experiment '%s'", packageName))
+}
+
+// PromoteExperiment will use the Datadog Installer service to promote an experiment
+func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
@@ -185,11 +196,11 @@ func (d *DatadogInstaller) GarbageCollect() (string, error) {
 	return d.execute("garbage-collect")
 }
 
-func (d *DatadogInstaller) createInstallerFolders() {
-	for _, p := range consts.InstallerConfigPaths {
-		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
-	}
-}
+// func (d *DatadogInstaller) createInstallerFolders() {
+// 	for _, p := range consts.InstallerConfigPaths {
+// 		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
+// 	}
+// }
 
 // Install will attempt to install the Datadog Agent on the remote host.
 // By default, it will use the installer from the current pipeline.
@@ -202,9 +213,9 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	if err != nil {
 		return err
 	}
-	if params.createInstallerFolders {
-		d.createInstallerFolders()
-	}
+	// if params.createInstallerFolders {
+	// 	d.createInstallerFolders()
+	// }
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
 	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists || strings.HasPrefix(msiPath, "file://") {
