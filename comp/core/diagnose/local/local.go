@@ -76,8 +76,8 @@ func Run(
 	} else {
 		localSuite["check-datadog"] = func(_ diagnose.Config) []diagnose.Diagnosis {
 			var diagnoses []diagnose.Diagnosis
-			for _, diagnoseConfig := range integrationConfigs {
-				checkName := diagnoseConfig.Name
+			for _, integrationConfig := range integrationConfigs {
+				checkName := integrationConfig.Name
 				instances := pkgcollector.GetChecksByNameForConfigs(checkName, integrationConfigs)
 				for _, instance := range instances {
 					if instance.Interval() == 0 {
