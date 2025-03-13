@@ -10,7 +10,7 @@ package testutil
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
