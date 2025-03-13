@@ -152,7 +152,7 @@ def custom__call__(self, *args, **kwargs):
     finally:
         ## DATADOG CI VISIBILITY SECTIONS CODE ##
         # This will send the CI visibility sections when the invoke task exits
-        CIVisibilitySection.send_all(args[0])
+        CIVisibilitySection.send_all()
 
     ## LEGACY INVOKE LIB CODE ##
     self.times_called += 1  # noqa

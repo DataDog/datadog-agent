@@ -1284,7 +1284,7 @@ workflow:
       fi
       if [ "$1" = "--category" ]; then
         shift
-        category=--tags agent-category:"$1"
+        category="--tags agent-category:$1"
         shift
       fi
       name="$1"

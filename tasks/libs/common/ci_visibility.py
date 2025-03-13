@@ -1,3 +1,4 @@
+import subprocess
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,11 +17,11 @@ class CIVisibilitySection:
     sections: ClassVar = set()
 
     @staticmethod
-    def send_all(ctx):
+    def send_all():
         if running_in_gitlab_ci() and CIVisibilitySection.sections:
             print('Sending CI visibility sections')
             for section in CIVisibilitySection.sections:
-                section.send(ctx)
+                section.send()
 
             CIVisibilitySection.sections.clear()
 
@@ -31,7 +32,7 @@ class CIVisibilitySection:
 
         return section
 
-    def send(self, ctx):
+    def send(self):
         def convert_time(t):
             return int(t * 1000)
 
@@ -39,21 +40,21 @@ class CIVisibilitySection:
         # Ensure the section is at least 1 ms long to avoid errors
         end_time = max(convert_time(self.end_time), start_time + 1)
 
-        tags = ''
+        args = ['datadog-ci', 'span', '--name', self.name, '--start-time', str(start_time), '--end-time', str(end_time)]
+
         for key, value in list(self.tags.items()) + [('agent-custom-span', 'true')]:
-            tags += f'--tags "{key}:{value}" '
+            args.extend(['--tags', f'{key}:{value}'])
 
-        measures = ''
         for key, value in self.measures.items():
-            measures += f'--measures "{key}:{value}" '
+            args.extend(['--measures', f'{key}:{value}'])
 
-        ctx.run(f"datadog-ci span {tags}{measures}--name '{self.name}' --start-time {start_time} --end-time {end_time}")
+        subprocess.run(args).check_returncode()
+
 
     def __hash__(self):
         return hash((self.name, self.start_time, self.end_time))
 
 
-# TODO: Tags / measures...
 @contextmanager
 def ci_visibility_section(section_name, tags: dict[str, str] = None, measures: dict[str, str] = None, ignore_on_error=False, force=False):
     """Creates a ci visibility span with the given name.
