@@ -175,7 +175,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
     }
 
     u64 current_timestamp = bpf_ktime_get_ns();
-    
+
     uint16_t header_id = evt->header.id;
     u64* stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
 
@@ -186,7 +186,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    bpf_map_update_elem(&dns_responses_sent_to_userspace, &evt->header.id, &current_timestamp, BPF_ANY);
+    bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &current_timestamp, BPF_ANY);
     send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;
