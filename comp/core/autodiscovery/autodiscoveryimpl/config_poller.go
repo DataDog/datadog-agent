@@ -190,7 +190,7 @@ func (cp *configPoller) collectOnce(ctx context.Context, provider providers.Coll
 			}
 
 			// Clear any old errors if a valid config file is found
-			errorStats.removeConfigError(config.Name)
+			ac.errorStats.removeConfigError(config.Name)
 		}
 
 		config.Provider = cp.provider.String()
