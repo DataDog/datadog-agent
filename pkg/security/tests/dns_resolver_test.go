@@ -10,7 +10,6 @@ package tests
 
 // Package tests holds tests related files
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +89,8 @@ func TestDNSResolver(t *testing.T) {
 
 	// Makes a DNS query for hosts with known CNAMES and check if they're all resolved correctly
 	t.Run("cnames-correctly-processed", func(t *testing.T) {
-		ipAddresses, err := net.LookupIP("www.bbc.co.uk")
+		hostname := "www.bbc.co.uk"
+		ipAddresses, err := net.LookupIP(hostname)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,16 +102,35 @@ func TestDNSResolver(t *testing.T) {
 			"bbc.map.fastly.net",
 		}
 
+		allCnamesResolved := func(list []string) bool {
+			for _, cname := range expectedCNAMEs {
+				if !slices.Contains(list, cname) {
+					return false
+				}
+			}
+			return true
+		}
+
 		for _, ip := range ipAddresses {
 			nip, ok := netip.AddrFromSlice(ip)
 			if !ok {
 				t.Fatalf("Couldn't get IP address for host %s", ip)
 			}
-			list := p.Resolvers.DNSResolver.HostListFromIP(nip)
-			assert.Contains(t, list, "www.bbc.co.uk", "Expected www.bbc.co.uk to be in the resolver's cache")
 
-			for _, cname := range expectedCNAMEs {
-				assert.Contains(t, list, cname, fmt.Sprintf("Expected CNAME %s to be in the resolver's cache", cname))
+			// This test contains a 1 second backoff, and tries 10 times until it fails
+			attempts := 10
+			for ; attempts != 0; attempts-- {
+				list := p.Resolvers.DNSResolver.HostListFromIP(nip)
+				if !slices.Contains(list, hostname) || !allCnamesResolved(list) {
+					time.Sleep(1 * time.Second)
+					continue
+				} else {
+					break
+				}
+			}
+
+			if attempts == 0 {
+				t.Fatal("Number of attempts exceeded")
 			}
 		}
 	})
