@@ -25,9 +25,8 @@ import (
 )
 
 const (
-	datadogAgent     = "datadog-agent"
-	premoteEventName = "Global\\DatadogInstallerPremote"
-	stopEventName    = "Global\\DatadogInstallerStop"
+	datadogAgent          = "datadog-agent"
+	watchdogStopEventName = "Global\\DatadogInstallerStop"
 )
 
 // PrepareAgent prepares the machine to install the agent
@@ -51,10 +50,10 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		span.Finish(err)
 	}()
 
-	// open events that signal the end of the experiment
+	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
-	_ = setPremoteEvent()
+	_ = setWatchdogStopEvent()
 
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
@@ -98,11 +97,11 @@ func startWatchdog(_ context.Context) error {
 	timeout := time.Now().Add(60 * time.Minute)
 
 	// open events that signal the end of the experiment
-	premoteEvent, stopEvent, err := createEvents()
+	stopEvent, err := createEvent()
 	if err != nil {
 		return fmt.Errorf("could not create events: %w", err)
 	}
-	defer closeEvents(premoteEvent, stopEvent)
+	defer windows.CloseHandle(stopEvent)
 
 	// open services we are watching
 	m, err := mgr.Connect()
@@ -150,21 +149,15 @@ func startWatchdog(_ context.Context) error {
 		}
 
 		// wait for the events to be singaled with a timeout
-		events, err := windows.WaitForMultipleObjects([]windows.Handle{premoteEvent, stopEvent}, false, 1000)
+		events, err := windows.WaitForMultipleObjects([]windows.Handle{stopEvent}, false, 1000)
 		if err != nil {
 			return fmt.Errorf("could not wait for events: %w", err)
 		}
-		switch events {
-		case windows.WAIT_OBJECT_0:
+		if events == windows.WAIT_OBJECT_0 {
 			// the premote event was signaled
 			// this means we are done with the experiment
 			// we can return without an error
 			return nil
-		case windows.WAIT_OBJECT_0 + 1:
-			// the stop event was signaled
-			// this means we need to restore the stable Agent
-			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("stop event was signaled")
 		}
 
 	}
@@ -174,13 +167,34 @@ func startWatchdog(_ context.Context) error {
 }
 
 // StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
-func StopAgentExperiment(_ context.Context) (err error) {
-	return setStopEvent()
+func StopAgentExperiment(ctx context.Context) (err error) {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
+	// remove the Agent
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		// we failed to remove the Agent
+		// we can't do much here
+		return fmt.Errorf("Failed to remove Agent: %w", err)
+	}
+
+	// reinstall the stable Agent
+	err = installAgentPackage("stable", nil, "restore_stable_agent.log")
+	if err != nil {
+		// we failed to reinstall the stable Agent
+		// we can't do much here
+		return fmt.Errorf("Failed to reinstall stable Agent: %w", err)
+	}
+
+	return nil
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(_ context.Context) error {
-	err := setPremoteEvent()
+	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed
 		// In this case, we were already premoting the experiment
@@ -261,44 +275,12 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	return nil
 }
 
-func createEvents() (windows.Handle, windows.Handle, error) {
-	premoteEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(premoteEventName))
-	if err != nil {
-		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
-	}
-
-	stopEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(stopEventName))
-	if err != nil {
-		// close the premoteEvent
-		windows.CloseHandle(premoteEvent)
-		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
-	}
-
-	return premoteEvent, stopEvent, err
-
+func createEvent() (windows.Handle, error) {
+	return windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(watchdogStopEventName))
 }
 
-func closeEvents(premoteEvent, stopEvent windows.Handle) {
-	windows.CloseHandle(premoteEvent)
-	windows.CloseHandle(stopEvent)
-}
-
-func setPremoteEvent() error {
-	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(premoteEventName))
-	if err != nil {
-		return fmt.Errorf("Failed to open event: %w", err)
-	}
-	defer windows.CloseHandle(event)
-
-	err = windows.SetEvent(event)
-	if err != nil {
-		return fmt.Errorf("Failed to set event: %w", err)
-	}
-	return nil
-}
-
-func setStopEvent() error {
-	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(stopEventName))
+func setWatchdogStopEvent() error {
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(watchdogStopEventName))
 	if err != nil {
 		return fmt.Errorf("Failed to open event: %w", err)
 	}

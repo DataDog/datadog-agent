@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -229,7 +228,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		}
 		defer os.RemoveAll(tmpDir)
 		msiName := fmt.Sprintf("datadog-agent-%s-1-x86_64.msi", version.AgentVersion)
-		err = copyFile(path, filepath.Join(tmpDir, msiName))
+		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)
 		}
@@ -254,37 +253,6 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 
 	return nil
 
-}
-
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	// Open the source file
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("could not open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	// Create the destination file
-	destinationFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("could not create destination file: %w", err)
-	}
-	defer destinationFile.Close()
-
-	// Copy the contents from source to destination
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("could not copy file: %w", err)
-	}
-
-	// Flush the destination file to ensure all data is written
-	err = destinationFile.Sync()
-	if err != nil {
-		return fmt.Errorf("could not flush destination file: %w", err)
-	}
-
-	return nil
 }
 
 func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {

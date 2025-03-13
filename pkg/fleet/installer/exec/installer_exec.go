@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -43,13 +45,13 @@ type installerCmd struct {
 	ctx  context.Context
 }
 
-func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
 	// Enforce the use of the installer when it is bundled with the agent.
 	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
+	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
@@ -61,6 +63,10 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 		span: span,
 		ctx:  ctx,
 	}
+}
+
+func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	return i.newInstallerCmdCustomPath(ctx, command, i.installerBinPath, args...)
 }
 
 // Install installs a package.
@@ -113,7 +119,27 @@ func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err 
 
 // RemoveExperiment removes an experiment.
 func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	var cmd *installerCmd
+	// on windows we need to make a copy of installer binary to avoid issues installing MSI
+	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
+		repositories := repository.NewRepositories(paths.PackagesPath, nil)
+		tmpDir, err := repositories.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("error creating temp dir: %w", err)
+		}
+		// this might not get run as this processes will be killed during the stop
+		defer os.RemoveAll(tmpDir)
+
+		// copy our installerPath to temp location
+		installerPath := filepath.Join(tmpDir, "datadog-installer.exe")
+		err = paths.CopyFile(i.installerBinPath, installerPath)
+		if err != nil {
+			return fmt.Errorf("error copying installer binary: %w", err)
+		}
+		cmd = i.newInstallerCmdCustomPath(ctx, "remove-experiment", installerPath, pkg)
+	} else {
+		cmd = i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	}
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
