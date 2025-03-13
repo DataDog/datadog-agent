@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from tasks.libs.common.utils import running_in_gitlab_ci
+from tasks.libs.common.color import Color, color_message
 
 
 @dataclass
@@ -21,7 +22,10 @@ class CIVisibilitySection:
         if running_in_gitlab_ci() and CIVisibilitySection.sections:
             print('Sending CI visibility sections')
             for section in CIVisibilitySection.sections:
-                section.send()
+                try:
+                    section.send()
+                except Exception as e:
+                    print(f'{color_message("ERROR", Color.RED)}: Failed to send CI visibility section {section.name}: {e}')
 
             CIVisibilitySection.sections.clear()
 
