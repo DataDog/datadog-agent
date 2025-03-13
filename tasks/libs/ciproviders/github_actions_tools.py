@@ -14,7 +14,9 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_default_branch
 
 
-def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref="master", new_version=None):
+def trigger_windows_bump_workflow(
+    repo="buildenv", workflow_name="runner-bump.yml", github_action_ref="master", new_version=None
+):
     """
     Trigger a workflow to bump windows gitlab runner
     """
@@ -23,15 +25,15 @@ def trigger_buildenv_workflow(workflow_name="runner-bump.yml", github_action_ref
         inputs["new-version"] = new_version
 
     print(
-        "Creating workflow on buildenv on commit {} with args:\n{}".format(  # noqa: FS002
-            github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
+        "Creating workflow on {} on ref {} with args:\n{}".format(  # noqa: FS002
+            repo, github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
 
     # Hack: get current time to only fetch workflows that started after now
     now = datetime.utcnow()
 
-    gh = GithubAPI('DataDog/buildenv')
+    gh = GithubAPI(f"DataDog/{repo}")
     result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     if not result:
