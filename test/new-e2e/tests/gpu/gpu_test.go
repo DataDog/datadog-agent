@@ -33,7 +33,8 @@ var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
-	caps suiteCapabilities
+	caps                     suiteCapabilities
+	agentRestartsAtSuiteInit map[agentComponent]int
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
@@ -134,6 +135,17 @@ type runnerStats struct {
 
 type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
+}
+
+func (v *gpuBaseSuite[Env]) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	v.agentRestartsAtSuiteInit = make(map[agentComponent]int)
+
+	// Get initial agent service restart counts
+	services := []agentComponent{agentComponentCoreAgent, agentComponentSystemProbe}
+	for _, service := range services {
+		v.agentRestartsAtSuiteInit[service] = v.caps.GetRestartCount(service)
+	}
 }
 
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
@@ -264,5 +276,16 @@ func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {
 	if v.T().Failed() {
 		// log the output for debugging in case of failure
 		v.T().Log(out)
+	}
+}
+
+// TestZZAgentDidNotRestart checks that the agent did not restart during the test suite
+// Add zz to name to run this test last, as we want to run it after all other tests have run
+// to ensure that no restarts happened during the test suite, which would be an error that we
+// might not catch with the test themselves (e.g., we send correct metrics and then we panic)
+func (v *gpuBaseSuite[Env]) TestZZAgentDidNotRestart() {
+	for service, initialCount := range v.agentRestartsAtSuiteInit {
+		finalCount := v.caps.GetRestartCount(service)
+		v.Assert().Equal(initialCount, finalCount, "Service %s restarted during test suite", service)
 	}
 }

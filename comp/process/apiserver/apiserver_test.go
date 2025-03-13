@@ -36,6 +36,7 @@ func TestLifecycle(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -74,6 +75,7 @@ func TestPostAuthentication(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),

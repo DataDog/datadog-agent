@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +32,23 @@ const podSelectorField = "app"
 const jobQueryInterval = 250 * time.Millisecond
 const jobQueryTimeout = 30 * time.Second // Might take some time to pull the image
 
+type agentComponent string
+
+const (
+	agentComponentSystemProbe agentComponent = "system-probe"
+	agentComponentCoreAgent   agentComponent = "core-agent"
+)
+
+var agentComponentToSystemdService = map[agentComponent]string{
+	agentComponentSystemProbe: "datadog-agent-sysprobe.service",
+	agentComponentCoreAgent:   "datadog-agent.service",
+}
+
+var agentComponentToContainer = map[agentComponent]string{
+	agentComponentSystemProbe: "system-probe",
+	agentComponentCoreAgent:   "agent",
+}
+
 // suiteCapabilities is an interface that exposes the capabilities of the test suite,
 // generalizing between different environments
 type suiteCapabilities interface {
@@ -38,6 +56,7 @@ type suiteCapabilities interface {
 	Agent() agentclient.Agent
 	QuerySysprobe(path string) (string, error)
 	RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error)
+	GetRestartCount(component agentComponent) int
 }
 
 // hostCapabilities is an implementation of suiteCapabilities for the Host environment
@@ -90,6 +109,18 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 	idOut, err := c.suite.Env().RemoteHost.Execute(containerIDCmd)
 
 	return strings.TrimSpace(idOut), err
+}
+
+func (c *hostCapabilities) GetRestartCount(component agentComponent) int {
+	service := agentComponentToSystemdService[component]
+	out, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("systemctl show -p NRestarts %s", service))
+	c.suite.Require().NoError(err)
+	c.suite.Require().NotEmpty(out)
+
+	restartCount := strings.TrimPrefix(strings.TrimSpace(out), "NRestarts=")
+	count, err := strconv.Atoi(restartCount)
+	c.suite.Require().NoError(err)
+	return count
 }
 
 // kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment
@@ -195,4 +226,25 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	}
 
 	return "", errors.New("Could not find the container ID for the job")
+}
+
+func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
+	container := agentComponentToContainer[component]
+
+	ctx := context.Background()
+	linuxPods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", c.suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	c.suite.Require().NoError(err)
+
+	restartCount := 0
+	for _, pod := range linuxPods.Items {
+		for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+			if containerStatus.Name == container {
+				restartCount += int(containerStatus.RestartCount)
+			}
+		}
+	}
+
+	return restartCount
 }

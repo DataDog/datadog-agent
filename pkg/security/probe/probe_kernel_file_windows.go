@@ -175,7 +175,6 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		wp.stats.createFileApproverRejects++
 		return nil, errDiscardedPath
 	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
 
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})

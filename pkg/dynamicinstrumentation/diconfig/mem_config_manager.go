@@ -72,9 +72,17 @@ func (cm *ReaderConfigManager) update() error {
 		for pid, proc := range cm.ConfigWriter.Processes {
 			// If a config exists relevant to this proc
 			if proc.ServiceName == serviceName {
-				procCopy := *proc
-				updatedState[pid] = &procCopy
-				updatedState[pid].ProbesByID = convert(serviceName, configsByID)
+				updatedState[pid] = &ditypes.ProcessInfo{
+					PID:                    proc.PID,
+					ServiceName:            proc.ServiceName,
+					RuntimeID:              proc.RuntimeID,
+					BinaryPath:             proc.BinaryPath,
+					TypeMap:                proc.TypeMap,
+					ConfigurationUprobe:    proc.ConfigurationUprobe,
+					InstrumentationUprobes: proc.InstrumentationUprobes,
+					InstrumentationObjects: proc.InstrumentationObjects,
+					ProbesByID:             convert(serviceName, configsByID),
+				}
 			}
 		}
 	}
