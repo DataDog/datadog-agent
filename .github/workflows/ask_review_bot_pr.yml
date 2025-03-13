@@ -6,6 +6,9 @@ on:
     workflows: ["Add reviewers on dependency bot PR"]
     types:
       - completed
+    branches:
+      - dependabot/*
+      - renovate/*
 
 jobs:
   automatic-ask-review:
