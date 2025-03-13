@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -35,10 +34,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	grpcNonefx "github.com/DataDog/datadog-agent/comp/grpc/fx-none"
 
 	// package dependencies
 
@@ -67,12 +63,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		Module(),
 		fx.Replace(params),
 		hostnameimpl.MockModule(),
-		dogstatsdServer.MockModule(),
-		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fx.Supply(option.None[rcservice.Component]()),
-		fx.Supply(option.None[rcservicemrf.Component]()),
 		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
@@ -92,9 +84,9 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 				Provider: nil,
 			}
 		}),
-		fx.Provide(func() remoteagentregistry.Component { return nil }),
 		telemetryimpl.MockModule(),
 		config.MockModule(),
+		grpcNonefx.Module(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	)
