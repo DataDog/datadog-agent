@@ -56,6 +56,21 @@ const (
 	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
 )
 
+func (r NotCaptureReason) String() string {
+	switch r {
+	case Unsupported:
+		return "unsupported"
+	case NoFieldLocation:
+		return "no field location"
+	case FieldLimitReached:
+		return "field limit reached"
+	case CaptureDepthReached:
+		return "capture depth reached"
+	default:
+		return fmt.Sprintf("unknown reason (%d)", r)
+	}
+}
+
 // SpecialKind is used for clarity in generated events that certain fields weren't read
 type SpecialKind uint8
 
@@ -71,6 +86,8 @@ func (s SpecialKind) String() string {
 		return "Unsupported"
 	case KindCutFieldLimit:
 		return "CutFieldLimit"
+	case KindCaptureDepthReached:
+		return "CaptureDepthReached"
 	default:
 		return fmt.Sprintf("%d", s)
 	}

@@ -60,6 +60,16 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	procInfo.TypeMap = typeMap
 
+	// Enforce limit on number of parameters
+	for funcName := range procInfo.TypeMap.Functions {
+		for i, param := range procInfo.TypeMap.Functions[funcName] {
+			if i >= 20 {
+				param.DoNotCapture = true
+				param.NotCaptureReason = ditypes.FieldLimitReached
+			}
+		}
+	}
+
 	fieldIDs := make([]bininspect.FieldIdentifier, 0)
 	for _, funcParams := range typeMap.Functions {
 		for _, param := range funcParams {

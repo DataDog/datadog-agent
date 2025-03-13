@@ -32,6 +32,11 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 
 		params = applyCaptureDepth(params, depth)
 		for i := range params {
+			if params[i].DoNotCapture {
+				log.Tracef("Not capturing parameter %d %s: %s", i, params[i].Name, params[i].NotCaptureReason.String())
+				continue
+			}
+
 			err := generateParameterIndexText(i, out)
 			if err != nil {
 				return err
