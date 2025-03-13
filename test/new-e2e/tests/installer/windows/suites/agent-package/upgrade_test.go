@@ -7,7 +7,6 @@ package agenttests
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -109,7 +108,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
-	s.Require().Error(err, "banana")
+	s.Require().ErrorContains(err, "could not get package")
 	s.Installer().StopExperiment(consts.AgentPackage)
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 
@@ -148,8 +147,7 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	_, err := s.Installer().StopExperiment(consts.AgentPackage)
-	s.Require().NoError(err)
+	s.Installer().StopExperiment(consts.AgentPackage)
 
 	// Assert
 	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
@@ -171,9 +169,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
 
 	// Assert
-	// wait for service to come back (extended backoff because MSI is running)
-	err := s.waitForInstallerServiceWithBackoff("Running",
-		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+	err := s.waitForInstallerService("Running")
 	s.Require().NoError(err)
 	// original version should now be running
 	s.Require().Host(s.Env().RemoteHost).
@@ -187,19 +183,11 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 }
 
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
-	// TODO: Update when prod MSI that contains the Installer is available
 	agentVersion := s.StableAgentVersion().Version()
-	pipelineID := "58767813"
-	var urlopt installerwindows.Option
-	if packageFile, ok := os.LookupEnv("PREVIOUS_AGENT_MSI_URL"); ok {
-		urlopt = installerwindows.WithInstallerURL(packageFile)
-	} else if pipeline, ok := os.LookupEnv("PREVIOUS_AGENT_MSI_PIPELINE"); ok {
-		urlopt = installerwindows.WithURLFromPipeline(pipeline)
-	} else {
-		urlopt = installerwindows.WithURLFromPipeline(pipelineID)
-	}
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithOption(urlopt),
+		// TODO: Update when prod MSI that contains the Installer is available
+		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58767813")),
+		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	))
 
@@ -214,14 +202,9 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
 
 func (s *testAgentUpgradeSuite) installCurrentAgentVersion() {
 	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
-	var urlopt installerwindows.Option
-	if packageFile, ok := os.LookupEnv("CURRENT_AGENT_MSI_URL"); ok {
-		urlopt = installerwindows.WithInstallerURL(packageFile)
-	} else if pipeline, ok := os.LookupEnv("CURRENT_AGENT_MSI_PIPELINE"); ok {
-		urlopt = installerwindows.WithURLFromPipeline(pipeline)
-	}
+
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithOption(urlopt),
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	))
 

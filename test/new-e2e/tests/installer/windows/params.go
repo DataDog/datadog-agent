@@ -6,6 +6,8 @@
 package installer
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
@@ -112,6 +114,39 @@ func WithMSIArg(arg string) MsiOption {
 func WithMSILogFile(filename string) MsiOption {
 	return func(params *MsiParams) error {
 		params.msiLogFilename = filename
+		return nil
+	}
+}
+
+// WithDevEnvOverrides applies overrides to the package config based on environment variables.
+//
+// Example: local MSI package file
+//
+//	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
+//
+// Example: from a different pipeline
+//
+//	export CURRENT_AGENT_MSI_PIPELINE="123456"
+//
+// Example: from a different pipeline
+// (assumes that the package being overridden is already from a pipeline)
+//
+//	export CURRENT_AGENT_MSI_VERSION="pipeline-123456"
+//
+// Example: custom URL
+//
+//	export CURRENT_AGENT_MSI_URL="msi://installtesting.datad0g.com/agent-package:pipeline-123456"
+func WithMSIDevEnvOverrides(prefix string) MsiOption {
+	return func(params *MsiParams) error {
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", prefix)); ok {
+			WithOption(WithInstallerURL(url))(params)
+		}
+		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", prefix)); ok {
+			WithOption(WithURLFromPipeline(pipeline))(params)
+		}
+		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", prefix)); ok {
+			WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
+		}
 		return nil
 	}
 }
