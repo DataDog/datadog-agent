@@ -798,6 +798,7 @@ generate-flakes-finder-pipeline:
   tags: ["arch:amd64"]
   script:
     - dda inv -e testwasher.generate-flake-finder-pipeline
+    - inv -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
   artifacts:
     paths:
       - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
