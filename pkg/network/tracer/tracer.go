@@ -89,8 +89,8 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	gwLookup network.GatewayLookup
 
