@@ -8,7 +8,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-
 	yaml "gopkg.in/yaml.v3"
 )
 
