@@ -239,7 +239,7 @@ def process_test_result(
             for module_result in test_results:
                 durations = tw.parse_times(module_result.path)
                 for (pkg, test), (start, end) in durations.items():
-                    CIVisibilitySection.create(f"{test}", start, end, tags={"package": pkg, "test": test})
+                    CIVisibilitySection.create(f"{test}", start, end, tags={"package": pkg, "test": test, "agent-category": "unit-tests"})
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
