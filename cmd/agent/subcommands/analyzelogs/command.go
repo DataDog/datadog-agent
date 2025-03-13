@@ -126,8 +126,8 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 			idleTimer.Reset(inactivityTimeout)
 		case <-idleTimer.C:
 			// Timeout reached, signal quit
-			pipelineProvider.Stop()
 			launchers.Stop()
+			pipelineProvider.Stop()
 			return nil
 		}
 	}
@@ -145,7 +145,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		err := source.Config.Validate()
 		if err != nil {
 			fmt.Println("Error with config: ", err)
-			continue
+			return nil, nil, nil, err
 		}
 		if source.Config.TailingMode == "" {
 			source.Config.TailingMode = "beginning"
