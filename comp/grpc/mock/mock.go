@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for grpc component.
-func Mock(t *testing.T) grpc.Component {
+func Mock(_ *testing.T) grpc.Component {
 	// TODO: Implement the grpc mock
 	return nil
 }
