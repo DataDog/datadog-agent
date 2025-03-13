@@ -658,20 +658,26 @@ def build_libpcap(ctx):
     with ctx.cd(dist_dir):
         ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
-        config_opts = [
-            f"--prefix={embedded_path}",
-            "--disable-shared",
-            "--disable-largefile",
-            "--disable-instrument-functions",
-            "--disable-remote",
-            "--disable-usb",
-            "--disable-netmap",
-            "--disable-bluetooth",
-            "--disable-dbus",
-            "--disable-rdma",
-        ]
-        ctx.run(f"./configure {' '.join(config_opts)}")
-        ctx.run("make install")
+        env = {}
+        if os.getenv('DD_CC'):
+            env['CC'] = os.getenv('DD_CC')
+        if os.getenv('DD_CXX'):
+            env['CXX'] = os.getenv('DD_CXX')
+        with environ(env):
+            config_opts = [
+                f"--prefix={embedded_path}",
+                "--disable-shared",
+                "--disable-largefile",
+                "--disable-instrument-functions",
+                "--disable-remote",
+                "--disable-usb",
+                "--disable-netmap",
+                "--disable-bluetooth",
+                "--disable-dbus",
+                "--disable-rdma",
+            ]
+            ctx.run(f"./configure {' '.join(config_opts)}")
+            ctx.run("make install")
     ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
