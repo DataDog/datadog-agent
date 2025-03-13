@@ -31,13 +31,14 @@ func NewPermission() (*Permission, error) {
 func (p *Permission) RestrictAccessToUser(path string) error {
 	usr, err := user.Lookup("dd-agent")
 	if err != nil {
+		log.Infof("SMP Env Testing: Failed to look up user dd-agent for '%s' ", path)
 		return nil
 	}
-
 	usrID, err := strconv.Atoi(usr.Uid)
 	if err != nil {
 		return fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
 	}
+	log.Infof("SMP Env Testing: Uid for user dd-agent is %d when setting perms for '%s' ", usrID, path)
 
 	grpID, err := strconv.Atoi(usr.Gid)
 	if err != nil {
