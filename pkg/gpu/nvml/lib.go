@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/NVIDIA/go-nvml/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
