@@ -5,7 +5,7 @@
 
 //go:build linux && nvml
 
-// package nvml contains utilities to wrap usage of the NVML library
+// Package nvml contains utilities to wrap usage of the NVML library
 package nvml
 
 import (
@@ -24,6 +24,7 @@ type Device struct {
 	Index     int
 }
 
+// NewDevice creates a new Device from an nvml.Device and caches some properties
 func NewDevice(dev nvml.Device) (*Device, error) {
 	major, minor, ret := dev.GetCudaComputeCapability()
 	if ret != nvml.SUCCESS {
@@ -55,22 +56,30 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}, nil
 }
 
+// DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
+	// GetDeviceByUUID returns a device by its UUID
 	GetDeviceByUUID(uuid string) (*Device, error)
+	// GetDeviceByIndex returns a device by its index
 	GetDeviceByIndex(index int) (*Device, error)
+	// DeviceCount returns the number of devices in the cache
 	DeviceCount() int
+	// GetSMVersionSet returns a set of all SM versions in the cache
 	GetSMVersionSet() map[uint32]struct{}
+	// GetAllDevices returns all devices in the cache
 	GetAllDevices() []*Device
-
+	// GetCores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	GetCores(uuid string) (uint64, error)
 }
 
+// deviceCache is an implementation of DeviceCache
 type deviceCache struct {
 	allDevices   []*Device
 	uuidToDevice map[string]*Device
 	smVersionSet map[uint32]struct{}
 }
 
+// NewDeviceCache creates a new DeviceCache
 func NewDeviceCache() (DeviceCache, error) {
 	lib, err := GetNvmlLib()
 	if err != nil {
@@ -80,6 +89,7 @@ func NewDeviceCache() (DeviceCache, error) {
 	return NewDeviceCacheWithOptions(lib)
 }
 
+// NewDeviceCacheWithOptions creates a new DeviceCache with an already initialized NVML library
 func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	cache := &deviceCache{
 		uuidToDevice: make(map[string]*Device),
@@ -109,6 +119,7 @@ func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	return cache, nil
 }
 
+// GetDeviceByUUID returns a device by its UUID
 func (c *deviceCache) GetDeviceByUUID(uuid string) (*Device, error) {
 	device, ok := c.uuidToDevice[uuid]
 	if !ok {
@@ -117,6 +128,7 @@ func (c *deviceCache) GetDeviceByUUID(uuid string) (*Device, error) {
 	return device, nil
 }
 
+// GetDeviceByIndex returns a device by its index in the host
 func (c *deviceCache) GetDeviceByIndex(index int) (*Device, error) {
 	if index < 0 || index >= len(c.allDevices) {
 		return nil, fmt.Errorf("index %d out of range", index)
@@ -125,18 +137,22 @@ func (c *deviceCache) GetDeviceByIndex(index int) (*Device, error) {
 	return c.allDevices[index], nil
 }
 
+// DeviceCount returns the number of devices in the cache
 func (c *deviceCache) DeviceCount() int {
 	return len(c.allDevices)
 }
 
+// GetSMVersionSet returns a set of all SM versions in the cache
 func (c *deviceCache) GetSMVersionSet() map[uint32]struct{} {
 	return c.smVersionSet
 }
 
+// GetAllDevices returns all devices in the cache
 func (c *deviceCache) GetAllDevices() []*Device {
 	return c.allDevices
 }
 
+// GetCores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 func (c *deviceCache) GetCores(uuid string) (uint64, error) {
 	device, err := c.GetDeviceByUUID(uuid)
 	if err != nil {
