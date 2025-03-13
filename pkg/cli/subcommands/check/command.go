@@ -92,37 +92,39 @@ type cliParams struct {
 	// cmd is the running cobra.Command
 	cmd *cobra.Command
 
+	checkName            string
+	instanceFilter       string
+	logLevel             string
+	breakPoint           string
+	profileMemoryDir     string
+	profileMemoryFrames  string
+	profileMemoryGC      string
+	profileMemoryCombine string
+	profileMemorySort    string
+	profileMemoryLimit   string
+	profileMemoryDiff    string
+	profileMemoryFilters string
+	profileMemoryUnit    string
+	profileMemoryVerbose string
+
 	// args are the positional command line args
 	args []string
+
+	checkTimes             int
+	checkPause             int
+	checkDelay             int
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
+	discoveryMinInstances  uint
 
 	// subcommand-specific params
 
 	checkRate                 bool
-	checkTimes                int
-	checkPause                int
-	checkName                 string
-	checkDelay                int
-	instanceFilter            string
-	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
-	breakPoint                string
 	fullSketches              bool
 	saveFlare                 bool
 	profileMemory             bool
-	profileMemoryDir          string
-	profileMemoryFrames       string
-	profileMemoryGC           string
-	profileMemoryCombine      string
-	profileMemorySort         string
-	profileMemoryLimit        string
-	profileMemoryDiff         string
-	profileMemoryFilters      string
-	profileMemoryUnit         string
-	profileMemoryVerbose      string
-	discoveryTimeout          uint
-	discoveryRetryInterval    uint
-	discoveryMinInstances     uint
 	generateIntegrationTraces bool
 }
 
@@ -132,11 +134,11 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath         string
-	ExtraConfFilePaths   []string
 	SysProbeConfFilePath string
 	FleetPoliciesDirPath string
 	ConfigName           string
 	LoggerName           string
+	ExtraConfFilePaths   []string
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
