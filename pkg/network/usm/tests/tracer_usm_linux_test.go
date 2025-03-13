@@ -701,7 +701,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableRedisMonitoring = true
@@ -715,6 +715,10 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
+
+	usmStats := tr.USMMonitor().GetUSMStats()
+	startupError, exists := usmStats["error"]
+	require.Falsef(t, exists, "error: %v", startupError)
 }
 
 func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
@@ -2803,7 +2807,6 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
-	t.Skip("skipping test, failing on main")
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
 
 	cfg := utils.NewUSMEmptyConfig()

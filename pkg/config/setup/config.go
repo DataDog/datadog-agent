@@ -328,6 +328,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// library support will not work reliably in those environments)
 	config.BindEnvAndSetDefault("allow_python_path_heuristics_failure", false)
 
+	// If true, Python is loaded when the first Python check is loaded.
+	// Otherwise, Python is loaded when the collector is initialized.
+	config.BindEnvAndSetDefault("python_lazy_loading", true)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
@@ -1701,6 +1705,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
+	config.BindEnvAndSetDefault("kubelet_use_api_server", false)
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 

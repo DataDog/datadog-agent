@@ -393,9 +393,6 @@ func (t *Tracer) Resume() error {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
-	if t.gwLookup != nil {
-		t.gwLookup.Close()
-	}
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
 	}
@@ -405,6 +402,9 @@ func (t *Tracer) Stop() {
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
+	}
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()

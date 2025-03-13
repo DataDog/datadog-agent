@@ -56,7 +56,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}()
 
 	// 1. Ensure the dd-agent user and group exist
-	err = user.EnsureAgentUserAndGroup(ctx)
+	err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-packages")
 	if err != nil {
 		return fmt.Errorf("error ensuring dd-agent user and group: %w", err)
 	}
