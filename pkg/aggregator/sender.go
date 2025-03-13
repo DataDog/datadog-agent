@@ -29,20 +29,20 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	id                      checkid.ID
-	defaultHostname         string
-	defaultHostnameDisabled bool
-	metricStats             stats.SenderStats
-	priormetricStats        stats.SenderStats
-	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- servicecheck.ServiceCheck
 	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	checkTags               []string
+	metricStats             stats.SenderStats
+	priormetricStats        stats.SenderStats
+	id                      checkid.ID
+	defaultHostname         string
 	service                 string
+	checkTags               []string
+	statsLock               sync.RWMutex
+	defaultHostnameDisabled bool
 	noIndex                 bool
 }
 
@@ -52,8 +52,8 @@ type senderItem interface {
 }
 
 type senderMetricSample struct {
-	id           checkid.ID
 	metricSample *metrics.MetricSample
+	id           checkid.ID
 	commit       bool
 }
 
@@ -62,8 +62,8 @@ func (s *senderMetricSample) handle(agg *BufferedAggregator) {
 }
 
 type senderHistogramBucket struct {
-	id     checkid.ID
 	bucket *metrics.HistogramBucket
+	id     checkid.ID
 }
 
 func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
@@ -72,19 +72,19 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 
 type senderEventPlatformEvent struct {
 	id        checkid.ID
-	rawEvent  []byte
 	eventType string
+	rawEvent  []byte
 }
 
 type senderOrchestratorMetadata struct {
-	msgs        []types.ProcessMessageBody
 	clusterID   string
+	msgs        []types.ProcessMessageBody
 	payloadType int
 }
 
 type senderOrchestratorManifest struct {
-	msgs      []types.ProcessMessageBody
 	clusterID string
+	msgs      []types.ProcessMessageBody
 }
 
 type checkSenderPool struct {
@@ -150,7 +150,7 @@ func (s *checkSender) SetNoIndex(noIndex bool) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.itemsOut <- &senderMetricSample{&metrics.MetricSample{}, s.id, true}
 	s.cyclemetricStats()
 }
 
@@ -170,7 +170,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
+	s.itemsOut <- &senderMetricSample{sample, s.id, false}
 }
 
 func (s *checkSender) sendMetricSample(
@@ -210,7 +210,7 @@ func (s *checkSender) sendMetricSample(
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.itemsOut <- &senderMetricSample{metricSample, s.id, false}
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -293,7 +293,7 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
+	s.itemsOut <- &senderHistogramBucket{histogramBucket, s.id}
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++

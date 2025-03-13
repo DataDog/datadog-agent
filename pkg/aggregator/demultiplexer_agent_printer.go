@@ -24,9 +24,9 @@ type AgentDemultiplexerPrinter struct {
 }
 
 type eventPlatformDebugEvent struct {
-	RawEvent          string `json:",omitempty"`
-	EventType         string
 	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+	RawEvent          string                 `json:",omitempty"`
+	EventType         string
 }
 
 // PrintMetrics prints metrics aggregator in the Demultiplexer's check samplers (series and sketches),

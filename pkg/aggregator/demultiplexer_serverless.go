@@ -36,11 +36,11 @@ type ServerlessDemultiplexer struct {
 
 	flushLock *sync.Mutex
 
-	flushAndSerializeInParallel FlushAndSerializeInParallel
-
 	hostTagProvider *HostTagProvider
 
 	*senders
+
+	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
