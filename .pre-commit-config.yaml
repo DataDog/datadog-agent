@@ -152,4 +152,4 @@ repos:
       entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$
