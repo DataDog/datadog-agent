@@ -8,6 +8,7 @@ package apikey
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ var getFunc = func(string, aws.FIPSEndpointState) (string, error) {
 }
 
 var mockSetSecretsFromEnv = func(t *testing.T, testEnvVars []string) {
-	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc) {
+	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc, false) {
 		t.Setenv(envKey, strings.TrimSpace(envVal))
 	}
 }
@@ -36,7 +37,7 @@ func TestGetSecretEnvVars(t *testing.T) {
 		"DD_KMS_API_KEY=123",
 	}
 
-	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc)
+	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc, false)
 
 	assert.Equal(t, map[string]string{
 		"TEST_KMS":   "DECRYPTED_VAL",
@@ -45,19 +46,17 @@ func TestGetSecretEnvVars(t *testing.T) {
 	}, decryptedEnvVars)
 }
 
-func TestGetSecretEnvVarsWithFIPSEndpoint(t *testing.T) {
+func TestGetSecretEnvVarsWithFIPS(t *testing.T) {
 	tests := []struct {
-		region       string
-		expectedFIPS aws.FIPSEndpointState
+		shouldUseFips bool
+		expectedFIPS  aws.FIPSEndpointState
 	}{
-		{"us-gov-west-1", aws.FIPSEndpointStateEnabled},
-		{"us-west-2", aws.FIPSEndpointStateUnset},
+		{true, aws.FIPSEndpointStateEnabled},
+		{false, aws.FIPSEndpointStateUnset},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.region, func(t *testing.T) {
-			os.Setenv(lambdaRegionEnvVar, tc.region)
-
+		t.Run(strconv.FormatBool(tc.shouldUseFips), func(t *testing.T) {
 			var kmsFIPS aws.FIPSEndpointState
 			var smFIPS aws.FIPSEndpointState
 			mockKMSFunc := func(_ string, fips aws.FIPSEndpointState) (string, error) {
@@ -73,12 +72,12 @@ func TestGetSecretEnvVarsWithFIPSEndpoint(t *testing.T) {
 				"TEST_KMS_KMS_ENCRYPTED=test",
 				"TEST_SM_SECRET_ARN=test",
 			}
-			getSecretEnvVars(testEnvVars, mockKMSFunc, mockSMFunc)
+			getSecretEnvVars(testEnvVars, mockKMSFunc, mockSMFunc, tc.shouldUseFips)
 
 			assert.Equal(t, tc.expectedFIPS, kmsFIPS,
-				"kmsFunc received wrong FIPS state for region %s", tc.region)
+				"kmsFunc received wrong FIPS state")
 			assert.Equal(t, tc.expectedFIPS, smFIPS,
-				"smFunc received wrong FIPS state for region %s", tc.region)
+				"smFunc received wrong FIPS state")
 		})
 	}
 }
