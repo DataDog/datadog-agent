@@ -520,14 +520,14 @@ new-e2e-installer-windows:
   parallel:
     matrix:
       # agent-package
-      - EXTRA_PARAMS: --run "TestUpgradeMSI$"
-      - EXTRA_PARAMS: --run "TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestDowngradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestStopExperiment$"
-      - EXTRA_PARAMS: --run "TestExperimentForNonExistingPackageFails$"
-      - EXTRA_PARAMS: --run "TestExperimentCurrentVersionFails$"
-      - EXTRA_PARAMS: --run "TestStopWithoutExperiment$"
-      - EXTRA_PARAMS: --run "TestRevertsExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestDowngradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentForNonExistingPackageFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentCurrentVersionFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopWithoutExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenServiceDies$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
