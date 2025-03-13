@@ -5,11 +5,6 @@
     - when: on_success
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    # HACK: empty the build directory cache (that can come from previous runs)
-    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
-    # TODO: remove this once we switch to k8s runners, they won't have this problem
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
     - dda inv check-go-version
     - dda inv -e system-probe.build-object-files --strip-object-files
