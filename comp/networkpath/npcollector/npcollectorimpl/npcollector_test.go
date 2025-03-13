@@ -950,6 +950,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 				Family:    model.ConnectionFamily_v4,
+				IntraHost: true, // loopback is always IntraHost
 			},
 			shouldSchedule: false,
 		},

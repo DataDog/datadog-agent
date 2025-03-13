@@ -161,22 +161,10 @@ func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
 	return false
 }
 
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
-	if conn == nil {
-		return false
-	}
-	if conn.IntraHost {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
-		return false
-	}
-	if conn.Direction != model.ConnectionDirection_outgoing {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
-		return false
-	}
-	// only ipv4 is supported currently
-	if conn.Family != model.ConnectionFamily_v4 {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
-		return false
+func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+	if len(vpcSubnets) == 0 && len(s.sourceExcludes) == 0 && len(s.destExcludes) == 0 {
+		// this should be most customers - parsing IPs is not necessary
+		return true
 	}
 
 	sourceAddr, err := netip.ParseAddr(conn.Laddr.Ip)
@@ -198,15 +186,6 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	}
 	dest := netip.AddrPortFrom(destAddr, uint16(conn.Raddr.Port))
 
-	if err != nil {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_ip"}, 1) //nolint:errcheck
-		return false
-	}
-	if dest.Addr().IsLoopback() {
-		// is this case possible, given that we already filter out IntraHost?
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
-		return false
-	}
 	if doSubnetsContainIP(vpcSubnets, dest.Addr()) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
 		return false
@@ -222,6 +201,27 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 	return true
+
+}
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+	if conn == nil {
+		return false
+	}
+	if conn.IntraHost {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
+		return false
+	}
+	if conn.Direction != model.ConnectionDirection_outgoing {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
+		return false
+	}
+	// only ipv4 is supported currently
+	if conn.Family != model.ConnectionFamily_v4 {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+		return false
+	}
+
+	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
 }
 
 func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
