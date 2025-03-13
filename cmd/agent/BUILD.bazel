@@ -169,8 +169,12 @@ INSTALL_PATH = "/opt/datadog-agent"
 go_binary(
     name = "agent",
     embed = [":agent_lib"],
+    # keep
     gc_linkopts = [
-        "-r={}/embedded/lib".format(INSTALL_PATH),  # keep
+        "-r={}/embedded/lib".format(INSTALL_PATH),
+        # Fix go-nvml runtime symbol finding issue
+        "-extldflags",
+        "-Wl,-z,lazy",
     ],
     # keep
     gotags = select({
