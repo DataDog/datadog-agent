@@ -124,7 +124,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		apiKey = config.APIKey
 	}
 	site := env.Site
-	if site == "" {
+	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
 		site = config.Site
 	}
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
