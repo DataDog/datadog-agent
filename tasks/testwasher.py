@@ -134,6 +134,17 @@ class TestWasher:
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
 
+    def parse_date(self, date: str) -> float:
+        re_nanos = re.compile(r"^([0-9]*)([^0-9].*)$")
+        date, nano_and_tz = date.split(".")
+
+        # Cannot parse nanoseconds but microseconds
+        matches = re.match(re_nanos, nano_and_tz)
+        nanos, tz = matches[1], matches[2]
+        date = f"{date}.{nanos[:6]} {tz}"
+
+        return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f %z").timestamp()
+
     def parse_times(self, module_path: str) -> dict[tuple[str, str], float]:
         """Parses tests start / end times.
 
@@ -144,18 +155,6 @@ class TestWasher:
         start_times = {}
         end_times = {}
 
-        re_nanos = re.compile(r"^([0-9]*)([^0-9].*)$")
-
-        def parse_date(date: str) -> float:
-            date, nano_and_tz = date.split(".")
-
-            # Cannot parse nanoseconds but microseconds
-            matches = re.match(re_nanos, nano_and_tz)
-            nanos, tz = matches[1], matches[2]
-            date = f"{date}.{nanos} {tz}"
-
-            return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f %z").timestamp()
-
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
@@ -163,10 +162,10 @@ class TestWasher:
                     continue
                 if test_result["Action"] == "run":
                     key = test_result["Package"], test_result["Test"]
-                    start_times[key] = parse_date(test_result["Time"])
+                    start_times[key] = self.parse_date(test_result["Time"])
                 if test_result["Action"] in ("pass", "fail"):
                     key = test_result["Package"], test_result["Test"]
-                    end_times[key] = parse_date(test_result["Time"])
+                    end_times[key] = self.parse_date(test_result["Time"])
 
         mapping = {}
         for key in end_times:

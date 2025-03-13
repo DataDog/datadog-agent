@@ -275,3 +275,10 @@ class TestParseTimes(unittest.TestCase):
         start, end = times[key]
         self.assertLessEqual(start, end)
         self.assertEqual(len(times), 9)
+
+    def test_parse_date(self):
+        tw = TestWasher()
+        # Don't throw errors
+        tw.parse_date('2025-02-11T09:50:43.163346+01:00')
+        tw.parse_date('2025-02-11T09:50:43.163346123-01:00')
+        tw.parse_date('2025-03-13T09:49:41.983077301Z')
