@@ -60,6 +60,15 @@ class WorktreeMockContext(MockContext):
         if re.match(r'git.*remote get-url.*', command):
             return Result(stdout='git@my-amazing-git-server.dev:datadog/datadog-agent.git')
 
+        if (
+            re.match(r'git.*status --porcelain.*', command)
+            or re.match(r'git.*reset --hard.*', command)
+            or re.match(r'git.*clean -f.*', command)
+            or re.match(r'git.*branch --set-upstream-to.*', command)
+            or re.match(r'cp.*', command)
+        ):
+            return Result(stdout='')
+
         if re.match(r'git.*clone.*', command):
             self._clone()
 

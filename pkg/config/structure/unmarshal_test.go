@@ -102,6 +102,55 @@ network_devices:
 	assert.Equal(t, trapsCfg.Namespace, "abc")
 }
 
+func TestUnmarshalKeyNilString(t *testing.T) {
+	// nil values in the yaml will convert to "" for string
+	confYaml := `
+users:
+- user:         alice
+  authKey:      hunter2
+  authProtocol: MD5
+  privKey:      pswd
+  privProtocol: AE5
+- user:         bob
+  authKey:      "123456"
+  authProtocol: MD5
+  privKey:
+  privProtocol:
+`
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var users []userV3
+	err := unmarshalKeyReflection(mockConfig, "users", &users)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(users), 2)
+	assert.Equal(t, users[0].Username, "alice")
+	assert.Equal(t, users[0].PrivKey, "pswd")
+	assert.Equal(t, users[1].Username, "bob")
+	assert.Equal(t, users[1].PrivKey, "")
+}
+
+func TestUnmarshalKeyNilInt(t *testing.T) {
+	// nil values in the yaml will convert to 0 for int types
+	confYaml := `
+network_devices:
+  snmp_traps:
+    enabled: true
+    port:
+    stop_timeout:
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var trapsCfg = trapsConfig{}
+	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps", &trapsCfg)
+	assert.NoError(t, err)
+
+	assert.Equal(t, trapsCfg.Enabled, true)
+	assert.Equal(t, trapsCfg.Port, uint16(0))
+	assert.Equal(t, trapsCfg.StopTimeout, 0)
+}
+
 type endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`

@@ -54,6 +54,7 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
+	initialUpdateDeadline   = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -134,6 +135,9 @@ type CoreAgentService struct {
 	Service
 	firstUpdate bool
 
+	// We record the startup time to ensure we flush client configs if we can't contact the backend in time
+	startupTime time.Time
+
 	defaultRefreshInterval         time.Duration
 	refreshIntervalOverrideAllowed bool
 
@@ -184,7 +188,9 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetFiles(files []string) (map[string][]byte, error)
 	TargetsMeta() ([]byte, error)
+	UnsafeTargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
@@ -413,7 +419,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		databaseFilePath = options.databaseFilePath
 	}
 	dbPath := path.Join(databaseFilePath, options.databaseFileName)
-	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
+	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey, baseURL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -438,12 +444,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	return &CoreAgentService{
+	now := clock.Now().UTC()
+	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
 			db:     db,
 		},
 		firstUpdate:                    true,
+		startupTime:                    now,
 		defaultRefreshInterval:         options.refresh,
 		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
 		backoffErrorCount:              0,
@@ -473,7 +481,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopOrgPoller:         make(chan struct{}),
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
-	}, nil
+	}
+
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+
+	return cas, nil
 }
 
 func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
@@ -684,7 +696,6 @@ func (s *CoreAgentService) refresh() error {
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
 	}
-
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request
 	if s.refreshIntervalOverrideAllowed {
@@ -754,6 +765,20 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	return value, nil
 }
 
+func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
+	targets, err := s.uptane.UnsafeTargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	return &pbgo.ClientGetConfigsResponse{
+		Roots:         nil,
+		Targets:       targets,
+		TargetFiles:   nil,
+		ClientConfigs: nil,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
+	}, nil
+}
+
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
@@ -806,6 +831,22 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
+
+	// If we have made our initial update (or the deadline has expired)
+	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+		// get the expiration time of timestamp.json
+		expires, err := s.uptane.TimestampExpires()
+		if err != nil {
+			return nil, err
+		}
+		// If timestamp.json has expired and we've waited to ensure connection to the backend,
+		// all clients must flush their configuration state.
+		if expires.Before(time.Now()) {
+			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+			return s.flushCacheResponse()
+		}
+	}
+
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
@@ -847,6 +888,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	}, nil
 }
 
@@ -879,6 +921,41 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	}
 
 	return filteredList, nil
+}
+
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
+	return func(setting string, _, newvalue any) {
+		if setting != "api_key" {
+			return
+		}
+
+		newKey, ok := newvalue.(string)
+
+		if !ok {
+			log.Errorf("Could not convert API key to string")
+			return
+		}
+		s.Lock()
+		defer s.Unlock()
+
+		s.api.UpdateAPIKey(newKey)
+
+		// Verify that the Org UUID hasn't changed
+		storedOrgUUID, err := s.uptane.StoredOrgUUID()
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+		newOrgUUID, err := s.api.FetchOrgData(context.Background())
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+
+		if storedOrgUUID != newOrgUUID.Uuid {
+			log.Errorf("Error switching API key: new API key is from a different organization")
+		}
+	}
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
@@ -1027,7 +1104,7 @@ type HTTPClient struct {
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
 	dbPath := path.Join(runPath, "remote-config-cdn.db")
-	db, err := openCacheDB(dbPath, agentVersion, apiKey)
+	db, err := openCacheDB(dbPath, agentVersion, apiKey, site)
 	if err != nil {
 		return nil, err
 	}

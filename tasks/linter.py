@@ -162,8 +162,8 @@ def go(
         debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
 
     Example invokation:
-        $ inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
-        $ inv linter.go --module=.
+        $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        $ dda inv linter.go --module=.
     """
 
     check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
@@ -579,6 +579,7 @@ def job_change_path(ctx, job_files=None):
     """Verifies that the jobs defined within job_files contain a change path rule."""
 
     tests_without_change_path_allow_list = {
+        'generate-fips-e2e-pipeline',
         'generate-flakes-finder-pipeline',
         'k8s-e2e-cspm-dev',
         'k8s-e2e-cspm-main',
@@ -668,6 +669,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e_windows_powershell_module_test',
         'new-e2e-eks-cleanup-on-failure',
         'trigger-flakes-finder',
+        'trigger-fips-e2e',
     }
 
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))

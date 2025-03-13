@@ -8,13 +8,16 @@ package installer
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -108,6 +111,16 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	}
 
 	envVars := installer.InstallScriptEnvWithPackages(e2eos.AMD64Arch, []installer.TestPackageConfig{packageConfig})
+
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+	envVars["DD_API_KEY"] = apiKey
+
 	packageURL := fmt.Sprintf("oci://%s/%s:%s", packageConfig.Registry, registryTag, packageConfig.Version)
 
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
@@ -147,6 +160,11 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	// if purge is run from the install directory it may cause an uninstall failure due
 	// to the file being in use.
 	return d.executeFromCopy("purge")
+}
+
+// GarbageCollect runs the garbage-collect command, removing unused packages
+func (d *DatadogInstaller) GarbageCollect() (string, error) {
+	return d.execute("garbage-collect")
 }
 
 func (d *DatadogInstaller) createInstallerFolders() {

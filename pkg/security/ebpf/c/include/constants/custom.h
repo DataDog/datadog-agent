@@ -64,6 +64,7 @@ enum TC_TAIL_CALL_KEYS
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
+    DNS_RESPONSE
 };
 
 enum TC_RAWPACKET_KEYS {
@@ -72,6 +73,8 @@ enum TC_RAWPACKET_KEYS {
 };
 
 #define DNS_MAX_LENGTH 256
+// 468 is the maximum that can go in the stack of the dns_response classifier without blowing it
+#define DNS_RECEIVE_MAX_LENGTH 468
 #define DNS_EVENT_KEY 0
 
 #define EGRESS 1
@@ -232,6 +235,22 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     u64 is_network_flow_monitor_enabled;
     LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);
     return is_network_flow_monitor_enabled;
+}
+
+#define SYSCTL_OK       1
+
+#define MAX_SYSCTL_BUFFER_LEN 1024
+#define MAX_SYSCTL_OBJ_LEN 256
+#define SYSCTL_EVENT_GEN_KEY 0
+
+#define SYSCTL_NAME_TRUNCATED (1 << 0)
+#define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
+#define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
+
+static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
+    u64 tracing_helpers_in_cgroup_sysctl;
+    LOAD_CONSTANT("tracing_helpers_in_cgroup_sysctl", tracing_helpers_in_cgroup_sysctl);
+    return tracing_helpers_in_cgroup_sysctl;
 }
 
 #endif

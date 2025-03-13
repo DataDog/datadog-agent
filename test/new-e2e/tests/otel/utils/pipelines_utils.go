@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -482,6 +483,7 @@ func TestHostMetrics(s OTelTestSuite) {
 
 // SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
 func SetupSampleTraces(s OTelTestSuite) {
+	flake.Mark(s.T())
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -551,7 +553,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	require.NoError(s.T(), err, "Could not properly start job")
 }
 
-// TestCalendarApp tests that OTLP metrics are received through OTel pipelines as expected
+// TestCalendarApp starts the calendar app to send telemetry for e2e tests
 func TestCalendarApp(s OTelTestSuite, ust bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()

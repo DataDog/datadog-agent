@@ -17,6 +17,7 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
+    "bundle_installer",
     "clusterchecks",
     "consul",
     "containerd",
@@ -32,6 +33,7 @@ ALL_TAGS = {
     "etcd",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
+    "grpcnotrace",  # used to disable gRPC tracing
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -63,6 +65,7 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
+    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -92,6 +95,7 @@ AGENT_TAGS = {
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
+        "bundle_installer",
         "containerd",
         "no_dynamic_plugins",
         "cri",
@@ -109,7 +113,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
-FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto", "requirefips"})
+FIPS_TAGS = {"goexperiment.systemcrypto", "requirefips"}
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
@@ -163,13 +167,22 @@ SECURITY_AGENT_TAGS = {
     "ec2",
 }
 
+# SBOMGEN_TAGS lists the tags necessary to build sbomgen
+SBOMGEN_TAGS = {
+    "trivy",
+    "grpcnotrace",
+    "no_dynamic_plugins",
+    "containerd",
+    "docker",
+    "crio",
+}
+
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
-    "no_dynamic_plugins",
     "ec2",
     "linux_bpf",
     "netcgo",
@@ -244,12 +257,30 @@ build_tags = {
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
+        "sbomgen": SBOMGEN_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.fips: {
+        "agent": AGENT_TAGS.union(FIPS_TAGS),
+        "dogstatsd": DOGSTATSD_TAGS.union(FIPS_TAGS),
+        "process-agent": PROCESS_AGENT_TAGS.union(FIPS_TAGS),
+        "security-agent": SECURITY_AGENT_TAGS.union(FIPS_TAGS),
+        "serverless": SERVERLESS_TAGS.union(FIPS_TAGS),
+        "system-probe": SYSTEM_PROBE_TAGS.union(FIPS_TAGS),
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(FIPS_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
+        "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
+        "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
+        # Test setups
+        "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
@@ -268,11 +299,6 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-    },
-    AgentFlavor.fips: {
-        "agent": FIPS_AGENT_TAGS,
-        "lint": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

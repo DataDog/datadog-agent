@@ -45,14 +45,29 @@
 
   SECL Variables
   ==============
-  
-  {{ range $variable := .seclVariables }}
+
+  Global variables:
+  {{ range $variable := .seclGlobalVariables }}
     - {{ $variable.Name }}: {{ $variable.Value }}
-  {{ end }}
-  {{if not .seclVariables}}
-    No SECL variables found
-  {{end}}
-  
+  {{- end }}
+  {{- if not .seclGlobalVariables }}
+      No variable found
+  {{- end }}
+
+  Scoped variables:
+  {{ range $scope, $vars := .seclScopedVariables }}
+    {{ $scope }}:
+    {{ range $key, $variables := $vars }}
+      {{ $key }}:
+      {{- range $variable := $variables }}
+        - {{ $variable.Name }}: {{ $variable.Value }}
+      {{- end }}
+    {{ end }}
+  {{- end }}
+  {{- if not .seclScopedVariables }}
+      No variable found
+  {{- end }}
+
   {{- with .environment }}
 
   Environment
