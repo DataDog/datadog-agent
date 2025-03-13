@@ -238,6 +238,8 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion() {
 func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
 	s.Require().NoError(err)
+	packageConfig, err = installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
+	s.Require().NoError(err)
 
 	// Set catalog so daemon can find the package
 	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
@@ -250,7 +252,6 @@ func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...install
 		},
 	})
 	s.Require().NoError(err)
-	installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
 	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
 }
 
