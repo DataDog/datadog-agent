@@ -7,8 +7,9 @@ type BaseEvent struct {
 	Pid              uint32
 	Uid              uint32
 	Program_counters [10]uint64
-	Probe_id         [36]byte
 	Param_indicies   [20]uint64
+	Probe_id         [36]byte
+	Pad_cgo_0        [4]byte
 }
 
 const SizeofBaseEvent = 0x120
