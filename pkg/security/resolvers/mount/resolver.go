@@ -539,17 +539,6 @@ func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
-// GetVFSLinkTargetDentryPosition gets VFS link target dentry position
-func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
-	position := uint64(3)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		position = 4
-	}
-
-	return position
-}
-
 // GetVFSSetxattrDentryPosition gets VFS set xattr dentry position
 func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)

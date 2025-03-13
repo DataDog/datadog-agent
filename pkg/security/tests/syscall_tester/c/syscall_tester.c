@@ -1214,6 +1214,23 @@ int test_utimes(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_link(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (link(oldpath, newpath) < 0) {
+        perror("link");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1305,6 +1322,8 @@ int main(int argc, char **argv) {
             return test_rename(sub_argc, sub_argv);
         } else if (strcmp(cmd, "utimes") == 0) {
             return test_utimes(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "link") == 0) {
+            return test_link(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
