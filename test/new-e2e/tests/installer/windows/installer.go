@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -127,6 +128,7 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
+// SetCatalog configures the catalog for the Datadog Installer daemon
 func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
@@ -150,7 +152,7 @@ func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error)
 	return d.execute(fmt.Sprintf("daemon promote-experiment '%s'", packageName))
 }
 
-// PromoteExperiment will use the Datadog Installer service to promote an experiment
+// StopExperiment will use the Datadog Installer service to stop an experiment
 func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
 }
@@ -248,8 +250,8 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
 	}
 	msiArgs := ""
-	if params.msiArgs != nil {
-		msiArgs = strings.Join(params.msiArgs, " ")
+	if msiArgList != nil {
+		msiArgs = strings.Join(msiArgList, " ")
 	}
 	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
 }
@@ -278,4 +280,205 @@ func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
 		msiArgs = strings.Join(params.msiArgs, " ")
 	}
 	return windowsCommon.MsiExec(d.env.RemoteHost, "/x", productCode, msiArgs, logPath)
+}
+
+// createFileRegistryFromLocalOCI uploads a local OCI package to the remote host and prepares it to
+// be used as a `file://` package path for the daemon downloader.
+//
+// returns the path to the extracted package on the remote host.
+//
+// Currently, this requires extracting the OCI package to a directory.
+func createFileRegistryFromLocalOCI(host *components.RemoteHost, localPackagePath string) (string, error) {
+	// Upload OCI package to temporary path
+	remotePath, err := windowsCommon.GetTemporaryFile(host)
+	if err != nil {
+		return "", err
+	}
+	host.CopyFile(localPackagePath, remotePath)
+	// Extract OCI package
+	outPath := remotePath + ".extracted"
+	// tar is a built-in command on Windows 10+
+	cmd := fmt.Sprintf("mkdir %s; tar -xf %s -C %s", outPath, remotePath, outPath)
+	_, err = host.Execute(cmd)
+	if err != nil {
+		return "", err
+	}
+	// return path to extracted package
+	return outPath, nil
+}
+
+// CreatePackageSourceIfLocal will create a package on the remote host if the URL is a local file.
+// This is useful for development to test local packages.
+func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConfig) (TestPackageConfig, error) {
+	url := pkg.URL()
+	// If the URL is a file, upload it to the remote host
+	if strings.HasPrefix(url, "file://") {
+		localPath := strings.TrimPrefix(url, "file://")
+		outPath, err := createFileRegistryFromLocalOCI(host, localPath)
+		if err != nil {
+			return pkg, err
+		}
+		// Must replace slashes so that daemon can parse it correctly
+		outPath = strings.Replace(outPath, "\\", "/", -1)
+		pkg.urloverride = fmt.Sprintf("file://%s", outPath)
+	}
+	return pkg, nil
+}
+
+// NewPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
+func NewPackageConfig(opts ...PackageOption) (TestPackageConfig, error) {
+	c := TestPackageConfig{}
+	for _, opt := range opts {
+		err := opt(&c)
+		if err != nil {
+			return c, err
+		}
+	}
+	if c.Alias == "" {
+		switch c.Name {
+		case consts.AgentPackage:
+			c.Alias = "agent-package"
+		}
+	}
+	for _, opt := range opts {
+		err := opt(&c)
+		if err != nil {
+			return c, err
+		}
+	}
+	return c, nil
+}
+
+// TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
+type TestPackageConfig struct {
+	// Name the name of the package
+	Name string
+	// Alias Sometimes the package is named differently in some registries
+	Alias string
+	// Version the version to install
+	Version string
+	// Registry the URL of the registry
+	Registry string
+	// Auth the authentication method, "" for no authentication
+	Auth string
+	// urloverride to use for package
+	//
+	// The URL is normally constructed from the above parts, this field will take precedence.
+	// Useful for development to test local packages.
+	urloverride string
+}
+
+func (c TestPackageConfig) URL() string {
+	if c.urloverride != "" {
+		// if the URL had been overridden, use it
+		return c.urloverride
+	}
+	// else construct it from parts
+	name := c.Name
+	if c.Alias != "" {
+		name = c.Alias
+	}
+	return fmt.Sprintf("oci://%s/%s:%s", c.Registry, name, c.Version)
+}
+
+// PackageOption is an optional function parameter type for the Datadog Installer
+type PackageOption func(*TestPackageConfig) error
+
+// WithName uses a specific name for the package.
+func WithName(name string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Name = name
+		return nil
+	}
+}
+
+// WithAuthentication uses a specific authentication for a Registry to install the package.
+func WithAuthentication(auth string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Auth = auth
+		return nil
+	}
+}
+
+// WithRegistry uses a specific Registry from where to install the package.
+func WithRegistry(registryURL string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Registry = registryURL
+		return nil
+	}
+}
+
+// WithVersion uses a specific version of the package.
+func WithVersion(version string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Version = version
+		return nil
+	}
+}
+
+// WithAlias specifies the package's alias.
+func WithAlias(alias string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Alias = alias
+		return nil
+	}
+}
+
+// WithURLOverride specifies the package's URL.
+func WithURLOverride(url string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.urloverride = url
+		return nil
+	}
+}
+
+// WithPipeline configures the package to be installed from a pipeline.
+func WithPipeline(pipeline string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
+		params.Registry = consts.PipelineOCIRegistry
+		return nil
+	}
+}
+
+// WithDevEnvOverrides applies overrides to the package config based on environment variables.
+//
+// Example: local OCI package file
+//
+//	export CURRENT_AGENT_OCI_URL="file:///path/to/oci/package.tar"
+//
+// Example: from a different pipeline
+//
+//	export CURRENT_AGENT_OCI_PIPELINE="123456"
+//
+// Example: from a different pipeline
+// (assumes that the package being overridden is already from a pipeline)
+//
+//	export CURRENT_AGENT_OCI_VERSION="pipeline-123456"
+//
+// Example: custom URL
+//
+//	export CURRENT_AGENT_OCI_URL="oci://installtesting.datad0g.com/agent-package:pipeline-123456"
+func WithDevEnvOverrides(prefix string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		// env vars for convenience
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_URL", prefix)); ok {
+			WithURLOverride(url)(params)
+		}
+		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_PIPELINE", prefix)); ok {
+			WithPipeline(pipeline)(params)
+		}
+
+		// env vars for specific fields
+		if version, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_VERSION", prefix)); ok {
+			WithVersion(version)(params)
+		}
+		if registry, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_REGISTRY", prefix)); ok {
+			WithRegistry(registry)(params)
+		}
+		if auth, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_AUTH", prefix)); ok {
+			WithAuthentication(auth)(params)
+		}
+		return nil
+	}
 }

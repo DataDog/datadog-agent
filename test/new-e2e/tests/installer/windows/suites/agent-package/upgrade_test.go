@@ -6,48 +6,20 @@
 package agenttests
 
 import (
-	"bufio"
-	// "encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	// installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
-	// "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	// windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/windows/common/agent"
-
-	// "github.com/stretchr/testify/assert"
-	// "github.com/stretchr/testify/require"
 	"github.com/cenkalti/backoff/v4"
 	"testing"
 )
-
-type packageName string
-
-const (
-	datadogAgent packageName = "datadog-agent"
-)
-
-const (
-	pipelineOCIRegistry = "installtesting.datad0g.com"
-)
-
-var (
-	agentWithoutFleetMSIVersion installerwindows.PackageVersion
-)
-
-func init() {
-	agentWithoutFleetMSIVersion = installerwindows.NewVersionFromPackageVersion("7.63.0-1")
-}
 
 type testAgentUpgradeSuite struct {
 	installerwindows.BaseSuite
@@ -263,9 +235,12 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion() {
 		})
 }
 
-func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(packageConfig TestPackageConfig) (string, error) {
+func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
+	packageConfig, err := installerwindows.NewPackageConfig(opts...)
+	s.Require().NoError(err)
+
 	// Set catalog so daemon can find the package
-	_, err := s.Installer().SetCatalog(installerwindows.Catalog{
+	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
 		Packages: []installerwindows.PackageEntry{
 			{
 				Package: packageConfig.Name,
@@ -275,19 +250,16 @@ func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(packageConfig T
 		},
 	})
 	s.Require().NoError(err)
-
+	installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
 	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
 }
 
 func (s *testAgentUpgradeSuite) startExperimentPreviousVersion() (string, error) {
-	// agentVersion := s.StableAgentVersion().Version()
-	// TODO: switch to prod stable entry when available
-	pipelineID := "58521051"
-	packageConfig := newPackageConfigForPipeline(string(datadogAgent), pipelineID)
-	packageConfig, err := applyDevEnvOCIPackageOverrides(s.Env().RemoteHost, "PREVIOUS_AGENT", packageConfig)
-	s.Require().NoError(err)
-
-	return s.startExperimentWithCustomPackage(packageConfig)
+	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
+		// TODO: switch to prod stable entry when available
+		installerwindows.WithPipeline("58521051"),
+		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
+	)
 }
 
 func (s *testAgentUpgradeSuite) mustStartExperimentPreviousVersion() {
@@ -314,13 +286,11 @@ func (s *testAgentUpgradeSuite) mustStartExperimentPreviousVersion() {
 }
 
 func (s *testAgentUpgradeSuite) startExperimentCurrentVersion() (string, error) {
-	// agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
-	// Default to using OCI package from current pipeline
-	packageConfig := newPackageConfigForPipeline(string(datadogAgent), s.Env().Environment.PipelineID())
-	packageConfig, err := applyDevEnvOCIPackageOverrides(s.Env().RemoteHost, "CURRENT_AGENT", packageConfig)
-	s.Require().NoError(err)
-
-	return s.startExperimentWithCustomPackage(packageConfig)
+	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
+		// Default to using OCI package from current pipeline
+		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
+		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
+	)
 }
 
 func (s *testAgentUpgradeSuite) mustStartExperimentCurrentVersion() {
@@ -355,37 +325,31 @@ remote_updates: true
 `))
 }
 
-func (s *testAgentUpgradeSuite) getInstallerStatus() installerStatus {
-	// TODO: use JSON status
-	out, err := s.Installer().Status()
-	s.Require().NoError(err)
-	status := parseStatusOutput(out)
-	return status
-}
-
 func (s *testAgentUpgradeSuite) assertSuccessfulAgentStartExperiment(version string) {
 	err := s.waitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	// TODO: use JSON status
-	status := s.getInstallerStatus()
-	s.Require().Contains(status.Packages, "datadog-agent")
-	s.Require().Contains(status.Packages["datadog-agent"].ExperimentVersion, version)
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithExperimentVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		})
 }
 
 func (s *testAgentUpgradeSuite) assertSuccessfulAgentPromoteExperiment(version string) {
 	err := s.waitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	// TODO: use JSON status
-	status := s.getInstallerStatus()
-	s.Require().Contains(status.Packages, "datadog-agent")
-	s.Require().Contains(status.Packages["datadog-agent"].StableVersion, version)
-	s.Require().Contains(status.Packages["datadog-agent"].ExperimentVersion, "")
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		}).
+		WithExperimentVersionEqual("")
 }
 
 func (s *testAgentUpgradeSuite) assertSuccessfulAgentStopExperiment(version string) {
-	// conditions are same as promote, except the stable version should be unchanged
+	// conditions are same as promote, except the stable version should be unchanged.
 	// since version is an input we can reuse.
 	s.assertSuccessfulAgentPromoteExperiment(version)
 }
@@ -408,261 +372,6 @@ func (s *testAgentUpgradeSuite) waitForInstallerServiceWithBackoff(state string,
 		}
 		return nil
 	}, b)
-}
-
-// createFileRegistryFromLocalOCI uploads a local OCI package to the remote host and prepares it to
-// be used as a `file://` package path for the daemon downloader.
-//
-// returns the path to the extracted package on the remote host.
-//
-// Currently, this requires extracting the OCI package to a directory.
-func createFileRegistryFromLocalOCI(host *components.RemoteHost, localPackagePath string) (string, error) {
-	// Upload OCI package to temporary path
-	remotePath, err := windowscommon.GetTemporaryFile(host)
-	if err != nil {
-		return "", err
-	}
-	host.CopyFile(localPackagePath, remotePath)
-	// Extract OCI package
-	outPath := remotePath + ".extracted"
-	// tar is a built-in command on Windows 10+
-	cmd := fmt.Sprintf("mkdir %s; tar -xf %s -C %s", outPath, remotePath, outPath)
-	_, err = host.Execute(cmd)
-	if err != nil {
-		return "", err
-	}
-	// return path to extracted package
-	return outPath, nil
-}
-
-// applyDevEnvOCIPackageOverrides applies overrides to the package config based on environment variables.
-//
-// Example: local OCI package file
-//
-//	export CURRENT_AGENT_OCI_URL="file:///path/to/oci/package.tar"
-//
-// Example: from a different pipeline
-//
-//	export CURRENT_AGENT_OCI_PIPELINE="123456"
-//
-// Example: from a different pipeline
-// (assumes that the package being overridden is already from a pipeline)
-//
-//	export CURRENT_AGENT_OCI_VERSION="pipeline-123456"
-//
-// Example: custom URL
-//
-//	export CURRENT_AGENT_OCI_URL="oci://installtesting.datad0g.com/agent-package:pipeline-123456"
-func applyDevEnvOCIPackageOverrides(host *components.RemoteHost, prefix string, packageConfig TestPackageConfig) (TestPackageConfig, error) {
-	// env vars for convenience
-	if url, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_URL", prefix)); ok {
-		packageConfig.urloverride = url
-	}
-	if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_PIPELINE", prefix)); ok {
-		packageConfig.Registry = "installtesting.datad0g.com"
-		packageConfig.Version = fmt.Sprintf("pipeline-%s", pipeline)
-	}
-
-	// env vars for specific fields
-	if version, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_VERSION", prefix)); ok {
-		packageConfig.Version = version
-	}
-	if registry, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_REGISTRY", prefix)); ok {
-		packageConfig.Registry = registry
-	}
-	if auth, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_AUTH", prefix)); ok {
-		packageConfig.Auth = auth
-	}
-
-	// If the URL is a file, upload it to the remote host
-	if strings.HasPrefix(packageConfig.urloverride, "file://") {
-		localPath := strings.TrimPrefix(packageConfig.urloverride, "file://")
-		outPath, err := createFileRegistryFromLocalOCI(host, localPath)
-		if err != nil {
-			return packageConfig, err
-		}
-		// Must replace slashes so that daemon can parse it correctly
-		outPath = strings.Replace(outPath, "\\", "/", -1)
-		packageConfig.urloverride = fmt.Sprintf("file://%s", outPath)
-	}
-	return packageConfig, nil
-}
-
-// newPackageConfigForPipeline creates a TestPackageConfig for a package created from a pipeline.
-func newPackageConfigForPipeline(packageName string, pipeline string, opts ...PackageOption) TestPackageConfig {
-	options := []PackageOption{
-		WithName(packageName),
-		WithRegistry(pipelineOCIRegistry),
-		WithVersion(fmt.Sprintf("pipeline-%s", pipeline)),
-	}
-	switch packageName {
-	case string(datadogAgent):
-		options = append(options, WithAlias("agent-package"))
-	}
-	options = append(options, opts...)
-	return newPackageConfig(options...)
-}
-
-func newPackageConfig(opts ...PackageOption) TestPackageConfig {
-	c := TestPackageConfig{}
-	for _, opt := range opts {
-		opt(&c)
-	}
-	return c
-}
-
-// TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
-type TestPackageConfig struct {
-	// Name the name of the package
-	Name string
-	// Alias Sometimes the package is named differently in some registries
-	Alias string
-	// Version the version to install
-	Version string
-	// Registry the URL of the registry
-	Registry string
-	// Auth the authentication method, "" for no authentication
-	Auth string
-	// urloverride to use for package
-	//
-	// The URL is normally constructed from the above parts, this field will take precedence.
-	// Useful for development to test local packages.
-	urloverride string
-}
-
-func (c TestPackageConfig) URL() string {
-	if c.urloverride != "" {
-		// if the URL had been overridden, use it
-		return c.urloverride
-	}
-	// else construct it from parts
-	name := c.Name
-	if c.Alias != "" {
-		name = c.Alias
-	}
-	return fmt.Sprintf("oci://%s/%s:%s", c.Registry, name, c.Version)
-}
-
-// PackageOption is an optional function parameter type for the Datadog Installer
-type PackageOption func(*TestPackageConfig) error
-
-// WithName uses a specific name for the package.
-func WithName(name string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.Name = name
-		return nil
-	}
-}
-
-// WithAuthentication uses a specific authentication for a Registry to install the package.
-func WithAuthentication(auth string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.Auth = auth
-		return nil
-	}
-}
-
-// WithRegistry uses a specific Registry from where to install the package.
-func WithRegistry(registryURL string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.Registry = registryURL
-		return nil
-	}
-}
-
-// WithVersion uses a specific version of the package.
-func WithVersion(version string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.Version = version
-		return nil
-	}
-}
-
-// WithAlias specifies the package's alias.
-func WithAlias(alias string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.Alias = alias
-		return nil
-	}
-}
-
-// WithURLOverride specifies the package's URL.
-func WithURLOverride(url string) PackageOption {
-	return func(params *TestPackageConfig) error {
-		params.urloverride = url
-		return nil
-	}
-}
-
-type packageStatus struct {
-	Name              string
-	StableVersion     string
-	ExperimentVersion string
-}
-
-type installerStatus struct {
-	Version  string
-	Packages map[string]packageStatus
-}
-
-// TODO:
-// Linux tests use curl to hit the unix socket and get JSON output but we can't do the same
-// for the named pipe on Windows. We should consider adding a JSON output option to the status command.
-func parseStatusOutput(output string) installerStatus {
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	var currentPackage packageStatus
-
-	var status installerStatus
-	status.Packages = make(map[string]packageStatus)
-
-	// Regular expressions for extracting relevant lines
-	versionRegex := regexp.MustCompile(`Datadog Installer v(\S+)`)
-	packageNameRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9\-_]+)$`)
-	stableVersionRegex := regexp.MustCompile(`\s*. stable:\s*(\S+)`)
-	experimentVersionRegex := regexp.MustCompile(`\s*. experiment:\s*(\S+)`)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if match := versionRegex.FindStringSubmatch(line); match != nil {
-			status.Version = match[1]
-			continue
-		}
-
-		// Check for package name
-		if match := packageNameRegex.FindStringSubmatch(line); match != nil {
-			// If we already have a package, store it before starting a new one
-			if currentPackage.Name != "" {
-				status.Packages[currentPackage.Name] = currentPackage
-			}
-			currentPackage = packageStatus{Name: match[1]}
-			continue
-		}
-
-		// Check for stable version
-		if match := stableVersionRegex.FindStringSubmatch(line); match != nil {
-			currentPackage.StableVersion = match[1]
-			continue
-		}
-
-		// Check for experiment version
-		if match := experimentVersionRegex.FindStringSubmatch(line); match != nil {
-			if match[1] == "none" {
-				// handle this case here instead of in tests.
-				// the JSON seems to use an empty string, so it'll save us some work later.
-				continue
-			}
-			currentPackage.ExperimentVersion = match[1]
-			continue
-		}
-	}
-
-	// Append the last parsed package
-	if currentPackage.Name != "" {
-		status.Packages[currentPackage.Name] = currentPackage
-	}
-
-	return status
 }
 
 // end of file

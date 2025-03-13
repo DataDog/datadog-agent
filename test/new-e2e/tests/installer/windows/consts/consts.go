@@ -34,6 +34,9 @@ const (
 
 	// baseConfigPath is the base path for the Installer configuration
 	baseConfigPath = "C:/ProgramData/Datadog/Installer"
+
+	// PipelineOCIRegistry is the OCI registry that pipelines submit packages to
+	PipelineOCIRegistry = "installtesting.datad0g.com"
 )
 
 var (

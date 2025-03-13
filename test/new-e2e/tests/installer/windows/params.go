@@ -48,6 +48,7 @@ func WithInstallerURL(installerURL string) Option {
 	}
 }
 
+// WithURLFromPipeline uses the Datadog Installer MSI from a pipeline artifact.
 func WithURLFromPipeline(pipelineID string) Option {
 	return func(params *Params) error {
 		artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
@@ -61,7 +62,7 @@ func WithURLFromPipeline(pipelineID string) Option {
 	}
 }
 
-// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
+// WithURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
 // jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
