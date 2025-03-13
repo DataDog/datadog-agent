@@ -49,7 +49,8 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, streamID, stream.metadata.streamID)
 
 	// The stream should have the default selected device, which is 0
-	require.Equal(t, testutil.GPUUUIDs[0], stream.metadata.gpuUUID)
+	defaultDevice := 0
+	require.Equal(t, testutil.GPUUUIDs[defaultDevice], stream.metadata.gpuUUID)
 
 	// Check the same thing happens with the global stream
 	globalStream, err := handlers.getStream(&headerGlobalStream)
@@ -59,7 +60,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 
 	// Again, this should be on the default device
-	require.Equal(t, testutil.GPUUUIDs[0], globalStream.metadata.gpuUUID)
+	require.Equal(t, testutil.GPUUUIDs[defaultDevice], globalStream.metadata.gpuUUID)
 
 	// Now we change the device for the specific stream
 	selectedDevice := 1
@@ -72,7 +73,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.NotNil(t, stream)
 	require.Equal(t, pid, stream.metadata.pid)
 	require.Equal(t, streamID, stream.metadata.streamID)
-	require.Equal(t, testutil.GPUUUIDs[selectedDevice], stream.metadata.gpuUUID)
+	require.Equal(t, testutil.GPUUUIDs[defaultDevice], stream.metadata.gpuUUID)
 
 	// The global stream should change, as the global stream can change devices
 	globalStream, err = handlers.getStream(&headerGlobalStream)
