@@ -85,7 +85,7 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
                 print(f'Test {name} took {duration:.2f}s')
                 # TODO: Add tag for error etc.
                 simple_name = name.split(' ')[0]
-                CIVisibilitySection.create(simple_name, start_time, start_time + duration, tags={'test_name': name})
+                CIVisibilitySection.create(simple_name, start_time, start_time + duration, tags={'test-name': name, 'agent-category': 'invoke-unit-tests'})
 
             return res.wasSuccessful()
     finally:
@@ -94,42 +94,43 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
         os.environ.update(old_environ)
 
 
-@task
-def run_and_profile(ctx):
-    import unittest
+# # TODO: Remove
+# @task
+# def run_and_profile(ctx):
+#     import unittest
 
-    # tests = sorted(list(glob.glob('tasks/unit_tests/**/*_tests.py', recursive=True)))
-    tests = sorted(list(glob.glob('tasks/unit_tests/**/*y_tests.py', recursive=True)))
-    print(len(tests), 'tests found')
-    print(tests)
+#     # tests = sorted(list(glob.glob('tasks/unit_tests/**/*_tests.py', recursive=True)))
+#     tests = sorted(list(glob.glob('tasks/unit_tests/**/*y_tests.py', recursive=True)))
+#     print(len(tests), 'tests found')
+#     print(tests)
 
-    error = False
-    times = []
-    for test in tests:
-        start_time = time.time()
-        dir, filename = os.path.split(test)
-        test_name = filename.removesuffix("_tests.py")
-        with ci_visibility_section(test_name):
-            try:
-                loader = unittest.TestLoader()
-                suite = loader.discover(dir, pattern=filename)
-                runner = unittest.TextTestRunner()
-                res = runner.run(suite)
-                error = not res.wasSuccessful()
-                print('durations', res.collectedDurations)
-            except:
-                error = True
+#     error = False
+#     times = []
+#     for test in tests:
+#         start_time = time.time()
+#         dir, filename = os.path.split(test)
+#         test_name = filename.removesuffix("_tests.py")
+#         with ci_visibility_section(test_name):
+#             try:
+#                 loader = unittest.TestLoader()
+#                 suite = loader.discover(dir, pattern=filename)
+#                 runner = unittest.TextTestRunner()
+#                 res = runner.run(suite)
+#                 error = not res.wasSuccessful()
+#                 print('durations', res.collectedDurations)
+#             except:
+#                 error = True
 
-        if error:
-            print('Error in', test)
-            error = True
+#         if error:
+#             print('Error in', test)
+#             error = True
 
-        times.append((test_name, start_time, time.time()))
+#         times.append((test_name, start_time, time.time()))
 
-    # # Create ci visibility sections
-    # print('Creating CI visibility spans')
-    # for test_name, start_time, end_time in times:
-    #     create_ci_visibility_section(ctx, test_name, start_time, end_time)
+#     # # Create ci visibility sections
+#     # print('Creating CI visibility spans')
+#     # for test_name, start_time, end_time in times:
+#     #     create_ci_visibility_section(ctx, test_name, start_time, end_time)
 
-    if error:
-        raise Exit(color_message('Some tests are failing', Color.RED), code=1)
+#     if error:
+#         raise Exit(color_message('Some tests are failing', Color.RED), code=1)

@@ -250,3 +250,28 @@ class TestMergeKnownFlakes(unittest.TestCase):
             merged_flakes,
             {"nintendo": {"mario", "luigi"}},
         )
+
+class TestParseTimes(unittest.TestCase):
+    def test_parent(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_parent.json",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        times = test_washer.parse_times(module_path)
+        key = ('github.com/DataDog/datadog-agent/test/new-e2e/tests/containers', 'TestEKSSuite')
+        self.assertIn(key, times)
+        start, end = times[key]
+        self.assertLessEqual(start, end)
+        self.assertEqual(len(times), 4)
+
+    def test_no_marker(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_no_marker.json",
+        )
+        module_path = "tasks/unit_tests/testdata"
+        times = test_washer.parse_times(module_path)
+        key = 'github.com/DataDog/datadog-agent/pkg/gohai/filesystem', 'TestFilterDev/ReplaceDevMountLength'
+        self.assertIn(key, times)
+        start, end = times[key]
+        self.assertLessEqual(start, end)
+        self.assertEqual(len(times), 9)

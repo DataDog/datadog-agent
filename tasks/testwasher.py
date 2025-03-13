@@ -144,18 +144,24 @@ class TestWasher:
         start_times = {}
         end_times = {}
 
+        re_nanos = re.compile(r"^([0-9]*)([^0-9].*)$")
+
         def parse_date(date: str) -> float:
             date, nano_and_tz = date.split(".")
+
             # Cannot parse nanoseconds but microseconds
-            date = f"{date}.{nano_and_tz[:6]}{nano_and_tz[-1]}"
-            return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f%z").timestamp()
+            matches = re.match(re_nanos, nano_and_tz)
+            nanos, tz = matches[1], matches[2]
+            date = f"{date}.{nanos} {tz}"
+
+            return datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%f %z").timestamp()
 
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
                 if "Test" not in test_result:
                     continue
-                if test_result["Action"] == "start":
+                if test_result["Action"] == "run":
                     key = test_result["Package"], test_result["Test"]
                     start_times[key] = parse_date(test_result["Time"])
                 if test_result["Action"] in ("pass", "fail"):
