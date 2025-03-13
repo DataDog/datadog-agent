@@ -77,16 +77,16 @@ func TestMmapMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := Files{
-		{"mem", "REG", "r-xp", "-r--------", 8, "/vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libutil.so.1"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libc.so.6"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libpthread.so.0"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libm.so.6"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libdl.so.2"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"},
-		{"mem", "REG", "r--p", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"},
+		{"mem", "REG", "r-xp", "-r--------", "/vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libutil.so.1", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libc.so.6", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libpthread.so.0", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libm.so.6", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libdl.so.2", 8},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1", 8},
+		{"mem", "REG", "r--p", "-r--------", "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1", 8},
 	}
 
 	require.Equal(t, expected, mmaps)
