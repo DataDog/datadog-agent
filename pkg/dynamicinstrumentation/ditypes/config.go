@@ -144,6 +144,9 @@ type ProcessInfo struct {
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	configProbe, ok := pi.ProbesByID[ConfigBPFProbeID]
 	if !ok {
 		return nil, fmt.Errorf("config probe was not set for process %s", pi.ServiceName)
@@ -195,6 +198,9 @@ func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
 // CloseAllUprobeLinks closes all probes and deletes their links for all probes
 // in the tracked process
 func (pi *ProcessInfo) CloseAllUprobeLinks() {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	for probeID := range pi.InstrumentationUprobes {
 		if err := pi.CloseUprobeLink(probeID); err != nil {
 			log.Info("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, probeID, err)
