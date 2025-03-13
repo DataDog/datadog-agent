@@ -46,6 +46,7 @@ const (
 	defaultVMName     = "kind"
 )
 
+// KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
