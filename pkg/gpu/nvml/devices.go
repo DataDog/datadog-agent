@@ -11,7 +11,7 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvml/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // Device represents a GPU device with some properties already computed
@@ -20,7 +20,7 @@ type Device struct {
 
 	SMVersion uint32
 	UUID      string
-	CoreCount uint32
+	CoreCount int
 	Index     int
 }
 
@@ -36,7 +36,7 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 		return nil, fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
 	}
 
-	cores, ret := dev.GetNumCores()
+	cores, ret := dev.GetNumGpuCores()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("error getting core count: %s", nvml.ErrorString(ret))
 	}
@@ -85,13 +85,13 @@ func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 		uuidToDevice: make(map[string]*Device),
 	}
 
-	count, ret := nvml.GetDeviceCount()
+	count, ret := nvmlLib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
 	}
 
 	for i := 0; i < count; i++ {
-		dev, ret := nvmlLib.GetDeviceByIndex(i)
+		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("error getting device by index: %s", nvml.ErrorString(ret))
 		}
