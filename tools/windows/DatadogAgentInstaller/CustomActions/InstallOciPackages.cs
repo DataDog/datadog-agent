@@ -118,33 +118,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        private ActionResult UninstallPackages()
-        {
-            var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
-            if (string.IsNullOrEmpty(librariesRaw))
-            {
-                return ActionResult.Success;
-            }
-            _session.Log($"Uninstalling Oci Packages {librariesRaw}");
-            var libraries = librariesRaw.Split(',');
-            foreach (var library in libraries)
-            {
-                var libWithVersion = ParseVersion(library);
-                try
-                {
-                    if (IsPackageInstalled(libWithVersion.Name))
-                    {
-                        UninstallPackage(libWithVersion.Name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _session.Log($"Error while uninstalling {libWithVersion.Name} library: " + ex.Message);
-                }
-            }
-            return ActionResult.Success;
-        }
-
         private ActionResult RollbackState()
         {
             _rollbackDataStore.Load();
@@ -182,26 +155,9 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void UninstallPackage(string library)
-        {
-            var packageName = PackageName(library);
-            using (var proc = _session.RunCommand(_installerExecutable, $"remove {packageName}", InstallerEnvironmentVariables()))
-            {
-                if (proc.ExitCode != 0)
-                {
-                    throw new Exception($"'datadog-installer remove {packageName}' failed with exit code: {proc.ExitCode}");
-                }
-            }
-        }
-
         public static ActionResult InstallPackages(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).InstallPackages();
-        }
-
-        public static ActionResult UninstallPackages(Session session)
-        {
-            return new InstallOciPackages(new SessionWrapper(session)).UninstallPackages();
         }
 
         public static ActionResult RollbackActions(Session session)
