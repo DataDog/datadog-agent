@@ -27,6 +27,7 @@ from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
+from tasks.libs.common.ci_visibility import ci_visibility_section
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
@@ -369,21 +370,24 @@ def test(
 
     # Test
     if build_stdlib:
-        build_standard_lib(
-            ctx,
-            build_tags=unit_tests_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
+        with ci_visibility_section('build_standard_lib', {'agent-category': 'unit-tests'}):
+            build_standard_lib(
+                ctx,
+                build_tags=unit_tests_tags,
+                cmd=stdlib_build_cmd,
+                env=env,
+                args=args,
+                test_profiler=test_profiler,
+            )
 
     if only_modified_packages:
-        modules = get_modified_packages(ctx, build_tags=unit_tests_tags)
+        with ci_visibility_section("get_modified_packages", {'agent-category': 'unit-tests'}):
+            modules = get_modified_packages(ctx, build_tags=unit_tests_tags)
     if only_impacted_packages:
-        modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
+        with ci_visibility_section("get_impacted_packages", {'agent-category': 'unit-tests'}):
+            modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
-    with gitlab_section("Running unit tests", collapsed=True):
+    with gitlab_section("Running unit tests", collapsed=True, create_ci_visibility_section=True):
         test_results = test_flavor(
             ctx,
             flavor=flavor,
