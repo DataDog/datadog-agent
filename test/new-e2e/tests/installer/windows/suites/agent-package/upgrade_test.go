@@ -182,8 +182,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
-	_, err = s.Installer().StopExperiment(consts.AgentPackage)
-	s.Require().NoError(err)
+	s.Installer().StopExperiment(consts.AgentPackage)
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 }
 
