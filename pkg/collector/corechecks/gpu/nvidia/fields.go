@@ -72,9 +72,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	}
 
 	ret := c.device.GetFieldValues(fields)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, errUnsupportedDevice
-	} else if ret != nvml.SUCCESS {
+	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get field values: %s", nvml.ErrorString(ret))
 	}
 
