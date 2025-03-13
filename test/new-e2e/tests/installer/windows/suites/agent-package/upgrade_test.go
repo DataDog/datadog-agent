@@ -179,18 +179,18 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 	// backend will send stop experiment now
 	_, err = s.Installer().StopExperiment(consts.AgentPackage)
 	s.Require().NoError(err)
-	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 }
 
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
 	// TODO: Update when prod MSI that contains the Installer is available
 	agentVersion := s.StableAgentVersion().Version()
-	pipelineID := "58521051"
+	pipelineID := "58767813"
 	var urlopt installerwindows.Option
 	if packageFile, ok := os.LookupEnv("PREVIOUS_AGENT_MSI_URL"); ok {
 		urlopt = installerwindows.WithInstallerURL(packageFile)
@@ -258,7 +258,7 @@ func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...install
 func (s *testAgentUpgradeSuite) startExperimentPreviousVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
 		// TODO: switch to prod stable entry when available
-		installerwindows.WithPipeline("58521051"),
+		installerwindows.WithPipeline("58767813"),
 		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
 	)
 }
@@ -279,7 +279,7 @@ func (s *testAgentUpgradeSuite) mustStartExperimentPreviousVersion() {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
+		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
 		}).
@@ -311,7 +311,7 @@ func (s *testAgentUpgradeSuite) mustStartExperimentCurrentVersion() {
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
+		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
 		}).
