@@ -14,9 +14,9 @@ import (
 	"net"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
@@ -59,19 +59,17 @@ func NewClient(opts Options) (*Client, error) {
 	if opts.ConnectionTimout == 0 {
 		opts.ConnectionTimout = defaultConnectionTimeout
 	}
-
+	clientOptions.SetConnectTimeout(opts.ConnectionTimout)
 	if opts.ClientDialer != nil {
 		clientOptions.SetDialer(opts.ClientDialer)
 	}
 
-	timedCtx, cancel := context.WithTimeout(context.Background(), opts.ConnectionTimout)
-	defer cancel()
-	client, err := mongo.Connect(timedCtx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	timedCtx, cancel = context.WithTimeout(context.Background(), opts.ConnectionTimout)
+	timedCtx, cancel := context.WithTimeout(context.Background(), opts.ConnectionTimout)
 	defer cancel()
 	if err := client.Ping(timedCtx, nil); err != nil {
 		return nil, err
