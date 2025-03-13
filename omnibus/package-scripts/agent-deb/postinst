@@ -20,7 +20,7 @@ if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
 fi
 
 # Run post install script. Instructions can be found in pkg/fleet/installer/packages/datadog_agent.go
-/opt/datadog-agent/embedded/bin/installer postinst datadog-agent deb
+${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent deb
 
 # Enable and restart the agent service here on Debian platforms
 # On RHEL, this is done in the posttrans script
