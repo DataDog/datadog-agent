@@ -25,12 +25,9 @@ func newAgentDockerExecutor(context common.Context, dockerAgentOutput agent.Dock
 	if err != nil {
 		panic(err)
 	}
-	envVariables := make(map[string]string)
-	envVariables["GOCOVERDIR"] = LinuxTempFolder
 	return &agentDockerExecutor{
 		dockerClient:       dockerClient,
 		agentContainerName: dockerAgentOutput.ContainerName,
-		envVar:             envVariables,
 	}
 }
 
@@ -40,4 +37,8 @@ func (ae agentDockerExecutor) execute(arguments []string) (string, error) {
 	// TODO: Support all agents and Windows
 	arguments = append([]string{"agent"}, arguments...)
 	return ae.dockerClient.ExecuteCommandWithErr(ae.agentContainerName, arguments, dockerexecuteparams.WithEnvVariables(ae.envVar))
+}
+
+func (ae *agentDockerExecutor) useEnvVars(envVars map[string]string) {
+	ae.envVar = envVars
 }

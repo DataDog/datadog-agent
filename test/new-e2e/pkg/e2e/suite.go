@@ -195,10 +195,11 @@ type BaseSuite[Env any] struct {
 	originalProvisioners provisioners.ProvisionerMap
 	currentProvisioners  provisioners.ProvisionerMap
 
-	firstFailTest string
-	startTime     time.Time
-	endTime       time.Time
-	initOnly      bool
+	firstFailTest     string
+	startTime         time.Time
+	endTime           time.Time
+	initOnly          bool
+	remoteCoverageDir string
 
 	outputDir string
 }
@@ -541,10 +542,11 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	}
 
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
-		err := coverageEnv.SetupCoverage()
+		remoteCoverageDir, err := coverageEnv.SetupCoverage()
 		if err != nil {
 			bs.T().Logf("unable to setup coverage: %v", err)
 		}
+		bs.remoteCoverageDir = remoteCoverageDir
 	}
 }
 
@@ -624,11 +626,9 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	// If environment implement Coverage interface, retrieve code coverage before destroying stack
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
-		if os.Getenv("E2E_GOCOVERDIR") != "" {
-			err := coverageEnv.Coverage(os.Getenv("E2E_GOCOVERDIR"))
-			if err != nil {
-				bs.T().Logf("unable to get coverage: %v", err)
-			}
+		err := coverageEnv.Coverage(bs.remoteCoverageDir, os.Getenv("E2E_GOCOVERDIR"))
+		if err != nil {
+			bs.T().Logf("unable to get coverage: %v", err)
 		}
 	}
 	if bs.params.devMode {

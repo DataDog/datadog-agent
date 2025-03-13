@@ -68,6 +68,9 @@ type Agent interface {
 
 	// JMX run the jmx command and returns a Status struct and error
 	JMX(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// UseEnvVars sets the environment variables for the agent command executed
+	UseEnvVars(envVars map[string]string)
 }
 
 // Status contains the Agent status content

@@ -19,6 +19,7 @@ import (
 )
 
 type agentCommandExecutor interface {
+	useEnvVars(envVars map[string]string)
 	execute(arguments []string) (string, error)
 }
 
@@ -183,6 +184,10 @@ func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption)
 	return &agentclient.Status{
 		Content: status,
 	}, err
+}
+
+func (agent *agentCommandRunner) UseEnvVars(envVars map[string]string) {
+	agent.executor.useEnvVars(envVars)
 }
 
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
