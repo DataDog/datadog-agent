@@ -78,9 +78,6 @@ type DCAClientInterface interface {
 
 // DCAClient is required to query the API of Datadog cluster agent
 type DCAClient struct {
-	// used to setup the DCAClient
-	initRetry retry.Retrier
-
 	clusterAgentAPIRequestHeaders http.Header
 
 	clusterAgentAPIClient *http.Client
@@ -88,6 +85,9 @@ type DCAClient struct {
 	clusterAgentVersion   version.Version // Version of the cluster-agent we're connected to
 
 	clusterAgentAPIEndpoint string // ${SCHEME}://${clusterAgentHost}:${PORT}
+
+	// used to setup the DCAClient
+	initRetry retry.Retrier
 
 	clusterAgentClientLock sync.RWMutex
 }

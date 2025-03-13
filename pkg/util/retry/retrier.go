@@ -18,9 +18,9 @@ import (
 // in any class providing attempt logic as a `func() error` method.
 // See the unit test for an example.
 type Retrier struct {
-	cfg          Config
 	nextTry      time.Time
 	lastTryError error
+	cfg          Config
 	status       Status
 	tryCount     uint
 	sync.RWMutex

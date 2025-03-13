@@ -21,8 +21,8 @@ var (
 )
 
 type gceMetadata struct {
-	Instance gceInstanceMetadata
 	Project  gceProjectMetadata
+	Instance gceInstanceMetadata
 }
 
 type gceInstanceMetadata struct {

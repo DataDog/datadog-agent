@@ -166,8 +166,8 @@ func TestFdMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := Files{
-		{"3", "REG", "r-", "-r--------", 0, "/some/file"},
-		{"5", "REG", "r-", "-r--------", 0, "/some/file"},
+		{"3", "REG", "r-", "-r--------", "/some/file", 0},
+		{"5", "REG", "r-", "-r--------", "/some/file", 0},
 	}
 
 	require.ElementsMatch(t, expected, files)
