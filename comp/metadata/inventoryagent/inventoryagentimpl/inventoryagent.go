@@ -184,6 +184,7 @@ func (ia *inventoryagent) initData() {
 	if val, err := fips.Enabled(); err == nil {
 		ia.data["fips_mode"] = val
 	} else {
+		ia.data["fips_mode"] = false
 		ia.log.Warnf("could not check if fips is enabled: %s", err)
 	}
 }
