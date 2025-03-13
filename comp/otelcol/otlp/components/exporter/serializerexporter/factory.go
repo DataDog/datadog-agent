@@ -69,9 +69,9 @@ func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimen
 type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
-func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayUsage *attributes.GatewayUsage) exp.Factory {
+func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, gatewayUsage)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, nil)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
@@ -130,7 +130,6 @@ func NewFactoryWithType(typeStr string) exp.Factory {
 				seenHosts:          make(map[string]struct{}),
 				seenTags:           make(map[string]struct{}),
 				buildInfo:          buildInfo,
-				gatewayUsage:       attributes.NewGatewayUsage(),
 				getPushTime:        func() uint64 { return uint64(time.Now().Unix()) },
 			}
 		},
