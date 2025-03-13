@@ -14,7 +14,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -288,11 +287,7 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) (strea
 		return streamKey{}, fmt.Errorf("Error getting GPU device for process %d: %w", pid, err)
 	}
 
-	var ret nvml.Return
-	key.gpuUUID, ret = gpuDevice.GetUUID()
-	if ret != nvml.SUCCESS {
-		return streamKey{}, fmt.Errorf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
-	}
+	key.gpuUUID = gpuDevice.UUID
 
 	if header.Stream_id != 0 {
 		c.nonGlobalStreamKeys[nonGlobalKey] = key
@@ -308,14 +303,16 @@ func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) (*
 	}
 
 	if _, ok := c.streamHandlers[key]; !ok {
-		smVersion, ok := c.sysCtx.deviceSmVersions[key.gpuUUID]
-		if !ok {
+		var smVersion uint32
+		device, err := c.sysCtx.deviceCache.GetDeviceByUUID(key.gpuUUID)
+		if err != nil {
 			if key.gpuUUID != "" {
-				// Only warn when we have a device, otherwise it's expected to not find the SM version
-				// if the device UUID is empty
+				// Only warn when we have a device, otherwise it's expected to not find it if the device UUID is empty
 				log.Warnf("SM version not found for device %s, using default", key.gpuUUID)
 			}
 			smVersion = noSmVersion
+		} else {
+			smVersion = device.SMVersion
 		}
 
 		c.streamHandlers[key] = newStreamHandler(key.pid, key.containerID, smVersion, c.sysCtx)
