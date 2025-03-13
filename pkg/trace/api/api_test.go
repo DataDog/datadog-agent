@@ -66,6 +66,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
