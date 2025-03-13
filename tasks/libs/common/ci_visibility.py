@@ -74,13 +74,13 @@ def ci_visibility_section(section_name, tags: dict[str, str] = None, measures: d
 
     start_time = time.time()
 
-    # TODO: Test cases etc...
-    # TODO: Add error trace if exception is raised
     try:
         yield
     except:
         if ignore_on_error:
             return
+
+        tags = tags | {'error': 'true'}
     finally:
         end_time = time.time()
 
