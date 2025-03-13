@@ -175,7 +175,9 @@ int classifier_dns_response(struct __sk_buff *skb) {
     }
 
     u64 current_timestamp = bpf_ktime_get_ns();
-    u64* stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &evt->header.id);
+    
+    uint16_t header_id = evt->header.id;
+    u64* stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
 
     if (stored_timestamp != NULL &&  *stored_timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
         struct kevent_t evt = {0};
