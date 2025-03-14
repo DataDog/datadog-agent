@@ -21,13 +21,13 @@ func getProcessGroups(limit int) ([]ProcessGroup, error) {
 	snapData := make([]ProcessGroup, len(processGroups))
 	for i, processGroup := range processGroups {
 		processGroup := ProcessGroup{
+			processGroup.Name(),
 			processGroup.Usernames(),
+			processGroup.Pids(),
 			0, // pct_cpu, requires two consecutive samples to be computed, so not fetched for now
 			processGroup.PctMem(),
 			processGroup.VMS(),
 			processGroup.RSS(),
-			processGroup.Name(),
-			processGroup.Pids(),
 		}
 		snapData[i] = processGroup
 	}

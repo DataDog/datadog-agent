@@ -20,13 +20,13 @@ import (
 
 // ProcessInfo contains information about a single process
 type ProcessInfo struct {
-	PID      int32
-	PPID     int32
 	Name     string
+	Username string
 	RSS      uint64
 	PctMem   float64
 	VMS      uint64
-	Username string
+	PID      int32
+	PPID     int32
 }
 
 // GetProcesses returns a slice of all the processes that are running
@@ -93,5 +93,5 @@ func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) 
 		}
 	}
 
-	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil
+	return &ProcessInfo{name, username, memInfo.RSS, pctMem, memInfo.VMS, pid, ppid}, nil
 }
