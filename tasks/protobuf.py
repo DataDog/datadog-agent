@@ -109,7 +109,7 @@ def generate(ctx, pre_commit=False):
                     f"protoc -I{proto_root} -I{protodep_root} --grpc-gateway_out=logtostderr=true:{repo_root} {targets}"
                 )
 
-        # Mockgen (no done in pre-commit as it is slow)
+        # Mockgen (not done in pre-commit as it is slow)
         if not pre_commit:
             mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
             pbgo_rel = os.path.relpath(pbgo_dir, repo_root)

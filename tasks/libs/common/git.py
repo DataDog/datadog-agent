@@ -47,7 +47,7 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_unstaged_files(ctx, re_filter=None) -> Iterable[str]:
+def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iterable[str]:
     """
     Get the list of unstaged files in the repository.
     """
@@ -55,7 +55,7 @@ def get_unstaged_files(ctx, re_filter=None) -> Iterable[str]:
     files = ctx.run("git diff --name-only", hide=True).stdout.splitlines()
 
     for file in files:
-        if re_filter is None or re_filter.search(file):
+        if (re_filter is None or re_filter.search(file)) and (include_deleted_files or os.path.isfile(file)):
             yield file
 
 
