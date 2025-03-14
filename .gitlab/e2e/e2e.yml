@@ -536,7 +536,8 @@ new-e2e-installer-windows:
       # - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
+      # - EXTRA_PARAMS: --run "TestInstallerRollback$"
       # apm-library-dotnet
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
