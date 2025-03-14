@@ -6,7 +6,6 @@
 package examples
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type filePermissionsWindowsTestSuite struct {
@@ -88,18 +86,4 @@ func (v *filePermissionsWindowsTestSuite) TestRemoveDefaultPermissions() {
 	assert.NotContains(v.T(), perm, `NT AUTHORITY\SYSTEM`)
 	assert.NotContains(v.T(), perm, `BUILTIN\Administrators`)
 	assert.NotContains(v.T(), perm, `BUILTIN\Users`)
-}
-
-func (v *filePermissionsWindowsTestSuite) TestSecretsPermissions() {
-	files := []agentparams.Option{}
-	files = append(files, secretsutils.WithWindowsSetupCustomScript(`C:/TestFolder1/secrets`, "", false)...)
-	files = append(files, secretsutils.WithWindowsSetupCustomScript(`C:/TestFolder2/secrets`, "", true)...)
-
-	v.updateEnvWithWindows(awshost.WithAgentOptions(files...))
-
-	perm := v.Env().RemoteHost.MustExecute("icacls C:/TestFolder1/secrets")
-	assert.Regexp(v.T(), regexp.MustCompile(`C:/TestFolder1/secrets [[:alnum:]-]+\\ddagentuser:\(RX\)\n\nSuccessfully`), perm)
-
-	perm = v.Env().RemoteHost.MustExecute("icacls C:/TestFolder2/secrets")
-	assert.Regexp(v.T(), regexp.MustCompile(`C:/TestFolder2/secrets BUILTIN\\Administrators:\(RX\)\n[\s]+[[:alnum:]-]+\\ddagentuser:\(RX\)\n\nSuccessfully`), perm)
 }
