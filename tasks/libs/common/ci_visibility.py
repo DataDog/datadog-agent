@@ -39,7 +39,11 @@ class CIVisibilitySection:
             path_payload = tempfile.mktemp()
             with open(path_payload, 'w') as f:
                 json.dump(payload, f)
-            subprocess.run(['datadog-ci', 'span', '--payload-file', path_payload]).check_returncode()
+            # subprocess.run(['datadog-ci', 'span', '--payload-file', path_payload]).check_returncode()
+            from invoke.context import Context
+            ctx = Context()
+            ctx.run(f"cat '{path_payload}'")
+            ctx.run(f"datadog-ci span --payload-file '{path_payload}'")
 
 
             # for section in CIVisibilitySection.sections:
