@@ -10,7 +10,6 @@ package tailers
 
 import (
 	"context"
-	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -103,7 +102,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 }
 
 // stopTailer stops the inner tailer.
-func (t *DockerSocketTailer) stopTailer(inner *dockerTailerPkg.Tailer) {
+func (t *DockerSocketTailer) stopTailer(inner *containerTailerPkg.Tailer) {
 	inner.Stop()
 }
 
@@ -125,8 +124,8 @@ func (t *DockerSocketTailer) Stop() {
 // run implements a loop to monitor the tailer and re-create it if it fails.  It takes
 // pointers to tryStartTailer and stopTailer to support testing.
 func (t *DockerSocketTailer) run(
-	tryStartTailer func() (*dockerTailerPkg.Tailer, chan string, error),
-	stopTailer func(*dockerTailerPkg.Tailer),
+	tryStartTailer func() (*containerTailerPkg.Tailer, chan string, error),
+	stopTailer func(*containerTailerPkg.Tailer),
 ) {
 	defer close(t.stopped)
 

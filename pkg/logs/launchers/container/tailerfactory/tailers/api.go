@@ -106,7 +106,7 @@ func (t *ApiTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 }
 
 // stopTailer stops the inner tailer.
-func (t *ApiTailer) stopTailer(inner *apiTailerPkg.Tailer) {
+func (t *ApiTailer) stopTailer(inner *containerTailerPkg.Tailer) {
 	inner.Stop()
 }
 
@@ -128,8 +128,8 @@ func (t *ApiTailer) Stop() {
 // run implements a loop to monitor the tailer and re-create it if it fails.  It takes
 // pointers to tryStartTailer and stopTailer to support testing.
 func (t *ApiTailer) run(
-	tryStartTailer func() (*apiTailerPkg.Tailer, chan string, error),
-	stopTailer func(*apiTailerPkg.Tailer),
+	tryStartTailer func() (*containerTailerPkg.Tailer, chan string, error),
+	stopTailer func(*containerTailerPkg.Tailer),
 ) {
 	defer close(t.stopped)
 
