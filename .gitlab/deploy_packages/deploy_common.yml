@@ -109,7 +109,7 @@
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
   variables:
-    DD_PKG_EXTRA_ARTS: --suse
+    DD_PKG_EXTRA_ARGS: --suse
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 deploy_installer_install_scripts:
