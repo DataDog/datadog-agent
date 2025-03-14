@@ -524,8 +524,8 @@ func getNetworkID(sysProbeClient *http.Client) (string, error) {
 		log.Debugf("no network ID detected. retrying via system-probe: %s", err)
 		networkID, err = net.GetNetworkID(sysProbeClient)
 		if err != nil {
-			log.Infof("failed to get network ID from system-probe: %s", err)
-			return "", err
+			log.Debugf("failed to get network ID from system-probe: %s", err)
+			return "", fmt.Errorf("failed to get network ID from system-probe: %w", err)
 		}
 	}
 	return networkID, err
