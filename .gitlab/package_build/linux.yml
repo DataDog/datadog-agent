@@ -1,5 +1,5 @@
 .agent_build_script:
-  - !reference [.datadog-ci-amd64-fullsetup]
+  - !reference [.setup-datadog-ci-sections]
   - echo "About to build for $RELEASE_VERSION"
   # TODO: Move this code within the !reference once installed in build images
   - datadog-ci-start-section 'Retrieve  linux go deps'
@@ -97,7 +97,7 @@ datadog-agent-7-arm64-fips:
   extends: .agent_build_common
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
-    - !reference [.datadog-ci-amd64-fullsetup]
+    - !reference [.setup-datadog-ci-sections]
     - echo "About to build for $RELEASE_VERSION"
     - starttime=$(date '+%s%N' | cut -b1-13)
     - !reference [.retrieve_linux_go_deps]
