@@ -147,9 +147,9 @@ type Package struct {
 	Version  string `json:"version"`
 	SHA256   string `json:"sha256"`
 	URL      string `json:"url"`
-	Size     int64  `json:"size"`
 	Platform string `json:"platform"`
 	Arch     string `json:"arch"`
+	Size     int64  `json:"size"`
 }
 
 type catalog struct {
