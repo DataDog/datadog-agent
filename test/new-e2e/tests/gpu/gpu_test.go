@@ -80,8 +80,9 @@ func TestGPUHostSuite(t *testing.T) {
 }
 
 func (s *gpuHostSuite) SetupSuite() {
-	s.gpuBaseSuite.SetupSuite()
+	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
 	s.caps = &hostCapabilities{&s.BaseSuite}
+	s.gpuBaseSuite.SetupSuite()
 }
 
 type gpuK8sSuite struct {
@@ -116,8 +117,9 @@ func TestGPUK8sSuite(t *testing.T) {
 }
 
 func (s *gpuK8sSuite) SetupSuite() {
-	s.gpuBaseSuite.SetupSuite()
+	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
 	s.caps = &kubernetesCapabilities{&s.BaseSuite}
+	s.gpuBaseSuite.SetupSuite()
 }
 
 // TODO: Extract this to common package? service_discovery uses it too
