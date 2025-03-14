@@ -42,17 +42,17 @@ type Diagnose func() []Diagnosis
 
 // Suite contains the Diagnose suite information
 type Suite struct {
-	SuitName string
 	Diagnose Diagnose
+	SuitName string
 }
 
 // Config contains the Diagnose configuration
 type Config struct {
+	Include    []string
+	Exclude    []string
 	Verbose    bool
 	RunLocal   bool
 	JSONOutput bool
-	Include    []string
-	Exclude    []string
 }
 
 // Result contains the result of the diagnosis
@@ -106,9 +106,6 @@ func (r Result) ToString(colors bool) string {
 type Diagnosis struct {
 	// --------------------------
 	// required fields
-
-	// run-time (pass, fail etc)
-	Result Result `json:"result"`
 	// static-time (meta typically)
 	Name string `json:"name"`
 	// run-time (actual diagnosis consumable by a user)
@@ -125,6 +122,9 @@ type Diagnosis struct {
 	Remediation string `json:"remediation,omitempty"`
 	// run-time
 	RawError string `json:"rawerror,omitempty"`
+
+	// run-time (pass, fail etc)
+	Result Result `json:"result"`
 }
 
 // DiagnoseResult contains the results of the diagnose command

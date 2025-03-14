@@ -19,11 +19,11 @@ type AutodiscoveryConfig struct {
 
 // AuroraConfig represents the configuration for auto-discovering database clusters
 type AuroraConfig struct {
-	Enabled           bool
+	Region            string // auto-discovered from instance metadata
+	Tags              []string
 	DiscoveryInterval int
 	QueryTimeout      int
-	Tags              []string
-	Region            string // auto-discovered from instance metadata
+	Enabled           bool
 }
 
 // NewAuroraAutodiscoveryConfig parses configuration and returns a built AuroraConfig
