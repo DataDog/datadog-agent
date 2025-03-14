@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	"github.com/DataDog/datadog-agent/comp/grpc/helpers"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
 
 const cmdServerName string = "CMD API Server"

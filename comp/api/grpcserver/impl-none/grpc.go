@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package noneimpl implements the grpc component interface
+// Package noneimpl implements the grpcserver component interface
 // It does not create a grpc server nor a gateway
 package noneimpl
 
 import (
 	"net/http"
 
-	grpc "github.com/DataDog/datadog-agent/comp/grpc/def"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 )
 
 type server struct {

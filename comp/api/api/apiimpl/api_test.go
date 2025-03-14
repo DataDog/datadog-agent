@@ -21,6 +21,8 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
+	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -36,8 +38,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	grpc "github.com/DataDog/datadog-agent/comp/grpc/def"
-	grpcNonefx "github.com/DataDog/datadog-agent/comp/grpc/fx-none"
 
 	// package dependencies
 
@@ -225,7 +225,7 @@ type s struct {
 	body string
 }
 
-func (s *s) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *s) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(s.body))
 }
@@ -244,7 +244,7 @@ func (grpc *grpcServer) BuildServer() http.Handler {
 	return nil
 }
 
-func (grpc *grpcServer) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
+func (grpc *grpcServer) BuildGatewayMux(string) (http.Handler, error) {
 	if grpc.gateway {
 		return &s{
 			body: "GRPC GATEWAY OK",

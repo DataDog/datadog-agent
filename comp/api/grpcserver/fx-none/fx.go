@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the grpc component
+// Package fx provides the fx module for the none grpcserver component
 package fx
 
 import (
-	grpc "github.com/DataDog/datadog-agent/comp/grpc/def"
-	grpcimpl "github.com/DataDog/datadog-agent/comp/grpc/impl-agent"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
+	grpcimpl "github.com/DataDog/datadog-agent/comp/api/grpcserver/impl-none"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

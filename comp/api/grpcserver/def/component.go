@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package grpc defines the component interface for the grpc component.
-package grpc
+// Package grpcserver defines the component interface for the grpcserver component.
+package grpcserver
 
 import (
 	"net/http"

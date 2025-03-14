@@ -11,7 +11,7 @@ package mock
 import (
 	"testing"
 
-	grpc "github.com/DataDog/datadog-agent/comp/grpc/def"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 )
 
 // Mock returns a mock for grpc component.

@@ -41,7 +41,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
-	grpchelpers "github.com/DataDog/datadog-agent/comp/grpc/helpers"
+	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
