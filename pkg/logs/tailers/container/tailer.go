@@ -5,11 +5,13 @@
 
 //go:build docker
 
-package api
+package container
 
 import (
 	"context"
 	"fmt"
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
@@ -30,14 +32,37 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/docker/docker/api/types/container"
 )
 
 const defaultSleepDuration = 1 * time.Second
 
 type dockerContainerLogInterface interface {
 	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
+}
+
+func newApiLogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
+	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
+		options := &v1.PodLogOptions{
+			Follow:     true,
+			Timestamps: true,
+			SinceTime:  &metav1.Time{Time: since},
+		}
+		return client.StreamLogs(ctx, namespace, podName, containerName, options)
+	}
+}
+
+func newDockerLogReader(docker dockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
+	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
+		options := container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+			Timestamps: true,
+			Details:    false,
+			Since:      since.Format(config.DateFormat),
+		}
+		return docker.ContainerLogs(ctx, containerID, options)
+	}
 }
 
 // Tailer tails logs coming from stdout and stderr of a docker container
@@ -50,16 +75,13 @@ type dockerContainerLogInterface interface {
 //   - message forwarder
 type Tailer struct {
 	// ContainerID is the ID of the container this tailer is tailing.
-	ContainerID   string
-	ContainerName string
-	PodName       string
-	PodNamespace  string
+	ContainerID string
 
-	outputChan  chan *message.Message
-	decoder     *decoder.Decoder
-	kubeutil    kubelet.KubeUtilInterface
-	Source      *sources.LogSource
-	tagProvider tag.Provider
+	outputChan      chan *message.Message
+	decoder         *decoder.Decoder
+	unsafeLogReader func(context.Context, time.Time) (io.ReadCloser, error)
+	Source          *sources.LogSource
+	tagProvider     tag.Provider
 
 	readTimeout   time.Duration
 	sleepDuration time.Duration
@@ -85,18 +107,32 @@ type Tailer struct {
 	mutex     sync.Mutex
 }
 
-// NewTailer returns a new Tailer
-func NewTailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+// NewApiTailer returns a new Tailer
+func NewApiTailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
-		ContainerName:      containerName,
-		PodName:            podName,
-		PodNamespace:       podNamespace,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
 		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
-		kubeutil:           client,
+		unsafeLogReader:    newApiLogReader(client, podNamespace, podName, containerName),
+		readTimeout:        readTimeout,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
+	}
+}
+
+func NewDockerTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+	return &Tailer{
+		ContainerID:        containerID,
+		outputChan:         outputChan,
+		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
+		Source:             source,
+		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
+		unsafeLogReader:    newDockerLogReader(cli, containerID),
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
@@ -166,13 +202,8 @@ func (t *Tailer) setLastSince(since string) {
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
 func (t *Tailer) setupReader() error {
-	options := &v1.PodLogOptions{
-		Follow:     true,
-		Timestamps: true,
-		SinceTime:  &metav1.Time{Time: t.getLastSince()},
-	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	reader, err := t.kubeutil.StreamLogs(ctx, t.PodNamespace, t.PodName, t.ContainerName, options)
+	reader, err := t.unsafeLogReader(ctx, t.getLastSince())
 	t.reader.setUnsafeReader(reader)
 	t.readerCancelFunc = cancelFunc
 

@@ -10,12 +10,13 @@ package tailers
 
 import (
 	"context"
+	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"
+	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -76,9 +77,9 @@ func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID str
 
 // tryStartTailer tries to start the inner tailer, returning an erroredContainerID channel if
 // successful.
-func (t *DockerSocketTailer) tryStartTailer() (*dockerTailerPkg.Tailer, chan string, error) {
+func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
 	erroredContainerID := make(chan string)
-	inner := dockerTailerPkg.NewTailer(
+	inner := containerTailerPkg.NewDockerTailer(
 		t.dockerutil,
 		t.ContainerID,
 		t.source,

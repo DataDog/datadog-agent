@@ -5,7 +5,7 @@
 
 //go:build docker
 
-package docker
+package container
 
 import (
 	"context"
@@ -78,7 +78,7 @@ func NewTestDecoder() *decoder.Decoder {
 	}
 }
 
-func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelFunc context.CancelFunc) *Tailer {
+func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	containerID := "1234567890abcdef"
 	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
@@ -87,7 +87,6 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 		decoder:            NewTestDecoder(),
 		Source:             source,
 		tagProvider:        tag.NewLocalProvider([]string{}),
-		dockerutil:         dockerClient,
 		readTimeout:        time.Millisecond,
 		sleepDuration:      time.Second,
 		stop:               make(chan struct{}, 1),
@@ -112,7 +111,7 @@ func TestGetLastSince(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	tailer := NewTestTailer(&mockReaderNoSleep{}, nil, func() {})
+	tailer := NewTestTailer(&mockReaderNoSleep{}, func() {})
 	inBuf := make([]byte, 4096)
 
 	n, err := tailer.read(inBuf, testReadTimeout)
@@ -127,7 +126,7 @@ func TestReadTimeout(t *testing.T) {
 	// The reader should timout after testReadTimeout (10ms).
 	reader.timeout = 2 * time.Second
 
-	tailer := NewTestTailer(reader, nil, cancelFunc)
+	tailer := NewTestTailer(reader, cancelFunc)
 	inBuf := make([]byte, 4096)
 
 	n, err := tailer.read(inBuf, testReadTimeout)
@@ -138,7 +137,7 @@ func TestReadTimeout(t *testing.T) {
 
 func TestTailerCanStopWithNilReader(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	tailer := NewTestTailer(newMockReaderSleep(ctx), nil, cancelFunc)
+	tailer := NewTestTailer(newMockReaderSleep(ctx), cancelFunc)
 
 	// Simulate error in tailer.setupReader()
 	tailer.reader = newSafeReader()
@@ -160,8 +159,8 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("http: read on closed response body"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				//dockerClient := NewTestDockerClient(reader, nil)
+				tailer := NewTestTailer(reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -176,8 +175,8 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				//dockerClient := NewTestDockerClient(reader, nil)
+				tailer := NewTestTailer(reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -194,9 +193,9 @@ func TestTailer_readForever(t *testing.T) {
 				// init the fake reader with an io.EOF
 				initialReader := NewTestReader("", io.EOF, nil)
 				// then the new reader return by the docker client will return close network connection to simulate stop agent
-				connectionCloseReader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
-				dockerClient := NewTestDockerClient(connectionCloseReader, nil)
-				tailer := NewTestTailer(initialReader, dockerClient, cancelFunc)
+				//connectionCloseReader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
+				//dockerClient := NewTestDockerClient(connectionCloseReader, nil)
+				tailer := NewTestTailer(initialReader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -211,8 +210,8 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("this is a random error"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				//dockerClient := NewTestDockerClient(reader, nil)
+				tailer := NewTestTailer(reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {

@@ -5,11 +5,12 @@
 
 //go:build docker
 
-package docker
+package container
 
 import (
 	"bytes"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"
 	"io"
 	"testing"
 
@@ -45,7 +46,7 @@ func (r *ReadErrorMock) Read(p []byte) (int, error) {
 }
 
 func TestSafeReaderRead(t *testing.T) {
-	reader := newSafeReader()
+	reader := docker.newSafeReader()
 	bytesArray := []byte("foo")
 	mockReadCloserNoError := NewReadCloserMock(bytes.NewReader(bytesArray), func() error {
 		return nil
@@ -56,7 +57,7 @@ func TestSafeReaderRead(t *testing.T) {
 
 	n, err := reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, errReaderNotInitialized, err)
+	assert.Equal(t, docker.errReaderNotInitialized, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	n, err = reader.Read(bytesArray)
@@ -71,11 +72,11 @@ func TestSafeReaderRead(t *testing.T) {
 	reader.setUnsafeReader(nil)
 	n, err = reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, errReaderNotInitialized, err)
+	assert.Equal(t, docker.errReaderNotInitialized, err)
 }
 
 func TestSafeReaderClose(t *testing.T) {
-	reader := newSafeReader()
+	reader := docker.newSafeReader()
 	mockReadCloserNoError := NewReadCloserMock(&ReadErrorMock{}, func() error {
 		return nil
 	})
@@ -84,7 +85,7 @@ func TestSafeReaderClose(t *testing.T) {
 	})
 
 	err := reader.Close()
-	assert.Equal(t, errReaderNotInitialized, err)
+	assert.Equal(t, docker.errReaderNotInitialized, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	err = reader.Close()
@@ -96,5 +97,5 @@ func TestSafeReaderClose(t *testing.T) {
 
 	reader.setUnsafeReader(nil)
 	err = reader.Close()
-	assert.Equal(t, errReaderNotInitialized, err)
+	assert.Equal(t, docker.errReaderNotInitialized, err)
 }

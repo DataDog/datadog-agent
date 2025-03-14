@@ -10,12 +10,12 @@ package tailers
 
 import (
 	"context"
+	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	apiTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/api"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,9 +77,9 @@ func NewApiTailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName
 
 // tryStartTailer tries to start the inner tailer, returning an erroredContainerID channel if
 // successful.
-func (t *ApiTailer) tryStartTailer() (*apiTailerPkg.Tailer, chan string, error) {
+func (t *ApiTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
 	erroredContainerID := make(chan string)
-	inner := apiTailerPkg.NewTailer(
+	inner := containerTailerPkg.NewApiTailer(
 		t.kubeUtil,
 		t.ContainerID,
 		t.ContainerName,
