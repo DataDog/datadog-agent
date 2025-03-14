@@ -111,10 +111,19 @@ type InstanceConfigAuthentication struct {
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Name      string `yaml:"name"`
-	IPAddress string `yaml:"ip_address"`
-	Port      Number `yaml:"port"`
-	InstanceConfigAuthentication
+	Name                  string                              `yaml:"name"`
+	IPAddress             string                              `yaml:"ip_address"`
+	Port                  Number                              `yaml:"port"`
+	CommunityString       string                              `yaml:"community_string"`
+	SnmpVersion           string                              `yaml:"snmp_version"`
+	Timeout               Number                              `yaml:"timeout"`
+	Retries               Number                              `yaml:"retries"`
+	User                  string                              `yaml:"user"`
+	AuthProtocol          string                              `yaml:"authProtocol"`
+	AuthKey               string                              `yaml:"authKey"`
+	PrivProtocol          string                              `yaml:"privProtocol"`
+	PrivKey               string                              `yaml:"privKey"`
+	ContextName           string                              `yaml:"context_name"`
 	Authentications       []InstanceConfigAuthentication      `yaml:"authentications"`
 	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
 	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
@@ -174,10 +183,19 @@ type Authentication struct {
 
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
-	Name      string
-	IPAddress string
-	Port      uint16
-	Authentication
+	Name            string
+	IPAddress       string
+	Port            uint16
+	CommunityString string
+	SnmpVersion     string
+	Timeout         int
+	Retries         int
+	User            string
+	AuthProtocol    string
+	AuthKey         string
+	PrivProtocol    string
+	PrivKey         string
+	ContextName     string
 	Authentications []Authentication
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
@@ -387,9 +405,21 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
-	c.Authentications = append(c.Authentications, getAuthentication(instance.InstanceConfigAuthentication))
-	for _, instanceConfigAuthentication := range instance.Authentications {
-		c.Authentications = append(c.Authentications, getAuthentication(instanceConfigAuthentication))
+	ica := InstanceConfigAuthentication{
+		CommunityString: instance.CommunityString,
+		SnmpVersion:     instance.SnmpVersion,
+		Timeout:         instance.Timeout,
+		Retries:         instance.Retries,
+		User:            instance.User,
+		AuthProtocol:    instance.AuthProtocol,
+		AuthKey:         instance.AuthKey,
+		PrivProtocol:    instance.PrivProtocol,
+		PrivKey:         instance.PrivKey,
+		ContextName:     instance.ContextName,
+	}
+	c.Authentications = append(c.Authentications, ica.toAuthentication())
+	for _, ica = range instance.Authentications {
+		c.Authentications = append(c.Authentications, ica.toAuthentication())
 	}
 
 	if instance.OidBatchSize != 0 {
@@ -518,18 +548,18 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
-func getAuthentication(instanceConfigAuthentication InstanceConfigAuthentication) Authentication {
+func (ica *InstanceConfigAuthentication) toAuthentication() Authentication {
 	authentication := Authentication{
-		CommunityString: instanceConfigAuthentication.CommunityString,
-		SnmpVersion:     instanceConfigAuthentication.SnmpVersion,
-		Timeout:         int(instanceConfigAuthentication.Timeout),
-		Retries:         int(instanceConfigAuthentication.Retries),
-		User:            instanceConfigAuthentication.User,
-		AuthProtocol:    instanceConfigAuthentication.AuthProtocol,
-		AuthKey:         instanceConfigAuthentication.AuthKey,
-		PrivProtocol:    instanceConfigAuthentication.PrivProtocol,
-		PrivKey:         instanceConfigAuthentication.PrivKey,
-		ContextName:     instanceConfigAuthentication.ContextName,
+		CommunityString: ica.CommunityString,
+		SnmpVersion:     ica.SnmpVersion,
+		Timeout:         int(ica.Timeout),
+		Retries:         int(ica.Retries),
+		User:            ica.User,
+		AuthProtocol:    ica.AuthProtocol,
+		AuthKey:         ica.AuthKey,
+		PrivProtocol:    ica.PrivProtocol,
+		PrivKey:         ica.PrivKey,
+		ContextName:     ica.ContextName,
 	}
 
 	if authentication.Timeout == 0 {
