@@ -123,6 +123,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 		},
+		GetIndexFunc: func() (int, nvml.Return) {
+			return deviceIdx, nvml.SUCCESS
+		},
 	}
 }
 
