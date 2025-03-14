@@ -6,7 +6,12 @@
 package client
 
 import (
+	"archive/tar"
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +19,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/k8sexecuteparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
 // KubernetesClient is a wrapper around the k8s client library and provides convenience methods for interacting with a
@@ -38,15 +46,22 @@ func NewKubernetesClient(config *rest.Config) (*KubernetesClient, error) {
 }
 
 // PodExec execs into a given namespace/pod and returns the output for the given command
-func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []string) (stdout, stderr string, err error) {
+func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []string, options ...k8sexecuteparams.Options) (stdout, stderr string, err error) {
 	req := k.K8sClient.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
+	params, err := optional.MakeParams(options...)
+	if err != nil {
+		return "", "", err
+	}
+
+	builtCommand := buildCommand(cmd, params.EnvVariables)
+	fmt.Println("BUILD COMMAND: ", builtCommand)
 	option := &corev1.PodExecOptions{
 		Stdin:     false,
 		Stdout:    true,
 		Stderr:    true,
 		TTY:       false,
 		Container: container,
-		Command:   cmd,
+		Command:   builtCommand,
 	}
 
 	req.VersionedParams(
@@ -69,4 +84,91 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 	}
 
 	return stdoutSb.String(), stderrSb.String(), nil
+}
+
+func buildCommand(cmd []string, envVariables map[string]string) []string {
+	builtCommand := []string{}
+	if len(envVariables) > 0 {
+		builtCommand = append(builtCommand, "env")
+		for k, v := range envVariables {
+			builtCommand = append(builtCommand, fmt.Sprintf("%s=%s ", k, v))
+		}
+	}
+
+	builtCommand = append(builtCommand, cmd...)
+	return builtCommand
+}
+
+// DownloadFromPod downloads a folder from a pod to a local destination
+func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPath, destPath string) error {
+	reader, outStream := io.Pipe()
+	options := &corev1.PodExecOptions{
+		Container: container,
+		Command:   []string{"tar", "cf", "-", srcPath},
+		Stdout:    true,
+		Stderr:    true,
+	}
+
+	req := k.K8sClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec")
+
+	req.VersionedParams(options, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(k.K8sConfig, "POST", req.URL())
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer outStream.Close()
+		err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+			Stdout: outStream,
+			Stderr: os.Stderr,
+			Tty:    false,
+		})
+	}()
+
+	if err := os.MkdirAll(destPath, 0755); err != nil {
+		return err
+	}
+
+	tarReader := tar.NewReader(reader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(destPath, strings.TrimPrefix(header.Name, srcPath))
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			dir := filepath.Dir(target)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return err
+			}
+
+			file, err := os.Create(target)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			if _, err := io.Copy(file, tarReader); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

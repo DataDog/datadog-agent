@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
