@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
@@ -325,6 +326,10 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
+	// Ensure the kernel cache is running so we can load the kernel data
+	sysCtx.kernelCache.Start()
+	t.Cleanup(sysCtx.kernelCache.Stop)
+
 	// Set up the caches in system context so no actual queries are done
 	pid, tid := uint64(1), uint64(1)
 	kernAddress := uint64(42)
@@ -382,7 +387,21 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 		stream.handleKernelLaunch(launch)
 	}
 
-	// No sync, so we should have data
+	// We need to wait until the kernel cache loads the kernel data
+	cacheKey := kernelKey{
+		pid:       int(pid),
+		address:   kernAddress,
+		smVersion: smVersion,
+	}
+	require.Eventually(t, func() bool {
+		return sysCtx.kernelCache.getExistingKernelData(cacheKey) != nil
+	}, 10000*time.Millisecond, 10*time.Millisecond)
+
+	// Ensure the kernel has been loaded correctly
+	require.NoError(t, sysCtx.kernelCache.cache[cacheKey].err)
+	require.NotNil(t, sysCtx.kernelCache.cache[cacheKey].kernel)
+
+	// No sync, so we should not have past data
 	require.Nil(t, stream.getPastData(false))
 
 	// We should have a current kernel span running

@@ -119,7 +119,7 @@ type enrichedKernelLaunch struct {
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
 func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
-	if !errors.Is(e.err, errKernelNotProcessedYet) {
+	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, errKernelNotProcessedYet)) {
 		return e.kernel, e.err
 	}
 
