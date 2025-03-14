@@ -37,6 +37,7 @@ type LeaderForwarder struct {
 	proxy     *httputil.ReverseProxy
 	proxyLock sync.RWMutex
 	apiPort   string
+	leaderIP  string
 }
 
 // NewLeaderForwarder initializes a new LeaderForwarder instance and is used for test purposes
@@ -44,7 +45,8 @@ func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.DebugLvl)
 	return &LeaderForwarder{
-		apiPort: strconv.Itoa(apiPort),
+		apiPort:  strconv.Itoa(apiPort),
+		leaderIP: "",
 		transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -110,21 +112,21 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		lf.proxy = nil
 		return
 	}
-	if lf.proxy == nil {
-		lf.proxy = &httputil.ReverseProxy{
-			Director: func(req *http.Request) {
-				req.URL.Scheme = "https"
-				req.URL.Host = leaderIP + ":" + lf.apiPort
-				req.Header.Add(forwardHeader, "true")
-			},
-			Transport: lf.transport,
-			ErrorLog:  lf.logger,
-		}
-	} else {
-		lf.proxy.Director = func(req *http.Request) {
+	lf.leaderIP = leaderIP
+	lf.proxy = &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
 			req.URL.Scheme = "https"
 			req.URL.Host = leaderIP + ":" + lf.apiPort
 			req.Header.Add(forwardHeader, "true")
-		}
+		},
+		Transport: lf.transport,
+		ErrorLog:  lf.logger,
 	}
+}
+
+// GetLeaderIP allows to GET current leader IP
+func (lf *LeaderForwarder) GetLeaderIP() string {
+	lf.proxyLock.RLock()
+	defer lf.proxyLock.RUnlock()
+	return lf.leaderIP
 }
