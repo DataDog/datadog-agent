@@ -8,6 +8,7 @@
 package series
 
 import (
+	"bytes"
 	"compress/gzip"
 	"compress/zlib"
 	"context"
@@ -32,17 +33,8 @@ const (
 
 var bufferPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, 0, 1000*1024) // 1000KB buffer
+		return new(bytes.Buffer)
 	},
-}
-
-type buffer struct {
-	buf *[]byte
-}
-
-func (b *buffer) Write(p []byte) (n int, err error) {
-	*b.buf = append(*b.buf, p...)
-	return len(p), nil
 }
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
@@ -97,16 +89,17 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	buf := bufferPool.Get().([]byte)
-	defer bufferPool.Put(buf[:0]) // Reset the buffer before putting it back
-	payload, err := io.ReadAll(io.TeeReader(rc, &buffer{buf: &buf}))
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+	buf.Reset() // Reset the buffer before using it
+	_, err = io.Copy(buf, rc)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	metricPayload := &gogen.MetricPayload{}
-	if err := metricPayload.Unmarshal(payload); err != nil {
+	if err := metricPayload.Unmarshal(buf.Bytes()); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
