@@ -23,12 +23,12 @@ import (
 
 type (
 	packetResponse struct {
-		IP   net.IP
-		Type uint8
-		Code uint8
-		Port uint16
 		Time time.Time
 		Err  error
+		IP   net.IP
+		Port uint16
+		Type uint8
+		Code uint8
 	}
 )
 

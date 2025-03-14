@@ -22,11 +22,8 @@ type (
 	// for parsing ICMP packets with embedded TCP
 	// data
 	TCPParser struct {
-		icmpLayer     layers.ICMPv4
-		innerIPLayer  layers.IPv4
-		innerUDPLayer layers.UDP
 		innerTCPLayer layers.TCP
-		innerPayload  gopacket.Payload
+		innerUDPLayer layers.UDP
 		// packetParser is parser for the ICMP segment of the packet
 		packetParser *gopacket.DecodingLayerParser
 		// innerPacketParser is necessary for ICMP packets
@@ -34,6 +31,9 @@ type (
 		// an ICMP packet to be decoded in the same parser
 		innerPacketParser *gopacket.DecodingLayerParser
 		icmpResponse      *Response
+		innerIPLayer      layers.IPv4
+		innerPayload      gopacket.Payload
+		icmpLayer         layers.ICMPv4
 	}
 )
 

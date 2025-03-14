@@ -21,20 +21,20 @@ type (
 	// traceroute
 	Results struct {
 		Source     net.IP
-		SourcePort uint16
 		Target     net.IP
-		DstPort    uint16
 		Hops       []*Hop
+		SourcePort uint16
+		DstPort    uint16
 	}
 
 	// Hop encapsulates information about a single
 	// hop in a traceroute
 	Hop struct {
 		IP       net.IP
+		RTT      time.Duration
 		Port     uint16
 		ICMPType uint8
 		ICMPCode uint8
-		RTT      time.Duration
 		IsDest   bool
 	}
 
