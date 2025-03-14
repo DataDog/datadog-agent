@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes issue where the crio image status endpoint would be queried when `container_image.enabled` is set to `false`.
+    Fixes issue where the CRI-O image status endpoint would be queried when `container_image.enabled` was set to `false`.
