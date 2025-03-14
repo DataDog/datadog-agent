@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 )
 
 const (
@@ -231,7 +231,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	vpcSubnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	vpcSubnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
