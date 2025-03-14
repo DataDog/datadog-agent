@@ -192,7 +192,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             {
                 nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -237,7 +236,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -255,7 +253,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
-        omnibus_software_version = Version(major=7, minor=30, patch=0)
         macos_build_version = Version(major=7, minor=30, patch=0)
         jmxfetch_version = Version(major=0, minor=45, patch=0)
         jmxfetch_shasum = "jmxfetchhashsum"
@@ -272,7 +269,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             release_entry=release_entry_for(7),
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
-            omnibus_software_version=omnibus_software_version,
             macos_build_version=macos_build_version,
             jmxfetch_version=jmxfetch_version,
             jmxfetch_shasum=jmxfetch_shasum,
@@ -289,7 +285,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             {
                 nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -334,7 +329,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
-                    "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
                     "JMXFETCH_VERSION": str(jmxfetch_version),
                     "JMXFETCH_HASH": str(jmxfetch_shasum),
@@ -658,7 +652,6 @@ class TestGenerateRepoData(unittest.TestCase):
         new=MagicMock(
             return_value={
                 'integrations-core': '9.1.1-rc.0',
-                'omnibus-software': '1.2.3-rc.4',
                 'omnibus-ruby': "5.4.3-rc.2",
                 "datadog-agent-macos-build": "6.6.6-rc.6",
             }
@@ -668,11 +661,9 @@ class TestGenerateRepoData(unittest.TestCase):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
         repo_data = generate_repo_data(Context(), False, next_version, "main")
-        self.assertEqual(len(repo_data), 5)
+        self.assertEqual(len(repo_data), 4)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
-        self.assertEqual("master", repo_data["omnibus-software"]["branch"])
-        self.assertEqual("1.2.3-rc.4", repo_data["omnibus-software"]["previous_tag"])
         self.assertEqual("datadog-5.5.0", repo_data["omnibus-ruby"]["branch"])
         self.assertEqual("5.4.3-rc.2", repo_data["omnibus-ruby"]["previous_tag"])
         self.assertEqual("master", repo_data["datadog-agent-macos-build"]["branch"])
@@ -685,7 +676,6 @@ class TestGenerateRepoData(unittest.TestCase):
         new=MagicMock(
             return_value={
                 'integrations-core': '9.1.1-rc.0',
-                'omnibus-software': '1.2.3-rc.4',
                 'omnibus-ruby': "5.4.3-rc.2",
                 "datadog-agent-macos-build": "6.6.6-rc.6",
             }
@@ -695,9 +685,8 @@ class TestGenerateRepoData(unittest.TestCase):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
         repo_data = generate_repo_data(Context(), False, next_version, "9.1.x")
-        self.assertEqual(len(repo_data), 5)
+        self.assertEqual(len(repo_data), 4)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
-        self.assertEqual("9.1.x", repo_data["omnibus-software"]["branch"])
         self.assertEqual("9.1.x", repo_data["omnibus-ruby"]["branch"])
         self.assertEqual("9.1.x", repo_data["datadog-agent-macos-build"]["branch"])
         self.assertEqual("9.1.x", repo_data["datadog-agent"]["branch"])
@@ -721,7 +710,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -737,12 +725,6 @@ class TestCheckForChanges(unittest.TestCase):
         c = MockContext(
             run={
                 'git rev-parse --abbrev-ref HEAD': Result("main"),
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t0        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
@@ -780,7 +762,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -802,21 +783,11 @@ class TestCheckForChanges(unittest.TestCase):
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git config user.name github-actions[bot]': Result(""),
                     'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                        "4n0th3rc0mm1t9        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                         "4n0th3rc0mm1t1        refs/heads/main"
                     ),
                     'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
-                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
+                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                     ),
                     f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby {MOCK_TMP_DIR}': Result(
                         ""
@@ -850,13 +821,13 @@ class TestCheckForChanges(unittest.TestCase):
             )
             release.check_for_changes(c, "main")
             calls = [
-                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
             client_mock.chat_postMessage.assert_called_once_with(
                 channel="#agent-release-sync",
-                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-software/commits/main/|omnibus-software>\nMake sure to tag them before merging the next RC PR.",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\nMake sure to tag them before merging the next RC PR.",
             )
 
     @patch('slack_sdk.WebClient', autospec=True)
@@ -867,7 +838,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -887,16 +857,6 @@ class TestCheckForChanges(unittest.TestCase):
             c = MockContext(
                 run={
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                        "4n0th3rc0mm1t9        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                         "4n0th3rc0mm1t8        refs/heads/main"
                     ),
@@ -935,7 +895,6 @@ class TestCheckForChanges(unittest.TestCase):
             )
             release.check_for_changes(c, "main")
             calls = [
-                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("datadog-agent-macos-build has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
@@ -945,7 +904,7 @@ class TestCheckForChanges(unittest.TestCase):
             print_mock.assert_has_calls(calls)
             client_mock.chat_postMessage.assert_called_once_with(
                 channel="#agent-release-sync",
-                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-software/commits/main/|omnibus-software>\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\n - <https://github.com/DataDog/datadog-agent-macos-build/commits/main/|datadog-agent-macos-build>\nMake sure to tag them before merging the next RC PR.",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\n - <https://github.com/DataDog/datadog-agent-macos-build/commits/main/|datadog-agent-macos-build>\nMake sure to tag them before merging the next RC PR.",
             )
 
     @patch('tasks.release.agent_context')
@@ -955,7 +914,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -971,12 +929,6 @@ class TestCheckForChanges(unittest.TestCase):
         c = MockContext(
             run={
                 'git rev-parse --abbrev-ref HEAD': Result("main"),
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t0        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
@@ -1022,7 +974,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -1044,16 +995,6 @@ class TestCheckForChanges(unittest.TestCase):
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git config user.name github-actions[bot]': Result(""),
                     'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
-                        "4n0th3rc0mm1t0        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/7.55.x"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
