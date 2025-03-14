@@ -33,21 +33,21 @@ func TestProcessKillerExclusion(t *testing.T) {
 
 	pid := utils.Getpid()
 	tests := []struct {
-		pids           []uint32
-		paths          []string
+		pids           uint32
+		paths          string
 		expectedResult bool
 	}{
-		{[]uint32{pid + 1}, []string{"/usr/bin/date"}, true},
-		{[]uint32{pid + 1}, []string{"/usr/bin/dd"}, false},
-		{[]uint32{pid + 1}, []string{"/usr/sbin/sudo"}, false},
-		{[]uint32{pid}, []string{"/usr/bin/date"}, false},
-		{[]uint32{1}, []string{"/usr/bin/date"}, false},
-		{[]uint32{pid + 1}, []string{"/opt/datadog-agent/bin/agent/agent"}, false},
-		{[]uint32{pid + 1}, []string{"/opt/datadog-packages/datadog-agent/v1.0.0/bin/agent/agent"}, false},
+		{pid + 1, "/usr/bin/date", true},
+		{pid + 1, "/usr/bin/dd", false},
+		{pid + 1, "/usr/sbin/sudo", false},
+		{pid, "/usr/bin/date", false},
+		{1, "/usr/bin/date", false},
+		{pid + 1, "/opt/datadog-agent/bin/agent/agent", false},
+		{pid + 1, "/opt/datadog-packages/datadog-agent/v1.0.0/bin/agent/agent", false},
 	}
 
 	for _, test := range tests {
-		isKilledAllowed, _ := p.isKillAllowed(test.pids, test.paths)
+		isKilledAllowed, _ := p.isKillAllowed([]processContext{{pid: int(test.pids), path: test.paths}})
 		assert.Equal(t, test.expectedResult, isKilledAllowed)
 	}
 }

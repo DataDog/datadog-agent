@@ -13,8 +13,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u32 pid = pid_tgid >> 32;
     u64 now = bpf_ktime_get_ns();
 
-    send_signal(pid);
-
     struct syscall_monitor_event_t event = {};
     struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
     fill_container_context(proc_cache_entry, &event.container);

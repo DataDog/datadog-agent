@@ -76,7 +76,6 @@ BPF_LRU_MAP(veth_state_machine, u64, struct veth_state_t, 1024)
 BPF_LRU_MAP(veth_devices, struct device_ifindex_t, struct device_t, 1024)
 BPF_LRU_MAP(syscall_monitor, struct syscall_monitor_key_t, struct syscall_monitor_entry_t, 2048)
 BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
-BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
