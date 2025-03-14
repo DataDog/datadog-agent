@@ -86,7 +86,7 @@ func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc 
 		ContainerID: containerID,
 		outputChan:  make(chan *message.Message, 100),
 		decoder:     NewTestDecoder(),
-		unsafeLogReader: func(ctx context.Context, t time.Time) (io.ReadCloser, error) {
+		unsafeLogReader: func(ctx context.Context, t time.Time) (io.ReadCloser, error) { //nolint
 			return unsafeReader, nil
 		},
 		Source:             source,
