@@ -615,23 +615,23 @@ func startAgent(
 	// Register Diagnose functions
 	diagnosecatalog := diagnose.GetCatalog()
 
-	diagnosecatalog.Register("check-datadog", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.CheckDatadog, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return collector.Diagnose(collectorComponent, log)
 	})
 
-	diagnosecatalog.Register("port-conflict", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.PortConflict, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return ports.DiagnosePortSuite()
 	})
 
-	diagnosecatalog.Register("connectivity-datadog-event-platform", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.EventPlatformConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return eventplatformimpl.Diagnose()
 	})
 
-	diagnosecatalog.Register("connectivity-datadog-autodiscovery", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 	})
 
-	diagnosecatalog.Register("connectivity-datadog-core-endpoints", func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.CoreEndpointsConnectivity, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 		return connectivity.Diagnose(diagCfg)
 	})
 

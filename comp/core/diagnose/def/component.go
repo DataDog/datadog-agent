@@ -27,13 +27,26 @@ func RegisterMetadataAvail(name string, d func() error) {
 	}
 }
 
+const (
+	// CheckDatadog is the suite name for the check-datadog suite
+	CheckDatadog = "check-datadog"
+	// AutodiscoveryConnectivity is the suite name for the connectivity-datadog-autodiscovery suite
+	AutodiscoveryConnectivity = "connectivity-datadog-autodiscovery"
+	// CoreEndpointsConnectivity is the suite name for the connectivity-datadog-core-endpoints suite
+	CoreEndpointsConnectivity = "connectivity-datadog-core-endpoints"
+	// EventPlatformConnectivity is the suite name for the connectivity-datadog-event-platform suite
+	EventPlatformConnectivity = "connectivity-datadog-event-platform"
+	// PortConflict is the suite name for the port-conflict suite
+	PortConflict = "port-conflict"
+)
+
 // AllSuites is a list of all available suites
 var AllSuites = []string{
-	"check-datadog",
-	"connectivity-datadog-autodiscovery",
-	"connectivity-datadog-core-endpoints",
-	"connectivity-datadog-event-platform",
-	"port-conflict",
+	CheckDatadog,
+	AutodiscoveryConnectivity,
+	CoreEndpointsConnectivity,
+	EventPlatformConnectivity,
+	PortConflict,
 }
 
 var catalog *Catalog

@@ -22,7 +22,7 @@ func GetClusterAgentDiagnose(diagnoseComp diagnose.Component) ([]byte, error) {
 // GetLocalClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
 func GetLocalClusterAgentDiagnose(diagnoseComp diagnose.Component) ([]byte, error) {
 	suite := diagnose.Suites{
-		"connectivity-datadog-autodiscovery": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 		},
 	}

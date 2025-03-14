@@ -45,16 +45,16 @@ func Run(
 ) (*diagnose.Result, error) {
 
 	localSuite := diagnose.Suites{
-		"port-conflict": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.PortConflict: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return ports.DiagnosePortSuite()
 		},
-		"connectivity-datadog-event-platform": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.EventPlatformConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return eventplatformimpl.Diagnose()
 		},
-		"connectivity-datadog-autodiscovery": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 		},
-		"connectivity-datadog-core-endpoints": func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.Diagnose(diagCfg)
 		},
 	}
@@ -62,7 +62,7 @@ func Run(
 	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, wmeta, ac, secretResolver, tagger, config)
 
 	if err != nil {
-		localSuite["check-datadog"] = func(_ diagnose.Config) []diagnose.Diagnosis {
+		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
 			return []diagnose.Diagnosis{
 				{
 					Status:      diagnose.DiagnosisFail,
@@ -74,7 +74,7 @@ func Run(
 			}
 		}
 	} else {
-		localSuite["check-datadog"] = func(_ diagnose.Config) []diagnose.Diagnosis {
+		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
 			var diagnoses []diagnose.Diagnosis
 			for _, integrationConfig := range integrationConfigs {
 				checkName := integrationConfig.Name

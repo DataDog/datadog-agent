@@ -287,9 +287,9 @@ func start(log log.Component,
 	}
 
 	// Register Diagnose functions
-	diagnosecatalog := diagnose.GetCatalog()
+	diagnoseCatalog := diagnose.GetCatalog()
 
-	diagnosecatalog.Register("connectivity-datadog-autodiscovery", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnoseCatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 	})
 

@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func run(_ config.Component, diagnoseComponent diagnose.Component) error {
 	suite := diagnose.Suites{
-		"connectivity-datadog-autodiscovery": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 		},
 	}

@@ -225,16 +225,16 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 
 func runLocalDiagnose(s *systrayImpl) []byte {
 	localSuite := diagnose.Suites{
-		"port-conflict": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.PortConflict: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return ports.DiagnosePortSuite()
 		},
-		"connectivity-datadog-event-platform": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.EventPlatformConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return eventplatformimpl.Diagnose()
 		},
-		"connectivity-datadog-autodiscovery": func(_ diagnose.Config) []diagnose.Diagnosis {
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 		},
-		"connectivity-datadog-core-endpoints": func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.Diagnose(diagCfg)
 		},
 	}

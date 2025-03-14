@@ -116,7 +116,7 @@ func TestRunSuite(t *testing.T) {
 
 	setupDiagonseSuites(t)
 
-	result, err := provides.Comp.RunSuite("check-datadog", "text", true)
+	result, err := provides.Comp.RunSuite(diagnose.CheckDatadog, "text", true)
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
@@ -125,7 +125,7 @@ func TestRunSuite(t *testing.T) {
 
 	assert.Equal(expectedResult, output)
 
-	result, err = provides.Comp.RunSuite("check-datadog", "json", true)
+	result, err = provides.Comp.RunSuite(diagnose.CheckDatadog, "json", true)
 	assert.Nil(err)
 
 	// We replace windows line break by linux so the tests pass on every OS
@@ -196,13 +196,13 @@ func TestFlareProvider(t *testing.T) {
 func setupDiagonseSuites(t *testing.T) {
 	t.Helper()
 
-	diagnosecatalog := diagnose.GetCatalog()
+	diagnoseCatalog := diagnose.GetCatalog()
 
-	oldSuites := diagnosecatalog.Suites
+	oldSuites := diagnoseCatalog.Suites
 
-	diagnosecatalog.Suites = make(diagnose.Suites)
+	diagnoseCatalog.Suites = make(diagnose.Suites)
 
-	diagnosecatalog.Register("check-datadog", func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnoseCatalog.Register(diagnose.CheckDatadog, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return []diagnose.Diagnosis{
 			{
 				Status:    diagnose.DiagnosisUnexpectedError,
@@ -228,6 +228,6 @@ func setupDiagonseSuites(t *testing.T) {
 	})
 
 	t.Cleanup(func() {
-		diagnosecatalog.Suites = oldSuites
+		diagnoseCatalog.Suites = oldSuites
 	})
 }
