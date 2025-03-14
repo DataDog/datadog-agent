@@ -104,11 +104,14 @@ type Serializer struct {
 	config                config.Component
 
 	Strategy                            compression.Compressor
+	logger                              log.Component
 	seriesJSONPayloadBuilder            *stream.JSONPayloadBuilder
 	jsonExtraHeaders                    http.Header
 	protobufExtraHeaders                http.Header
 	jsonExtraHeadersWithCompression     http.Header
 	protobufExtraHeadersWithCompression http.Header
+
+	hostname string
 
 	// Those variables allow users to blacklist any kind of payload
 	// from being sent by the agent. This was introduced for
@@ -125,8 +128,6 @@ type Serializer struct {
 	enableServiceChecksJSONStream bool
 	enableEventsJSONStream        bool
 	enableSketchProtobufStream    bool
-	hostname                      string
-	logger                        log.Component
 }
 
 // NewSerializer returns a new Serializer initialized

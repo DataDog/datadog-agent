@@ -63,13 +63,13 @@ func init() {
 // on what was previously need to serialize payloads. Keep that in mind and
 // use multiple JSONPayloadBuilders for different sources.
 type JSONPayloadBuilder struct {
-	inputSizeHint, outputSizeHint int
-	shareAndLockBuffers           bool
-	input, output                 *bytes.Buffer
-	mu                            sync.Mutex
 	config                        config.Component
 	compressor                    compression.Component
 	logger                        log.Component
+	input, output                 *bytes.Buffer
+	inputSizeHint, outputSizeHint int
+	mu                            sync.Mutex
+	shareAndLockBuffers           bool
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
