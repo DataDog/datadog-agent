@@ -340,6 +340,7 @@ func (s *defaultEventPlatformForwarder) Start() {
 }
 
 func (s *defaultEventPlatformForwarder) Stop() {
+	log.Warn("Fowarder STOP")
 	log.Debugf("shutting down event platform forwarder")
 	stopper := startstop.NewParallelStopper()
 	for _, p := range s.pipelines {

@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -63,7 +62,6 @@ type npCollectorImpl struct {
 	workers       int
 	stopChan      chan struct{}
 	flushLoopDone chan struct{}
-	workersDone   chan struct{}
 	runDone       chan struct{}
 	flushInterval time.Duration
 
@@ -124,7 +122,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
-		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
 		statsdClient:  statsd,
@@ -277,7 +274,7 @@ func (s *npCollectorImpl) start() error {
 
 	go s.listenPathtests()
 	go s.flushLoop()
-	go s.startWorkers()
+	s.startWorkers()
 
 	return nil
 }
@@ -288,9 +285,11 @@ func (s *npCollectorImpl) stop() {
 		return
 	}
 	close(s.stopChan)
+	s.logger.Info("stopChan Done")
 	<-s.flushLoopDone
-	<-s.workersDone
+	s.logger.Info("flushLoopDone Done")
 	<-s.runDone
+	s.logger.Info("runDone Done")
 	s.running = false
 }
 
@@ -332,7 +331,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
-
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		s.logger.Errorf("json marshall error: %s", err)
@@ -370,7 +368,9 @@ func (s *npCollectorImpl) flushLoop() {
 		case <-s.stopChan:
 			s.logger.Info("Stopped flush loop")
 			s.flushLoopDone <- struct{}{}
+			s.logger.Info("Stopped flush loop2")
 			flushTicker.Stop()
+			s.logger.Info("Stopped flush loop3")
 			return
 		// automatic flush sequence
 		case flushTime := <-flushTicker.C:
@@ -500,24 +500,13 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 
 func (s *npCollectorImpl) startWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
-
-	// TODO: TEST ME
-	// TODO: TEST ME
-	// TODO: TEST ME
-	var wg sync.WaitGroup
 	for w := 0; w < s.workers; w++ {
-		wg.Add(1)
 		s.logger.Debugf("Starting worker #%d", w)
-		go func() {
-			defer wg.Done()
-			s.runWorker(w)
-		}()
+		go s.startWorker(w)
 	}
-	wg.Wait()
-	s.workersDone <- struct{}{}
 }
 
-func (s *npCollectorImpl) runWorker(workerID int) {
+func (s *npCollectorImpl) startWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:

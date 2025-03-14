@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -228,6 +229,58 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
+	app.RequireStop()
+}
+
+func Test_NpCollector_stopWithoutPanic(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.flush_interval":       "1s",
+		"network_path.collector.workers":              100,
+		"network_devices.namespace":                   "my-ns1",
+	}
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+
+	app.RequireStart()
+
+	assert.True(t, npCollector.running)
+
+	npCollector.runTraceroute = func(cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond) // simulate slow processing time, to test for panic
+		return payload.NetworkPath{
+			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
+			Protocol:    cfg.Protocol,
+			Source:      payload.NetworkPathSource{Hostname: "abc"},
+			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, IPAddress: cfg.DestHostname, Port: cfg.DestPort},
+			Hops: []payload.NetworkPathHop{
+				{Hostname: "hop_1", IPAddress: "1.1.1.1"},
+				{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+			},
+		}, nil
+	}
+
+	// WHEN
+	var conns []*model.Connection
+	currentIP := net.ParseIP("10.0.0.0")
+	for i := 0; i < 1000; i++ {
+		fmt.Println(currentIP.String())
+		incrementIP(currentIP)
+		conns = append(conns, &model.Connection{
+			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+			Raddr:     &model.Addr{Ip: currentIP.String(), Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_tcp,
+		})
+	}
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+
+	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
+
+	// THEN
+	assert.GreaterOrEqual(t, int(npCollector.processedTracerouteCount.Load()), 10)
+
+	// test that stop sequence won't trigger panic
 	app.RequireStop()
 }
 
@@ -548,7 +601,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 
 	stopped := make(chan bool, 1)
 	go func() {
-		npCollector.runWorker(42)
+		npCollector.startWorker(42)
 		stopped <- true
 	}()
 	close(npCollector.stopChan)
