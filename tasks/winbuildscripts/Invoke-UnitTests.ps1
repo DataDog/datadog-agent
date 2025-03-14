@@ -137,7 +137,7 @@ Invoke-BuildScript `
     & dda inv -e test --junit-tar="$Env:JUNIT_TAR" `
         --race --profile --rerun-fails=2 --coverage --cpus 8 `
         --python-home-3=$Env:Python3_ROOT_DIR `
-        --save-result-json C:\mnt\$test_output_file `
+        --result-json C:\mnt\$test_output_file `
         --build-stdlib `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
