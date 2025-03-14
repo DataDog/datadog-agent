@@ -39,7 +39,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
-from tasks.test_core import ModuleTestResult, process_input_args, process_module_results
+from tasks.test_core import ModuleTestResult, process_input_args, process_module_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
@@ -213,7 +213,7 @@ def process_test_result(test_result, junit_tar: str, flavor: AgentFlavor, test_w
 
         produce_junit_tar(junit_file, junit_tar)
 
-    success = process_module_results(flavor=flavor, module_results=[test_result])
+    success = process_module_result(flavor=flavor, module_result=test_result)
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -227,7 +227,7 @@ def process_test_result(test_result, junit_tar: str, flavor: AgentFlavor, test_w
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
-        should_succeed = tw.process_module_results(test_result)
+        should_succeed = tw.process_module_result(test_result)
         if should_succeed:
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")

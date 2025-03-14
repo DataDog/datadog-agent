@@ -203,7 +203,7 @@ class TestWasher:
                 main_patterns = [main_patterns]
             self.flaky_log_main_patterns += main_patterns
 
-    def process_module_results(self, module_result: ModuleTestResult):
+    def process_module_result(self, module_result: ModuleTestResult):
         """
         Process the module test results and decide whether we should succeed or not.
         If only known flaky tests are failing, we should succeed.
