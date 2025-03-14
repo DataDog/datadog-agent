@@ -189,7 +189,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
 	// lower timeout to 2 minute
-	s.setWatchdogTimeout(3)
+	s.setWatchdogTimeout(2)
 
 	// Act
 	s.mustStartExperimentCurrentVersion()
@@ -197,6 +197,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 
 	// Assert
 	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// wait till the services start
+	err = s.waitForInstallerService("Running")
 	s.Require().NoError(err)
 	// verify stable version contraints
 	s.Require().Host(s.Env().RemoteHost).
