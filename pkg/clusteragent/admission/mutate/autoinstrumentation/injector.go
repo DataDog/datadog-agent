@@ -116,36 +116,6 @@ func (i *injector) initContainer() initContainer {
 }
 
 func (i *injector) requirements() libRequirement {
-	envVars := []envVar{
-		{
-			key:     "LD_PRELOAD",
-			valFunc: joinValFunc(asAbs(injectorFilePath("launcher.preload.so")), ":"),
-		},
-		{
-			key:     "DD_INJECT_SENDER_TYPE",
-			valFunc: identityValFunc("k8s"),
-		},
-		{
-			key:     "DD_INJECT_START_TIME",
-			valFunc: identityValFunc(strconv.FormatInt(i.injectTime.Unix(), 10)),
-		},
-	}
-	if i.debug {
-		envVars = append(envVars, []envVar{
-			{
-				key:     "DD_APM_INSTRUMENTATION_DEBUG",
-				valFunc: identityValFunc("true"),
-			},
-			{
-				key:     "DD_TRACE_STARTUP_LOGS",
-				valFunc: identityValFunc("true"),
-			},
-			{
-				key:     "DD_TRACE_DEBUG",
-				valFunc: identityValFunc("true"),
-			},
-		}...)
-	}
 	return libRequirement{
 		libRequirementOptions: i.opts,
 		initContainers:        []initContainer{i.initContainer()},
@@ -157,7 +127,23 @@ func (i *injector) requirements() libRequirement {
 			volumeMountETCDPreloadAppContainer.prepended(),
 			v2VolumeMountInjector.prepended(),
 		},
-		envVars: envVars,
+		envVars: append(
+			[]envVar{
+				{
+					key:     "LD_PRELOAD",
+					valFunc: joinValFunc(asAbs(injectorFilePath("launcher.preload.so")), ":"),
+				},
+				{
+					key:     "DD_INJECT_SENDER_TYPE",
+					valFunc: identityValFunc("k8s"),
+				},
+				{
+					key:     "DD_INJECT_START_TIME",
+					valFunc: identityValFunc(strconv.FormatInt(i.injectTime.Unix(), 10)),
+				},
+			},
+			i.debugEnvVars()...,
+		),
 	}
 }
 
@@ -245,4 +231,26 @@ func (i *injector) podMutator(v version) podMutator {
 		i.injected = true
 		return nil
 	})
+}
+
+var debugEnvVars = []envVar{
+	{
+		key:     "DD_APM_INSTRUMENTATION_DEBUG",
+		valFunc: trueValFunc(),
+	},
+	{
+		key:     "DD_TRACE_STARTUP_LOGS",
+		valFunc: trueValFunc(),
+	},
+	{
+		key:     "DD_TRACE_DEBUG",
+		valFunc: trueValFunc(),
+	},
+}
+
+func (i *injector) debugEnvVars() []envVar {
+	if i.debug {
+		return debugEnvVars
+	}
+	return nil
 }
