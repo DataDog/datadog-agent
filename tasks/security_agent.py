@@ -61,7 +61,7 @@ def build(
     skip_assets=False,
     static=False,
     fips_mode=False,
-    e2e_coverage=False,
+    e2e_coverage=True,
 ):
     """
     Build the security agent
@@ -100,13 +100,14 @@ def build(
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} {cover} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
 
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
+        "cover": "-cover -covermode=atomic" if e2e_coverage else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
