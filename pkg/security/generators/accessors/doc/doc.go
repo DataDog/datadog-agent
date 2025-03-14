@@ -38,8 +38,8 @@ type eventType struct {
 	Definition       string              `json:"definition"`
 	Type             string              `json:"type"`
 	FromAgentVersion string              `json:"from_agent_version"`
-	Properties       []eventTypeProperty `json:"properties"`
 	Experimental     bool                `json:"experimental"`
+	Properties       []eventTypeProperty `json:"properties"`
 }
 
 type eventTypeProperty struct {
@@ -429,8 +429,8 @@ var (
 type eventTypeInfo struct {
 	Definition       string
 	Type             string
-	FromAgentVersion string
 	Experimental     bool
+	FromAgentVersion string
 }
 
 func extractVersionAndDefinition(evtType *common.EventTypeMetadata) eventTypeInfo {

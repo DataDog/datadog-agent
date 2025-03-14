@@ -113,26 +113,26 @@ type FcntlSyscallMsg struct {
 
 // Credentials defines process credentials
 type Credentials struct {
-	User   string
-	EUser  string
-	Group  string
-	EGroup string
 	UID    uint32
+	User   string
 	EUID   uint32
+	EUser  string
 	GID    uint32
+	Group  string
 	EGID   uint32
+	EGroup string
 }
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
 	File          FileSyscallMsg
-	Credentials   *Credentials
-	TTY           string
 	Args          []string
-	Envs          []string
-	PPID          uint32
 	ArgsTruncated bool
+	Envs          []string
 	EnvsTruncated bool
+	TTY           string
+	Credentials   *Credentials
+	PPID          uint32
 	FromProcFS    bool
 }
 
@@ -149,12 +149,12 @@ type ExitSyscallMsg struct {
 
 // FileSyscallMsg defines a file message
 type FileSyscallMsg struct {
-	Credentials *Credentials
 	Filename    string
 	CTime       uint64
 	MTime       uint64
-	Inode       uint64
 	Mode        uint32
+	Inode       uint64
+	Credentials *Credentials
 }
 
 // OpenSyscallMsg defines an open message
@@ -186,30 +186,30 @@ type ChdirSyscallMsg struct {
 
 // SetUIDSyscallMsg defines a setreuid message
 type SetUIDSyscallMsg struct {
-	User  string
-	EUser string
 	UID   int32
+	User  string
 	EUID  int32
+	EUser string
 }
 
 // SetGIDSyscallMsg defines a setregid message
 type SetGIDSyscallMsg struct {
-	Group  string
-	EGroup string
 	GID    int32
+	Group  string
 	EGID   int32
+	EGroup string
 }
 
 // SetFSUIDSyscallMsg defines a setfsuid message
 type SetFSUIDSyscallMsg struct {
-	FSUser string
 	FSUID  int32
+	FSUser string
 }
 
 // SetFSGIDSyscallMsg defines a setfsgid message
 type SetFSGIDSyscallMsg struct {
-	FSGroup string
 	FSGID   int32
+	FSGroup string
 }
 
 // CapsetSyscallMsg defines a capset message
@@ -259,9 +259,9 @@ const (
 
 // LinkSyscallMsg defines a link/linkat/symlink/symlinkat message
 type LinkSyscallMsg struct {
+	Type   LinkType
 	Target FileSyscallMsg
 	Link   FileSyscallMsg
-	Type   LinkType
 }
 
 // ChmodSyscallMsg defines a chmod/fchmod/fchmodat/fchmodat2 message
@@ -273,18 +273,18 @@ type ChmodSyscallMsg struct {
 // ChownSyscallMsg defines a chown/fchown/lchown/fchownat/fchownat2 message
 type ChownSyscallMsg struct {
 	File  FileSyscallMsg
-	User  string
-	Group string
 	UID   int32
+	User  string
 	GID   int32
+	Group string
 }
 
 // LoadModuleSyscallMsg defines a init_module/finit_module message
 type LoadModuleSyscallMsg struct {
 	File             FileSyscallMsg
+	LoadedFromMemory bool
 	Name             string
 	Args             string
-	LoadedFromMemory bool
 }
 
 // UnloadModuleSyscallMsg defines a delete_module message
@@ -312,8 +312,8 @@ type UmountSyscallMsg struct {
 
 // MsgSocketInfo defines the base information for a socket message
 type MsgSocketInfo struct {
-	Addr          net.IP
 	AddressFamily uint16
+	Addr          net.IP
 	Port          uint16
 }
 
@@ -337,7 +337,12 @@ type AcceptSyscallMsg struct {
 
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
-	SpanContext  *SpanContext            `json:",omitempty"`
+	Type         SyscallType
+	PID          uint32
+	SpanContext  *SpanContext `json:",omitempty"`
+	Timestamp    uint64
+	Retval       int64
+	ContainerID  containerutils.ContainerID
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`
@@ -366,14 +371,9 @@ type SyscallMsg struct {
 	Accept       *AcceptSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup         *DupSyscallFakeMsg    `json:",omitempty"`
-	Pipe        *PipeSyscallFakeMsg   `json:",omitempty"`
-	Socket      *SocketSyscallFakeMsg `json:",omitempty"`
-	ContainerID containerutils.ContainerID
-	Timestamp   uint64
-	Retval      int64
-	Type        SyscallType
-	PID         uint32
+	Dup    *DupSyscallFakeMsg    `json:",omitempty"`
+	Pipe   *PipeSyscallFakeMsg   `json:",omitempty"`
+	Socket *SocketSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -384,17 +384,17 @@ func (s SyscallMsg) String() string {
 
 // HelloMsg defines a hello message
 type HelloMsg struct {
-	ContainerContext *ContainerContext
-	Mode             Mode
-	EntrypointArgs   []string
 	NSID             uint64
+	ContainerContext *ContainerContext
+	EntrypointArgs   []string
+	Mode             Mode
 }
 
 // Message defines a message
 type Message struct {
+	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
-	Type    MessageType
 }
 
 // String returns string representation

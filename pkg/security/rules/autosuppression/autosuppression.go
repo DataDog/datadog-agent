@@ -38,11 +38,11 @@ const (
 
 // Opts holds options for auto suppression
 type Opts struct {
-	EventTypes                            []model.EventType
 	SecurityProfileEnabled                bool
 	SecurityProfileAutoSuppressionEnabled bool
 	ActivityDumpEnabled                   bool
 	ActivityDumpAutoSuppressionEnabled    bool
+	EventTypes                            []model.EventType
 }
 
 // StatsTags holds tags for auto suppression stats
@@ -53,10 +53,10 @@ type StatsTags struct {
 
 // AutoSuppression is a struct that encapsulates the auto suppression logic
 type AutoSuppression struct {
-	stats     map[StatsTags]*atomic.Int64
+	once      sync.Once
 	opts      Opts
 	statsLock sync.RWMutex
-	once      sync.Once
+	stats     map[StatsTags]*atomic.Int64
 }
 
 // Init initializes the auto suppression with the given options

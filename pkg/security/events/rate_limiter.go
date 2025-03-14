@@ -54,10 +54,10 @@ type Limiter interface {
 
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
-	statsdClient statsd.ClientInterface
-	limiters     map[rules.RuleID]Limiter
-	config       *config.RuntimeSecurityConfig
 	sync.RWMutex
+	limiters     map[rules.RuleID]Limiter
+	statsdClient statsd.ClientInterface
+	config       *config.RuntimeSecurityConfig
 }
 
 // NewRateLimiter initializes an empty rate limiter

@@ -12,8 +12,8 @@ import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 
 // Opts defines some probe options
 type Opts struct {
-	// Tagger will override the default one. Mainly here for tests.
-	Tagger tags.Tagger
 	// DontDiscardRuntime do not discard the runtime. Mostly used by functional tests
 	DontDiscardRuntime bool
+	// Tagger will override the default one. Mainly here for tests.
+	Tagger tags.Tagger
 }

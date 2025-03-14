@@ -33,9 +33,9 @@ const (
 // SelfTestEvent is used to report a self test result
 type SelfTestEvent struct {
 	events.CustomEventCommonFields
-	TestEvents map[eval.RuleID]*serializers.EventSerializer `json:"test_events"`
 	Success    []eval.RuleID                                `json:"succeeded_tests"`
 	Fails      []eval.RuleID                                `json:"failed_tests"`
+	TestEvents map[eval.RuleID]*serializers.EventSerializer `json:"test_events"`
 }
 
 // ToJSON marshal using json format

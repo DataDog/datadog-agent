@@ -13,9 +13,9 @@ import (
 )
 
 type byteMaskFilter struct {
-	next []*byteMaskFilter
 	mask byte
 	ip   byte
+	next []*byteMaskFilter
 }
 
 // CIDRSet defines a set of CIDRs

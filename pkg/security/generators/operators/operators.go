@@ -19,16 +19,16 @@ var (
 
 // Operator defines an operator
 type Operator struct {
-	Op             func(a string, b string) string
 	FuncName       string
 	Arg1Type       string
 	Arg2Type       string
 	FuncReturnType string
 	EvalReturnType string
+	Op             func(a string, b string) string
 	ArrayType      string
 	ValueType      string
-	RangeLimit     string
 	Commutative    bool
+	RangeLimit     string
 }
 
 func main() {

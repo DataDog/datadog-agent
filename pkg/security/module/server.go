@@ -50,14 +50,14 @@ const (
 )
 
 type pendingMsg struct {
-	sendAfter       time.Time
-	eventSerializer *serializers.EventSerializer
-	extTagsCb       func() []string
-	backendEvent    events.BackendEvent
 	ruleID          string
-	service         string
+	backendEvent    events.BackendEvent
+	eventSerializer *serializers.EventSerializer
 	tags            []string
 	actionReports   []model.ActionReport
+	service         string
+	extTagsCb       func() []string
+	sendAfter       time.Time
 	retry           int
 }
 
@@ -111,31 +111,30 @@ func mergeJSON(j1, j2 []byte) []byte {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
-	statsdClient    statsd.ClientInterface
-	msgSender       MsgSender
-	stopper         startstop.Stopper
-	msgs            chan *api.SecurityEventMessage
-	activityDumps   chan *api.ActivityDumpStreamMessage
-	expiredEvents   map[rules.RuleID]*atomic.Int64
-	expiredDumps    *atomic.Int64
-	probe           *sprobe.Probe
-	cfg             *config.RuntimeSecurityConfig
-	selfTester      *selftests.SelfTester
-	cwsConsumer     *CWSConsumer
-	connEstablished *atomic.Bool
-
-	stopChan chan struct{}
+	msgs               chan *api.SecurityEventMessage
+	activityDumps      chan *api.ActivityDumpStreamMessage
+	expiredEventsLock  sync.RWMutex
+	expiredEvents      map[rules.RuleID]*atomic.Int64
+	expiredDumps       *atomic.Int64
+	statsdClient       statsd.ClientInterface
+	probe              *sprobe.Probe
+	queueLock          sync.Mutex
+	queue              []*pendingMsg
+	retention          time.Duration
+	cfg                *config.RuntimeSecurityConfig
+	selfTester         *selftests.SelfTester
+	cwsConsumer        *CWSConsumer
+	policiesStatusLock sync.RWMutex
+	policiesStatus     []*api.PolicyStatus
+	msgSender          MsgSender
+	connEstablished    *atomic.Bool
 
 	// os release data
 	kernelVersion string
 	distribution  string
 
-	queue              []*pendingMsg
-	policiesStatus     []*api.PolicyStatus
-	retention          time.Duration
-	expiredEventsLock  sync.RWMutex
-	policiesStatusLock sync.RWMutex
-	queueLock          sync.Mutex
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream

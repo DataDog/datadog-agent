@@ -34,21 +34,20 @@ type SelfTest interface {
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
-	lastTimestamp time.Time
+	sync.Mutex
 
 	config          *config.RuntimeSecurityConfig
 	waitingForEvent *atomic.Bool
 	eventChan       chan selfTestEvent
 	probe           *probe.Probe
-	done            chan bool
-	selfTestRunning chan time.Duration
-	tmpDir          string
 	success         []eval.RuleID
 	fails           []eval.RuleID
+	lastTimestamp   time.Time
 	selfTests       []SelfTest
-	sync.Mutex
-
-	isClosed bool
+	tmpDir          string
+	isClosed        bool
+	done            chan bool
+	selfTestRunning chan time.Duration
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
@@ -207,9 +206,9 @@ func (t *SelfTester) endSelfTests() {
 }
 
 type selfTestEvent struct {
-	Event    *serializers.EventSerializer
 	RuleID   eval.RuleID
 	Filepath string
+	Event    *serializers.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester

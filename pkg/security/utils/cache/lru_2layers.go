@@ -17,10 +17,11 @@ import (
 
 // TwoLayersLRU defines a two layers LRU cache.
 type TwoLayersLRU[K1 comparable, K2 comparable, V any] struct {
+	sync.RWMutex
+
 	cache *simplelru.LRU[K1, *simplelru.LRU[K2, V]]
 	len   *atomic.Uint64
 	size  int
-	sync.RWMutex
 }
 
 // NewTwoLayersLRU returns a new cache.

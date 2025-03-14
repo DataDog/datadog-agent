@@ -18,8 +18,8 @@ var _ statsd.ClientInterface = &StatsdClient{}
 // StatsdClient is a statsd client for used for tests
 type StatsdClient struct {
 	statsd.NoOpClient
-	counts map[string]int64
 	lock   sync.RWMutex
+	counts map[string]int64
 }
 
 // NewStatsdClient returns a new StatsdClient

@@ -14,8 +14,8 @@ import (
 
 // PolicyReport describes the result of the kernel policy and the approvers for an event type
 type PolicyReport struct {
-	Approvers rules.Approvers
 	Mode      PolicyMode
+	Approvers rules.Approvers
 }
 
 // ApplyRuleSetReport describes the event types and their associated policy policies

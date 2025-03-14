@@ -18,10 +18,10 @@ import (
 type Node struct {
 	ID        GraphID
 	Label     string
+	Size      int
 	Color     string
 	FillColor string
 	Shape     string
-	Size      int
 	IsTable   bool
 }
 
@@ -30,19 +30,19 @@ type Edge struct {
 	From         GraphID
 	To           GraphID
 	Color        string
-	Label        string
 	HasArrowHead bool
+	Label        string
 	IsTable      bool
 }
 
 // SubGraph describes a dot subgraph
 type SubGraph struct {
-	Nodes     map[GraphID]*Node
 	Name      string
 	Title     string
-	Color     string
-	Edges     []*Edge
 	TitleSize int
+	Color     string
+	Nodes     map[GraphID]*Node
+	Edges     []*Edge
 }
 
 // Graph describes a dot graph

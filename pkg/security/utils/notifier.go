@@ -18,8 +18,8 @@ type Listener[O any] func(obj O)
 
 // Notifier describes a type that calls back listener that registered for a specific set of events
 type Notifier[E event, O any] struct {
-	listeners     map[E][]Listener[O]
 	listenersLock sync.RWMutex
+	listeners     map[E][]Listener[O]
 }
 
 // RegisterListener registers an event listener

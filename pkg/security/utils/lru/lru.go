@@ -17,9 +17,9 @@ const (
 // Cache is a thread-safe fixed size LRU cache.
 type Cache[K comparable, V any] struct {
 	lru         *simplelru.LRU[K, V]
-	onEvictedCB func(k K, v V)
 	evictedKeys []K
 	evictedVals []V
+	onEvictedCB func(k K, v V)
 	lock        sync.RWMutex
 }
 

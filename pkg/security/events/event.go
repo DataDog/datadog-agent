@@ -21,6 +21,7 @@ import (
 type AgentContext struct {
 	RuleID        string            `json:"rule_id"`
 	RuleVersion   string            `json:"rule_version,omitempty"`
+	RuleActions   []json.RawMessage `json:"rule_actions,omitempty"`
 	PolicyName    string            `json:"policy_name,omitempty"`
 	PolicyVersion string            `json:"policy_version,omitempty"`
 	Version       string            `json:"version,omitempty"`
@@ -29,7 +30,6 @@ type AgentContext struct {
 	Origin        string            `json:"origin,omitempty"`
 	KernelVersion string            `json:"kernel_version,omitempty"`
 	Distribution  string            `json:"distribution,omitempty"`
-	RuleActions   []json.RawMessage `json:"rule_actions,omitempty"`
 }
 
 // BackendEvent - Rule event wrapper used to send an event to the backend

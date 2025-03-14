@@ -15,10 +15,10 @@ type EvictCallback[K comparable, V any] func(key K, value V)
 
 // LRU implements a non-thread safe fixed size LRU cache
 type LRU[K comparable, V any] struct {
+	size      int
 	evictList *internal.LruList[K, V]
 	items     map[K]*internal.Entry[K, V]
 	onEvict   EvictCallback[K, V]
-	size      int
 }
 
 // NewLRU constructs an LRU of the given size

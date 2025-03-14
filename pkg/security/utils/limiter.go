@@ -14,26 +14,26 @@ import (
 )
 
 type cacheEntry struct {
-	timeFirstSeen time.Time // marks the beginning of the time window during which a limited number of tokens are allowed
 	count         int
+	timeFirstSeen time.Time // marks the beginning of the time window during which a limited number of tokens are allowed
 }
 
 // LimiterStat return stats
 type LimiterStat struct {
-	Tags    []string
 	Dropped uint64
 	Allowed uint64
+	Tags    []string
 }
 
 // Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerPeriod' per 'period'
 type Limiter[K comparable] struct {
-	cache *simplelru.LRU[K, *cacheEntry]
-
-	// stats
-	dropped                   *atomic.Uint64
-	allowed                   *atomic.Uint64
+	cache                     *simplelru.LRU[K, *cacheEntry]
 	numAllowedTokensPerPeriod int
 	period                    time.Duration
+
+	// stats
+	dropped *atomic.Uint64
+	allowed *atomic.Uint64
 }
 
 // NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerPeriod' times per 'period'.

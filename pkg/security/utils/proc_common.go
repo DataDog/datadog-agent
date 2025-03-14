@@ -33,14 +33,14 @@ func GetProcesses() ([]*process.Process, error) {
 
 // FilledProcess defines a filled process
 type FilledProcess struct {
-	MemInfo    *process.MemoryInfoStat
+	Pid        int32
+	Ppid       int32
+	CreateTime int64
 	Name       string
 	Uids       []uint32
 	Gids       []uint32
+	MemInfo    *process.MemoryInfoStat
 	Cmdline    []string
-	CreateTime int64
-	Pid        int32
-	Ppid       int32
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input

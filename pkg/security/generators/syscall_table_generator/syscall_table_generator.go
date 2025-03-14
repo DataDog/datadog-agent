@@ -77,10 +77,10 @@ func main() {
 }
 
 type syscallDefinition struct {
+	Number        int
 	Abi           string
 	Name          string
 	CamelCaseName string
-	Number        int
 }
 
 func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)) ([]*syscallDefinition, error) {

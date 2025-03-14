@@ -30,22 +30,21 @@ const (
 
 // KillActionReport defines a kill action reports
 type KillActionReport struct {
-	CreatedAt  time.Time
-	DetectedAt time.Time
-	KilledAt   time.Time
-	ExitedAt   time.Time
-	rule       *rules.Rule
+	sync.RWMutex
 
 	Signal       string
 	Scope        string
 	Status       KillActionStatus
+	CreatedAt    time.Time
+	DetectedAt   time.Time
+	KilledAt     time.Time
+	ExitedAt     time.Time
 	DisarmerType string
-
-	sync.RWMutex
 
 	// internal
 	Pid      uint32
 	resolved bool
+	rule     *rules.Rule
 }
 
 // JKillActionReport used to serialize date

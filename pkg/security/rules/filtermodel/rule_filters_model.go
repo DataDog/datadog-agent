@@ -15,8 +15,8 @@ import (
 
 // RuleFilterEventConfig holds the config used by the rule filter event
 type RuleFilterEventConfig struct {
-	Origin      string
 	COREEnabled bool
+	Origin      string
 }
 
 // Init inits the rule filter event

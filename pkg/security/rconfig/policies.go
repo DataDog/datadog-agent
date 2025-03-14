@@ -36,17 +36,17 @@ const (
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
+	sync.RWMutex
+
 	client               *client.Client
 	onNewPoliciesReadyCb func()
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
+	dumpPolicies         bool
 	setEnforcementCb     func(bool)
 
 	isStarted *atomic.Bool
-	sync.RWMutex
-
-	dumpPolicies bool
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)

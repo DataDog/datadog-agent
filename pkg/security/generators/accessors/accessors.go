@@ -391,16 +391,16 @@ type seclField struct {
 	name                   string
 	iterator               string
 	handler                string
-	check                  string
-	setHandler             string
-	containerStructName    string
-	ref                    string
-	weight                 int64
 	helper                 bool // mark the handler as just a helper and not a real resolver. Won't be called by ResolveFields
 	skipADResolution       bool
 	lengthField            bool
+	weight                 int64
+	check                  string
+	setHandler             string
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
+	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	ref                    string
 	readOnly               bool
 }
 

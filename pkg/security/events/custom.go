@@ -79,8 +79,8 @@ type AgentContainerContext struct {
 // CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
 	Timestamp             time.Time              `json:"date"`
-	AgentContainerContext *AgentContainerContext `json:"container"`
 	Service               string                 `json:"service"`
+	AgentContainerContext *AgentContainerContext `json:"container"`
 }
 
 // FillCustomEventCommonFields fills the common fields with default values
@@ -132,9 +132,9 @@ func NewCustomEvent(eventType model.EventType, marshaler EventMarshaler, tags ..
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	marshalerCtor func() EventMarshaler
-	tags          []string
 	eventType     model.EventType
+	tags          []string
+	marshalerCtor func() EventMarshaler
 }
 
 // Clone returns a copy of the current CustomEvent

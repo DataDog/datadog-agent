@@ -32,47 +32,47 @@ const (
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
-	Fields map[string]*StructField // Fields only contains fields that are exposed in SECL
-	//GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
-	AllFields       map[string]*StructField
-	Iterators       map[string]*StructField
-	EventTypes      map[string]*EventTypeMetadata
 	Name            string
 	SourcePkgPrefix string
 	SourcePkg       string
 	TargetPkg       string
 	BuildTags       []string
-	Getters         []string
-	Mock            bool
+	Fields          map[string]*StructField // Fields only contains fields that are exposed in SECL
+	//GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
+	AllFields  map[string]*StructField
+	Iterators  map[string]*StructField
+	EventTypes map[string]*EventTypeMetadata
+	Mock       bool
+	Getters    []string
 }
 
 // StructField represents a structure field for which an accessor will be generated
 type StructField struct {
-	Iterator         *StructField
 	Name             string
 	Prefix           string
 	Struct           string
 	BasicType        string
 	ReturnType       string
+	IsArray          bool
+	IsLength         bool
 	Event            string
 	Handler          string
+	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
+	SkipADResolution bool
 	OrigType         string
+	IsOrigTypePtr    bool
+	Iterator         *StructField
+	Weight           int64
 	CommentText      string
 	OpOverrides      string
 	Check            string
 	SetHandler       string
 	Alias            string
 	AliasPrefix      string
-	Ref              string
-	RestrictedTo     []string
-	Weight           int64
-	IsArray          bool
-	IsLength         bool
-	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
-	SkipADResolution bool
-	IsOrigTypePtr    bool
 	GettersOnly      bool
 	GenGetters       bool
+	Ref              string
+	RestrictedTo     []string
 	IsIterator       bool
 	ReadOnly         bool
 }
