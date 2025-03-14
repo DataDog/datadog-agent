@@ -15,6 +15,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,9 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 )
 
 // MockTimeNow mocks time.Now
@@ -45,15 +48,19 @@ var testOptions = fx.Options(
 	core.MockBundle(),
 	eventplatformimpl.MockModule(),
 	rdnsqueriermock.MockModule(),
+	logscompression.MockModule(),
 )
 
-func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any) (*fxtest.App, *npCollectorImpl) {
+func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Replace(config.MockParams{Overrides: agentConfigs}),
 		fx.Populate(&component),
+		fx.Provide(func() statsd.ClientInterface {
+			return statsdClient
+		}),
 	))
 	npCollector := component.(*npCollectorImpl)
 

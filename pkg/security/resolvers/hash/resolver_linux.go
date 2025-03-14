@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -101,6 +102,8 @@ type Resolver struct {
 
 	cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 
+	bufferPool *ddsync.TypedPool[[]byte]
+
 	// stats
 	hashCount    map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64
 	hashMiss     map[model.EventType]map[model.HashState]*atomic.Uint64
@@ -132,6 +135,9 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		burst = 0
 	}
 
+	// size of the buffer used to copy data from the file to the hash functions
+	const copyBufferSize = 32 * 1024
+
 	r := &Resolver{
 		opts: ResolverOpts{
 			Enabled:        true,
@@ -143,6 +149,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		statsdClient:   statsdClient,
 		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), burst),
 		cache:          cache,
+		bufferPool:     ddsync.NewSlicePool[byte](copyBufferSize, copyBufferSize),
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
 		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
 		hashCacheHit:   make(map[model.EventType]*atomic.Uint64),
@@ -375,7 +382,10 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 	multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
 
-	if _, err := io.Copy(multiWriter, f); err != nil {
+	buffer := resolver.bufferPool.Get()
+	_, err := io.CopyBuffer(multiWriter, f, *buffer)
+	resolver.bufferPool.Put(buffer)
+	if err != nil {
 		if errors.Is(err, ErrSizeLimitReached) {
 			resolver.hashMiss[eventType][model.FileTooBig].Inc()
 			file.HashState = model.FileTooBig

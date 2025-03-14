@@ -236,8 +236,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
 			conf.Features["enable_cid_stats"] = struct{}{}
-			if tt.enableReceiveResourceSpansV2 {
-				conf.Features["enable_receive_resource_spans_v2"] = struct{}{}
+			if !tt.enableReceiveResourceSpansV2 {
+				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
 			}
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator

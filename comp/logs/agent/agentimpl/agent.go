@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -31,6 +34,7 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -82,6 +86,7 @@ type dependencies struct {
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
+	Compression        logscompression.Component
 }
 
 type provides struct {
@@ -92,6 +97,7 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
 	LogsReciever   option.Option[integrations.Component]
+	APIStreamLogs  api.AgentEndpointProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -119,6 +125,7 @@ type logAgent struct {
 	wmeta                     option.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
+	compression               logscompression.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -150,6 +157,7 @@ func newLogsAgent(deps dependencies) provides {
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
+			compression:        deps.Compression,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -170,6 +178,10 @@ func newLogsAgent(deps dependencies) provides {
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
 			LogsReciever:   option.New[integrations.Component](integrationsLogs),
+			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
+				"/stream-logs",
+				"POST",
+			),
 		}
 	}
 
@@ -403,4 +415,10 @@ func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates ma
 			})
 		}
 	}
+}
+
+func streamLogsEvents(logsAgent agent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver {
+		return logsAgent.GetMessageReceiver()
+	}, "logs", "logs agent")
 }

@@ -164,14 +164,15 @@ func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventS
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID         string            `json:"id"`
-	Version    string            `json:"version,omitempty"`
-	Expression string            `json:"expression"`
-	Status     string            `json:"status"`
-	Message    string            `json:"message,omitempty"`
-	Tags       map[string]string `json:"tags,omitempty"`
-	Actions    []RuleAction      `json:"actions,omitempty"`
-	ModifiedBy []*PolicyState    `json:"modified_by,omitempty"`
+	ID          string            `json:"id"`
+	Version     string            `json:"version,omitempty"`
+	Expression  string            `json:"expression"`
+	Status      string            `json:"status"`
+	Message     string            `json:"message,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
+	ProductTags []string          `json:"product_tags,omitempty"`
+	Actions     []RuleAction      `json:"actions,omitempty"`
+	ModifiedBy  []*PolicyState    `json:"modified_by,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -258,15 +259,25 @@ func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 	}
 }
 
+// PolicyStateFromPolicy returns a policy state based on the policy definition
+func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
+	return &PolicyState{
+		Name:    policy.Name,
+		Version: policy.Def.Version,
+		Source:  policy.Source,
+	}
+}
+
 // RuleStateFromRule returns a rule state based on the given rule
 func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
 	ruleState := &RuleState{
-		ID:         rule.Def.ID,
-		Version:    rule.Policy.Def.Version,
-		Expression: rule.Def.Expression,
-		Status:     status,
-		Message:    message,
-		Tags:       rule.Def.Tags,
+		ID:          rule.Def.ID,
+		Version:     rule.Policy.Def.Version,
+		Expression:  rule.Def.Expression,
+		Status:      status,
+		Message:     message,
+		Tags:        rule.Def.Tags,
+		ProductTags: rule.Def.ProductTags,
 	}
 
 	for _, action := range rule.Actions {
@@ -319,12 +330,13 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 			continue
 		}
 
-		policyName := rule.Policy.Name
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRule(rule.PolicyRule)
-			mp[policyName] = policyState
+		for _, policy := range rule.UsedBy {
+			if policyState, exists = mp[policy.Name]; !exists {
+				policyState = PolicyStateFromPolicy(policy)
+				mp[policy.Name] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 	}
 
 	// rules ignored due to errors

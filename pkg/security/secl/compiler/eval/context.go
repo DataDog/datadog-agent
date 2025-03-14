@@ -7,6 +7,7 @@
 package eval
 
 import (
+	"net"
 	"sync"
 	"time"
 )
@@ -22,9 +23,10 @@ type Context struct {
 	Event Event
 
 	// cache available across all the evaluations
-	StringCache map[string][]string
-	IntCache    map[string][]int
-	BoolCache   map[string][]bool
+	StringCache map[Field][]string
+	IPNetCache  map[Field][]net.IPNet
+	IntCache    map[Field][]int
+	BoolCache   map[Field][]bool
 
 	// iterator register cache. used to cache entry within a single rule evaluation
 	RegisterCache map[RegisterID]*RegisterCacheEntry
@@ -32,13 +34,11 @@ type Context struct {
 	// rule register
 	Registers map[RegisterID]int
 
-	now time.Time
+	IteratorCountCache map[string]int
 
-	CachedAncestorsCount int
-
+	// internal
+	now            time.Time
 	resolvedFields []string
-
-	Error error
 }
 
 // Now return and cache the `now` timestamp
@@ -58,15 +58,15 @@ func (c *Context) SetEvent(evt Event) {
 func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
-	c.Error = nil
 
 	clear(c.StringCache)
+	clear(c.IPNetCache)
 	clear(c.IntCache)
 	clear(c.BoolCache)
 	clear(c.Registers)
 	clear(c.RegisterCache)
-	c.CachedAncestorsCount = 0
-	clear(c.resolvedFields)
+	clear(c.IteratorCountCache)
+	c.resolvedFields = nil
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests
@@ -77,12 +77,14 @@ func (c *Context) GetResolvedFields() []string {
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event:         evt,
-		StringCache:   make(map[string][]string),
-		IntCache:      make(map[string][]int),
-		BoolCache:     make(map[string][]bool),
-		Registers:     make(map[RegisterID]int),
-		RegisterCache: make(map[RegisterID]*RegisterCacheEntry),
+		Event:              evt,
+		StringCache:        make(map[Field][]string),
+		IPNetCache:         make(map[Field][]net.IPNet),
+		IntCache:           make(map[Field][]int),
+		BoolCache:          make(map[Field][]bool),
+		Registers:          make(map[RegisterID]int),
+		RegisterCache:      make(map[RegisterID]*RegisterCacheEntry),
+		IteratorCountCache: make(map[string]int),
 	}
 }
 

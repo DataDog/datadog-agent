@@ -19,9 +19,10 @@ import (
 // prebuiltModulesInUse is a global object which is responsible for keeping a list of all the prebuilt ebpf assets in use.
 // This is used to report ebpf asset telemetry
 var prebuiltModulesInUse = map[string]struct{}{}
-var telemetrymu sync.Mutex
+var telemetryMu sync.Mutex
 
-func ModuleFileName(moduleName string, debug bool) string { //nolint:revive // TODO
+// ModuleFileName constructs the module file name based on the module name
+func ModuleFileName(moduleName string, debug bool) string {
 	if debug {
 		return fmt.Sprintf("%s-debug.o", moduleName)
 	}
@@ -35,8 +36,8 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
-	telemetrymu.Lock()
-	defer telemetrymu.Unlock()
+	telemetryMu.Lock()
+	defer telemetryMu.Unlock()
 	prebuiltModulesInUse[moduleName] = struct{}{}
 	return ebpfReader, nil
 }
@@ -66,7 +67,8 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 	return readModule(bpfDir, "offset-guess", debug)
 }
 
-func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) { //nolint:revive // TODO
+// ReadFentryTracerModule from the asset file
+func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "tracer-fentry", debug)
 }
 
@@ -75,9 +77,10 @@ func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 	return readModule(bpfDir, "conntrack", debug)
 }
 
-func GetModulesInUse() []string { //nolint:revive // TODO
-	telemetrymu.Lock()
-	defer telemetrymu.Unlock()
+// GetModulesInUse returns a list of modules in use
+func GetModulesInUse() []string {
+	telemetryMu.Lock()
+	defer telemetryMu.Unlock()
 
 	return maps.Keys(prebuiltModulesInUse)
 }

@@ -17,8 +17,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -102,7 +103,7 @@ type ntmConfig struct {
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
-	configEnvVars map[string]string
+	configEnvVars map[string][]string
 
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
@@ -336,10 +337,16 @@ func (c *ntmConfig) SetKnown(key string) {
 	c.addToSchema(key, model.SourceSchema)
 }
 
-// IsKnown returns whether a key is known
+// IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	return c.isKnownKey(key)
+}
+
+// isKnownKey returns whether the key is known.
+// Must be called with the lock read-locked.
+func (c *ntmConfig) isKnownKey(key string) bool {
 	key = strings.ToLower(key)
 	_, found := c.knownKeys[key]
 	return found
@@ -349,9 +356,8 @@ func (c *ntmConfig) IsKnown(key string) bool {
 // Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
-// The lock can be released and re-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.IsKnown(key) {
+	if c.isKnownKey(key) {
 		return
 	}
 
@@ -453,9 +459,11 @@ func (c *ntmConfig) buildEnvVars() {
 		envkey := pair[0]
 		envval := pair[1]
 
-		if configKey, found := c.configEnvVars[envkey]; found {
-			if err := c.insertNodeFromString(root, configKey, envval); err != nil {
-				envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+		if configKeyList, found := c.configEnvVars[envkey]; found {
+			for _, configKey := range configKeyList {
+				if err := c.insertNodeFromString(root, configKey, envval); err != nil {
+					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+				}
 			}
 		}
 	}
@@ -646,7 +654,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[envvar] = key
+		c.configEnvVars[envvar] = append(c.configEnvVars[envvar], key)
 	}
 
 	c.addToSchema(key, model.SourceEnvVar)
@@ -664,7 +672,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -862,7 +870,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
-		configEnvVars:      map[string]string{},
+		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},

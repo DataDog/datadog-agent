@@ -78,8 +78,6 @@ func NewWorker(
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
-	} else {
-		worker.Client = NewHTTPClient(config)
 	}
 	return worker
 }

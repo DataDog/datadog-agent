@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package catalog is a wrapper that loads the available workloadmeta
-// collectors. It exists as a shorthand for importing all packages manually in
-// all of the agents.
+// collectors. This is the catalog used by the core agent.
 package catalog
 
 import (
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
@@ -36,7 +34,6 @@ func getCollectorOptions() []fx.Option {
 		docker.GetFxOptions(),
 		ecs.GetFxOptions(),
 		ecsfargate.GetFxOptions(),
-		kubeapiserver.GetFxOptions(),
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),

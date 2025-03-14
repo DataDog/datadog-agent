@@ -6,7 +6,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch, get_default_branch, try_git_command
+from tasks.libs.common.git import get_current_branch, try_git_command
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
 from tasks.libs.releasing.version import deduce_version
@@ -68,10 +68,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         print(f"Error: invalid version: {new_version_int}")
         raise Exit(code=1)
 
-    # Launch this task from the main branch of the major version
-    branch = get_default_branch(major=new_version_int[0])
-
-    with agent_context(ctx, branch):
+    with agent_context(ctx, release_branch):
         # Step 1 - generate the changelogs
 
         generate_agent = target in ["all", "agent"]

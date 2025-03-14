@@ -54,7 +54,7 @@ type PodResult struct {
 
 // QueryResult provides the pod results for a given query
 type QueryResult struct {
-	results []PodResult
+	Results []PodResult
 }
 
 // Store is an interface for in-memory storage of entities and their load metric values.
@@ -149,8 +149,8 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 		for _, point := range points {
 			if point != nil && point.GetTimestamp() > 0 {
 				entities[&entity] = &EntityValue{
-					value:     ValueType(point.GetValue()),
-					timestamp: Timestamp(point.GetTimestamp()),
+					Value:     ValueType(point.GetValue()),
+					Timestamp: Timestamp(point.GetTimestamp()),
 				}
 			}
 		}

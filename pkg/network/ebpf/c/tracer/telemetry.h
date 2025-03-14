@@ -15,23 +15,22 @@
 #include "compiler.h"
 
 enum telemetry_counter {
-    tcp_failed_connect,
     unbatched_tcp_close,
     unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
-    unsupported_tcp_failures,
     tcp_done_missing_pid,
     tcp_connect_failed_tuple,
     tcp_done_failed_tuple,
     tcp_finish_connect_failed_tuple,
     tcp_close_target_failures,
     tcp_done_connection_flush,
-    tcp_close_connection_flush
+    tcp_close_connection_flush,
+    tcp_syn_retransmit,
 };
 
-static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
+static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
     __u64 key = 0;
     telemetry_t *val = NULL;
     val = bpf_map_lookup_elem(&telemetry, &key);
@@ -40,49 +39,54 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 
     switch (counter_name) {
-    case tcp_failed_connect:
-        __sync_fetch_and_add(&val->tcp_failed_connect, 1);
-        break;
     case unbatched_tcp_close:
-        __sync_fetch_and_add(&val->unbatched_tcp_close, 1);
+        __sync_fetch_and_add(&val->unbatched_tcp_close, times);
         break;
     case unbatched_udp_close:
-        __sync_fetch_and_add(&val->unbatched_udp_close, 1);
+        __sync_fetch_and_add(&val->unbatched_udp_close, times);
         break;
     case udp_send_processed:
-        __sync_fetch_and_add(&val->udp_sends_processed, 1);
+        __sync_fetch_and_add(&val->udp_sends_processed, times);
         break;
     case udp_send_missed:
-        __sync_fetch_and_add(&val->udp_sends_missed, 1);
+        __sync_fetch_and_add(&val->udp_sends_missed, times);
         break;
     case udp_dropped_conns:
-        __sync_fetch_and_add(&val->udp_dropped_conns, 1);
-        break;
-    case unsupported_tcp_failures:
-        __sync_fetch_and_add(&val->unsupported_tcp_failures, 1);
+        __sync_fetch_and_add(&val->udp_dropped_conns, times);
         break;
     case tcp_done_missing_pid:
-        __sync_fetch_and_add(&val->tcp_done_missing_pid, 1);
+        __sync_fetch_and_add(&val->tcp_done_missing_pid, times);
         break;
     case tcp_connect_failed_tuple:
-        __sync_fetch_and_add(&val->tcp_connect_failed_tuple, 1);
+        __sync_fetch_and_add(&val->tcp_connect_failed_tuple, times);
         break;
     case tcp_done_failed_tuple:
-        __sync_fetch_and_add(&val->tcp_done_failed_tuple, 1);
+        __sync_fetch_and_add(&val->tcp_done_failed_tuple, times);
         break;
     case tcp_finish_connect_failed_tuple:
-        __sync_fetch_and_add(&val->tcp_finish_connect_failed_tuple, 1);
+        __sync_fetch_and_add(&val->tcp_finish_connect_failed_tuple, times);
         break;
     case tcp_close_target_failures:
-        __sync_fetch_and_add(&val->tcp_close_target_failures, 1);
+        __sync_fetch_and_add(&val->tcp_close_target_failures, times);
         break;
     case tcp_done_connection_flush:
-        __sync_fetch_and_add(&val->tcp_done_connection_flush, 1);
+        __sync_fetch_and_add(&val->tcp_done_connection_flush, times);
         break;
     case tcp_close_connection_flush:
-        __sync_fetch_and_add(&val->tcp_close_connection_flush, 1);
+        __sync_fetch_and_add(&val->tcp_close_connection_flush, times);
+        break;
+    case tcp_syn_retransmit:
+        __sync_fetch_and_add(&val->tcp_syn_retransmit, times);
         break;
     }
+}
+
+static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
+    __increment_telemetry_count(counter_name, 1);
+}
+
+static __always_inline void increment_telemetry_count_times(enum telemetry_counter counter_name, int times) {
+    __increment_telemetry_count(counter_name, times);
 }
 
 __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa, u64 *addr_h, u64 *addr_l, u16 *port, u32 *metadata) {

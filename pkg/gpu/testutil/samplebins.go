@@ -46,7 +46,8 @@ const (
 	MinimalDockerImage dockerImage = "alpine:3.20.3"
 )
 
-type SampleArgs struct { //nolint:revive // TODO
+// SampleArgs holds arguments for the sample binary
+type SampleArgs struct {
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
 

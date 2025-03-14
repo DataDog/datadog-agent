@@ -369,6 +369,23 @@ func TestIsConfigured(t *testing.T) {
 	assert.False(t, cfg.IsConfigured("unknown"))
 }
 
+func TestEnvVarMultipleSettings(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BindEnv("a", "TEST_MY_ENVVAR")
+	cfg.BindEnv("b", "TEST_MY_ENVVAR")
+
+	t.Setenv("TEST_MY_ENVVAR", "123")
+
+	cfg.BuildSchema()
+
+	assert.Equal(t, 123, cfg.GetInt("a"))
+	assert.Equal(t, 123, cfg.GetInt("b"))
+	assert.Equal(t, 0, cfg.GetInt("c"))
+}
+
 func TestAllKeysLowercased(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)

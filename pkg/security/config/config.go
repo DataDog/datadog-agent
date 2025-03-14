@@ -9,6 +9,7 @@ package config
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -111,7 +112,7 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
 	ActivityDumpCgroupDumpTimeout time.Duration
 	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
-	ActivityDumpRateLimiter int
+	ActivityDumpRateLimiter uint16
 	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
 	ActivityDumpCgroupWaitListTimeout time.Duration
 	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
@@ -209,6 +210,8 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
+	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
+	SBOMResolverAnalyzers []string
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -224,6 +227,15 @@ type RuntimeSecurityConfig struct {
 	HashResolverCacheSize int
 	// HashResolverReplace is used to apply specific hash to specific file path
 	HashResolverReplace map[string]string
+
+	// SysCtlEnabled defines if the sysctl event should be enabled
+	SysCtlEnabled bool
+	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
+	SysCtlSnapshotEnabled bool
+	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
+	SysCtlSnapshotPeriod time.Duration
+	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+	SysCtlSnapshotIgnoredBaseNames []string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -377,7 +389,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
-		ActivityDumpRateLimiter:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     pkgconfigsetup.SystemProbe().GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
@@ -403,6 +414,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
+		SBOMResolverAnalyzers:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sbom.analyzers"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -412,6 +424,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
+
+		// SysCtl config parameter
+		SysCtlEnabled:                  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlSnapshotEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
+		SysCtlSnapshotPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
+		SysCtlSnapshotIgnoredBaseNames: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 
 		// security profiles
 		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -466,6 +484,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 	}
 
+	activityDumpRateLimiter := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter")
+	if activityDumpRateLimiter < 0 || activityDumpRateLimiter > math.MaxUint16 {
+		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
+	}
+	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
+
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
 	}
@@ -510,7 +534,7 @@ func isRemoteConfigEnabled() bool {
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
 	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsSet(cfgKey) && fargate.IsFargateInstance() {
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
 		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
@@ -641,9 +665,9 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 }
 
 // GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
-func GetFamilyAddress(path string) (string, string) {
+func GetFamilyAddress(path string) string {
 	if strings.HasPrefix(path, "/") {
-		return "unix", path
+		return "unix"
 	}
-	return "tcp", path
+	return "tcp"
 }

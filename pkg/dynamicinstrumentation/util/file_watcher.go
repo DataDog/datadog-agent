@@ -5,7 +5,8 @@
 
 //go:build linux_bpf
 
-package util //nolint:revive // TODO
+// Package util providers utility file functions to dynamic instrumentation
+package util
 
 import (
 	"os"
@@ -70,6 +71,7 @@ func (fw *FileWatcher) Watch() (<-chan []byte, error) {
 	return updateChan, nil
 }
 
-func (fw *FileWatcher) Stop() { //nolint:revive // TODO
+// Stop causes the FileWatcher to stop watching the file
+func (fw *FileWatcher) Stop() {
 	fw.stop <- true
 }

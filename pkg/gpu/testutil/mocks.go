@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -48,6 +50,38 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+// DefaultNvidiaDriverVersion is the default nvidia driver version
+var DefaultNvidiaDriverVersion = "470.57.02"
+
+// DefaultMemoryBusWidth is the memory bus width for the default device returned by the mock
+var DefaultMemoryBusWidth = uint32(256)
+
+// DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMajor = 7
+
+// DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
+var DefaultGPUComputeCapMinor = 5
+
+// DefaultGPUArch is the architecture for the default device returned by the mock
+var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
+
+// DefaultGPUAttributes is the attributes for the default device returned by the mock
+var DefaultGPUAttributes = nvml.DeviceAttributes{
+	MultiprocessorCount: 10,
+}
+
+// DefaultProcessInfo is the list of processes running on the default device returned by the mock
+var DefaultProcessInfo = []nvml.ProcessInfo{
+	{Pid: 1, UsedGpuMemory: 100},
+	{Pid: 5678, UsedGpuMemory: 200},
+}
+
+// DefaultTotalMemory is the total memory for the default device returned by the mock
+var DefaultTotalMemory = uint64(1000)
+
+// DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
+var DefaultMaxClockRates = [2]uint32{1000, 2000}
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -62,6 +96,31 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			return DefaultGPUName, nvml.SUCCESS
+		},
+		GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
+			return DefaultGPUArch, nvml.SUCCESS
+		},
+		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
+			return DefaultGPUAttributes, nvml.SUCCESS
+		},
+		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
+			return DefaultMemoryBusWidth, nvml.SUCCESS
+		},
+		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
+			switch clockType {
+			case nvml.CLOCK_SM:
+				return DefaultMaxClockRates[0], nvml.SUCCESS
+			case nvml.CLOCK_MEM:
+				return DefaultMaxClockRates[1], nvml.SUCCESS
+			default:
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
 		},
 	}
 }
@@ -84,6 +143,21 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
 			return 7, 5, nvml.SUCCESS
 		},
+		DeviceGetIndexFunc: func(nvml.Device) (int, nvml.Return) {
+			return 0, nvml.SUCCESS
+		},
+		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
+			return DefaultNvidiaDriverVersion, nvml.SUCCESS
+		},
 	}
 }
 
@@ -93,6 +167,11 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetTelemetryMock returns a mock of the telemetry.Component.
+func GetTelemetryMock(t *testing.T) telemetry.Component {
+	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better

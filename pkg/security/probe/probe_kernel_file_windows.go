@@ -164,7 +164,10 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	// not amazing to double compute the basename..
+	// invalidate the path resolver entry
+	wp.filePathResolver.Remove(ca.fileObject)
+
+	// not amazing to double compute the basename.
 	basename := filepath.Base(ca.fileName)
 
 	if !wp.approveFimBasename(basename) {
@@ -172,7 +175,6 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		wp.stats.createFileApproverRejects++
 		return nil, errDiscardedPath
 	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
 
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
@@ -200,7 +202,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
 	}
-	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
+	// if we get here, we have a new file handle. Remove it from the discarder cache in case
 	// we missed the close notification
 	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 

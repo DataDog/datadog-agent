@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch, is_agent6
-from tasks.libs.releasing.documentation import _stringify_config, nightly_entry_for, release_entry_for
+from tasks.libs.releasing.documentation import _stringify_config
 from tasks.libs.releasing.version import (
     VERSION_RE,
     _fetch_dependency_repo_version,
@@ -24,8 +24,9 @@ from tasks.libs.types.version import Version
 # The order matters, eg. when fetching matching tags for an Agent 6 entry,
 # tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+INTEGRATIONS_CORE_JSON_FIELD = "INTEGRATIONS_CORE_VERSION"
 RELEASE_JSON_FIELDS_TO_UPDATE = [
-    "INTEGRATIONS_CORE_VERSION",
+    INTEGRATIONS_CORE_JSON_FIELD,
     "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
@@ -62,12 +63,12 @@ def _save_release_json(release_json):
         release_json_stream.write('\n')
 
 
-def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_jmxfetch_release_json_info(release_json, is_first_rc=False):
     """
     Gets the JMXFetch version info from the previous entries in the release.json file.
     """
 
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, is_first_rc)
 
     jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
     jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
@@ -77,11 +78,11 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
-    release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
+    release_json_version_data = _get_release_json_info_for_next_rc(release_json, is_first_rc)
 
     win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
     win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
@@ -118,16 +119,13 @@ def _get_windows_driver_info(release_json_version_data, driver_name):
     return driver_value, version_value, shasum_value
 
 
-def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
+def _get_release_json_info_for_next_rc(release_json, is_first_rc=False):
     """
     Gets the version info from the previous entries in the release.json file.
     """
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
-    if is_first_rc:
-        previous_release_json_version = nightly_entry_for(agent_major_version)
-    else:
-        previous_release_json_version = release_entry_for(agent_major_version)
+    previous_release_json_version = "nightly" if is_first_rc else "release"
 
     print(f"Using '{previous_release_json_version}' values")
 
@@ -256,13 +254,11 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     # Part 2: repositories which have their own version scheme
 
     # jmxfetch version is updated directly by the AML team
-    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(
-        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
-    )
+    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json, is_first_rc=(new_version.rc == 1))
 
     # security agent policies are updated directly by the CWS team
     security_agent_policies_version = _get_release_version_from_release_json(
-        release_json, new_version.major, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
+        release_json, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
     )
     print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
@@ -273,7 +269,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         windows_ddprocmon_driver,
         windows_ddprocmon_version,
         windows_ddprocmon_shasum,
-    ) = _get_windows_release_json_info(release_json, new_version.major, is_first_rc=(new_version.rc == 1))
+    ) = _get_windows_release_json_info(release_json, is_first_rc=(new_version.rc == 1))
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
@@ -301,7 +297,7 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = load_release_json()
 
-    release_entry = release_entry_for(new_version.major)
+    release_entry = "release"
     print(f"Updating {release_entry} for {new_version}")
 
     # Update release.json object with the entry for the new version
@@ -329,16 +325,33 @@ def set_new_release_branch(branch):
 
     rj["base_branch"] = branch
 
-    for nightly in ["nightly", "nightly-a7"]:
-        for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-            rj[nightly][field] = f"{branch}"
+    for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+        rj["nightly"][field] = f"{branch}"
 
     _save_release_json(rj)
 
 
+def set_current_milestone(milestone):
+    rj = load_release_json()
+    rj["current_milestone"] = milestone
+    _save_release_json(rj)
+
+
+def get_current_milestone():
+    rj = load_release_json()
+    return rj["current_milestone"]
+
+
 def generate_repo_data(ctx, warning_mode, next_version, release_branch):
-    repos = ["integrations-core"] if warning_mode else ALL_REPOS
-    previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
+    if warning_mode:
+        # Warning mode is used to warn integrations so that they prepare their release version in advance.
+        repos = ["integrations-core"]
+    elif next_version.major == 6:
+        # For Agent 6, we are only concerned by datadog-agent. The other repos won't be updated.
+        repos = ["datadog-agent"]
+    else:
+        repos = ALL_REPOS
+    previous_tags = find_previous_tags("release", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
     for repo in repos:
         branch = release_branch

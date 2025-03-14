@@ -203,7 +203,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {
 			return cfg
 		}
@@ -232,7 +232,6 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
-	ia.data["config_eks_fargate"] = ia.conf.GetBool("eks_fargate")
 	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
@@ -246,6 +245,13 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
+
+	// EKS Fargate
+	eksFargate := ia.conf.GetBool("eks_fargate")
+	ia.data["config_eks_fargate"] = eksFargate
+	if eksFargate {
+		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
+	}
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
@@ -357,6 +363,10 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
+func (ia *inventoryagent) fetchFleetMetadata() {
+	ia.data["config_id"] = ia.conf.GetString("config_id")
+}
+
 func (ia *inventoryagent) refreshMetadata() {
 	// Core Agent / agent
 	ia.fetchCoreAgentMetadata()
@@ -368,6 +378,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchTraceAgentMetadata()
 	// system-probe ecosystem
 	ia.fetchSystemProbeMetadata()
+	// Fleet
+	ia.fetchFleetMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {

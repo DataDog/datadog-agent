@@ -33,6 +33,16 @@ func (h *DaemonSetHandlers) AfterMarshalling(ctx processors.ProcessorContext, re
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *DaemonSetHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*appsv1.DaemonSet)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *DaemonSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -58,7 +68,7 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DaemonSetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.DaemonSet)
-	return k8sTransformers.ExtractDaemonSet(r)
+	return k8sTransformers.ExtractDaemonSet(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
