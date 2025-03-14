@@ -1,7 +1,9 @@
 import datetime
+import io
 import os
 import shutil
 import tempfile
+from collections import namedtuple
 from collections.abc import Iterable
 
 from invoke.context import Context
@@ -292,3 +294,126 @@ def graph(
     if auto_open:
         print(f"Opening {fmt} file")
         ctx.run(f"open {fmtfile}")
+
+
+BINARY_TO_TEST = [
+    'agent',
+    'iot-agent',
+    'heroku-agent',
+    'trace-agent',
+    'process-agent',
+    'system-probe',
+    'security-agent',
+    'cluster-agent-cloudfoundry',
+    'cluster-agent',
+    'dogstatsd',
+    'heroku-process-agent',
+    'heroku-trace-agent',
+    'sbomgen',
+    'installer',
+    'system-probe',
+]
+MisMacthBinary = namedtuple('MisMacthBinary', ['binary', 'os', 'arch', 'differences'])
+
+
+@task
+def test_dependency_list(
+    ctx: Context,
+):
+    """
+    Compare the dependencies list for the binaries in BINARY_TO_TEST with the actual dependencies of the binaries.
+    If the lists do not match, the task will raise an error.
+    """
+    mismatch_binaries = set()
+
+    for binary in BINARY_TO_TEST:
+        binary_info = BINARIES[binary]
+        entrypoint = binary_info["entrypoint"]
+        platforms = binary_info["platforms"]
+        flavor = binary_info.get("flavor", AgentFlavor.base)
+        build = binary_info.get("build", binary)
+
+        with ctx.cd(entrypoint):
+            for platform in platforms:
+                platform, arch = platform.split("/")
+
+                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+
+                filename = os.path.join(ctx.cwd, f"dependencies_{flavor.name}_{goos}_{goarch}.txt")
+                if not os.path.isfile(filename):
+                    print(
+                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate --binaries {binary}"
+                    )
+                    continue
+
+                deps_file = open(filename)
+                deps = deps_file.read()
+                deps_list = deps.splitlines()
+                deps_file.close()
+
+                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
+
+                if list != deps_list:
+                    new_dependencies_lines = len(list)
+                    recorded_dependencies_lines = len(deps_list)
+
+                    mismatch_binaries.add(
+                        MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
+                    )
+
+    if len(mismatch_binaries) > 0:
+        message = io.StringIO()
+
+        for mismatch_binary in mismatch_binaries:
+            if mismatch_binary.differences > 0:
+                message.write(
+                    color_message(
+                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
+                        "red",
+                    )
+                )
+            else:
+                message.write(
+                    color_message(
+                        f"You removed some dependencies from {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Congratulations!\n",
+                        "green",
+                    )
+                )
+
+        message.write(
+            color_message(
+                "To fix this check, please run `inv -e go-deps.generate-dependency-list`",
+                "orange",
+            )
+        )
+
+        raise Exit(
+            code=1,
+            message=message.getvalue(),
+        )
+
+
+@task
+def generate_dependency_list(
+    ctx: Context,
+):
+    for binary in BINARY_TO_TEST:
+        binary_info = BINARIES[binary]
+        entrypoint = binary_info["entrypoint"]
+        platforms = binary_info["platforms"]
+        flavor = binary_info.get("flavor", AgentFlavor.base)
+        build = binary_info.get("build", binary)
+
+        with ctx.cd(entrypoint):
+            for platform in platforms:
+                platform, arch = platform.split("/")
+
+                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+
+                filename = os.path.join(ctx.cwd, f"dependencies_{flavor.name}_{goos}_{goarch}.txt")
+
+                deps = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
+
+                f = open(filename, "w")
+                f.write("\n".join(deps))
+                f.close()
