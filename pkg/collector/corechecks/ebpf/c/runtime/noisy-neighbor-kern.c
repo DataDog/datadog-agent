@@ -8,7 +8,7 @@
 
 // TODO noisy: determine what values you want for these constants
 #define MAX_TASK_ENTRIES 1024
-#define RATE_LIMIT_NS 1000
+#define RATE_LIMIT_NS 100000
 
 BPF_RINGBUF_MAP(runq_events, 0)
 BPF_HASH_MAP(runq_enqueued, __u32, __u64, MAX_TASK_ENTRIES)

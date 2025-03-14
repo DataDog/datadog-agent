@@ -31,7 +31,8 @@ var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 type Probe struct {
 	mgr *ddebpf.Manager
 
-	events []runqEvent
+	// pid -> latest event
+	pidMap map[uint64]*runqEvent
 }
 
 // NewProbe creates a [Probe]
@@ -45,7 +46,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 
 	p := &Probe{
-		events: make([]runqEvent, 0),
+		pidMap: make(map[uint64]*runqEvent),
 	}
 	// TODO noisy: figure out what you want these sizes to be. ringbuf size must be power of 2
 	ringbufSize := 2 * os.Getpagesize()
@@ -111,7 +112,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	// TODO noisy: populate stats you want to return to the core check here
 	// this is just an example
 	var nnstats []model.NoisyNeighborStats
-	for _, event := range p.events {
+	for _, event := range p.pidMap {
 		nnstats = append(nnstats, model.NoisyNeighborStats{
 			PrevCgroupID:   event.PrevCgroupID,
 			CgroupID:       event.CgroupID,
@@ -123,11 +124,11 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			PrevPid:        event.PrevPid,
 		})
 	}
-	clear(p.events)
+	clear(p.pidMap)
 	return nnstats
 }
 
 func (p *Probe) handleEvent(e *runqEvent) {
 	// TODO noisy: handle ebpf data here, this is just an example
-	p.events = append(p.events, *e)
+	p.pidMap[e.Pid] = e
 }
