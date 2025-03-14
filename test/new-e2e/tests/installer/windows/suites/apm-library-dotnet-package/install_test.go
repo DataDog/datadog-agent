@@ -137,6 +137,43 @@ func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(pathDir(libraryPath), "the package directory should no longer exist")
 }
 
+func (s *testDotnetLibraryInstallSuite) TestUpgradeAndDowngradePackage() {
+	const (
+		initialVersion = "3.12.0-pipeline.56978102.beta.sha-91fb55b4-1"
+		upgradeVersion = "3.11.0-pipeline.56515513.beta.sha-d6a0900f-1"
+	)
+	// Install initial version
+	s.installDotnetAPMLibraryWithVersion(initialVersion)
+
+	// Start app using the library
+	defer s.stopIISApp()
+	s.startIISApp()
+	initialLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(initialLibraryPath, initialVersion[:len(initialVersion)-2], "library path should contain initial version")
+
+	// Upgrade to newer version
+	s.installDotnetAPMLibraryWithVersion(upgradeVersion)
+
+	// Check that an arbitrary file from the package still exists to make sure
+	// that the files were not deleted when attempting to remove the package
+	output, err := s.Installer().GarbageCollect()
+	s.Require().NoErrorf(err, "failed to garbage collect: %s", output)
+	libraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(libraryPath, initialVersion[:len(initialVersion)-2], "library path should contain initial version")
+	versionPath := pathJoin(pathDir(libraryPath), "version")
+	s.Require().Host(s.Env().RemoteHost).FileExists(versionPath, "the package files should still exist, %s is missing", versionPath)
+
+	// Downgrade back to initial version
+	s.installDotnetAPMLibraryWithVersion(initialVersion)
+
+	// Restart app and verify downgrade
+	s.stopIISApp()
+	s.startIISApp()
+
+	downgradedLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(downgradedLibraryPath, initialVersion[:len(initialVersion)-2], "library path should contain initial version after downgrade")
+}
+
 func (s *testDotnetLibraryInstallSuite) TestRemoveCorruptedPackageFails() {
 	s.installDotnetAPMLibrary()
 
