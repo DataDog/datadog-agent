@@ -243,6 +243,7 @@
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
+/cmd/system-probe/modules/noisy_neighbor* @DataDog/container-intake
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
 /cmd/system-probe/api/client/client_windows.go    @DataDog/windows-kernel-integrations
@@ -422,8 +423,11 @@
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/noisyneighbor/         @DataDog/container-intake
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/noisyneighbor/   @DataDog/container-intake
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor*    @DataDog/container-intake
 /pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-intake

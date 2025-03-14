@@ -42,6 +42,7 @@ const (
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
+	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -163,6 +164,9 @@ func load() (*types.Config, error) {
 	}
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
+		c.EnabledModules[NoisyNeighborModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
