@@ -79,14 +79,19 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
             start_time = time.time()
             runner = unittest.TextTestRunner(buffer=buffer, verbosity=verbosity)
             res = runner.run(suite)
+            end_time = time.time()
 
+            total_test_duration = sum(duration for _, duration in res.collectedDurations)
+            non_test_mean_time = ((end_time - start_time) - total_test_duration) / len(res.collectedDurations)
+
+            # Simulate start / end time as we only have duration
             t = start_time
             for name, duration in res.collectedDurations:
                 print(f'Test {name} took {duration:.2f}s')
                 simple_name = name.split(' ')[0]
                 CIVisibilitySection.create(simple_name, t, t + duration, tags={'test-name': name, 'agent-category': 'invoke-unit-tests'})
 
-                t += duration
+                t += duration + non_test_mean_time
 
             return res.wasSuccessful()
     finally:
