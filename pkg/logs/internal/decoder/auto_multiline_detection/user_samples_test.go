@@ -251,6 +251,40 @@ logs_config:
 	}
 }
 
+func TestOnlyLegacyPatterns(t *testing.T) {
+
+	datadogYaml := `
+logs_config:
+  auto_multi_line_extra_patterns:
+    - "le\\wacy"
+`
+
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
+	samples := NewUserSamples(mockConfig)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{startGroup, false, "legacy pattern should match me"},
+		{startGroup, false, "leAacy pattern should match me"},
+		{startGroup, false, "leVacy pattern should match me"},
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
+}
+
 func TestUserPatternsProcessRegexCustomSettings(t *testing.T) {
 
 	datadogYaml := `

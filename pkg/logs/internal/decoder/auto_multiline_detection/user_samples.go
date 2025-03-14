@@ -50,21 +50,19 @@ func NewUserSamples(config model.Reader) *UserSamples {
 	s := make([]*UserSample, 0)
 	var err error
 	raw := config.Get("logs_config.auto_multi_line_detection_custom_samples")
-	if raw == nil {
-		return &UserSamples{
-			samples: []*UserSample{},
+	if raw != nil {
+		if str, ok := raw.(string); ok && str != "" {
+			err = json.Unmarshal([]byte(str), &s)
+		} else {
+			err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
 		}
-	}
-	if str, ok := raw.(string); ok && str != "" {
-		err = json.Unmarshal([]byte(str), &s)
-	} else {
-		err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
-	}
 
-	if err != nil {
-		log.Error("Failed to unmarshal custom samples: ", err)
-		return &UserSamples{
-			samples: []*UserSample{},
+		if err != nil {
+			log.Error("Failed to unmarshal custom samples: ", err)
+			return &UserSamples{
+				samples: []*UserSample{},
+			}
+
 		}
 	}
 
