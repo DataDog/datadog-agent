@@ -35,7 +35,7 @@ type factory struct {
 }
 
 type data struct {
-	tagger taggerClient
+	infraTags infraTagsProcessor
 }
 
 func (f *factory) getOrCreateData() (*data, error) {
@@ -76,19 +76,19 @@ func (f *factory) getOrCreateData() (*data, error) {
 	if err := app.Err(); err != nil {
 		return nil, err
 	}
-	f.data.tagger = client
+	f.data.infraTags = newInfraTagsProcessor(client)
 	return f.data, nil
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
 func NewFactory() processor.Factory {
-	return NewFactoryForAgent(nil)
+	return newFactoryForAgent(nil)
 }
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
 func NewFactoryForAgent(tagger taggerClient) processor.Factory {
 	return newFactoryForAgent(&data{
-		tagger: tagger,
+		infraTags: newInfraTagsProcessor(tagger),
 	})
 }
 
@@ -123,7 +123,7 @@ func (f *factory) createMetricsProcessor(
 		return nil, err
 	}
 
-	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), data.tagger)
+	iap, err := newInfraAttributesMetricProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (f *factory) createLogsProcessor(
 	if err != nil {
 		return nil, err
 	}
-	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), data.tagger)
+	iap, err := newInfraAttributesLogsProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (f *factory) createTracesProcessor(
 	if err != nil {
 		return nil, err
 	}
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), data.tagger)
+	iap, err := newInfraAttributesSpanProcessor(set, data.infraTags, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
