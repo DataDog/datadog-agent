@@ -17,16 +17,12 @@ import (
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // StatusResponse is the response to the status endpoint.
 type StatusResponse struct {
 	APIResponse
-	Version            string                  `json:"version"`
-	Packages           map[string]PackageState `json:"packages"`
-	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
-	RemoteConfigState  []*pbgo.PackageState    `json:"remote_config_state"`
+	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -92,30 +88,14 @@ func (l *localAPIImpl) handler() http.Handler {
 	return r
 }
 
-func (l *localAPIImpl) status(w http.ResponseWriter, r *http.Request) {
+func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var response StatusResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	ctx := r.Context()
-	packages, err := l.daemon.GetState(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	apmStatus, err := l.daemon.GetAPMInjectionStatus()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
 	response = StatusResponse{
-		Version:            version.AgentVersion,
-		Packages:           packages,
-		ApmInjectionStatus: apmStatus,
-		RemoteConfigState:  l.daemon.GetRemoteConfigState().Packages,
+		RemoteConfigState: l.daemon.GetRemoteConfigState().Packages,
 	}
 }
 

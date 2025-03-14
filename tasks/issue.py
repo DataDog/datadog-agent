@@ -74,7 +74,7 @@ def ask_reviews(_, pr_id):
 
 
 @task
-def add_reviewers(ctx, pr_id, dry_run=False):
+def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
     """
     Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
     """
@@ -117,11 +117,10 @@ def add_reviewers(ctx, pr_id, dry_run=False):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, ".github/CODEOWNERS")))
+                            owners.update(set(search_owners(file, owner_file)))
                             break
     if dry_run:
         print(f"Owners for {dependency}: {owners}")
         return
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
     pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
-    pr.add_to_labels("ask-review")

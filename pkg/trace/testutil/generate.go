@@ -18,6 +18,8 @@ type SpanConfig struct {
 	MinTags int
 	// MaxTags specifies the maximum number of tags this span should have.
 	MaxTags int
+	// NumSpanEvents specifies the number of span events this span should have.
+	NumSpanEvents int
 }
 
 // TraceConfig specifies trace generating configuration.
@@ -147,6 +149,14 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 			s.Metrics[k] = rand.Float64()
 			break
 		}
+	}
+	s.SpanEvents = make([]*pb.SpanEvent, 0, c.NumSpanEvents)
+	for range c.NumSpanEvents {
+		s.SpanEvents = append(s.SpanEvents, &pb.SpanEvent{
+			TimeUnixNano: uint64(time.Now().UnixNano() - duration),
+			Name:         pickString(names),
+			Attributes:   nil,
+		})
 	}
 	return s
 }

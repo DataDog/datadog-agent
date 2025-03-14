@@ -163,7 +163,6 @@ SECURITY_AGENT_TAGS = {
     "docker",
     "zlib",
     "zstd",
-    "kubelet",
     "ec2",
 }
 
@@ -171,6 +170,7 @@ SECURITY_AGENT_TAGS = {
 SBOMGEN_TAGS = {
     "trivy",
     "grpcnotrace",
+    "no_dynamic_plugins",
     "containerd",
     "docker",
     "crio",
