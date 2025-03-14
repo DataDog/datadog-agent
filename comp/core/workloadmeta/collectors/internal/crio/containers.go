@@ -27,7 +27,7 @@ func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Contain
 	containerStatus, info := getContainerStatus(ctx, c.client, ctr.GetId())
 	pid, hostname, cgroupsPath := parseContainerInfo(info)
 	cpuLimit, memLimit := getResourceLimits(containerStatus, info)
-	image := getContainerImage(ctr)
+	image := getContainerImage(containerStatus)
 	ports := parsePortsFromAnnotations(ctr.GetAnnotations())
 
 	return workloadmeta.CollectorEvent{
@@ -90,21 +90,21 @@ func getContainerStatus(ctx context.Context, client crio.Client, containerID str
 }
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
-func getContainerImage(ctr *v1.Container) workloadmeta.ContainerImage {
-	if ctr == nil {
-		log.Warn("container is nil, cannot fetch image")
+func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImage {
+	if ctrStatus == nil {
+		log.Warn("container status is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
 	}
 
-	imageSpec := ctr.GetImage()
+	imageSpec := ctrStatus.GetImage()
 	if imageSpec == nil {
 		log.Warn("Image spec is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
 	}
 
-	imgID, digestErr := parseDigests([]string{ctr.ImageRef})
+	imgID, digestErr := parseDigests([]string{ctrStatus.ImageRef})
 	if digestErr != nil {
-		imgID = ctr.ImageRef
+		imgID = ctrStatus.ImageRef
 	}
 
 	wmImg, err := workloadmeta.NewContainerImage(imgID, imageSpec.Image)
@@ -116,7 +116,7 @@ func getContainerImage(ctr *v1.Container) workloadmeta.ContainerImage {
 		// Don't log if the container image could not be created
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, digestErr)
 	}
-	wmImg.RepoDigest = ctr.ImageRef
+	wmImg.RepoDigest = ctrStatus.ImageRef
 
 	return wmImg
 }

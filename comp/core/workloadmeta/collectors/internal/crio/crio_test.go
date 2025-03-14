@@ -50,7 +50,7 @@ func TestPull(t *testing.T) {
 				return []*v1.Container{
 					{
 						Id:           "container1",
-						Image:        &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						Image:        &v1.ImageSpec{Image: "image123"}, // container returns image ID here, container status returns image tag
 						ImageRef:     "myrepo/myimage@sha256:123abc",
 						PodSandboxId: "pod1",
 						Metadata:     &v1.ContainerMetadata{Name: "container1"},
@@ -68,6 +68,8 @@ func TestPull(t *testing.T) {
 						CreatedAt:  createTime,
 						StartedAt:  startTime,
 						FinishedAt: finishTime,
+						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:   "myrepo/myimage@sha256:123abc",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           50000,
@@ -269,7 +271,7 @@ func TestPull(t *testing.T) {
 				return []*v1.Container{
 					{
 						Id:           "container1",
-						Image:        &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						Image:        &v1.ImageSpec{Image: "image123"}, // container returns image ID here, container status returns image tag
 						ImageRef:     "myrepo/myimage@sha256:123abc",
 						PodSandboxId: "pod1",
 						Metadata:     &v1.ContainerMetadata{Name: "container1"},
@@ -287,6 +289,8 @@ func TestPull(t *testing.T) {
 						CreatedAt:  createTime,
 						StartedAt:  startTime,
 						FinishedAt: finishTime,
+						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:   "myrepo/myimage@sha256:123abc",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           0,
