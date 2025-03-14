@@ -1,5 +1,7 @@
+import json
 import subprocess
 import time
+import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import ClassVar
@@ -23,14 +25,33 @@ class CIVisibilitySection:
             start_time = time.time()
             n_sections = len(CIVisibilitySection.sections)
             print('Sending CI visibility sections')
-            for section in CIVisibilitySection.sections:
-                try:
-                    section.send()
-                except Exception as e:
-                    print(f'{color_message("ERROR", Color.RED)}: Failed to send CI visibility section {section.name}: {e}')
+            # Create payload
+            payload = [
+                {
+                    'name': section.name,
+                    'startTimeInMs': section.start_time,
+                    'endTimeInMs': section.end_time,
+                    'tags': list(section.tags.items()),
+                    'measures': list(section.measures.items()),
+                }
+                for section in CIVisibilitySection.sections
+            ]
+            path_payload = tempfile.mktemp()
+            with open(path_payload, 'w') as f:
+                json.dump(payload, f)
+            subprocess.run(['datadog-ci', 'span', '--payload-file', path_payload]).check_returncode()
+
+
+            # for section in CIVisibilitySection.sections:
+            #     try:
+            #         section.send()
+            #     except Exception as e:
+            #         print(f'{color_message("ERROR", Color.RED)}: Failed to send CI visibility section {section.name}: {e}')
 
             CIVisibilitySection.sections.clear()
             end_time = time.time()
+
+            print('Sent sections in {:.1f}s'.format(end_time - start_time))
 
             # Create a section to monitor how much time it takes to send sections
             CIVisibilitySection('send-ci-visibility-sections', start_time, end_time, tags={'agent-category': 'metrics'}, measures={'number-of-sections': n_sections}).send()
