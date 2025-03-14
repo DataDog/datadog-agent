@@ -23,12 +23,20 @@ import (
 // configEvent maps service names to info about the service and their configurations
 func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
+	var inspectedAtLeastOneBinary bool
 	for i := range configEvent {
 		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
-			return fmt.Errorf("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+		} else {
+			inspectedAtLeastOneBinary = true
 		}
 	}
+
+	if !inspectedAtLeastOneBinary {
+		return fmt.Errorf("failed to inspect all tracked go binaries")
+	}
+
 	return nil
 }
 
@@ -81,7 +89,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
-		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
 	return nil

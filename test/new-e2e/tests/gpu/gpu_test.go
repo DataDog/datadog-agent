@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +33,8 @@ var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
-	containerNameCounter int
+	containerNameCounter     int
+	agentRestartsAtSuiteInit map[string]int
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
@@ -90,6 +92,29 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
+// getServiceRestartCount returns the number of restarts for a given service
+func (v *gpuSuite) getServiceRestartCount(service string) int {
+	out, err := v.Env().RemoteHost.Execute(fmt.Sprintf("systemctl show -p NRestarts %s", service))
+	v.Require().NoError(err)
+	v.Require().NotEmpty(out)
+
+	restartCount := strings.TrimPrefix(strings.TrimSpace(out), "NRestarts=")
+	count, err := strconv.Atoi(restartCount)
+	v.Require().NoError(err)
+	return count
+}
+
+func (v *gpuSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	v.agentRestartsAtSuiteInit = make(map[string]int)
+
+	// Get initial agent service restart counts
+	services := []string{"datadog-agent.service", "datadog-agent-sysprobe.service"}
+	for _, service := range services {
+		v.agentRestartsAtSuiteInit[service] = v.getServiceRestartCount(service)
+	}
+}
+
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
 func (v *gpuSuite) runCudaDockerWorkload() string {
 	// Configure some defaults
@@ -142,19 +167,41 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
+func (v *gpuSuite) TestLimitMetricsAreReported() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
+		for _, metricName := range metricNames {
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
 
+func (v *gpuSuite) TestVectorAddProgramDetected() {
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.utilization"}
+		metricNames := []string{"gpu.core.usage"}
+
+		var usageMetricTags []string
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+
+			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+				usageMetricTags = metrics[0].Tags
+			}
+		}
+
+		if len(usageMetricTags) > 0 {
+			// Ensure we get the limit metric with the same tags as the usage one
+			limitMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
+			assert.NoError(c, err)
+			assert.Greater(c, len(limitMetrics), 0, "no 'gpu.core.limit' with tags %v", usageMetricTags)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -202,5 +249,16 @@ func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
 	if v.T().Failed() {
 		// log the output for debugging in case of failure
 		v.T().Log(out)
+	}
+}
+
+// TestZZAgentDidNotRestart checks that the agent did not restart during the test suite
+// Add zz to name to run this test last, as we want to run it after all other tests have run
+// to ensure that no restarts happened during the test suite, which would be an error that we
+// might not catch with the test themselves (e.g., we send correct metrics and then we panic)
+func (v *gpuSuite) TestZZAgentDidNotRestart() {
+	for service, initialCount := range v.agentRestartsAtSuiteInit {
+		finalCount := v.getServiceRestartCount(service)
+		v.Assert().Equal(initialCount, finalCount, "Service %s restarted during test suite", service)
 	}
 }

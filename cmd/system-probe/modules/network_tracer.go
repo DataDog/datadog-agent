@@ -88,12 +88,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
@@ -157,12 +158,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
 	})
@@ -173,12 +175,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 
 		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
 	})
@@ -189,12 +192,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 
 		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres))
 	})
@@ -205,12 +209,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 
 		utils.WriteAsJSON(w, redisdebugging.Redis(cs.Redis))
 	})
@@ -221,12 +226,13 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		id := getClientID(req)
-		cs, err := nt.tracer.GetActiveConnections(id)
+		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+		defer cleanup()
 
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
 	})
