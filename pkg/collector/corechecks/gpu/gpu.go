@@ -133,6 +133,10 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
 	var err error
 	c.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(c.nvmlLib)
 	if err != nil {
@@ -147,10 +151,6 @@ func (c *Check) ensureInitDeviceCache() error {
 func (c *Check) ensureInitCollectors() error {
 	if c.collectors != nil {
 		return nil
-	}
-
-	if err := c.ensureInitNVML(); err != nil {
-		return err
 	}
 
 	if err := c.ensureInitDeviceCache(); err != nil {
@@ -208,6 +208,10 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		c.telemetry.sysprobeMetricsSent.Add(float64(sentMetrics))
 		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 	}()
+
+	if err := c.ensureInitDeviceCache(); err != nil {
+		return err
+	}
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
