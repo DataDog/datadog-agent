@@ -601,7 +601,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 
 	stopped := make(chan bool, 1)
 	go func() {
-		npCollector.startWorker(42)
+		npCollector.runWorker(42)
 		stopped <- true
 	}()
 	close(npCollector.stopChan)
