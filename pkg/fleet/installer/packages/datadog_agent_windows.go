@@ -164,7 +164,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 
 	}
 
-	return nil
+	return fmt.Errorf("Watchdog timeout")
 
 }
 
