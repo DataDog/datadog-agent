@@ -300,7 +300,7 @@ func (s *npCollectorImpl) start() error {
 
 	go s.listenPathtests()
 	go s.flushLoop()
-	go s.startWorkers()
+	go s.runWorkers()
 
 	return nil
 }
@@ -521,7 +521,7 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) startWorkers() {
+func (s *npCollectorImpl) runWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
 
 	var wg sync.WaitGroup
