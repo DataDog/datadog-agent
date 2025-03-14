@@ -23,6 +23,7 @@ def build(
     install_path=None,
     major_version='7',
     go_mod="readonly",
+    e2e_coverage=False,
 ):
     """
     Build the trace agent.
@@ -60,6 +61,8 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+    if e2e_coverage:
+        build_tags.append("e2e_coverage")
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""

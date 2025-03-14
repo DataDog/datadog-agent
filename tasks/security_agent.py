@@ -61,6 +61,7 @@ def build(
     skip_assets=False,
     static=False,
     fips_mode=False,
+    e2e_coverage=False,
 ):
     """
     Build the security agent
@@ -92,6 +93,9 @@ def build(
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="security-agent")
     build_tags = add_fips_tags(build_tags, fips_mode)
+
+    if e2e_coverage:
+        build_tags.append("e2e_coverage")
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

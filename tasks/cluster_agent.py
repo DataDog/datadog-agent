@@ -36,6 +36,7 @@ def build(
     skip_assets=False,
     policies_version=None,
     release_version="nightly-a7",
+    e2e_coverage=False,
 ):
     """
     Build Cluster Agent
@@ -54,6 +55,7 @@ def build(
         race,
         development,
         skip_assets,
+        e2e_coverage,
     )
 
     if policies_version is None:

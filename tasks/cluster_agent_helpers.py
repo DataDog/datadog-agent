@@ -21,6 +21,7 @@ def build_common(
     development,
     skip_assets,
     go_mod="readonly",
+    e2e_coverage=False,
 ):
     """
     Build Cluster Agent
@@ -29,6 +30,9 @@ def build_common(
     build_include = build_tags if build_include is None else filter_incompatible_tags(build_include.split(","))
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
+
+    if e2e_coverage:
+        build_tags.append("e2e_coverage")
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False)

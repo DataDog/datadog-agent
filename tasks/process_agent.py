@@ -27,6 +27,7 @@ def build(
     rebuild=False,
     major_version='7',
     go_mod="readonly",
+    e2e_coverage=False,
 ):
     """
     Build the process agent
@@ -67,6 +68,9 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+
+    if e2e_coverage:
+        build_tags.append("e2e_coverage")
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

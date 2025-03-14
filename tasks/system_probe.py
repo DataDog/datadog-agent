@@ -716,6 +716,7 @@ def build(
     ebpf_compiler='clang',
     static=False,
     fips_mode=False,
+    e2e_coverage=False,
 ):
     """
     Build the system-probe
@@ -743,6 +744,7 @@ def build(
         arch=arch,
         static=static,
         fips_mode=fips_mode,
+        e2e_coverage=e2e_coverage,
     )
 
 
@@ -770,6 +772,7 @@ def build_sysprobe_binary(
     strip_binary=False,
     fips_mode=False,
     static=False,
+    e2e_coverage=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -783,6 +786,8 @@ def build_sysprobe_binary(
 
     build_tags = get_default_build_tags(build="system-probe")
     build_tags = add_fips_tags(build_tags, fips_mode)
+    if e2e_coverage:
+        build_tags.append("e2e_coverage")
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
