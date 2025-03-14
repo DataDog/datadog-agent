@@ -8,145 +8,172 @@
 package disk
 
 import (
-	"fmt"
-	"path/filepath"
+	"bytes"
+	"encoding/xml"
+	"io"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
 
-	"github.com/shirou/gopsutil/v4/disk"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// for testing
-var (
-	diskPartitions = disk.Partitions
-	diskUsage      = disk.Usage
-
-	ioCounters = disk.IOCounters
-)
-
-// Check stores disk-specific additional fields
-type Check struct {
-	core.CheckBase
-	cfg *diskConfig
+// LsblkCommand specifies the command used to retrieve block device information.
+var LsblkCommand = func() (string, error) {
+	cmd := exec.Command("lsblk", "--noheadings", "--raw", "--output=NAME,LABEL")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
 }
+var labelRegex = regexp.MustCompile(`LABEL="([^"]+)"`)
 
-// Run executes the check
-func (c *Check) Run() error {
-	sender, err := c.GetSender()
+func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
+	log.Debugf("Fetching all device labels from lsblk")
+	rawOutput, err := LsblkCommand()
 	if err != nil {
 		return err
 	}
-
-	err = c.collectPartitionMetrics(sender)
-	if err != nil {
-		return err
+	log.Debugf("lsblk output: %s", rawOutput)
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		log.Debugf("processing line: '%s'", line)
+		if line == "" {
+			log.Debugf("skipping empty line")
+			continue
+		}
+		// Typically line looks like:
+		// sda1  MY_LABEL
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			log.Debugf("skipping malformed line: '%s'", line)
+			continue
+		}
+		device := "/dev/" + fields[0]
+		label := fields[1]
+		c.deviceLabels[device] = label
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
-	sender.Commit()
-
 	return nil
 }
 
-func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := diskPartitions(true)
+// Device represents a device entry in an XML structure.
+type Device struct {
+	XMLName xml.Name `xml:"device"`
+	Label   string   `xml:"LABEL,attr"`
+	Text    string   `xml:",chardata"`
+}
+
+// BlkidCacheCommand specifies the command used to query block device UUIDs and labels.
+var BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+	file, err := os.Open(blkidCacheFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
+	log.Debugf("Fetching all device labels from blkid cache")
+	rawOutput, err := BlkidCacheCommand(c.cfg.blkidCacheFile)
 	if err != nil {
 		return err
 	}
-
-	for _, partition := range partitions {
-		if c.excludeDisk(partition.Mountpoint, partition.Device, partition.Fstype) {
+	log.Debugf("blkid cache output: %s", rawOutput)
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		log.Debugf("processing line: '%s'", line)
+		if line == "" {
+			log.Debugf("skipping empty line")
 			continue
 		}
-
-		// Get disk metrics here to be able to exclude on total usage
-		usage, err := diskUsage(partition.Mountpoint)
+		var device Device
+		err := xml.Unmarshal([]byte(line), &device)
 		if err != nil {
-			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
+			log.Debugf("Failed to parse line %s because of %v - skipping the line (some labels might be missing)\n", line, err)
 			continue
 		}
 
-		// Exclude disks with total disk size 0
-		if usage.Total == 0 {
+		if device.Label != "" && device.Text != "" {
+			c.deviceLabels[device.Text] = device.Label
+		}
+	}
+	return nil
+}
+
+// BlkidCommand specifies the command used to retrieve block device attributes.
+var BlkidCommand = func() (string, error) {
+	cmd := exec.Command("blkid")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
+	log.Debugf("Fetching all device labels from blkid")
+	rawOutput, err := BlkidCommand()
+	if err != nil {
+		return err
+	}
+	c.deviceLabels = make(map[string]string)
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		log.Debugf("processing line: '%s'", line)
+		if line == "" {
+			log.Debugf("skipping empty line")
 			continue
 		}
-
-		tags := make([]string, 0, 2)
-
-		if c.cfg.tagByFilesystem {
-			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
+		// Typically line looks like:
+		// /dev/sda1: UUID="..." TYPE="ext4" LABEL="root"
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			log.Debugf("skipping malformed line: '%s'", line)
+			continue
 		}
-		var deviceName string
-		if c.cfg.useMount {
-			deviceName = partition.Mountpoint
+		device := strings.TrimSpace(parts[0])  // e.g. "/dev/sda1"
+		details := strings.TrimSpace(parts[1]) // e.g. `UUID="..." TYPE="ext4" LABEL="root"`
+		match := labelRegex.FindStringSubmatch(details)
+		if len(match) == 2 {
+			// match[1] is everything captured by ([^"]+)
+			c.deviceLabels[device] = match[1]
 		} else {
-			deviceName = partition.Device
+			// No label found for this device
+			c.deviceLabels[device] = ""
 		}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
 
-		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
-
-		c.sendPartitionMetrics(sender, usage, tags)
 	}
-
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) error {
-	iomap, err := ioCounters()
-	if err != nil {
-		return err
+// NetAddConnection specifies the command used to add a new network connection.
+var NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+	args := []string{}
+	args = append(args, "-t")
+	if mountType == "SMB" {
+		args = append(args, "smbfs")
+	} else {
+		args = append(args, mountType)
 	}
-	for deviceName, ioCounter := range iomap {
-
-		tags := []string{}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
-
-		tags = c.applyDeviceTags(deviceName, "", tags)
-
-		c.sendDiskMetrics(sender, ioCounter, tags)
-	}
-
-	return nil
-}
-
-func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *disk.UsageStat, tags []string) {
-	// Disk metrics
-	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
-	// FIXME(8.x): use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
-
-	// Inodes metrics
-	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
-	// FIXME(8.x): use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
-}
-
-func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter disk.IOCountersStat, tags []string) {
-	sender.MonotonicCount(fmt.Sprintf(diskMetric, "read_time"), float64(ioCounter.ReadTime), "", tags)
-	sender.MonotonicCount(fmt.Sprintf(diskMetric, "write_time"), float64(ioCounter.WriteTime), "", tags)
-	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage
-	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
-	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
-}
-
-// Configure the disk check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
-	if err != nil {
-		return err
-	}
-	return c.instanceConfigure(data)
+	args = append(args, remoteName)
+	args = append(args, localName)
+	cmd := exec.Command("mount", args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := cmd.Run()
+	return err
 }
