@@ -430,7 +430,7 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 	secretClient.SetSecret("api_key", apiKey1)
 
 	extraconfig := fmt.Sprintf(`
-api_key: ENC[%sapi_key]
+api_key: ENC[%s/api_key]
 log_level: debug
 
 agent_ipc:
@@ -439,11 +439,13 @@ agent_ipc:
 `, rootDir)
 	extraconfig += secretClient.GetAgentConfiguration()
 
+	s.T().Log("final Agent configuration:", extraconfig)
 	s.UpdateEnv(awshost.Provisioner(
 		vmProvisionerOpts(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
 				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+				secretClient.WithLinuxExecutable(),
 			),
 		)...),
 	)

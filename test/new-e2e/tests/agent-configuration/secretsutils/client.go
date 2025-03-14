@@ -9,11 +9,14 @@ package secretsutils
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -24,7 +27,7 @@ type Client struct {
 	host    *components.RemoteHost
 
 	refreshInterval int
-	agentBinary     string
+	secretBinary    string
 	allowExecGroup  bool
 }
 
@@ -32,17 +35,16 @@ type Client struct {
 func NewClient(t *testing.T, host *components.RemoteHost, rootDir string) *Client {
 	t.Log("Creating secret client with root directory", rootDir)
 
-	// WIP We're trying to detect the current OS for the test
-	agentBinary := "/opt/datadog-agent/bin/agent/agent"
+	secretBinary := filepath.Join(rootDir, "get_secret.py")
 	if host.OSFamily == os.WindowsFamily {
-		agentBinary = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+		secretBinary = filepath.Join(rootDir, "get_secret.ps1")
 	}
 
 	return &Client{
-		t:           t,
-		rootDir:     rootDir,
-		host:        host,
-		agentBinary: agentBinary,
+		t:            t,
+		rootDir:      rootDir,
+		host:         host,
+		secretBinary: secretBinary,
 	}
 }
 
@@ -68,13 +70,90 @@ func (c *Client) RemoveSecret(name string) error {
 
 // ConfigureRefreshInterval set a refresh interval for secrets. This has to be called before GetAgentConfiguration
 func (c *Client) ConfigureRefreshInterval(interval int) {
+	c.t.Logf("Setting refreshInterval to %d", interval)
 	c.refreshInterval = interval
 }
 
 // AllowExecGroup set secret_backend_command_allow_group_exec_perm to true in the agent configuration. This has to be
 // called before GetAgentConfiguration
 func (c *Client) AllowExecGroup() {
+	c.t.Log("Setting AllowExecGroup to true")
 	c.allowExecGroup = true
+}
+
+// WithWindowsExecutable creates the secrets executable for windows
+func (c *Client) WithWindowsExecutable() func(*agentparams.Params) error {
+	c.t.Logf("Adding agentparams to create secret executable at '%s'", c.secretBinary)
+
+	content := `$secretsJson = $input | ConvertFrom-Json
+$secrets = @{}
+for ($index = 0; $index -lt $secretsJson.secrets.count; $index++) {
+    $secretKey = $secretsJson.secrets[$index]
+    $secrets[$secretKey] = @{
+        value = [IO.File]::ReadAllText($secretKey)
+        error = $null
+    }
+}
+Write-Host ($secrets | ConvertTo-Json)
+`
+
+	icaclsCmd := `/grant "ddagentuser:(RX)"`
+	if c.allowExecGroup {
+		icaclsCmd += ` "Administrators:(RX)"`
+	}
+
+	return agentparams.WithFileWithPermissions(
+		c.secretBinary,
+		content,
+		true,
+		filepermissions.NewWindowsPermissions(
+			filepermissions.WithIcaclsCommand(icaclsCmd),
+			filepermissions.WithDisableInheritance(),
+		),
+	)
+}
+
+// WithLinuxExecutable creates the secrets executable for windows
+func (c *Client) WithLinuxExecutable() func(*agentparams.Params) error {
+	c.t.Logf("Adding agentparams to create secret executable at '%s'", c.secretBinary)
+
+	content := `
+#!/usr/bin/env python3
+
+import sys
+import os
+import json
+
+data = sys.stdin.read()
+payload = json.loads(data)
+
+res = {}
+for secret in payload["secrets"]:
+    with open(secret, "r") as f:
+        res[secret] = {"value": f.read()}
+
+print(json.dumps(res))
+`
+
+	perm := filepermissions.NewUnixPermissions(
+		filepermissions.WithPermissions("0700"),
+		filepermissions.WithOwner("dd-agent"),
+		filepermissions.WithGroup("dd-agent"),
+	)
+	if c.allowExecGroup {
+		perm = filepermissions.NewUnixPermissions(
+			filepermissions.WithPermissions("0750"),
+			filepermissions.WithOwner("dd-agent"),
+			filepermissions.WithGroup("root"),
+		)
+	}
+
+	return agentparams.WithFileWithPermissions(
+		c.secretBinary,
+		content,
+		true,
+		perm,
+	)
 }
 
 // GetAgentConfiguration returns the Agent configuration dedicated to secrets configured. The result
@@ -89,9 +168,11 @@ secret_backend_arguments:
   - read
 secret_backend_remove_trailing_line_break: true
 secret_backend_command_allow_group_exec_perm: %t
-`, c.agentBinary, c.allowExecGroup)
+`, c.secretBinary, c.allowExecGroup)
 	if c.refreshInterval > 0 {
 		conf += fmt.Sprintf("secret_refresh_interval: %d\n", c.refreshInterval)
 	}
+
+	c.t.Logf("Injecting the following into the Agent configuration: %s", conf)
 	return conf
 }

@@ -33,7 +33,7 @@ func TestWindowsRuntimeSecretSuite(t *testing.T) {
 }
 
 func (v *windowsRuntimeSecretSuite) testSecretRuntimeHostname(wrapperDirectory string) {
-	config := "hostname: ENC[hostname]"
+	config := "hostname: ENC[" + wrapperDirectory + "/hostname]"
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, wrapperDirectory)
 	secretClient.SetSecret("hostname", "e2e.test")
@@ -43,6 +43,7 @@ func (v *windowsRuntimeSecretSuite) testSecretRuntimeHostname(wrapperDirectory s
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(
+				secretClient.WithWindowsExecutable(),
 				agentparams.WithAgentConfig(config),
 			),
 		),

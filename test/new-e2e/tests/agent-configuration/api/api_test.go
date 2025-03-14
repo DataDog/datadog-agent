@@ -526,8 +526,6 @@ func (v *apiSuite) TestSecretsAgentAPIEndpoints() {
 	config := `log_level: debug
 hostname: ENC[` + rootDir + "hostname]"
 
-	v.Env().RemoteHost.MkdirAll(rootDir)
-
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
@@ -538,6 +536,7 @@ hostname: ENC[` + rootDir + "hostname]"
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(config),
+			secretClient.WithLinuxExecutable(),
 		),
 	))
 

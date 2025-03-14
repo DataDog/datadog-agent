@@ -30,7 +30,7 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 }
 
 func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
-	config := "hostname: ENC[hostname]"
+	config := "hostname: ENC[/tmp/hostname]"
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("hostname", "e2e.test")
@@ -39,6 +39,7 @@ func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(config),
+			secretClient.WithLinuxExecutable(),
 		),
 	))
 

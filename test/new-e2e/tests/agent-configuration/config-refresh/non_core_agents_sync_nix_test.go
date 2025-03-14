@@ -33,14 +33,11 @@ func TestConfigRefreshLinuxSuite(t *testing.T) {
 }
 
 func (v *configRefreshLinuxSuite) TestConfigRefresh() {
-	rootDir := "/tmp/" + v.T().Name()
-	v.Env().RemoteHost.MkdirAll(rootDir)
-
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", apiKey1)
 
@@ -52,6 +49,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
 		"AgentIpcPort":             agentIpcPort,
+		"SecretDir":                "/tmp/",
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 	coreconfig += secretClient.GetAgentConfiguration()
@@ -62,6 +60,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			secretClient.WithLinuxExecutable(),
 		),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),

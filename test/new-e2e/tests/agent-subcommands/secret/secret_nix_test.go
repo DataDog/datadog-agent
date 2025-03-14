@@ -62,6 +62,7 @@ host_aliases:
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(config),
+				secretClient.WithLinuxExecutable(),
 			),
 		),
 	)
@@ -92,6 +93,7 @@ func (v *linuxSecretSuite) TestAgentConfigRefresh() {
 			awshost.WithAgentOptions(
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
+				secretClient.WithLinuxExecutable(),
 			),
 		),
 	)

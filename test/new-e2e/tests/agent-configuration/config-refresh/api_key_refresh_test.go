@@ -27,7 +27,11 @@ type linuxAPIKeyRefreshSuite struct {
 
 func TestLinuxAPIKeyFreshSuite(t *testing.T) {
 	suite := &linuxAPIKeyRefreshSuite{descriptor: os.UbuntuDefault}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t,
+		suite,
+		e2e.WithProvisioner(awshost.Provisioner()),
+		e2e.WithSkipDeleteOnFailure(),
+	)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {
@@ -35,18 +39,27 @@ func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {
 	const secondAPIKey = "123456abcdefghijklmnopqrstuvwxyz"
 
 	// Create config that has an encoded (secret) api key
-	config := "api_key: ENC[/tmp/api_key]\n"
+	config := "api_key: ENC[/tmp/api_key]"
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	// Set the real api key in the secret backend
 	secretClient.SetSecret("api_key", firstAPIKey)
 	config += secretClient.GetAgentConfiguration()
 
+	v.T().Logf("------\nfinal config: %s", config)
+	res, execErr := v.Env().RemoteHost.Execute("echo '{\"version\": \"1.0\", \"secrets\": [\"/tmp/api_key\"]}' | /opt/datadog-agent/bin/agent/agent secret-helper read")
+	v.T().Logf("------\ntest binary:\n%s\n\n%s", res, execErr)
+	res, execErr = v.Env().RemoteHost.Execute("ls -l /opt/datadog-agent/bin/agent/agent")
+	v.T().Logf("------\nls binary:\n%s\n\n%s", res, execErr)
+	res, execErr = v.Env().RemoteHost.Execute("cat /tmp/api_key")
+	v.T().Logf("------\ncat secret:\n%s\n\n%s", res, execErr)
+
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
+				secretClient.WithLinuxExecutable(),
 			),
 		),
 	)

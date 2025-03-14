@@ -58,10 +58,10 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {
 	config := `
 host_aliases:
-  - ENC[C:\TestFolder\alias_secret]`
+  - ENC[C:/TestFolder/alias_secret]`
 
 	// Create secret before running the Agent
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:/TestFolder`)
 	secretClient.SetSecret("alias_secret", "a_super_secret_string")
 	config += secretClient.GetAgentConfiguration()
 
@@ -69,6 +69,7 @@ host_aliases:
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(
+				secretClient.WithWindowsExecutable(),
 				agentparams.WithAgentConfig(config),
 			),
 		),
@@ -87,16 +88,17 @@ host_aliases:
 }
 
 func (v *windowsSecretSuite) TestAgentConfigRefresh() {
-	config := "api_key: ENC[C:\\TestFolder\\api_key]"
+	config := "api_key: ENC[C:/TestFolder/api_key]"
 
 	// Create API Key secret before running the Agent
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:/TestFolder`)
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(
+			secretClient.WithWindowsExecutable(),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
 		)),

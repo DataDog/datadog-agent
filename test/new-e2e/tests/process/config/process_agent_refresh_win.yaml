@@ -1,4 +1,4 @@
-api_key: 'ENC[C:\TestFolder\api_key]'
+api_key: 'ENC[C:/TestFolder/api_key]'
 
 process_config:
   process_collection:

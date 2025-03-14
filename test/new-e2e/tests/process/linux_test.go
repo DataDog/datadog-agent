@@ -59,6 +59,7 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(config),
 				agentparams.WithSkipAPIKeyInConfig(),
+				secretClient.WithLinuxExecutable(),
 			),
 		),
 	)
@@ -89,6 +90,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(config),
 				agentparams.WithSkipAPIKeyInConfig(),
+				secretClient.WithLinuxExecutable(),
 			),
 		),
 	)
