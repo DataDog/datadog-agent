@@ -68,7 +68,7 @@ func TestBuildSymbolFileIdentifier(t *testing.T) {
 	require.NotEqual(t, copyIdentifier, differentIdentifier)
 }
 
-func TestKernelCache_LoadKernelData(t *testing.T) {
+func TestKernelCacheLoadKernelData(t *testing.T) {
 	// Get sample CUDA binary path
 	samplePath := cudatestutil.GetCudaSample(t, "sample")
 
@@ -79,8 +79,7 @@ func TestKernelCache_LoadKernelData(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
-	// Create kernel cache
-	kc := newKernelCache(sysCtx)
+	kc := sysCtx.kernelCache
 	kc.Start()
 	defer kc.Stop()
 
@@ -132,12 +131,11 @@ func TestKernelCache_LoadKernelData(t *testing.T) {
 	require.False(t, exists)
 }
 
-func TestKernelCache_LoadKernelDataError(t *testing.T) {
+func TestKernelCacheLoadKernelDataError(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
-	// Create kernel cache
-	kc := newKernelCache(sysCtx)
+	kc := sysCtx.kernelCache
 	kc.Start()
 	defer kc.Stop()
 

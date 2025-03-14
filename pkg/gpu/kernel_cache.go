@@ -103,12 +103,12 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 		fatbinPayloads:  tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
 		kernelsPerFile:  tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
 		kernelSizes:     tm.NewHistogram(subsystem, "kernel_sizes", nil, "Size of kernels in bytes", []float64{100, 1000, 10000, 100000, 1000000, 10000000}),
-		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of active PIDs being monitored"),
+		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of PIDs in the kernel cache"),
 	}
 }
 
 // newKernelCache creates a new kernel cache with background processing
-func newKernelCache(sysCtx *systemContext) *kernelCache {
+func newKernelCache(sysCtx *systemContext, tm telemetry.Component) *kernelCache {
 	kc := &kernelCache{
 		cache:        make(map[kernelKey]*kernelData),
 		cudaSymbols:  make(map[symbolFileIdentifier]*symbolsEntry),
@@ -116,7 +116,7 @@ func newKernelCache(sysCtx *systemContext) *kernelCache {
 		requests:     make(chan kernelKey, 100),
 		pidsToDelete: make(chan int, 100),
 		sysCtx:       sysCtx,
-		telemetry:    newKernelCacheTelemetry(sysCtx.telemetry.tm),
+		telemetry:    newKernelCacheTelemetry(tm),
 		done:         make(chan struct{}),
 	}
 	return kc

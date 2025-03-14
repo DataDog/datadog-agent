@@ -62,22 +62,8 @@ type systemContext struct {
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
-	// telemetry holds telemetry elements for the context
-	telemetry *contextTelemetry
-
 	// kernelCache caches kernel data and handles background loading
 	kernelCache *kernelCache
-}
-
-// contextTelemetry holds telemetry elements for the context
-type contextTelemetry struct {
-	tm telemetry.Component
-}
-
-func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
-	return &contextTelemetry{
-		tm: tm,
-	}
 }
 
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
@@ -89,7 +75,6 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]nvml.Device),
 		workloadmeta:              wmeta,
-		telemetry:                 newContextTelemetry(tm),
 	}
 
 	if err := ctx.fillDeviceInfo(); err != nil {
@@ -107,7 +92,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
 	}
 
-	ctx.kernelCache = newKernelCache(ctx)
+	ctx.kernelCache = newKernelCache(ctx, tm)
 
 	return ctx, nil
 }
