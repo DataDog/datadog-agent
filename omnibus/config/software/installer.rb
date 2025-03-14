@@ -8,7 +8,7 @@ require 'pathname'
 
 name 'installer'
 
-source path: '..', force_fetch: true
+source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
