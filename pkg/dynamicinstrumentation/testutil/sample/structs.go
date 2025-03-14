@@ -47,6 +47,10 @@ func test_struct(x aStruct) {}
 
 //nolint:all
 //go:noinline
+func test_struct_with_arrays(s structWithTwoArrays) {}
+
+//nolint:all
+//go:noinline
 func test_nonembedded_struct(x nStruct) {}
 
 //nolint:all
@@ -153,6 +157,12 @@ func ExecuteStructFuncs() {
 	ptrRcvr := &receiver{3}
 	ptrRcvr.test_pointer_method_receiver(4)
 
+	sta := structWithTwoArrays{
+		a: [3]uint64{1, 2, 3},
+		b: 4,
+		c: [5]int64{6, 7, 8, 9, 10},
+	}
+	test_struct_with_arrays(sta)
 }
 
 type emptyStruct struct{}
@@ -197,6 +207,12 @@ type aStruct struct {
 	aString string
 	aNumber int
 	nested  nestedStruct
+}
+
+type structWithTwoArrays struct {
+	a [3]uint64
+	b byte
+	c [5]int64
 }
 
 type bStruct struct {

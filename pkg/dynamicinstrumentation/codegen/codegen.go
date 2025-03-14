@@ -55,7 +55,6 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	} else {
 		log.Info("Not capturing parameters")
 	}
-
 	probe.InstrumentationInfo.BPFParametersSourceCode = out.String()
 	return nil
 }
