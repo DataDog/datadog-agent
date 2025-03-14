@@ -23,15 +23,15 @@ var ErrNotSupported = errors.New("GPU Monitoring is not supported")
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
-	ebpf.Config
-	// Enabled indicates whether the GPU monitoring probe is enabled.
-	Enabled bool
-	// ScanProcessesInterval is the interval at which the probe scans for new or terminated processes.
-	ScanProcessesInterval time.Duration
-	// InitialProcessSync indicates whether the probe should sync the process list on startup.
-	InitialProcessSync bool
 	// NVMLLibraryPath is the path of the native libnvidia-ml.so library
 	NVMLLibraryPath string
+	ebpf.Config
+	// ScanProcessesInterval is the interval at which the probe scans for new or terminated processes.
+	ScanProcessesInterval time.Duration
+	// Enabled indicates whether the GPU monitoring probe is enabled.
+	Enabled bool
+	// InitialProcessSync indicates whether the probe should sync the process list on startup.
+	InitialProcessSync bool
 	// ConfigureCgroupPerms indicates whether the probe should configure cgroup permissions for GPU monitoring
 	ConfigureCgroupPerms bool
 }
