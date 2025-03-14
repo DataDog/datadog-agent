@@ -29,8 +29,8 @@ class CIVisibilitySection:
             payload = [
                 {
                     'name': section.name,
-                    'startTimeInMs': section.start_time,
-                    'endTimeInMs': section.end_time,
+                    'startTimeInMs': int(section.start_time),
+                    'endTimeInMs': int(section.end_time),
                     'tags': list(section.tags.items()),
                     'measures': list(section.measures.items()),
                 }
