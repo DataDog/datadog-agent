@@ -31,6 +31,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
@@ -90,6 +91,7 @@ def run(
     logs_post_processing=False,
     logs_post_processing_test_depth=1,
     logs_folder="e2e_logs",
+    result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -193,11 +195,11 @@ def run(
         cmd=cmd,
         env=env_vars,
         junit_tar=junit_tar,
-        save_result_json="",
+        result_json=result_json,
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, result_json, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -449,11 +451,9 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     if flakes_files is None:
         flakes_files = []
 
-    result_json_name = result_json_path.split("/")[-1]
-    result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files)
-    failing_tests = washer.get_failing_tests(result_json_dir)
-    flaky_failures = washer.get_flaky_failures(result_json_dir)
+    washer = TestWasher(test_output_json_file=result_json_path, flakes_file_paths=flakes_files)
+    failing_tests = washer.get_failing_tests()
+    flaky_failures = washer.get_flaky_failures()
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]

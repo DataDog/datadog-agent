@@ -39,7 +39,7 @@ from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
-from tasks.test_core import ModuleLintResult, process_input_args, process_module_result
+from tasks.test_core import LintResult, process_input_args, process_result
 from tasks.update_go import _update_go_mods, _update_references
 
 # - SC2086 corresponds to using variables in this way $VAR instead of "$VAR" (used in every jobs).
@@ -209,7 +209,7 @@ def go(
                 print(f'- {e.name}: {e.duration:.1f}s')
 
     with gitlab_section('Linter failures'):
-        success = process_module_result(flavor=flavor, module_result=lint_result)
+        success = process_result(flavor=flavor, result=lint_result)
 
     if success:
         if not headless_mode:
@@ -273,6 +273,7 @@ def lint_flavor(
 ):
     """Runs linters for given flavor, build tags, and modules."""
 
+    # Compute full list of targets to run linters against
     targets = []
     for module in modules:
         # FIXME: Linters also use the `should_test()` condition. Is this expected?
@@ -284,11 +285,11 @@ def lint_flavor(
                 target_path = f"./{target_path}"
             targets.append(target_path)
 
-    result = ModuleLintResult('.')
+    result = LintResult('.')
 
     lint_results, execution_times = run_golangci_lint(
         ctx,
-        module_path='.',
+        base_path=result.path,
         targets=targets,
         rtloader_root=rtloader_root,
         build_tags=build_tags,
