@@ -14,7 +14,6 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
 	"testing"
@@ -214,7 +213,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
-	err := common.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
 	s.Require().NoError(err)
 }
 
