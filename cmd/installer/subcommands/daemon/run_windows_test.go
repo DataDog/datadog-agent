@@ -94,7 +94,7 @@ func createConfigDir(t *testing.T) {
 		// only cleanup the dir in the CI, to protect local testers while
 		// this test still uses the real filesystem
 		if os.Getenv("CI") != "" || os.Getenv("CI_JOB_ID") != "" {
-			_ = os.RemoveAll("C:\\ProgramData\\Datadog Installer")
+			_ = os.RemoveAll(paths.DatadogInstallerData)
 		}
 	})
 	err := paths.EnsureInstallerDataDir()

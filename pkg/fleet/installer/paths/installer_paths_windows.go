@@ -33,8 +33,8 @@ var (
 	DatadogDataDir string
 	// DatadogProgramFilesDir Datadog Program Files directory
 	DatadogProgramFilesDir string
-	// datadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog\\Installer.
-	datadogInstallerData string
+	// DatadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog\\Installer.
+	DatadogInstallerData string
 	// PackagesPath is the path to the packages directory.
 	PackagesPath string
 	// ConfigsPath is the path to the Fleet-managed configuration directory
@@ -51,10 +51,10 @@ var (
 
 func init() {
 	DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
-	datadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
-	PackagesPath = filepath.Join(datadogInstallerData, "packages")
-	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
-	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
+	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
+	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
+	ConfigsPath = filepath.Join(DatadogInstallerData, "configs")
+	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
 	DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
 	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
@@ -66,7 +66,7 @@ func init() {
 //
 // bootstrap runs before the MSI, so it must create the directory with the correct permissions.
 func EnsureInstallerDataDir() error {
-	targetDir := datadogInstallerData
+	targetDir := DatadogInstallerData
 
 	// Desired permissions:
 	// - OWNER: Administrators
@@ -135,7 +135,7 @@ func secureCreateDirectory(path string, sddl string) error {
 // CreateInstallerDataDir sets the owner to Administrators and is called during bootstrap.
 // Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
 func IsInstallerDataDirSecure() error {
-	targetDir := datadogInstallerData
+	targetDir := DatadogInstallerData
 	log.Infof("Checking if installer data directory is secure: %s", targetDir)
 	return isDirSecure(targetDir)
 }
