@@ -63,19 +63,19 @@ type OnboardingEventPayload struct {
 type OnboardingEventTags struct {
 	InstallID     string `json:"install_id,omitempty"`
 	InstallType   string `json:"install_type,omitempty"`
-	InstallTime   int64  `json:"install_time,omitempty"`
 	AgentPlatform string `json:"agent_platform,omitempty"`
 	AgentVersion  string `json:"agent_version,omitempty"`
 	AgentHostname string `json:"agent_hostname,omitempty"`
 	Env           string `json:"env,omitempty"`
+	InstallTime   int64  `json:"install_time,omitempty"`
 }
 
 var errReceivedUnsuccessfulStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
 
 // OnboardingEventError ...
 type OnboardingEventError struct {
-	Code    int    `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
+	Code    int    `json:"code,omitempty"`
 }
 
 // TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
@@ -91,12 +91,13 @@ type TelemetryCollector interface {
 type telemetryCollector struct {
 	client *config.ResetClient
 
-	endpoints             []config.Endpoint
-	userAgent             string
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
 	collectedFirstTrace   *atomic.Bool
 	firstTraceFailures    *atomic.Int32
+	userAgent             string
+
+	endpoints []config.Endpoint
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled

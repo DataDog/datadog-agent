@@ -65,11 +65,11 @@ func (n Name) shouldAddEnvTag() bool {
 // Metrics is a structure to record metrics for the different samplers.
 type Metrics struct {
 	statsd              statsd.ClientInterface
-	valueMutex          sync.Mutex
 	value               map[MetricsKey]metricsValue
-	additionalReporters []AdditionalMetricsReporter
-	startMutex          sync.Mutex
 	ticker              *time.Ticker
+	additionalReporters []AdditionalMetricsReporter
+	valueMutex          sync.Mutex
+	startMutex          sync.Mutex
 	started             bool
 }
 

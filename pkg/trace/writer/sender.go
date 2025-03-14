@@ -114,6 +114,8 @@ func (t eventType) String() string { return eventTypeStrings[t] }
 // eventData represents information about a sender event. Not all fields apply
 // to all events.
 type eventData struct {
+	// err specifies the error that may have occurred on events eventType{Retry,Rejected}.
+	err error
 	// host specifies the host which the sender is sending to.
 	host string
 	// bytes represents the number of bytes affected by this event.
@@ -123,8 +125,6 @@ type eventData struct {
 	// duration specifies the time it took to complete this event. It
 	// is set for eventType{Sent,Retry,Rejected}.
 	duration time.Duration
-	// err specifies the error that may have occurred on events eventType{Retry,Rejected}.
-	err error
 	// connectionFill specifies the percentage of allowed connections used.
 	// At 100% (1.0) the writer will become blocking.
 	connectionFill float64
@@ -135,12 +135,19 @@ type eventData struct {
 
 // senderConfig specifies the configuration for the sender.
 type senderConfig struct {
+	// recorder specifies the eventRecorder to use when reporting events occurring
+	// in the sender.
+	recorder eventRecorder
 	// client specifies the HTTP client to use when sending requests.
 	client *config.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
+	isMRFEnabled func() bool
 	// apiKey specifies the Datadog API key to use.
 	apiKey string
+	// userAgent is the computed user agent we'll use when communicating with Datadog
+	userAgent string
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int
@@ -150,29 +157,23 @@ type senderConfig struct {
 	// maxRetries specifies the maximum number of times a payload submission to
 	// intake will be retried before being dropped.
 	maxRetries int
-	// recorder specifies the eventRecorder to use when reporting events occurring
-	// in the sender.
-	recorder eventRecorder
-	// userAgent is the computed user agent we'll use when communicating with Datadog
-	userAgent string
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	isMRF bool
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled.
-	isMRFEnabled func() bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
 // retry queue with a backoff mechanism in case of retriable errors.
 type sender struct {
-	cfg *senderConfig
+	statsd statsd.ClientInterface
+	cfg    *senderConfig
 
-	queue      chan *payload // payload queue
-	inflight   *atomic.Int32 // inflight payloads
+	queue    chan *payload // payload queue
+	inflight *atomic.Int32 // inflight payloads
+
+	mu         sync.RWMutex // guards closed
 	maxRetries int32
 
-	mu      sync.RWMutex // guards closed
-	closed  bool         // closed reports if the loop is stopped
-	statsd  statsd.ClientInterface
+	closed  bool // closed reports if the loop is stopped
 	enabled bool // false on inactive MRF senders. True otherwise
 }
 

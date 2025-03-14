@@ -24,35 +24,35 @@ var (
 
 // OTLPSpanEvent defines an OTLP test span event.
 type OTLPSpanEvent struct {
-	Timestamp  uint64                 `json:"time_unix_nano"`
-	Name       string                 `json:"name"`
 	Attributes map[string]interface{} `json:"attributes"`
+	Name       string                 `json:"name"`
+	Timestamp  uint64                 `json:"time_unix_nano"`
 	Dropped    uint32                 `json:"dropped_attributes_count"`
 }
 
 // OTLPSpanLink defines an OTLP test span link.
 type OTLPSpanLink struct {
+	Attributes map[string]interface{} `json:"attributes"`
 	TraceID    string                 `json:"trace_id"`
 	SpanID     string                 `json:"span_id"`
 	TraceState string                 `json:"trace_state"`
-	Attributes map[string]interface{} `json:"attributes"`
 	Dropped    uint32                 `json:"dropped_attributes_count"`
 }
 
 // OTLPSpan defines an OTLP test span.
 type OTLPSpan struct {
-	TraceID    [16]byte
-	SpanID     [8]byte
-	TraceState string
-	ParentID   [8]byte
-	Name       string
-	Kind       ptrace.SpanKind
-	Start, End uint64
 	Attributes map[string]interface{}
+	TraceState string
+	Name       string
+	StatusMsg  string
 	Events     []OTLPSpanEvent
 	Links      []OTLPSpanLink
-	StatusMsg  string
+	Start, End uint64
+	Kind       ptrace.SpanKind
 	StatusCode ptrace.StatusCode
+	TraceID    [16]byte
+	SpanID     [8]byte
+	ParentID   [8]byte
 }
 
 // OTLPResourceSpan specifies the configuration for generating an OTLP ResourceSpan.

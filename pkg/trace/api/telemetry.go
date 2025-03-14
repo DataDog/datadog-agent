@@ -66,22 +66,22 @@ const maxInflightRequests = 100
 //
 // To provide somne backpressure, we limit the number of concurrent forwarded requests
 type TelemetryForwarder struct {
-	endpoints []*config.Endpoint
-	conf      *config.AgentConfig
+	cancelCtx context.Context
+
+	containerIDProvider IDProvider
+	statsd              statsd.ClientInterface
+	conf                *config.AgentConfig
 
 	forwardedReqChan chan forwardedRequest
+	cancelFn         context.CancelFunc
+	done             chan struct{}
+
+	client           *config.ResetClient
+	logger           *log.ThrottledLogger
+	endpoints        []*config.Endpoint
 	inflightWaiter   sync.WaitGroup
 	inflightCount    atomic.Int64
 	maxInflightBytes int64
-
-	cancelCtx context.Context
-	cancelFn  context.CancelFunc
-	done      chan struct{}
-
-	containerIDProvider IDProvider
-	client              *config.ResetClient
-	statsd              statsd.ClientInterface
-	logger              *log.ThrottledLogger
 }
 
 // NewTelemetryForwarder creates a new TelemetryForwarder

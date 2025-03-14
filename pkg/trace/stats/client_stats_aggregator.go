@@ -43,21 +43,22 @@ var (
 // This and the aggregator timestamp alignment ensure that all counts will have at most one point per second per agent for a specific granularity.
 // While distributions are not tied to the agent.
 type ClientStatsAggregator struct {
+	oldestTs time.Time
+	writer   Writer
+
+	statsd  statsd.ClientInterface
 	In      chan *pb.ClientStatsPayload
-	writer  Writer
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 	conf    *config.AgentConfig
 
-	flushTicker   *time.Ticker
-	oldestTs      time.Time
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	flushTicker *time.Ticker
 
 	exit chan struct{}
 	done chan struct{}
 
-	statsd statsd.ClientInterface
+	agentEnv      string
+	agentHostname string
+	agentVersion  string
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
@@ -381,17 +382,18 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 
 // aggregatedStats holds aggregated counts and distributions
 type aggregatedStats struct {
-	// aggregated counts
-	hits, topLevelHits, errors, duration uint64
-	peerTags                             []string
 
 	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch
+
+	peerTags []string
 
 	// raw (encoded) DDSketches. Only present if a single payload is received on the active bucket,
 	// allowing the bucket to not decode the sketch. If a second payload matches the bucket,
 	// sketches will be decoded and stored in the okDistribution and errDistribution fields.
 	okDistributionRaw, errDistributionRaw []byte
+	// aggregated counts
+	hits, topLevelHits, errors, duration uint64
 }
 
 // mergeSketch take an existing DDSketch, and merges a second one, decoding its contents

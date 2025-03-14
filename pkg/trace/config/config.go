@@ -48,26 +48,20 @@ const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
+
+	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
+	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
+	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
+
+	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
+	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
 
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
-
-	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
-	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
-	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
-
-	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
-	// used as the Datadog span's operation name. By default (when this is false), the
-	// operation name is deduced from a combination between the instrumentation scope
-	// name and the span kind.
-	//
-	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
-	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
-	// kind comes close.
-	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
@@ -79,8 +73,15 @@ type OTLP struct {
 	// decision is followed.
 	ProbabilisticSampling float64
 
-	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
-	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
+	// used as the Datadog span's operation name. By default (when this is false), the
+	// operation name is deduced from a combination between the instrumentation scope
+	// name and the span kind.
+	//
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
+	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
 	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
@@ -109,12 +110,14 @@ type ObfuscationConfig struct {
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
 	SQLExecPlanNormalize obfuscate.JSONConfig `mapstructure:"sql_exec_plan_normalize"`
 
+	// CreditCards holds the configuration for obfuscating credit cards.
+	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
+
+	// Cache holds the configuration for caching obfuscation results.
+	Cache obfuscate.CacheConfig `mapstructure:"cache"`
+
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP obfuscate.HTTPConfig `mapstructure:"http"`
-
-	// RemoveStackTraces specifies whether stack traces should be removed.
-	// More specifically "error.stack" tag values will be cleared.
-	RemoveStackTraces bool `mapstructure:"remove_stack_traces"`
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
@@ -128,11 +131,9 @@ type ObfuscationConfig struct {
 	// for spans of type "memcached".
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
 
-	// CreditCards holds the configuration for obfuscating credit cards.
-	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
-
-	// Cache holds the configuration for caching obfuscation results.
-	Cache obfuscate.CacheConfig `mapstructure:"cache"`
+	// RemoveStackTraces specifies whether stack traces should be removed.
+	// More specifically "error.stack" tag values will be cleared.
+	RemoveStackTraces bool `mapstructure:"remove_stack_traces"`
 }
 
 func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
@@ -187,8 +188,8 @@ type Enablable struct {
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
 type TelemetryConfig struct {
-	Enabled   bool `mapstructure:"enabled"`
 	Endpoints []*Endpoint
+	Enabled   bool `mapstructure:"enabled"`
 }
 
 // ReplaceRule specifies a replace rule.
@@ -238,69 +239,69 @@ const (
 
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
-	// DDURL ...
-	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// DDURL ...
+	DDURL string
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
 type EVPProxy struct {
-	// Enabled reports whether EVPProxy is enabled (true by default).
-	Enabled bool
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
 	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
 	ApplicationKey string `json:"-"` // Never marshal this field
-	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
-	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// Enabled reports whether EVPProxy is enabled (true by default).
+	Enabled bool
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
 type OpenLineageProxy struct {
-	// Enabled reports whether OpenLineageProxy is enabled (true by default).
-	Enabled bool
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
-	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
-	AdditionalEndpoints map[string][]string
+	// Enabled reports whether OpenLineageProxy is enabled (true by default).
+	Enabled bool
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
 // and a unique identifier that distinguishes this agent from others.
 type InstallSignatureConfig struct {
-	Found       bool   `json:"-"`
 	InstallID   string `json:"install_id"`
 	InstallType string `json:"install_type"`
 	InstallTime int64  `json:"install_time"`
+	Found       bool   `json:"-"`
 }
 
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 	// DDURL ...
 	DDURL string
 	// APIKey ...
 	APIKey string `json:"-"` // Never marshal this field
-	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
-	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // SymDBProxyConfig ...
 type SymDBProxyConfig struct {
+	// AdditionalEndpoints is a map of additional Datadog endpoints to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 	// DDURL ...
 	DDURL string
 	// APIKey ...
 	APIKey string `json:"-"` // Never marshal this field
-	// AdditionalEndpoints is a map of additional Datadog endpoints to API keys.
-	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -309,158 +310,6 @@ type SymDBProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	Features map[string]struct{}
-
-	Enabled      bool
-	AgentVersion string
-	GitCommit    string
-	Site         string // the intake site to use (e.g. "datadoghq.com")
-
-	// FargateOrchestrator specifies the name of the Fargate orchestrator. e.g. "ECS", "EKS", "Unknown"
-	FargateOrchestrator FargateOrchestratorName
-
-	// Global
-	Hostname   string
-	DefaultEnv string // the traces will default to this environment
-	ConfigPath string // the source of this config, if any
-
-	// Endpoints specifies the set of hosts and API keys where traces and stats
-	// will be uploaded to. The first endpoint is the main configuration endpoint;
-	// any following ones are read from the 'additional_endpoints' parts of the
-	// configuration file, if present.
-	Endpoints []*Endpoint
-
-	// Concentrator
-	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators       []string      // DEPRECATED
-	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation
-
-	// Sampler configuration
-	ExtraSampleRate float64
-	TargetTPS       float64
-	ErrorTPS        float64
-	MaxEPS          float64
-	MaxRemoteTPS    float64
-
-	// Rare Sampler configuration
-	RareSamplerEnabled        bool
-	RareSamplerTPS            int
-	RareSamplerCooldownPeriod time.Duration
-	RareSamplerCardinality    int
-
-	// Probabilistic Sampler configuration
-	ProbabilisticSamplerEnabled            bool
-	ProbabilisticSamplerHashSeed           uint32
-	ProbabilisticSamplerSamplingPercentage float32
-
-	// Error Tracking Standalone
-	ErrorTrackingStandalone bool
-
-	// Receiver
-	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
-
-	WindowsPipeName        string
-	PipeBufferSize         int
-	PipeSecurityDescriptor string
-
-	GUIPort string // the port of the Datadog Agent GUI (for control access)
-
-	// Writers
-	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
-	StatsWriter             *WriterConfig
-	TraceWriter             *WriterConfig
-	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
-	// MaxSenderRetries is the maximum number of retries that a sender will perform
-	// before giving up. Note that the sender may not perform all MaxSenderRetries if
-	// the agent is under load and the outgoing payload queue is full. In that
-	// case, the sender will drop failed payloads when it is unable to enqueue
-	// them for another retry.
-	MaxSenderRetries int
-	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-"`
-	// HTTP Transport used in writer connections. If nil, default transport values will be used.
-	HTTPTransportFunc func() *http.Transport `json:"-"`
-
-	// internal telemetry
-	StatsdEnabled  bool
-	StatsdHost     string
-	StatsdPort     int
-	StatsdPipeName string // for Windows Pipes
-	StatsdSocket   string // for UDS Sockets
-
-	// logging
-	LogFilePath string
-
-	// watchdog
-	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
-	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
-	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
-
-	// http/s proxying
-	ProxyURL          *url.URL
-	SkipSSLValidation bool
-
-	// filtering
-	Ignore map[string][]string
-
-	// ReplaceTags is used to filter out sensitive information from tag values.
-	// It maps tag keys to a set of replacements. Only supported in A6.
-	ReplaceTags []*ReplaceRule
-
-	// GlobalTags list metadata that will be added to all spans
-	GlobalTags map[string]string
-
-	// transaction analytics
-	AnalyzedRateByServiceLegacy map[string]float64
-	AnalyzedSpansByService      map[string]map[string]float64
-
-	// infrastructure agent binary
-	DDAgentBin string
-
-	// Obfuscation holds sensitive data obufscator's configuration.
-	Obfuscation *ObfuscationConfig
-
-	// SQLObfuscationMode holds obfuscator mode.
-	SQLObfuscationMode string
-
-	// MaxResourceLen the maximum length the resource can have
-	MaxResourceLen int
-
-	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
-	RequireTags []*Tag
-
-	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
-	RejectTags []*Tag
-
-	// RequireTagsRegex specifies a list of regexp for tags which must be present on the root span in order for a trace to be accepted.
-	RequireTagsRegex []*TagRegex
-
-	// RejectTagsRegex specifies a list of regexp for tags which must be absent on the root span in order for a trace to be accepted.
-	RejectTagsRegex []*TagRegex
-
-	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
-	OTLPReceiver *OTLP
-
-	// ProfilingProxy specifies settings for the profiling proxy.
-	ProfilingProxy ProfilingProxyConfig
-
-	// Telemetry settings
-	TelemetryConfig *TelemetryConfig
-
-	// EVPProxy contains the settings for the EVPProxy proxy.
-	EVPProxy EVPProxy
 
 	// OpenLineageProxy contains the settings for the OpenLineageProxy proxy;
 	OpenLineageProxy OpenLineageProxy
@@ -474,38 +323,52 @@ type AgentConfig struct {
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
-	// Proxy specifies a function to return a proxy for a given Request.
-	// See (net/http.Transport).Proxy for more details.
-	Proxy func(*http.Request) (*url.URL, error) `json:"-"`
-
-	// MaxCatalogEntries specifies the maximum number of services to be added to the priority sampler's
-	// catalog. If not set (0) it will default to 5000.
-	MaxCatalogEntries int
+	// ProfilingProxy specifies settings for the profiling proxy.
+	ProfilingProxy ProfilingProxyConfig
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
 	RemoteConfigClient RemoteClient `json:"-"`
+
+	Features map[string]struct{}
+
+	StatsWriter *WriterConfig
+	TraceWriter *WriterConfig
+	// HTTP client used in writer connections. If nil, default client values will be used.
+	HTTPClientFunc func() *http.Client `json:"-"`
+	// HTTP Transport used in writer connections. If nil, default transport values will be used.
+	HTTPTransportFunc func() *http.Transport `json:"-"`
+
+	// http/s proxying
+	ProxyURL *url.URL
+
+	// filtering
+	Ignore map[string][]string
+
+	// GlobalTags list metadata that will be added to all spans
+	GlobalTags map[string]string
+
+	// transaction analytics
+	AnalyzedRateByServiceLegacy map[string]float64
+	AnalyzedSpansByService      map[string]map[string]float64
+
+	// Obfuscation holds sensitive data obufscator's configuration.
+	Obfuscation *ObfuscationConfig
+
+	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
+	OTLPReceiver *OTLP
+
+	// Telemetry settings
+	TelemetryConfig *TelemetryConfig
+
+	// Proxy specifies a function to return a proxy for a given Request.
+	// See (net/http.Transport).Proxy for more details.
+	Proxy func(*http.Request) (*url.URL, error) `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
-
-	// ContainerProcRoot is the root dir for `proc` info
-	ContainerProcRoot string
-
-	// DebugServerPort defines the port used by the debug server
-	DebugServerPort int
-
-	// Install Signature
-	InstallSignature InstallSignatureConfig
-
-	// Lambda function name
-	LambdaFunctionName string
-
-	// Azure container apps tags, in the form of a comma-separated list of
-	// key-value pairs, starting with a comma
-	AzureContainerAppTags string
 
 	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
 	// Function will be nil if in an environment without an auth token
@@ -514,6 +377,153 @@ type AgentConfig struct {
 	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
 	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
 	IsMRFEnabled func() bool `json:"-"`
+	AgentVersion string
+	GitCommit    string
+	Site         string // the intake site to use (e.g. "datadoghq.com")
+
+	// FargateOrchestrator specifies the name of the Fargate orchestrator. e.g. "ECS", "EKS", "Unknown"
+	FargateOrchestrator FargateOrchestratorName
+
+	// Global
+	Hostname   string
+	DefaultEnv string // the traces will default to this environment
+	ConfigPath string // the source of this config, if any
+
+	ReceiverHost   string
+	ReceiverSocket string // if not empty, UDS will be enabled on unix://<receiver_socket>
+
+	WindowsPipeName        string
+	PipeSecurityDescriptor string
+
+	GUIPort string // the port of the Datadog Agent GUI (for control access)
+
+	StatsdHost     string
+	StatsdPipeName string // for Windows Pipes
+	StatsdSocket   string // for UDS Sockets
+
+	// logging
+	LogFilePath string
+
+	// infrastructure agent binary
+	DDAgentBin string
+
+	// SQLObfuscationMode holds obfuscator mode.
+	SQLObfuscationMode string
+
+	// ContainerProcRoot is the root dir for `proc` info
+	ContainerProcRoot string
+
+	// Lambda function name
+	LambdaFunctionName string
+
+	// Azure container apps tags, in the form of a comma-separated list of
+	// key-value pairs, starting with a comma
+	AzureContainerAppTags string
+
+	// EVPProxy contains the settings for the EVPProxy proxy.
+	EVPProxy EVPProxy
+
+	// Install Signature
+	InstallSignature InstallSignatureConfig
+
+	// Endpoints specifies the set of hosts and API keys where traces and stats
+	// will be uploaded to. The first endpoint is the main configuration endpoint;
+	// any following ones are read from the 'additional_endpoints' parts of the
+	// configuration file, if present.
+	Endpoints []*Endpoint
+
+	ExtraAggregators []string // DEPRECATED
+	PeerTags         []string // additional tags to use for peer entity stats aggregation
+
+	// ReplaceTags is used to filter out sensitive information from tag values.
+	// It maps tag keys to a set of replacements. Only supported in A6.
+	ReplaceTags []*ReplaceRule
+
+	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
+	RequireTags []*Tag
+
+	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTags []*Tag
+
+	// RequireTagsRegex specifies a list of regexp for tags which must be present on the root span in order for a trace to be accepted.
+	RequireTagsRegex []*TagRegex
+
+	// RejectTagsRegex specifies a list of regexp for tags which must be absent on the root span in order for a trace to be accepted.
+	RejectTagsRegex []*TagRegex
+
+	// Concentrator
+	BucketInterval time.Duration // the size of our pre-aggregation per bucket
+
+	// Sampler configuration
+	ExtraSampleRate float64
+	TargetTPS       float64
+	ErrorTPS        float64
+	MaxEPS          float64
+	MaxRemoteTPS    float64
+
+	RareSamplerTPS            int
+	RareSamplerCooldownPeriod time.Duration
+	RareSamplerCardinality    int
+
+	ReceiverPort    int
+	ConnectionLimit int // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout int
+	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
+	Decoders        int   // specifies the number of traces that can be concurrently decoded.
+	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+
+	PipeBufferSize          int
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
+	// MaxSenderRetries is the maximum number of retries that a sender will perform
+	// before giving up. Note that the sender may not perform all MaxSenderRetries if
+	// the agent is under load and the outgoing payload queue is full. In that
+	// case, the sender will drop failed payloads when it is unable to enqueue
+	// them for another retry.
+	MaxSenderRetries int
+	StatsdPort       int
+
+	// watchdog
+	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
+	MaxCPU           float64       // MaxCPU is the max UserAvg CPU the program should consume
+	WatchdogInterval time.Duration // WatchdogInterval is the delay between 2 watchdog checks
+
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
+
+	// MaxCatalogEntries specifies the maximum number of services to be added to the priority sampler's
+	// catalog. If not set (0) it will default to 5000.
+	MaxCatalogEntries int
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
+
+	ProbabilisticSamplerHashSeed           uint32
+	ProbabilisticSamplerSamplingPercentage float32
+
+	Enabled                bool
+	PeerTagsAggregation    bool // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool // enables/disables the computing of stats based on a span's `span.kind` field
+
+	// Rare Sampler configuration
+	RareSamplerEnabled bool
+
+	// Probabilistic Sampler configuration
+	ProbabilisticSamplerEnabled bool
+
+	// Error Tracking Standalone
+	ErrorTrackingStandalone bool
+
+	// Receiver
+	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+
+	// Writers
+	SynchronousFlushing bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
+
+	// internal telemetry
+	StatsdEnabled     bool
+	SkipSSLValidation bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -532,8 +542,8 @@ type Tag struct {
 
 // TagRegex represents a key/value regex pattern pair.
 type TagRegex struct {
-	K string
 	V *regexp.Regexp
+	K string
 }
 
 // New returns a configuration with the default values.

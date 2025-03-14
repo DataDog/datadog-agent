@@ -45,13 +45,13 @@ type rc struct {
 // RateByService stores the sampling rate per service. It is thread-safe, so
 // one can read/write on it concurrently, using getters and setters.
 type RateByService struct {
-	mu sync.RWMutex // guards rates
+	rates   map[string]*rc
+	version string
+	mu      sync.RWMutex // guards rates
 	// currentColor is either 0 or 1. And, it changes every time `SetAll()` is called.
 	// When `SetAll()` is called, we paint affected keys with `currentColor`.
 	// If there is a key has a color doesn't match `currentColor`, it means that key no longer exists.
 	currentColor int8
-	rates        map[string]*rc
-	version      string
 }
 
 // SetAll the sampling rate for all services. If a service/env is not

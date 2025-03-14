@@ -24,8 +24,8 @@ func NewThrottled(n int, d time.Duration) *ThrottledLogger {
 // ThrottledLogger limits the number of log calls during a time window. To create a new logger
 // use NewThrottled.
 type ThrottledLogger struct {
-	n uint64         // number of log calls allowed during interval d
 	c *atomic.Uint64 // number of log calls performed during an interval d
+	n uint64         // number of log calls allowed during interval d
 	d time.Duration
 }
 

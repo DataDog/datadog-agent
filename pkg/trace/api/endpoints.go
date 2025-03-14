@@ -14,15 +14,9 @@ import (
 
 // Endpoint specifies an API endpoint definition.
 type Endpoint struct {
-	// Pattern specifies the API pattern, as registered by the HTTP handler.
-	Pattern string
 
 	// Handler specifies the http.Handler for this endpoint.
 	Handler func(*HTTPReceiver) http.Handler
-
-	// Hidden reports whether this endpoint should be hidden in the /info
-	// discovery endpoint.
-	Hidden bool
 
 	// TimeoutOverride lets you specify a timeout for this endpoint that will be used
 	// instead of the default one from conf.ReceiverTimeout
@@ -31,6 +25,12 @@ type Endpoint struct {
 	// IsEnabled specifies a function which reports whether this endpoint should be enabled
 	// based on the given config conf.
 	IsEnabled func(conf *config.AgentConfig) bool
+	// Pattern specifies the API pattern, as registered by the HTTP handler.
+	Pattern string
+
+	// Hidden reports whether this endpoint should be hidden in the /info
+	// discovery endpoint.
+	Hidden bool
 }
 
 // AttachEndpoint attaches an additional endpoint to the trace-agent. It is not thread-safe

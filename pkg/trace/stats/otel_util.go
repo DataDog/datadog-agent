@@ -22,11 +22,11 @@ import (
 
 // chunkKey is used to group TraceChunks
 type chunkKey struct {
-	traceIDUInt64 uint64
 	env           string
 	version       string
 	hostname      string
 	cid           string
+	traceIDUInt64 uint64
 }
 
 // OTLPTracesToConcentratorInputs converts eligible OTLP spans to Concentrator.Input.

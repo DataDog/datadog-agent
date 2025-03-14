@@ -31,24 +31,25 @@ type Sampler struct {
 	// seen counts seen signatures by Signature in a circular buffer of numBuckets of bucketDuration.
 	// In the case of the PrioritySampler, chunks dropped in the Client are also taken in account.
 	seen map[Signature][numBuckets]float32
-	// allSigsSeen counts all signatures in a circular buffer of numBuckets of bucketDuration
-	allSigsSeen [numBuckets]float32
-	// lastBucketID is the index of the last bucket on which traces were counted
-	lastBucketID int64
 	// rates maps sampling rate in %
 	rates map[Signature]float64
+
+	// Maximum limit to the total number of traces per second to sample
+	targetTPS *atomic.Float64
+	// lastBucketID is the index of the last bucket on which traces were counted
+	lastBucketID int64
 	// lowestRate is the lowest rate of all signatures
 	lowestRate float64
+
+	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
+	extraRate float64
+	// allSigsSeen counts all signatures in a circular buffer of numBuckets of bucketDuration
+	allSigsSeen [numBuckets]float32
 
 	// muSeen is a lock protecting seen map and totalSeen count
 	muSeen sync.RWMutex
 	// muRates is a lock protecting rates map
 	muRates sync.RWMutex
-
-	// Maximum limit to the total number of traces per second to sample
-	targetTPS *atomic.Float64
-	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
-	extraRate float64
 }
 
 // newSampler returns an initialized Sampler

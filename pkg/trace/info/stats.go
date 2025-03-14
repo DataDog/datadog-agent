@@ -22,13 +22,13 @@ import (
 
 // ReceiverStats is used to store all the stats per tags.
 type ReceiverStats struct {
-	sync.RWMutex
 	Stats map[Tags]*TagStats
+	sync.RWMutex
 }
 
 // NewReceiverStats returns a new ReceiverStats
 func NewReceiverStats() *ReceiverStats {
-	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}}
+	return &ReceiverStats{map[Tags]*TagStats{}, sync.RWMutex{}}
 }
 
 // GetTagStats returns the struct in which the stats will be stored depending of their tags.
@@ -107,8 +107,8 @@ func (rs *ReceiverStats) LogAndResetStats() {
 
 // TagStats is the struct used to associate the stats with their set of tags.
 type TagStats struct {
-	Tags
 	Stats
+	Tags
 }
 
 func newTagStats(tags Tags) *TagStats {
@@ -378,6 +378,12 @@ func (s *samplingPriorityStats) TagValues() map[string]int64 {
 type Stats struct {
 	// all atomic values are included as values in this struct, to simplify umarshaling and
 	// initialization of the type.  The atomic values _must_ occur first in the struct.
+	// TracesDropped contains stats about the count of dropped traces by reason
+	TracesDropped *TracesDropped
+	// SpansMalformed contains stats about the count of malformed traces by reason
+	SpansMalformed *SpansMalformed
+	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
+	TracesPerSamplingPriority samplingPriorityStats
 
 	// TracesReceived is the total number of traces received, including the dropped ones.
 	TracesReceived atomic.Int64
@@ -385,8 +391,6 @@ type Stats struct {
 	TracesFiltered atomic.Int64
 	// TracesPriorityNone is the number of traces with no sampling priority.
 	TracesPriorityNone atomic.Int64
-	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
-	TracesPerSamplingPriority samplingPriorityStats
 	// ClientDroppedP0Traces number of P0 traces dropped by client.
 	ClientDroppedP0Traces atomic.Int64
 	// ClientDroppedP0Spans number of P0 spans dropped by client.
@@ -407,10 +411,6 @@ type Stats struct {
 	PayloadAccepted atomic.Int64
 	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
 	PayloadRefused atomic.Int64
-	// TracesDropped contains stats about the count of dropped traces by reason
-	TracesDropped *TracesDropped
-	// SpansMalformed contains stats about the count of malformed traces by reason
-	SpansMalformed *SpansMalformed
 }
 
 // NewStats returns new, ready to use stats.

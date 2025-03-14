@@ -53,12 +53,12 @@ func newSet(statsd statsd.ClientInterface) *set {
 // Set represents a set of metrics that can be used for timing. Use NewSet to initialize
 // a new Set. Use Report (or Autoreport) to submit metrics. Set is safe for concurrent use.
 type set struct {
-	mu        sync.RWMutex        // guards c
+	statsd    statsd.ClientInterface
 	c         map[string]*counter // maps names to their aggregates
 	close     chan struct{}
+	mu        sync.RWMutex // guards c
 	startOnce sync.Once
 	stopOnce  sync.Once
-	statsd    statsd.ClientInterface
 }
 
 // Start initializes autoreporting of timing metrics.
@@ -130,14 +130,14 @@ func (s *set) report() {
 }
 
 type counter struct {
+	sum   *atomic.Float64
+	count *atomic.Float64
+	max   *atomic.Float64
 	// name specifies the name of this counter
 	name string
 
 	// mu guards the below field from changes during flushing.
-	mu    sync.RWMutex
-	sum   *atomic.Float64
-	count *atomic.Float64
-	max   *atomic.Float64
+	mu sync.RWMutex
 }
 
 func newCounter(name string) *counter {

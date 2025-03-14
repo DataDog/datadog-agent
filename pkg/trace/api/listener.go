@@ -21,14 +21,15 @@ import (
 type measuredListener struct {
 	net.Listener
 
-	name     string         // metric name to emit
+	statsd   statsd.ClientInterface
 	accepted *atomic.Uint32 // accepted connection count
 	timedout *atomic.Uint32 // timedout connection count
 	errored  *atomic.Uint32 // errored connection count
 	exit     chan struct{}  // exit signal channel (on Close call)
 	sem      chan struct{}  // Used to limit active connections
-	stop     sync.Once
-	statsd   statsd.ClientInterface
+
+	name string // metric name to emit
+	stop sync.Once
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is

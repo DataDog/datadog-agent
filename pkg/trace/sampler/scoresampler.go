@@ -33,10 +33,10 @@ type NoPrioritySampler struct{ ScoreSampler }
 // For a set traceID: P(chunk1 kept and chunk2 kept) = min(P(chunk1 kept), P(chunk2 kept))
 type ScoreSampler struct {
 	*Sampler
-	samplingRateKey string
-	disabled        bool
-	mu              sync.Mutex
 	shrinkAllowList map[Signature]float64
+	samplingRateKey string
+	mu              sync.Mutex
+	disabled        bool
 }
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with

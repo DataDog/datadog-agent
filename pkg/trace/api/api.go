@@ -88,21 +88,21 @@ func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats *info.ReceiverStats
-
-	out                 chan *Payload
-	conf                *config.AgentConfig
-	dynConf             *sampler.DynamicConfig
-	server              *http.Server
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
 	telemetryCollector telemetry.TelemetryCollector
+
+	statsd statsd.ClientInterface
+	timing timing.Reporter
+	Stats  *info.ReceiverStats
+
+	out                chan *Payload
+	conf               *config.AgentConfig
+	dynConf            *sampler.DynamicConfig
+	server             *http.Server
 	telemetryForwarder *TelemetryForwarder
 
-	rateLimiterResponse int // HTTP status code when refusing
-
-	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 
 	// recvsem is a semaphore that controls the number goroutines that can
@@ -115,10 +115,13 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
-	statsd   statsd.ClientInterface
-	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+
+	wg sync.WaitGroup // waits for all requests to be processed
+
+	rateLimiterResponse int // HTTP status code when refusing
+
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver

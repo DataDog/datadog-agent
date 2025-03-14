@@ -39,18 +39,18 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
+		AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
 		DefaultEnv             string                        `json:"default_env"`
+		ReceiverSocket         string                        `json:"receiver_socket"`
 		TargetTPS              float64                       `json:"target_tps"`
 		MaxEPS                 float64                       `json:"max_eps"`
 		ReceiverPort           int                           `json:"receiver_port"`
-		ReceiverSocket         string                        `json:"receiver_socket"`
 		ConnectionLimit        int                           `json:"connection_limit"`
 		ReceiverTimeout        int                           `json:"receiver_timeout"`
 		MaxRequestBytes        int64                         `json:"max_request_bytes"`
 		StatsdPort             int                           `json:"statsd_port"`
 		MaxMemory              float64                       `json:"max_memory"`
 		MaxCPU                 float64                       `json:"max_cpu"`
-		AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
 		Obfuscation            reducedObfuscationConfig      `json:"obfuscation"`
 	}
 	var oconf reducedObfuscationConfig
@@ -81,17 +81,17 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 	txt, err := json.MarshalIndent(struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
+		Config                 reducedConfig `json:"config"`
 		Endpoints              []string      `json:"endpoints"`
 		FeatureFlags           []string      `json:"feature_flags,omitempty"`
+		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
+		PeerTags               []string      `json:"peer_tags"`
+		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
+		ObfuscationVersion     int           `json:"obfuscation_version"`
 		ClientDropP0s          bool          `json:"client_drop_p0s"`
 		SpanMetaStructs        bool          `json:"span_meta_structs"`
 		LongRunningSpans       bool          `json:"long_running_spans"`
 		SpanEvents             bool          `json:"span_events"`
-		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
-		Config                 reducedConfig `json:"config"`
-		PeerTags               []string      `json:"peer_tags"`
-		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
-		ObfuscationVersion     int           `json:"obfuscation_version"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
