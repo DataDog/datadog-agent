@@ -53,7 +53,6 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 
 entryLoop:
 	for {
-
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
@@ -525,25 +524,6 @@ func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dw
 	}
 
 	return outerType, nil
-}
-
-func correctStructSizes(params []*ditypes.Parameter) {
-	for i := range params {
-		correctStructSize(params[i])
-	}
-}
-
-// correctStructSize sets the size of structs to the number of fields in the struct
-func correctStructSize(param *ditypes.Parameter) {
-	if param == nil || len(param.ParameterPieces) == 0 {
-		return
-	}
-	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
-		param.TotalSize = int64(len(param.ParameterPieces))
-	}
-	for i := range param.ParameterPieces {
-		correctStructSize(param.ParameterPieces[i])
-	}
 }
 
 func copyTree(dst, src *[]*ditypes.Parameter) {

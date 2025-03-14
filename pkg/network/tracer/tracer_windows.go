@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,8 +57,8 @@ type Tracer struct {
 	timerInterval int
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
@@ -117,8 +118,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		closedBuffer:         network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:           reverseDNS,
 		usmMonitor:           newUSMMonitor(config, di.GetHandle()),
-		sourceExcludes:       network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes:       filter.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
 	if config.EnableProcessEventMonitoring {
@@ -197,7 +198,7 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
@@ -210,13 +211,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
 	}
 	_, err = t.driverInterface.GetClosedConnectionStats(t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
 	activeConnStats := buffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
@@ -250,7 +251,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
-	return conns, nil
+	return conns, func() {}, nil
 }
 
 // RegisterClient registers the client
