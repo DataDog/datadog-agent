@@ -88,10 +88,6 @@ func TestDiscovery(t *testing.T) {
 	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIps)
 }
 
-func TestDiscoveryMultipleAuthentications(t *testing.T) {
-
-}
-
 func TestDiscoveryCache(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetWithoutSource("run_path", t.TempDir())
