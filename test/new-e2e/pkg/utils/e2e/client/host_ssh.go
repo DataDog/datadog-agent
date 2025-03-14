@@ -24,7 +24,8 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 		return "", fmt.Errorf("failed to create session: %v", err)
 	}
 	stdout, err := session.CombinedOutput(command)
-	return string(stdout), err
+	// Remove the warning about GOCOVERDIR not being set
+	return strings.ReplaceAll(string(stdout), "warning: GOCOVERDIR not set, no coverage data emitted", ""), err
 }
 
 func start(sshClient *ssh.Client, command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {

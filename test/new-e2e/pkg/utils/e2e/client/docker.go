@@ -128,7 +128,8 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
-	return stdout, stderr, err
+	// Remove the warning about GOCOVERDIR not being set
+	return stdout, strings.ReplaceAll(stderr, "warning: GOCOVERDIR not set, no coverage data emitted", ""), err
 }
 
 // ListContainers returns a list of container names.

@@ -83,7 +83,8 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 		return "", "", err
 	}
 
-	return stdoutSb.String(), stderrSb.String(), nil
+	// Remove the warning about GOCOVERDIR not being set
+	return stdoutSb.String(), strings.ReplaceAll(stderrSb.String(), "warning: GOCOVERDIR not set, no coverage data emitted", ""), nil
 }
 
 func buildCommand(cmd []string, envVariables map[string]string) []string {
