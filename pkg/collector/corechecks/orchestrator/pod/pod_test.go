@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -113,7 +114,7 @@ type PodTestSuite struct {
 	testServer   *httptest.Server
 	sender       *fakeSender
 	kubeUtil     kubelet.KubeUtilInterface
-	tagger       mock.Mock
+	tagger       taggermock.Mock
 }
 
 func (suite *PodTestSuite) SetupSuite() {
@@ -146,7 +147,7 @@ func (suite *PodTestSuite) SetupSuite() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := mock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 
 	suite.check = &Check{

@@ -44,7 +44,8 @@ const (
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
-	netifProbes            = "tracepoint__net__netif_receive_skb_http"
+	netifProbe             = "tracepoint__net__netif_receive_skb_http"
+	netifProbe414          = "netif_receive_skb_core_http_4_14"
 )
 
 // Spec is the protocol spec for the HTTP protocol.
@@ -69,8 +70,16 @@ var Spec = &protocols.ProtocolSpec{
 	},
 	Probes: []*manager.Probe{
 		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: netifProbes,
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
 			},
 		},
 	},
@@ -138,7 +147,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbes}})
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	postgresebpf "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,6 +45,7 @@ const (
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
 	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
+	netifProbe414             = "netif_receive_skb_core_postgres_4_14"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -83,8 +85,16 @@ var Spec = &protocols.ProtocolSpec{
 	},
 	Probes: []*manager.Probe{
 		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe,
+				UID:          eventStream,
 			},
 		},
 	},
@@ -167,7 +177,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)

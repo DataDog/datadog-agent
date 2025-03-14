@@ -15,12 +15,11 @@ import (
 )
 
 // Module defines the fx options for this component
-func Module(dualParams tagger.DualParams, localParams tagger.Params, remoteParams tagger.RemoteParams) fxutil.Module {
+func Module(dualParams tagger.DualParams, remoteParams tagger.RemoteParams) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			dualimpl.NewComponent,
 		),
-		fx.Supply(localParams),
 		fx.Supply(remoteParams),
 		fx.Supply(dualParams),
 		fxutil.ProvideOptional[tagger.Component](),

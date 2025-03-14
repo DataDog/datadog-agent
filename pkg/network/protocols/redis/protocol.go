@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,6 +34,7 @@ const (
 	tlsTerminationTailCall = "uprobe__redis_tls_termination"
 	eventStream            = "redis"
 	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
+	netifProbe414          = "netif_receive_skb_core_redis_4_14"
 )
 
 type protocol struct {
@@ -51,8 +53,17 @@ var Spec = &protocols.ProtocolSpec{
 	},
 	Probes: []*manager.Probe{
 		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: netifProbe,
+				UID:          eventStream,
 			},
 		},
 	},
@@ -106,7 +117,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netifProbe}})
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }

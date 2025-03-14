@@ -31,6 +31,7 @@ type k8sSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskubernetes.KindProvisioner(
 			awskubernetes.WithDeployTestWorkload(),

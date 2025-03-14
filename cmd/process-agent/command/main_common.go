@@ -187,7 +187,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					// as remote tagger can return more tags than the local tagger.
 					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
 			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		}, tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
