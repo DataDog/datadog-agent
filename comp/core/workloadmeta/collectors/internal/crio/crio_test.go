@@ -48,7 +48,13 @@ func TestPull(t *testing.T) {
 			name: "Valid container and image data",
 			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 				return []*v1.Container{
-					{Id: "container1", Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}, PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
+					{
+						Id:           "container1",
+						Image:        &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:     "myrepo/myimage@sha256:123abc",
+						PodSandboxId: "pod1",
+						Metadata:     &v1.ContainerMetadata{Name: "container1"},
+					},
 				}, nil
 			},
 			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
@@ -145,7 +151,7 @@ func TestPull(t *testing.T) {
 											"quota": 50000,
 											"period": 100000
 										},
-										"memory": {	
+										"memory": {
 											"memoryLimitInBytes": 104857600
 										}
 									}
@@ -261,7 +267,13 @@ func TestPull(t *testing.T) {
 			name: "All resource limits are zero",
 			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 				return []*v1.Container{
-					{Id: "container1", Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}, PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
+					{
+						Id:           "container1",
+						Image:        &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:     "myrepo/myimage@sha256:123abc",
+						PodSandboxId: "pod1",
+						Metadata:     &v1.ContainerMetadata{Name: "container1"},
+					},
 				}, nil
 			},
 			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
