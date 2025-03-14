@@ -87,7 +87,7 @@
         - $EXTERNAL_LINKS_PATH
 
 .needs_new_e2e_template:
-  - go_e2e_
+  - go_e2e_deps
 
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
