@@ -59,10 +59,7 @@ func NewUserSamples(config model.Reader) *UserSamples {
 
 		if err != nil {
 			log.Error("Failed to unmarshal custom samples: ", err)
-			return &UserSamples{
-				samples: []*UserSample{},
-			}
-
+			s = make([]*UserSample, 0)
 		}
 	}
 
