@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -60,6 +61,7 @@ type npCollectorImpl struct {
 	workers       int
 	stopChan      chan struct{}
 	flushLoopDone chan struct{}
+	workersDone   chan struct{}
 	runDone       chan struct{}
 	flushInterval time.Duration
 
@@ -121,6 +123,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
+		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
 	}
@@ -218,7 +221,7 @@ func (s *npCollectorImpl) start() error {
 
 	go s.listenPathtests()
 	go s.flushLoop()
-	s.startWorkers()
+	go s.runWorkers()
 
 	return nil
 }
@@ -230,6 +233,7 @@ func (s *npCollectorImpl) stop() {
 	}
 	close(s.stopChan)
 	<-s.flushLoopDone
+	<-s.workersDone
 	<-s.runDone
 	s.running = false
 }
@@ -438,15 +442,23 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) startWorkers() {
+func (s *npCollectorImpl) runWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
+
+	var wg sync.WaitGroup
 	for w := 0; w < s.workers; w++ {
+		wg.Add(1)
 		s.logger.Debugf("Starting worker #%d", w)
-		go s.startWorker(w)
+		go func() {
+			defer wg.Done()
+			s.runWorker(w)
+		}()
 	}
+	wg.Wait()
+	s.workersDone <- struct{}{}
 }
 
-func (s *npCollectorImpl) startWorker(workerID int) {
+func (s *npCollectorImpl) runWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:
