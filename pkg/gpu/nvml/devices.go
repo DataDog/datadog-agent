@@ -100,6 +100,7 @@ func NewDeviceCache() (DeviceCache, error) {
 func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	cache := &deviceCache{
 		uuidToDevice: make(map[string]*Device),
+		smVersionSet: make(map[uint32]struct{}),
 	}
 
 	count, ret := nvmlLib.DeviceGetCount()
