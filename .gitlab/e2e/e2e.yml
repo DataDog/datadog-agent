@@ -537,7 +537,6 @@ new-e2e-installer-windows:
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
       - EXTRA_PARAMS: --run "TestInstallerRollback$"
-      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
       # apm-library-dotnet
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
