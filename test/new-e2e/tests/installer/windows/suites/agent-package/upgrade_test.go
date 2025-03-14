@@ -14,10 +14,12 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
-	"github.com/cenkalti/backoff/v4"
 	"testing"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 type testAgentUpgradeSuite struct {
@@ -182,6 +184,37 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 }
 
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	// lower timeout to 2 minute
+	s.setWatchdogTimeout(3)
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
+	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// verify stable version contraints
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+	// backend will send stop experiment now
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+}
+
+func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
+	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
+	err := common.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
+	s.Require().NoError(err)
+}
+
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
 	agentVersion := s.StableAgentVersion().Version()
 	s.Require().NoError(s.Installer().Install(
@@ -234,7 +267,7 @@ func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...install
 		},
 	})
 	s.Require().NoError(err)
-	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
+	return s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
 }
 
 func (s *testAgentUpgradeSuite) startExperimentPreviousVersion() (string, error) {
@@ -357,4 +390,22 @@ func (s *testAgentUpgradeSuite) waitForInstallerServiceWithBackoff(state string,
 	}, b)
 }
 
-// end of file
+func (s *testAgentUpgradeSuite) waitForInstallerVersion(version string) error {
+	return s.waitForInstallerVersionWithBackoff(version,
+		// usually waiting after MSI runs so we have to wait awhile
+		// max wait is 30*30 -> 900 seconds (15 minutes)
+		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+}
+
+func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version string, b backoff.BackOff) error {
+	return backoff.Retry(func() error {
+		actual, err := s.Installer().Version()
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(actual, version) {
+			return fmt.Errorf("expected version %s, got %s", version, actual)
+		}
+		return nil
+	}, b)
+}

@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -25,7 +27,6 @@ import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
@@ -145,6 +146,11 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 // StartExperiment will use the Datadog Installer service to start an experiment
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
+}
+
+// StartInstallerExperiment will use the Datadog Installer service to start an experiment
+func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }
 
 // PromoteExperiment will use the Datadog Installer service to promote an experiment
