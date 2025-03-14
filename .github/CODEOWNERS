@@ -189,6 +189,7 @@
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-configuration
+/cmd/agent/dependencies*.txt            @DataDog/agent-runtimes
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
 /cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-metric-pipelines @DataDog/agent-integrations
