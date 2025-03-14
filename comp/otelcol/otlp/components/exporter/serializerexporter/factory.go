@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 )
@@ -45,7 +46,7 @@ type factory struct {
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
-	gatewayUsage *attributes.GatewayUsage
+	gatewayUsage otel.GatewayUsage
 }
 
 type tagenricher interface {
@@ -71,16 +72,16 @@ type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiv
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
 func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, nil)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, otel.NewDisabledGatewayUsage())
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
-func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayusage *attributes.GatewayUsage) exp.Factory {
+func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayusage otel.GatewayUsage) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
 	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType, gatewayusage)
 }
 
-func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, typ component.Type, gatewayUsage *attributes.GatewayUsage) exp.Factory {
+func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, typ component.Type, gatewayUsage otel.GatewayUsage) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -45,7 +46,7 @@ type factory struct {
 	h              serializerexporter.SourceProviderFunc
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
-	gatewayUsage   *attributes.GatewayUsage
+	gatewayUsage   otel.GatewayUsage
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -72,7 +73,7 @@ func newFactoryWithRegistry(
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
-	gatewayUsage *attributes.GatewayUsage,
+	gatewayUsage otel.GatewayUsage,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -114,7 +115,7 @@ func NewFactory(
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
-	gatewayUsage *attributes.GatewayUsage,
+	gatewayUsage otel.GatewayUsage,
 ) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
 }

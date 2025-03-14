@@ -17,6 +17,7 @@ import (
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -103,7 +104,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage())
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -145,7 +146,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), nil)
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage())
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
