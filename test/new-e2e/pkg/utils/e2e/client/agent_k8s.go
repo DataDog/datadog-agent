@@ -26,9 +26,9 @@ const agentNamespace = "datadog"
 const podSelectorField = "app"
 
 func newAgentK8sExecutor(k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient) *agentK8sexecutor {
-	// Find the pod in the cluster
+	// Find this specific pod object in the cluster
 	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector(podSelectorField, k8sAgentPod.LabelSelectors[podSelectorField]).String(),
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", k8sAgentPod.Name).String(),
 		Limit:         1,
 	})
 	if err != nil {
