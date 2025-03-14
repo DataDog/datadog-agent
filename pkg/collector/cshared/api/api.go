@@ -43,8 +43,8 @@ extern char **Tags(char *, int);
 extern int IsContainerExcluded(char *, char *, char *);
 extern void GetKubeletConnectionInfo(char **);
 
-// ptr_at is a helper function to get a pointer to an element in an array of strings
-char * ptr_at(char **ptr, int idx) {
+// _ptr_at is a helper function to get a pointer to an element in an array of strings
+char * _ptr_at(char **ptr, int idx) {
     return ptr[idx];
 }
 */
@@ -288,8 +288,8 @@ func Tags(tag string, cardinality int) []string {
 	defer C.free(unsafe.Pointer(cTag))
 	cTags := C.Tags(cTag, C.int(cardinality))
 	var tags []string
-	for i := 0; C.ptr_at(cTags, C.int(i)) != nil; i++ {
-		tags = append(tags, C.GoString(C.ptr_at(cTags, C.int(i))))
+	for i := 0; C._ptr_at(cTags, C.int(i)) != nil; i++ {
+		tags = append(tags, C.GoString(C._ptr_at(cTags, C.int(i))))
 	}
 	return tags
 }
