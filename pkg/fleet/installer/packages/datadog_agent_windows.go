@@ -9,7 +9,9 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"time"
@@ -221,7 +223,7 @@ func installAgentPackage(target string, args []string, logFileName string) error
 	rootPath := ""
 	_, err := os.Stat(paths.RootTmpDir)
 	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
-	if os.IsExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		rootPath = paths.RootTmpDir
 	}
 	tempDir, err := os.MkdirTemp(rootPath, "datadog-agent")
