@@ -45,12 +45,17 @@ func (s *streamStrategy) Start() {
 				return
 			}
 
+			unencodedSize := len(msg.GetContent())
 			s.outputChan <- &message.Payload{
-				Messages:      []*message.Message{msg},
+				MessageMetas:  []*message.MessageMetadata{&msg.MessageMetadata},
 				Encoded:       encodedPayload,
 				Encoding:      s.compression.ContentEncoding(),
-				UnencodedSize: len(msg.GetContent()),
+				UnencodedSize: unencodedSize,
 			}
+
+			// We only want the embedded metadata moving forward, but the parent message struct won't be deallocated until the metadata is.
+			// Clear the message's content, as it holds a potentially massive amount of data that won't be further utilized.
+			msg.ClearContent()
 		}
 		s.done <- struct{}{}
 	}()

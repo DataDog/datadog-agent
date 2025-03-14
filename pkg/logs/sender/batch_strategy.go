@@ -167,6 +167,8 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.sendMessages(messages, outputChan)
 }
 
+// WARNING: This fuction will mutate the messages in the slice for optimal memory performance. Do not perform subsequent operations on the messages
+// slice expecting it to still be intact.
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
 	var encodedPayload bytes.Buffer
 	compressor := s.compression.NewStreamCompressor(&encodedPayload)
@@ -196,8 +198,15 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.flushWg.Add(1)
 	}
 
+	messageMeta := make([]*message.MessageMetadata, len(messages))
+	for idx, m := range messages {
+		messageMeta[idx] = &m.MessageMetadata
+		// We only want the embedded metadata moving forward, but the parent message struct won't be deallocated until the metadata is.
+		// Clear the message's content, as it holds a potentially massive amount of data that won't be further utilized.
+		m.ClearContent()
+	}
 	p := &message.Payload{
-		Messages:      messages,
+		MessageMetas:  messageMeta,
 		Encoded:       encodedPayload.Bytes(),
 		Encoding:      s.compression.ContentEncoding(),
 		UnencodedSize: unencodedSize,
