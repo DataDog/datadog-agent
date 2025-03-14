@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -263,11 +264,9 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 
 	// WHEN
 	var conns []*model.Connection
-	currentIP := net.ParseIP("10.0.0.0")
+	currentIP, _ := netip.ParseAddr("10.0.0.0")
 	for i := 0; i < 1000; i++ {
-		fmt.Println(currentIP.String())
-		addr, _ := netipx.FromStdIP(currentIP)
-		netipx.AddrNext(addr)
+		currentIP = netipx.AddrNext(currentIP)
 		conns = append(conns, &model.Connection{
 			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 			Raddr:     &model.Addr{Ip: currentIP.String(), Port: int32(80)},
