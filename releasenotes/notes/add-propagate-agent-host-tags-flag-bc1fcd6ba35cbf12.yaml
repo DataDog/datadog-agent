@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    List new features here, or remove this section.
+enhancements:
+  - |
+    List enhancements (new behavior that is too small to be
+    considered a new feature), or remove this section.
+    Add the propagate_agent_tags setting. When set to `true`, the tags from the agent host are added to the check's tag for all instances.
