@@ -15,9 +15,9 @@ import (
 
 // DummyMarshaller implements StreamJSONMarshaler for unit tests.
 type DummyMarshaller struct {
+	Items  []string
 	Header string
 	Footer string
-	Items  []string
 }
 
 // WriteHeader writes the payload header for this type

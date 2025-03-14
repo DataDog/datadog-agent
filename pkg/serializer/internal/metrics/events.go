@@ -37,8 +37,8 @@ var (
 
 // Events represents a list of events ready to be serialize
 type Events struct {
-	Hostname  string
 	EventsArr []*event.Event
+	Hostname  string
 }
 
 // Marshal serialize events using agent-payload definition

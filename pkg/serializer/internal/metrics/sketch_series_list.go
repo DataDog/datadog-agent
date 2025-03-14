@@ -153,16 +153,16 @@ func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Co
 }
 
 type payloadsBuilder struct {
-	strategy            compression.Component
-	logger              log.Component
 	bufferContext       *marshaler.BufferContext
+	strategy            compression.Component
 	compressor          *stream.Compressor
 	buf                 *bytes.Buffer
-	ps                  *molecule.ProtoStream
 	payloads            transaction.BytesPayloads
+	ps                  *molecule.ProtoStream
 	maxPayloadSize      int
 	maxUncompressedSize int
 	pointCount          int
+	logger              log.Component
 }
 
 // Prepare to write the next payload

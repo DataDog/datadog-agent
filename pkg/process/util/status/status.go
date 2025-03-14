@@ -37,11 +37,11 @@ func getHTTPClient() *http.Client {
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
-	Metadata     hostMetadataUtils.Payload `json:"metadata"`
 	AgentVersion string                    `json:"version"`
 	GoVersion    string                    `json:"go_version"`
 	Arch         string                    `json:"build_arch"`
 	Config       ConfigStatus              `json:"config"`
+	Metadata     hostMetadataUtils.Payload `json:"metadata"`
 }
 
 // ConfigStatus holds config settings from process-agent
@@ -64,19 +64,13 @@ type MemInfo struct {
 }
 
 type ExpvarsMap struct {
-	Endpoints                       map[string][]string `json:"endpoints"`
-	Version                         InfoVersion         `json:"version"`
-	DockerSocket                    string              `json:"docker_socket"`
-	LastCollectTime                 string              `json:"last_collect_time"`
-	ContainerID                     string              `json:"container_id"`
-	ProxyURL                        string              `json:"proxy_url"`
-	LogFile                         string              `json:"log_file"`
-	EnabledChecks                   []string            `json:"enabled_checks"`
-	DropCheckPayloads               []string            `json:"drop_check_payloads"`
 	Pid                             int                 `json:"pid"`
 	Uptime                          int                 `json:"uptime"`
 	UptimeNano                      float64             `json:"uptime_nano"`
 	MemStats                        MemInfo             `json:"memstats"`
+	Version                         InfoVersion         `json:"version"`
+	DockerSocket                    string              `json:"docker_socket"`
+	LastCollectTime                 string              `json:"last_collect_time"`
 	ProcessCount                    int                 `json:"process_count"`
 	ContainerCount                  int                 `json:"container_count"`
 	ProcessQueueSize                int                 `json:"process_queue_size"`
@@ -89,11 +83,17 @@ type ExpvarsMap struct {
 	ConnectionsQueueBytes           int                 `json:"connections_queue_bytes"`
 	EventQueueBytes                 int                 `json:"event_queue_bytes"`
 	PodQueueBytes                   int                 `json:"pod_queue_bytes"`
+	ContainerID                     string              `json:"container_id"`
+	ProxyURL                        string              `json:"proxy_url"`
+	LogFile                         string              `json:"log_file"`
+	EnabledChecks                   []string            `json:"enabled_checks"`
+	Endpoints                       map[string][]string `json:"endpoints"`
+	DropCheckPayloads               []string            `json:"drop_check_payloads"`
+	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
 	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
 	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
-	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
-	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
 }
 
 // ProcessExpvars holds values fetched from the exp var server
@@ -103,9 +103,9 @@ type ProcessExpvars struct {
 
 // Status holds runtime information from process-agent
 type Status struct {
+	Date    float64        `json:"date"`
 	Core    CoreStatus     `json:"core"`    // Contains fields that are collected similarly to the core agent in pkg/status
 	Expvars ProcessExpvars `json:"expvars"` // Contains the expvars retrieved from the process agent
-	Date    float64        `json:"date"`
 }
 
 // StatusOption is a function that acts on a Status object
