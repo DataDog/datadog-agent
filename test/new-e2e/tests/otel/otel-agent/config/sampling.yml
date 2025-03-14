@@ -17,7 +17,7 @@ exporters:
 processors:
   batch:
   probabilistic_sampler:
-    sampling_percentage: 100
+    sampling_percentage: 50
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
