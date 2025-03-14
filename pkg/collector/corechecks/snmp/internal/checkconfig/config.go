@@ -405,21 +405,36 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
-	ica := InstanceConfigAuthentication{
-		CommunityString: instance.CommunityString,
-		SnmpVersion:     instance.SnmpVersion,
-		Timeout:         instance.Timeout,
-		Retries:         instance.Retries,
-		User:            instance.User,
-		AuthProtocol:    instance.AuthProtocol,
-		AuthKey:         instance.AuthKey,
-		PrivProtocol:    instance.PrivProtocol,
-		PrivKey:         instance.PrivKey,
-		ContextName:     instance.ContextName,
-	}
-	c.Authentications = append(c.Authentications, ica.toAuthentication())
-	for _, ica = range instance.Authentications {
+	if instance.CommunityString != "" || instance.User != "" {
+		ica := InstanceConfigAuthentication{
+			CommunityString: instance.CommunityString,
+			SnmpVersion:     instance.SnmpVersion,
+			Timeout:         instance.Timeout,
+			Retries:         instance.Retries,
+			User:            instance.User,
+			AuthProtocol:    instance.AuthProtocol,
+			AuthKey:         instance.AuthKey,
+			PrivProtocol:    instance.PrivProtocol,
+			PrivKey:         instance.PrivKey,
+			ContextName:     instance.ContextName,
+		}
 		c.Authentications = append(c.Authentications, ica.toAuthentication())
+	}
+	for _, ica := range instance.Authentications {
+		c.Authentications = append(c.Authentications, ica.toAuthentication())
+	}
+
+	if len(c.Authentications) != 0 {
+		c.CommunityString = c.Authentications[0].CommunityString
+		c.SnmpVersion = c.Authentications[0].SnmpVersion
+		c.Timeout = c.Authentications[0].Timeout
+		c.Retries = c.Authentications[0].Retries
+		c.User = c.Authentications[0].User
+		c.AuthProtocol = c.Authentications[0].AuthProtocol
+		c.AuthKey = c.Authentications[0].AuthKey
+		c.PrivProtocol = c.Authentications[0].PrivProtocol
+		c.PrivKey = c.Authentications[0].PrivKey
+		c.ContextName = c.Authentications[0].ContextName
 	}
 
 	if instance.OidBatchSize != 0 {
