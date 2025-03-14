@@ -424,19 +424,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Authentications = append(c.Authentications, ica.toAuthentication())
 	}
 
-	if len(c.Authentications) != 0 {
-		c.CommunityString = c.Authentications[0].CommunityString
-		c.SnmpVersion = c.Authentications[0].SnmpVersion
-		c.Timeout = c.Authentications[0].Timeout
-		c.Retries = c.Authentications[0].Retries
-		c.User = c.Authentications[0].User
-		c.AuthProtocol = c.Authentications[0].AuthProtocol
-		c.AuthKey = c.Authentications[0].AuthKey
-		c.PrivProtocol = c.Authentications[0].PrivProtocol
-		c.PrivKey = c.Authentications[0].PrivKey
-		c.ContextName = c.Authentications[0].ContextName
-	}
-
 	if instance.OidBatchSize != 0 {
 		c.OidBatchSize = int(instance.OidBatchSize)
 	} else if initConfig.OidBatchSize != 0 {
