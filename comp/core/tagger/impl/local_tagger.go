@@ -3,18 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// The Tagger is the central source of truth for client-side entity tagging.
+// It subscribes to WorkloadMeta to get updates for all the entity kinds
+// (containers, kubernetes pods, kubernetes nodes, etc.) and extracts the tags for each of them.
+// Tags are then stored in memory (by the TagStore) and can be queried by the tagger.Tag()
+// method.
+
+// Package taggerimpl contains the implementation of the tagger component.
 package taggerimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -22,11 +32,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -68,21 +81,74 @@ type localTagger struct {
 	cancel                     context.CancelFunc
 }
 
-func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (tagger.Component, error) {
-	datadogConfig := datadogConfig{}
-	datadogConfig.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
-	datadogConfig.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
-	datadogConfig.dogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
+// Requires defines the dependencies of the tagger component.
+type Requires struct {
+	compdef.In
+
+	Lc           compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
+	Telemetry    coretelemetry.Component
+}
+
+// Provides contains the fields provided by the tagger constructor.
+type Provides struct {
+	compdef.Out
+
+	Comp     taggerdef.Component
+	Endpoint api.AgentEndpointProvider
+}
+
+// NewComponent returns a new tagger client
+func NewComponent(req Requires) (Provides, error) {
+	tagger, err := newLocalTagger(req.Config, req.WorkloadMeta, req.Log, req.Telemetry, nil)
+	if err != nil {
+		return Provides{}, err
+	}
+
+	req.Log.Info("Tagger is created")
+	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
+		// Main context passed to components, consistent with the one used in the workloadmeta component
+		mainCtx, _ := common.GetMainCtxCancel()
+		return tagger.Start(mainCtx)
+	}})
+	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
+		return tagger.Stop()
+	}})
+
+	return Provides{
+		Comp: tagger,
+		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
+			response := tagger.List()
+			jsonTags, err := json.Marshal(response)
+			if err != nil {
+				httputils.SetJSONError(writer, req.Log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+				return
+			}
+			_, err = writer.Write(jsonTags)
+			if err != nil {
+				_ = req.Log.Errorf("Unable to write tagger list response: %s", err)
+			}
+		}, "/tagger-list", "GET"),
+	}, nil
+}
+
+func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (taggerdef.Component, error) {
+	dc := datadogConfig{}
+	dc.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
+	dc.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
+	dc.dogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
 
 	checksTagCardinalityRawConfig := cfg.GetString("checks_tag_cardinality")
 	dogstatsdTagCardinalityRawConfig := cfg.GetString("dogstatsd_tag_cardinality")
 
 	var err error
-	datadogConfig.checksCardinality, err = types.StringToTagCardinality(checksTagCardinalityRawConfig)
+	dc.checksCardinality, err = types.StringToTagCardinality(checksTagCardinalityRawConfig)
 	if err != nil {
 		log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 	}
-	datadogConfig.dogstatsdCardinality, err = types.StringToTagCardinality(dogstatsdTagCardinalityRawConfig)
+	dc.dogstatsdCardinality, err = types.StringToTagCardinality(dogstatsdTagCardinalityRawConfig)
 	if err != nil {
 		log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 	}
@@ -104,7 +170,7 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 		telemetryStore:             telemetryStore,
 		cfg:                        cfg,
 		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
-		datadogConfig:              datadogConfig,
+		datadogConfig:              dc,
 	}, nil
 }
 
