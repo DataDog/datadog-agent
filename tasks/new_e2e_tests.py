@@ -31,6 +31,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
@@ -184,6 +185,8 @@ def run(
         "extra_flags": extra_flags,
     }
 
+    result_json = DEFAULT_E2E_TEST_OUTPUT_JSON
+
     test_res = test_flavor(
         ctx,
         flavor=AgentFlavor.base,
@@ -193,11 +196,11 @@ def run(
         cmd=cmd,
         env=env_vars,
         junit_tar=junit_tar,
-        save_result_json="",
+        result_json=result_json,
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, result_json, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

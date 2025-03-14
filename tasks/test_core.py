@@ -13,6 +13,7 @@ from tasks.libs.common.utils import running_in_ci
 from tasks.modules import GoModule
 
 DEFAULT_TEST_OUTPUT_JSON = "test_output.json"
+DEFAULT_E2E_TEST_OUTPUT_JSON = "e2e_test_output.json"
 
 
 class ExecResult(abc.ABC):
