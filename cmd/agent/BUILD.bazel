@@ -170,8 +170,16 @@ go_binary(
     name = "agent",
     embed = [":agent_lib"],
     # keep
+    data = ["//rtloader:datadog-agent-three"],
+    # keep
     gc_linkopts = [
-        "-r={}/embedded/lib".format(INSTALL_PATH),
+        "-r",
+        ":".join([
+            "{}/embedded/lib".format(INSTALL_PATH),
+            # Adds the rpath to find the datadog-agent-three library file at runtime when running from bazel.
+            # A bit ugly but $(rlocationpath) doesn't work and this serves our purpose
+            "$$ORIGIN/agent.runfiles/_main/rtloader",
+        ]),
         # Fix go-nvml runtime symbol finding issue
         "-extldflags",
         "-Wl,-z,lazy",
