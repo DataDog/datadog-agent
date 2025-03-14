@@ -578,7 +578,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.fpnLock.Unlock()
 
 					ecb(wa, e.EventHeader.ProcessID)
-				} else {
+				} else if err != errReadNoPath && err != errDiscardedPath {
 					log.Tracef("Unable to parse idWrite event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idSetInformation:

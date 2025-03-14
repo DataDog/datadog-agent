@@ -221,10 +221,10 @@ func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNew
 func (ca *createHandleArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
-	output.WriteString("         Name: " + ca.fileName + "\n")
-	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
-	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + ", ")
+	output.WriteString("Name: " + ca.fileName + ", ")
+	output.WriteString("Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + ",")
+	output.WriteString("Obj: " + strconv.FormatUint(uint64(ca.fileObject), 16))
 
 	return output.String()
 }
@@ -319,8 +319,8 @@ func (sia *setInformationArgs) string(t string) string {
 	output.WriteString(t + " TID: " + strconv.Itoa(int(sia.threadID)) + ", ")
 	output.WriteString("Name: " + sia.fileName + ", ")
 	output.WriteString("InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + ", ")
-	output.WriteString("OBJ: " + strconv.FormatUint(uint64(sia.fileObject), 16) + ", ")
-	output.WriteString("KEY: " + strconv.FormatUint(uint64(sia.fileKey), 16))
+	output.WriteString("Obj: " + strconv.FormatUint(uint64(sia.fileObject), 16) + ", ")
+	output.WriteString("Key: " + strconv.FormatUint(uint64(sia.fileKey), 16))
 
 	return output.String()
 
@@ -475,8 +475,8 @@ func (ca *cleanupArgs) string(t string) string {
 
 	output.WriteString(t + ": TID: " + strconv.Itoa(int(ca.threadID)) + ", ")
 	output.WriteString("Name: " + ca.fileName + ", ")
-	output.WriteString("OBJ: " + strconv.FormatUint(uint64(ca.fileObject), 16) + ", ")
-	output.WriteString("KEY: " + strconv.FormatUint(uint64(ca.fileKey), 16))
+	output.WriteString("Obj: " + strconv.FormatUint(uint64(ca.fileObject), 16) + ", ")
+	output.WriteString("Key: " + strconv.FormatUint(uint64(ca.fileKey), 16))
 	return output.String()
 
 }
@@ -511,7 +511,7 @@ type readArgs struct {
 }
 type writeArgs readArgs
 
-func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
+func (wp *WindowsProbe) parseReadWriteArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	ra := &readArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -555,8 +555,8 @@ func (ra *readArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + ": PID: " + strconv.Itoa(int(ra.DDEventHeader.ProcessID)) + ", ")
-	output.WriteString("OBJ: " + strconv.FormatUint(uint64(ra.fileObject), 16) + ", ")
-	output.WriteString("KEY: " + strconv.FormatUint(uint64(ra.fileKey), 16) + ", ")
+	output.WriteString("Obj: " + strconv.FormatUint(uint64(ra.fileObject), 16) + ", ")
+	output.WriteString("Key: " + strconv.FormatUint(uint64(ra.fileKey), 16) + ", ")
 	output.WriteString("Name: " + ra.fileName + ", ")
 	output.WriteString("Size: " + strconv.FormatUint(uint64(ra.IOSize), 16))
 	return output.String()
@@ -569,7 +569,7 @@ func (ra *readArgs) String() string {
 }
 
 func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
-	wa, err := wp.parseReadArgs(e)
+	wa, err := wp.parseReadWriteArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -662,8 +662,8 @@ func (dpa *deletePathArgs) string(t string) string {
 
 	output.WriteString(t + ": PID: " + strconv.Itoa(int(dpa.ProcessID)) + ", ")
 	output.WriteString("Name: " + dpa.filePath + ", ")
-	output.WriteString("OBJ: " + strconv.FormatUint(uint64(dpa.fileObject), 16) + ", ")
-	output.WriteString("KEY: " + strconv.FormatUint(uint64(dpa.fileKey), 16))
+	output.WriteString("Obj: " + strconv.FormatUint(uint64(dpa.fileObject), 16) + ", ")
+	output.WriteString("Key: " + strconv.FormatUint(uint64(dpa.fileKey), 16))
 	return output.String()
 
 }
@@ -733,7 +733,7 @@ func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateAr
 func (ca *nameCreateArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString(t + ": KEY: " + strconv.FormatUint(uint64(ca.fileKey), 16) + ", ")
+	output.WriteString(t + ": Key: " + strconv.FormatUint(uint64(ca.fileKey), 16) + ", ")
 	output.WriteString("Name: " + ca.fileName)
 	return output.String()
 
