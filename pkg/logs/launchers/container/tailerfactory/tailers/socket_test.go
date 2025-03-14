@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"
+	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 )
 
 func TestDockerSocketTailer_run_normal_stop(t *testing.T) {
@@ -29,12 +29,12 @@ func TestDockerSocketTailer_run_normal_stop(t *testing.T) {
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	go dst.run(
-		func() (*dockerTailerPkg.Tailer, chan string, error) {
+		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted = true
 			// fake a successful tailer start
-			return &dockerTailerPkg.Tailer{}, nil, nil
+			return &containerTailerPkg.Tailer{}, nil, nil
 		},
-		func(*dockerTailerPkg.Tailer) {
+		func(*containerTailerPkg.Tailer) {
 			tailerStopped = true
 		})
 
@@ -55,7 +55,7 @@ func TestDockerSocketTailer_run_erroredContainer(t *testing.T) {
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	go dst.run(
-		func() (*dockerTailerPkg.Tailer, chan string, error) {
+		func() (*containerTailerPkg.Tailer, chan string, error) {
 			erroredContainerID := make(chan string)
 			if tailerStarted.Inc() < 3 {
 				// have the tailer fail after starting successfully
@@ -64,9 +64,9 @@ func TestDockerSocketTailer_run_erroredContainer(t *testing.T) {
 					erroredContainerID <- "abcd"
 				}()
 			}
-			return &dockerTailerPkg.Tailer{}, erroredContainerID, nil
+			return &containerTailerPkg.Tailer{}, erroredContainerID, nil
 		},
-		func(*dockerTailerPkg.Tailer) {
+		func(*containerTailerPkg.Tailer) {
 			tailerStopped.Inc()
 		})
 
@@ -94,11 +94,11 @@ func TestDockerSocketTailer_run_canStopWithError(t *testing.T) {
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	erroredContainerID := make(chan string)
 	go dst.run(
-		func() (*dockerTailerPkg.Tailer, chan string, error) {
+		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted.Inc()
-			return &dockerTailerPkg.Tailer{}, erroredContainerID, nil
+			return &containerTailerPkg.Tailer{}, erroredContainerID, nil
 		},
-		func(*dockerTailerPkg.Tailer) {
+		func(*containerTailerPkg.Tailer) {
 			// Simulate an error occurring at the same time as as the tailer is trying to stop.
 			// This can happen in the real socket tailer implementation as these errors are handled by
 			// the same goroutine that manages the tailer shutdown. This test ensures any pending errors
@@ -133,13 +133,13 @@ func TestDockerSocketTailer_run_error_starting(t *testing.T) {
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	go dst.run(
-		func() (*dockerTailerPkg.Tailer, chan string, error) {
+		func() (*containerTailerPkg.Tailer, chan string, error) {
 			if tailerStarted.Inc() < 3 {
 				return nil, nil, errors.New("uhoh")
 			}
-			return &dockerTailerPkg.Tailer{}, nil, nil
+			return &containerTailerPkg.Tailer{}, nil, nil
 		},
-		func(*dockerTailerPkg.Tailer) {
+		func(*containerTailerPkg.Tailer) {
 			tailerStopped.Inc()
 		})
 
@@ -174,11 +174,11 @@ func TestDockerSocketTailer_run_error_starting_expires(t *testing.T) {
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	go dst.run(
-		func() (*dockerTailerPkg.Tailer, chan string, error) {
+		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted.Inc()
 			return nil, nil, errors.New("uhoh")
 		},
-		func(*dockerTailerPkg.Tailer) {
+		func(*containerTailerPkg.Tailer) {
 			tailerStopped.Inc()
 		})
 
