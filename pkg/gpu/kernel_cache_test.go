@@ -9,6 +9,8 @@ package gpu
 
 import (
 	"os"
+	"path"
+	"strconv"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	cudatestutil "github.com/DataDog/datadog-agent/pkg/gpu/cuda/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestBuildSymbolFileIdentifier(t *testing.T) {
@@ -72,33 +75,68 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	// Get sample CUDA binary path
 	samplePath := cudatestutil.GetCudaSample(t, "sample")
 
+	// Create a temporary directory that acts as a process root
+	// and create the samplePath inside it to replicate the expected process tree
+	pid := 1234
+	procRoot := t.TempDir()
+	procRootPath := path.Join(procRoot, strconv.Itoa(pid), "root")
+
+	procRootSamplePath := path.Join(procRootPath, samplePath)
+	err := os.MkdirAll(path.Dir(procRootSamplePath), 0755)
+	require.NoError(t, err)
+
+	// symlink samplePath to procRootSamplePath
+	err = os.Symlink(samplePath, procRootSamplePath)
+	require.NoError(t, err)
+
 	// sanity check that the sample has a kernel for the SM we are going to parse
 	require.Contains(t, cudatestutil.SampleSMVersions, testutil.DefaultSMVersion, "default SM version should be in sample file")
 
+	// Because we're dealing with real files, we need to parse and get the symbol we want
+	// to load from the fatbin file so we can use it in the test
+	elffile, err := safeelf.Open(samplePath)
+	require.NoError(t, err)
+
+	syms, err := elffile.Symbols()
+	require.NoError(t, err)
+
+	kernelName := "_Z7kernel1Pfi" // kernel1(float*, int)
+	var kernelAddress uint64
+	for _, sym := range syms {
+		if sym.Name == kernelName {
+			kernelAddress = sym.Value
+			break
+		}
+	}
+	require.NotZero(t, kernelAddress, "kernel address should be found")
+
 	// Create system context with telemetry
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procRoot, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
 	kc := sysCtx.kernelCache
 	kc.Start()
-	defer kc.Stop()
+	t.Cleanup(kc.Stop)
 
-	// Load kernel data
+	// build the key we will request
+	// caches are indexed by the address in the process, so we need to convert the address
+	// to the address in the process
+	baseAddr := uint64(0x1000)
+	inProcessAddr := kernelAddress + baseAddr
 	key := kernelKey{
-		pid:       1234,
-		address:   0x1000,
+		pid:       pid,
+		address:   inProcessAddr,
 		smVersion: testutil.DefaultSMVersion,
 	}
 
 	// Add memory map entry for the test
-	kc.pidMaps[key.pid] = []*procfs.ProcMap{
-		{
-			StartAddr: 0x1000,
-			EndAddr:   0x2000,
-			Offset:    0,
-			Pathname:  samplePath,
-		},
+	procMap := &procfs.ProcMap{
+		StartAddr: uintptr(baseAddr),
+		EndAddr:   uintptr(inProcessAddr + 100), // Ensure the kernel is in the map
+		Offset:    0,
+		Pathname:  samplePath,
 	}
+	kc.pidMaps[key.pid] = []*procfs.ProcMap{procMap}
 
 	// First call should return not processed yet
 	kernel, err := kc.GetKernelData(key.pid, key.address, key.smVersion)
@@ -106,13 +144,15 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	require.Nil(t, kernel)
 
 	// Wait for background processing
-	time.Sleep(100 * time.Millisecond)
+	require.Eventually(t, func() bool {
+		return kc.getExistingKernelData(key) != nil
+	}, 2000*time.Millisecond, 100*time.Millisecond)
 
 	// Second call should return the kernel
 	kernel, err = kc.GetKernelData(key.pid, key.address, key.smVersion)
 	require.NoError(t, err)
 	require.NotNil(t, kernel)
-	require.Equal(t, "_Z7kernel1Pfi", kernel.Name) // kernel1(float*, int)
+	require.Equal(t, kernelName, kernel.Name)
 	require.Equal(t, uint64(0), kernel.SharedMem)
 
 	// Verify cache entry exists
@@ -137,7 +177,7 @@ func TestKernelCacheLoadKernelDataError(t *testing.T) {
 
 	kc := sysCtx.kernelCache
 	kc.Start()
-	defer kc.Stop()
+	t.Cleanup(kc.Stop)
 
 	// Load kernel data with invalid path
 	key := kernelKey{
