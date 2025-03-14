@@ -639,6 +639,7 @@ new-e2e-ha-agent-failover:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
+    ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
 

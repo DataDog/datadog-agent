@@ -8,6 +8,7 @@ package haagent
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,6 +31,9 @@ import (
 
 //go:embed fixtures/snmp_conf.yaml
 var snmpConfig string
+
+//go:embed fixtures/cisco_aci_conf.yaml
+var ciscoAciConfig string
 
 type multiVMEnv struct {
 	Host1  *components.RemoteHost
@@ -75,13 +79,13 @@ log_level: debug
 		}
 		host2.Export(ctx, &env.Host2.HostOutput)
 
-		agent1, err := agent.NewHostAgent(&awsEnv, host1, agentparams.WithAgentConfig(agentConfig1), agentparams.WithIntegration("snmp.d", snmpConfig))
+		agent1, err := agent.NewHostAgent(&awsEnv, host1, agentparams.WithAgentConfig(agentConfig1), agentparams.WithIntegration("snmp.d", snmpConfig), agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig))
 		if err != nil {
 			return err
 		}
 		agent1.Export(ctx, &env.Agent1.HostAgentOutput)
 
-		agent2, err := agent.NewHostAgent(&awsEnv, host2, agentparams.WithAgentConfig(agentConfig2), agentparams.WithIntegration("snmp.d", snmpConfig))
+		agent2, err := agent.NewHostAgent(&awsEnv, host2, agentparams.WithAgentConfig(agentConfig2), agentparams.WithIntegration("snmp.d", snmpConfig), agentparams.WithIntegration("cisco_aci.d", ciscoAciConfig))
 		if err != nil {
 			return err
 		}
@@ -112,18 +116,18 @@ func (v *testHAAgentFailoverSuite) assertHAState(c *assert.CollectT, host *compo
 	require.Equal(c, expectedState, state, "Expected agent to be %s", expectedState)
 }
 
-func (v *testHAAgentFailoverSuite) assertSNMPCheckIsRunning(c *assert.CollectT, host *components.RemoteHost) {
+func (v *testHAAgentFailoverSuite) assertCheckIsRunning(c *assert.CollectT, host *components.RemoteHost, checkName string) {
 	output, err := host.Execute("sudo datadog-agent status collector")
 	require.NoError(c, err)
 
-	require.Contains(c, output, "snmp", "Expected snmp to be running")
+	require.Contains(c, output, checkName, fmt.Sprintf("Expected %s to be running", checkName))
 }
 
-func (v *testHAAgentFailoverSuite) assertSNMPCheckIsNotRunning(c *assert.CollectT, host *components.RemoteHost) {
+func (v *testHAAgentFailoverSuite) assertCheckIsNotRunning(c *assert.CollectT, host *components.RemoteHost, checkName string) {
 	output, err := host.Execute("sudo datadog-agent status collector")
 	require.NoError(c, err)
 
-	require.NotContains(c, output, "snmp", "Expected snmp to be running")
+	require.NotContains(c, output, checkName, fmt.Sprintf("Expected %s to be not running", checkName))
 }
 
 func (v *testHAAgentFailoverSuite) TestHAFailover() {
@@ -135,10 +139,12 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertHAState(c, v.Env().Host1, "active")
 	}, 5*time.Minute, 30*time.Second)
 
-	// Check that agent1 is running the SNMP check
+	// Check that agent1 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent1 is running the SNMP check")
-		v.assertSNMPCheckIsRunning(c, v.Env().Host1)
+		v.T().Log("try assert agent1 is running HA and non-HA checks")
+		v.assertCheckIsRunning(c, v.Env().Host1, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Host1, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Host1, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host2.Execute("sudo systemctl start datadog-agent")
@@ -149,10 +155,12 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertHAState(c, v.Env().Host2, "standby")
 	}, 5*time.Minute, 30*time.Second)
 
-	// Check that agent2 is not running the SNMP check
+	// Check that agent2 is not running the HA checks but is running the non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent2 is not running the SNMP check")
-		v.assertSNMPCheckIsNotRunning(c, v.Env().Host2)
+		v.T().Log("try assert agent2 is not running the HA checks but is running the non-HA checks")
+		v.assertCheckIsNotRunning(c, v.Env().Host2, "snmp")
+		v.assertCheckIsNotRunning(c, v.Env().Host2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host1.Execute("sudo systemctl stop datadog-agent")
@@ -163,10 +171,12 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertHAState(c, v.Env().Host2, "active")
 	}, 5*time.Minute, 30*time.Second)
 
-	// Check that agent2 is running the SNMP check
+	// Check that agent2 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent2 is running the SNMP check")
-		v.assertSNMPCheckIsRunning(c, v.Env().Host2)
+		v.T().Log("try assert agent2 is running HA and non-HA checks")
+		v.assertCheckIsRunning(c, v.Env().Host2, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Host2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host1.Execute("sudo systemctl start datadog-agent")
@@ -177,10 +187,12 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertHAState(c, v.Env().Host1, "standby")
 	}, 5*time.Minute, 30*time.Second)
 
-	// Check that agent1 is not running the SNMP check
+	// Check that agent1 is not running HA checks but is running the non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent1 is not running the SNMP check")
-		v.assertSNMPCheckIsNotRunning(c, v.Env().Host1)
+		v.T().Log("try assert agent1 is not running HA checks but is running the non-HA checks")
+		v.assertCheckIsNotRunning(c, v.Env().Host1, "snmp")
+		v.assertCheckIsNotRunning(c, v.Env().Host1, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Host1, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	// Wait for the agent2 to be active
@@ -189,9 +201,11 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 		v.assertHAState(c, v.Env().Host2, "active")
 	}, 5*time.Minute, 30*time.Second)
 
-	// Check that agent2 is running the SNMP check
+	// Check that agent2 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent2 is running the SNMP check")
-		v.assertSNMPCheckIsRunning(c, v.Env().Host2)
+		v.T().Log("try assert agent2 is running HA and non-HA checks")
+		v.assertCheckIsRunning(c, v.Env().Host2, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Host2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 }
