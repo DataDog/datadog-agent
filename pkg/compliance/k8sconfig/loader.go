@@ -38,8 +38,8 @@ const (
 
 type procsLoader func(ctx context.Context) []proc
 type proc struct {
-	name  string
 	flags map[string]string
+	name  string
 }
 
 type loader struct {

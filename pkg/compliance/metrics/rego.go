@@ -128,11 +128,11 @@ func (t *regoTimer) Stop() int64 {
 }
 
 type regoTelemetry struct {
-	sync.Mutex
 	inner      opametrics.Metrics
 	counters   map[string]*regoCounter
 	timers     map[string]*regoTimer
 	histograms map[string]*regoHistogram
+	sync.Mutex
 }
 
 func (m *regoTelemetry) Info() opametrics.Info {

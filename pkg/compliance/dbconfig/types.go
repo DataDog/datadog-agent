@@ -8,21 +8,21 @@ package dbconfig
 // DBResource holds a database configuration data and the resource type
 // associated with it.
 type DBResource struct {
+	Config      DBConfig `json:"config"`
 	Type        string   `json:"type"`
 	ContainerID string   `json:"container_id,omitempty"`
-	Config      DBConfig `json:"config"`
 }
 
 // DBConfig represents a database application configuration metadata that we
 // were able to scan.
 type DBConfig struct {
+	ConfigData      interface{} `json:"config_data"`
 	ProcessName     string      `json:"process_name,omitempty"`
 	ProcessUser     string      `json:"process_user,omitempty"`
 	ConfigFilePath  string      `json:"config_file_path"`
 	ConfigFileUser  string      `json:"config_file_user"`
 	ConfigFileGroup string      `json:"config_file_group"`
 	ConfigFileMode  uint32      `json:"config_file_mode"`
-	ConfigData      interface{} `json:"config_data"`
 }
 
 type mongoDBConfig struct {
@@ -222,11 +222,11 @@ type cassandraDBConfig struct {
 	LogbackFileContent      string `yaml:"logback_file_content" json:"logback_file_content"`
 	Authorizer              string `yaml:"authorizer" json:"authorizer"`
 	ListenAddress           string `yaml:"listen_address" json:"listen_address"`
+	ServerEncryptionOptions struct {
+		InternodeEncryption string `yaml:"internode_encryption" json:"internode_encryption"`
+	} `yaml:"server_encryption_options" json:"server_encryption_options"`
 	ClientEncryptionOptions struct {
 		Enabled  bool `yaml:"enabled" json:"enabled"`
 		Optional bool `yaml:"optional" json:"optional"`
 	} `yaml:"client_encryption_options" json:"client_encryption_options"`
-	ServerEncryptionOptions struct {
-		InternodeEncryption string `yaml:"internode_encryption" json:"internode_encryption"`
-	} `yaml:"server_encryption_options" json:"server_encryption_options"`
 }

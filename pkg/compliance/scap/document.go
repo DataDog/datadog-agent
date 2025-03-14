@@ -35,7 +35,6 @@ const (
 
 // Document contains all the returned informations of an openscap evaluation.
 type Document struct {
-	Type constants.DocumentType `json:"-"`
 	*cdf.Benchmark
 	*cpe_dict.CpeList
 	*oval_def.OvalDefinitions
@@ -43,6 +42,7 @@ type Document struct {
 	*oval_sc.OvalSystemCharacteristics
 	*ds.DataStreamCollection
 	*inter.Ocil
+	Type constants.DocumentType `json:"-"`
 }
 
 // ReadDocument takes an io.Reader and return a Document or error if failed.

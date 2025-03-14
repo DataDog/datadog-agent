@@ -50,14 +50,14 @@ const (
 // CheckStatus is used to store the last current status of each rule inside
 // our compliance agent.
 type CheckStatus struct {
+	InitError   error
+	LastEvent   *CheckEvent
 	RuleID      string
 	Name        string
 	Description string
 	Version     string
 	Framework   string
 	Source      string
-	InitError   error
-	LastEvent   *CheckEvent
 }
 
 // CheckContainerMeta holds metadata related to the container that has been checked.
@@ -71,21 +71,21 @@ type CheckContainerMeta struct {
 // CheckEvent is the data structure sent to the backend as a result of a rule
 // evaluation.
 type CheckEvent struct {
-	AgentVersion string                 `json:"agent_version,omitempty"`
-	RuleID       string                 `json:"agent_rule_id,omitempty"`
-	RuleVersion  int                    `json:"agent_rule_version,omitempty"`
-	FrameworkID  string                 `json:"agent_framework_id,omitempty"`
-	Evaluator    Evaluator              `json:"evaluator,omitempty"`
-	ExpireAt     *time.Time             `json:"expire_at,omitempty"`
-	Result       CheckResult            `json:"result,omitempty"`
-	ResourceType string                 `json:"resource_type,omitempty"`
-	ResourceID   string                 `json:"resource_id,omitempty"`
-	Container    *CheckContainerMeta    `json:"container,omitempty"`
-	K8SManaged   *string                `json:"k8s_managed,omitempty"`
-	Tags         []string               `json:"tags"`
-	Data         map[string]interface{} `json:"data"`
+	errReason  error                  `json:"-"`
+	ExpireAt   *time.Time             `json:"expire_at,omitempty"`
+	Container  *CheckContainerMeta    `json:"container,omitempty"`
+	K8SManaged *string                `json:"k8s_managed,omitempty"`
+	Data       map[string]interface{} `json:"data"`
 
-	errReason error `json:"-"`
+	AgentVersion string      `json:"agent_version,omitempty"`
+	RuleID       string      `json:"agent_rule_id,omitempty"`
+	FrameworkID  string      `json:"agent_framework_id,omitempty"`
+	Evaluator    Evaluator   `json:"evaluator,omitempty"`
+	Result       CheckResult `json:"result,omitempty"`
+	ResourceType string      `json:"resource_type,omitempty"`
+	ResourceID   string      `json:"resource_id,omitempty"`
+	Tags         []string    `json:"tags"`
+	RuleVersion  int         `json:"agent_rule_version,omitempty"`
 }
 
 // ResourceLog is the data structure holding a resource configuration data.
@@ -224,13 +224,13 @@ type RuleFilter func(*Rule) bool
 type Rule struct {
 	ID          string       `yaml:"id" json:"id"`
 	Description string       `yaml:"description,omitempty" json:"description,omitempty"`
-	SkipOnK8s   bool         `yaml:"skipOnKubernetes,omitempty" json:"skipOnKubernetes,omitempty"`
 	Module      string       `yaml:"module,omitempty" json:"module,omitempty"`
+	Period      string       `yaml:"period,omitempty" json:"period,omitempty"`
 	Scopes      []RuleScope  `yaml:"scope,omitempty" json:"scope,omitempty"`
 	InputSpecs  []*InputSpec `yaml:"input,omitempty" json:"input,omitempty"`
 	Imports     []string     `yaml:"imports,omitempty" json:"imports,omitempty"`
-	Period      string       `yaml:"period,omitempty" json:"period,omitempty"`
 	Filters     []string     `yaml:"filters,omitempty" json:"filters,omitempty"`
+	SkipOnK8s   bool         `yaml:"skipOnKubernetes,omitempty" json:"skipOnKubernetes,omitempty"`
 }
 
 type (
@@ -317,11 +317,11 @@ type (
 // way rego bails when dereferencing an undefined key, we do not mark any json
 // tag as "omitempty".
 type ResolvingContext struct {
+	InputSpecs        map[string]*InputSpec `json:"input"`
 	RuleID            string                `json:"ruleID"`
 	Hostname          string                `json:"hostname"`
 	KubernetesCluster string                `json:"kubernetes_cluster"`
 	ContainerID       string                `json:"container_id"`
-	InputSpecs        map[string]*InputSpec `json:"input"`
 }
 
 // ResolvedInputs is the generic data structure that is returned by a Resolver and
@@ -363,15 +363,15 @@ func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]in
 type Benchmark struct {
 	dirname string
 
-	Name        string   `yaml:"name,omitempty" json:"name,omitempty"`
-	FrameworkID string   `yaml:"framework,omitempty" json:"framework,omitempty"`
-	Version     string   `yaml:"version,omitempty" json:"version,omitempty"`
-	Tags        []string `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Rules       []*Rule  `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Source      string   `yaml:"-" json:"-"`
+	Name        string `yaml:"name,omitempty" json:"name,omitempty"`
+	FrameworkID string `yaml:"framework,omitempty" json:"framework,omitempty"`
+	Version     string `yaml:"version,omitempty" json:"version,omitempty"`
+	Source      string `yaml:"-" json:"-"`
 	Schema      struct {
 		Version string `yaml:"version" json:"version"`
 	} `yaml:"schema,omitempty" json:"schema,omitempty"`
+	Tags  []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Rules []*Rule  `yaml:"rules,omitempty" json:"rules,omitempty"`
 }
 
 // IsRego returns true if the rule is a rego rule.
