@@ -7,10 +7,13 @@ package taggerimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -22,11 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -66,6 +72,59 @@ type localTagger struct {
 	telemetryStore             *telemetry.Store
 	ctx                        context.Context
 	cancel                     context.CancelFunc
+}
+
+// Requires defines the dependencies of the tagger component.
+type Requires struct {
+	compdef.In
+
+	Lc           compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
+	Telemetry    coretelemetry.Component
+}
+
+// Provides contains the fields provided by the tagger constructor.
+type Provides struct {
+	compdef.Out
+
+	Comp     tagger.Component
+	Endpoint api.AgentEndpointProvider
+}
+
+// NewComponent returns a new tagger client
+func NewComponent(req Requires) (Provides, error) {
+	tagger, err := newLocalTagger(req.Config, req.WorkloadMeta, req.Log, req.Telemetry, nil)
+	if err != nil {
+		return Provides{}, err
+	}
+
+	req.Log.Info("Tagger is created")
+	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
+		// Main context passed to components, consistent with the one used in the workloadmeta component
+		mainCtx, _ := common.GetMainCtxCancel()
+		return tagger.Start(mainCtx)
+	}})
+	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
+		return tagger.Stop()
+	}})
+
+	return Provides{
+		Comp: tagger,
+		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, request *http.Request) {
+			response := tagger.List()
+			jsonTags, err := json.Marshal(response)
+			if err != nil {
+				httputils.SetJSONError(writer, req.Log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+				return
+			}
+			_, err = writer.Write(jsonTags)
+			if err != nil {
+				req.Log.Errorf("Unable to write tagger list response: %s", err)
+			}
+		}, "/tagger-list", "GET"),
+	}, nil
 }
 
 func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (tagger.Component, error) {
