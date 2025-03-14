@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 fixes:
   - |
-    Fixes panic that occurs with auto multiline enabled, and validates the logs config for invalid syntax.
+    Fixes bugs in the analyze-logs subcommand, and validates the logs config for invalid syntax.
