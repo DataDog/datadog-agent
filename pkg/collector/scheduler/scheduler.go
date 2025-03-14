@@ -48,17 +48,19 @@ type Scheduler struct {
 	started          chan bool                   // Used to internally communicate the queues are up
 	jobQueues        map[time.Duration]*jobQueue // We have one scheduling queue for every interval
 	tlmTrackedChecks map[checkid.ID]string       // Keep track of the checks that are tracked with telemetry
-	mu               sync.Mutex                  // To protect critical sections in struct's fields
 
 	checkToQueue map[checkid.ID]*jobQueue // Keep track of what is the queue for any Check
+
+	cancelOneTime chan bool      // Used to internally communicate a cancel signal to one-time schedule goroutines
+	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
 	// To protect checkToQueue. Using mu would create a deadlock when stopping the Scheduler. 'jobQueue' is calling
 	// 'IsCheckScheduled' right when then 'Stop' function is called and mu is already lock. for this reason we have
 	// to lock: one for the Scheduler and a dedicated one for the 'IsCheckScheduled' method. This way 'jobQueue' and
 	// metadata provider can call 'IsCheckScheduled' without creating a deadlock.
 	checkToQueueMutex sync.RWMutex
 
-	cancelOneTime chan bool      // Used to internally communicate a cancel signal to one-time schedule goroutines
-	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
+	mu sync.Mutex // To protect critical sections in struct's fields
+
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.

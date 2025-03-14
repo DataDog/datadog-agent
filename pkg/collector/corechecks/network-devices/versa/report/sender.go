@@ -13,9 +13,9 @@ import (
 // Sender implements methods for sending Versa metrics and metadata
 type Sender struct {
 	sender       sender.Sender
-	namespace    string
 	lastTimeSent map[string]float64
 	deviceTags   map[string][]string
+	namespace    string
 }
 
 // NewSender returns a new VersaSender

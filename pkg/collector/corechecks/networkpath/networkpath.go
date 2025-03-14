@@ -35,10 +35,10 @@ const CheckName = "network_path"
 
 // Check doesn't need additional fields
 type Check struct {
-	core.CheckBase
-	config        *CheckConfig
 	lastCheckTime time.Time
 	telemetryComp telemetryComp.Component
+	config        *CheckConfig
+	core.CheckBase
 }
 
 // Run executes the check

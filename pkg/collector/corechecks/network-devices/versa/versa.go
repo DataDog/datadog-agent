@@ -29,29 +29,29 @@ const (
 
 // Configuration for the Versa check
 type checkCfg struct {
+	SendNDMMetadata                 *bool `yaml:"send_ndm_metadata"`
+	CollectHardwareMetrics          *bool `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool `yaml:"collect_bgp_neighbor_states"`
 	// add versa specific fields
-	Name                            string `yaml:"name"` // TODO: remove this field, only added it for testing
-	Namespace                       string `yaml:"namespace"`
-	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	Name                  string `yaml:"name"` // TODO: remove this field, only added it for testing
+	Namespace             string `yaml:"namespace"`
+	MinCollectionInterval int    `yaml:"min_collection_interval"`
 }
 
 // VersaCheck contains the fields for the Versa check
 type VersaCheck struct {
-	core.CheckBase
-	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.Sender
+	core.CheckBase
+	interval time.Duration
 }
 
 // Run executes the check

@@ -59,18 +59,18 @@ func (jb *jobBucket) removeJob(id checkid.ID) bool {
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
-	interval            time.Duration
+	lastTick            time.Time
 	stop                chan bool // to stop this queue
 	stopped             chan bool // signals that this queue has stopped
-	buckets             []*jobBucket
 	bucketTicker        *time.Ticker
-	lastTick            time.Time
+	health              *health.Handle
+	buckets             []*jobBucket
+	interval            time.Duration
 	sparseStep          uint
 	currentBucketIdx    uint
 	schedulingBucketIdx uint
-	running             bool
-	health              *health.Handle
 	mu                  sync.RWMutex // to protect critical sections in struct's fields
+	running             bool
 }
 
 // newJobQueue creates a new jobQueue instance

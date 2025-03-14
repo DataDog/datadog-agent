@@ -88,10 +88,10 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 type subnetStatus struct {
 	Subnet         string
 	DeviceScanning string
+	configHash     string
+	DevicesFound   []string
 	DevicesScanned int
 	IpsCount       int
-	DevicesFound   []string
-	configHash     string
 }
 
 func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
@@ -107,7 +107,7 @@ func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 
 		ones, bits := ipNet.Mask.Size()
 		ipsTotalCount := 1 << (bits - ones)
-		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount, autodiscoveryStatus.DevicesFoundList, configHash})
+		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, configHash, autodiscoveryStatus.DevicesFoundList, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount})
 	}
 
 	return discoverySubnetsStatus

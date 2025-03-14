@@ -20,14 +20,15 @@ type EBPFStats struct {
 
 // EBPFMapStats are the basic statistics for ebpf maps
 type EBPFMapStats struct {
+	Name    string
+	Module  string
+	RSS     uint64
+	MaxSize uint64
+	Entries int64 // Allow negative values to indicate that the number of entries could not be calculated
+
 	ID         uint32
 	MaxEntries uint32
-	Name       string
-	Module     string
-	RSS        uint64
-	MaxSize    uint64
 	Type       ebpf.MapType
-	Entries    int64 // Allow negative values to indicate that the number of entries could not be calculated
 
 	// used only for tests
 	NumCPUs uint32
@@ -35,8 +36,6 @@ type EBPFMapStats struct {
 
 // EBPFProgramStats are the basic statistics for ebpf programs
 type EBPFProgramStats struct {
-	ID              uint32
-	XlatedProgLen   uint32
 	Name            string
 	Module          string
 	Tag             string
@@ -44,6 +43,8 @@ type EBPFProgramStats struct {
 	RunCount        uint64
 	RecursionMisses uint64
 	Runtime         time.Duration
+	ID              uint32
+	XlatedProgLen   uint32
 	VerifiedInsns   uint32
 	Type            ebpf.ProgramType
 }
