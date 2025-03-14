@@ -20,6 +20,8 @@ class CIVisibilitySection:
     @staticmethod
     def send_all():
         if running_in_gitlab_ci() and CIVisibilitySection.sections:
+            start_time = time.time()
+            n_sections = len(CIVisibilitySection.sections)
             print('Sending CI visibility sections')
             for section in CIVisibilitySection.sections:
                 try:
@@ -28,6 +30,10 @@ class CIVisibilitySection:
                     print(f'{color_message("ERROR", Color.RED)}: Failed to send CI visibility section {section.name}: {e}')
 
             CIVisibilitySection.sections.clear()
+            end_time = time.time()
+
+            # Create a section to monitor how much time it takes to send sections
+            CIVisibilitySection('send-ci-visibility-sections', start_time, end_time, tags={'agent-category': 'metrics'}, measures={'number-of-sections': n_sections}).send()
 
     @staticmethod
     def create(section_name, start_time: float, end_time: float, tags: dict[str, str] = None, measures: dict[str, float | int] = None):
