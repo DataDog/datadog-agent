@@ -16,10 +16,10 @@ import (
 type MountInfo struct {
 	// Name is the name of the mounted filesystem.
 	Name string `json:"name"`
-	// SizeKB is the size of the mounted filesystem in KB.
-	SizeKB uint64 `json:"kb_size"`
 	// MountedOn is the mount point path of the mounted filesystem.
 	MountedOn string `json:"mounted_on"`
+	// SizeKB is the size of the mounted filesystem in KB.
+	SizeKB uint64 `json:"kb_size"`
 }
 
 // Info represents a list of mounted filesystems.
@@ -57,8 +57,8 @@ func CollectInfo() (Info, error) {
 // getWithTimeout is an internal helper for test purpose
 func getWithTimeout(timeout time.Duration, getFileSystemInfo func() ([]MountInfo, error)) ([]MountInfo, error) {
 	type infoRes struct {
-		data []MountInfo
 		err  error
+		data []MountInfo
 	}
 
 	mountInfoChan := make(chan infoRes, 1)

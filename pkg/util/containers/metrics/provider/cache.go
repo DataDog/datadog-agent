@@ -20,10 +20,10 @@ type cacheEntry struct {
 
 // Cache provides a caching mechanism based on staleness toleration provided by requestor
 type Cache struct {
-	cache       map[string]cacheEntry
-	cacheLock   sync.RWMutex
-	gcInterval  time.Duration
 	gcTimestamp time.Time
+	cache       map[string]cacheEntry
+	gcInterval  time.Duration
+	cacheLock   sync.RWMutex
 }
 
 // NewCache returns a new cache dedicated to a collector

@@ -16,9 +16,9 @@ type ProcessedTrace struct {
 	TracerEnv              string
 	AppVersion             string
 	TracerHostname         string
-	ClientDroppedP0sWeight float64
 	GitCommitSha           string
 	ImageTag               string
+	ClientDroppedP0sWeight float64
 }
 
 // Clone creates a copy of ProcessedTrace, cloning p, p.TraceChunk, and p.Root. This means it is

@@ -20,6 +20,9 @@ import (
 
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
+
+	// tags contains the cached tags in this entry.
+	tags []string
 	// refs is the refcount of this entity.  If this value is zero, then the
 	// entity may be reclaimed in Shrink().
 	//
@@ -27,9 +30,6 @@ type Entry struct {
 	// is not used as a pointer to avoid doubling the number of allocations
 	// required per Entry.
 	refs atomic.Uint64
-
-	// tags contains the cached tags in this entry.
-	tags []string
 }
 
 // SizeInBytes returns the size of the Entry in bytes.
@@ -67,9 +67,9 @@ func (e *Entry) Release() {
 // concurrently with other methods.
 type Store struct {
 	tagsByKey map[ckey.TagsKey]*Entry
+	telemetry storeTelemetry
 	cap       int
 	enabled   bool
-	telemetry storeTelemetry
 }
 
 // NewStore returns new empty Store.

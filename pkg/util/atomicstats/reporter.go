@@ -80,11 +80,11 @@ type reporter struct {
 }
 
 type field struct {
-	// idx is the index of the field in the struct
-	idx int
 
 	// get will get the value from the field
 	get func(f reflect.Value) interface{}
+	// idx is the index of the field in the struct
+	idx int
 }
 
 // getReporter gets an existing reporter to represent the given type, or creates

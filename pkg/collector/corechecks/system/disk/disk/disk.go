@@ -27,14 +27,14 @@ const (
 )
 
 type diskConfig struct {
-	useMount             bool
+	excludedDiskRe       *regexp.Regexp
+	excludedMountpointRe *regexp.Regexp
+	deviceTagRe          map[*regexp.Regexp][]string
 	excludedFilesystems  []string
 	excludedDisks        []string
-	excludedDiskRe       *regexp.Regexp
+	useMount             bool
 	tagByFilesystem      bool
-	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
-	deviceTagRe          map[*regexp.Regexp][]string
 }
 
 func (c *Check) excludeDisk(mountpoint, device, fstype string) bool {

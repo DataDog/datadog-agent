@@ -11,12 +11,12 @@ package ebpftest
 type TraceEvent struct {
 	Raw       string
 	Task      string
-	PID       uint32
 	CPU       string
 	Flags     string
 	Timestamp string
 	Function  string
 	Message   string
+	PID       uint32
 }
 
 func (t TraceEvent) String() string {

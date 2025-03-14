@@ -51,14 +51,14 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg             sync.WaitGroup      // waits for a graceful shutdown
+	cidProvider    IDProvider // container ID provider
+	statsd         statsd.ClientInterface
+	timing         timing.Reporter
 	grpcsrv        *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out            chan<- *Payload     // the outgoing payload channel
 	conf           *config.AgentConfig // receiver config
-	cidProvider    IDProvider          // container ID provider
-	statsd         statsd.ClientInterface
-	timing         timing.Reporter
 	ignoreResNames map[string]struct{}
+	wg             sync.WaitGroup // waits for a graceful shutdown
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.

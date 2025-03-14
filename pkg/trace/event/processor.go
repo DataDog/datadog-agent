@@ -15,8 +15,8 @@ import (
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
 type Processor struct {
-	extractors    []Extractor
 	maxEPSSampler eventSampler
+	extractors    []Extractor
 }
 
 // NewProcessor returns a new instance of Processor configured with the provided extractors and max eps limitation.

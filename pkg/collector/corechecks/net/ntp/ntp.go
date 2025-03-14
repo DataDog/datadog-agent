@@ -48,15 +48,15 @@ var (
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
-	core.CheckBase
-	cfg            *ntpConfig
 	lastCollection time.Time
+	cfg            *ntpConfig
+	core.CheckBase
 }
 
 type ntpInstanceConfig struct {
-	OffsetThreshold        int      `yaml:"offset_threshold"`
 	Host                   string   `yaml:"host"`
 	Hosts                  []string `yaml:"hosts"`
+	OffsetThreshold        int      `yaml:"offset_threshold"`
 	Port                   int      `yaml:"port"`
 	Timeout                int      `yaml:"timeout"`
 	Version                int      `yaml:"version"`
@@ -66,8 +66,8 @@ type ntpInstanceConfig struct {
 type ntpInitConfig struct{}
 
 type ntpConfig struct {
-	instance ntpInstanceConfig
 	initConf ntpInitConfig
+	instance ntpInstanceConfig
 }
 
 func (c *NTPCheck) String() string {

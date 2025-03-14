@@ -17,11 +17,11 @@ import (
 
 // Options contains the options to connect to a MySQL server.
 type Options struct {
+	Dialer        *net.Dialer
 	ServerAddress string
 	Username      string
 	Password      string
 	DatabaseName  string
-	Dialer        *net.Dialer
 	WithTLS       bool
 }
 

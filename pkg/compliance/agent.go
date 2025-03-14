@@ -63,10 +63,6 @@ type AgentOptions struct {
 	// internally. See resolver.go.
 	ResolverOptions
 
-	// ConfigDir is the directory in which benchmarks files and assets are
-	// defined.
-	ConfigDir string
-
 	// Reporter is the output interface of the events that are gathered by the
 	// agent.
 	Reporter *LogReporter
@@ -74,6 +70,18 @@ type AgentOptions struct {
 	// RuleFilter allow specifying a global rule filtering that will be
 	// applied on all loaded benchmarks.
 	RuleFilter RuleFilter
+
+	// SysProbeClient is the HTTP client to allow the execution of benchmarks
+	// from system-probe. see: cmd/system-probe/modules/compliance.go
+	SysProbeClient *http.Client
+
+	// ConfigDir is the directory in which benchmarks files and assets are
+	// defined.
+	ConfigDir string
+
+	// EnabledConfigurationExporters lists configuration exporter that shall be
+	// enabled.
+	EnabledConfigurationExporters []ConfigurationExporter
 
 	// CheckInterval is the period at which benchmarks are being run. It
 	// should also be roughly the interval at which rule checks are being run.
@@ -83,14 +91,6 @@ type AgentOptions struct {
 	// CheckIntervalLowPriority is like CheckInterval but for low-priority
 	// benchmarks.
 	CheckIntervalLowPriority time.Duration
-
-	// EnabledConfigurationExporters lists configuration exporter that shall be
-	// enabled.
-	EnabledConfigurationExporters []ConfigurationExporter
-
-	// SysProbeClient is the HTTP client to allow the execution of benchmarks
-	// from system-probe. see: cmd/system-probe/modules/compliance.go
-	SysProbeClient *http.Client
 }
 
 // ConfigurationExporter is an enum type defining all configuration export
@@ -113,18 +113,19 @@ const (
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
 type Agent struct {
+	opts AgentOptions
+
 	telemetrySender telemetry.SimpleTelemetrySender
 	wmeta           workloadmeta.Component
-	opts            AgentOptions
 
-	telemetry  *telemetry.ContainersTelemetry
-	statuses   map[string]*CheckStatus
-	statusesMu sync.RWMutex
+	telemetry *telemetry.ContainersTelemetry
+	statuses  map[string]*CheckStatus
 
 	finish chan struct{}
 	cancel context.CancelFunc
 
 	k8sManaged *string
+	statusesMu sync.RWMutex
 }
 
 func xccdfEnabled() bool {

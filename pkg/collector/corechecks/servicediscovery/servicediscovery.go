@@ -38,9 +38,9 @@ var newOSImpl func() (osImpl, error)
 
 // Check reports discovered services.
 type Check struct {
-	corechecks.CheckBase
 	os     osImpl
 	sender *telemetrySender
+	corechecks.CheckBase
 }
 
 // Factory creates a new check factory

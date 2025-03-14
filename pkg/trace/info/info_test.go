@@ -345,16 +345,16 @@ func TestInfoReceiverStats(t *testing.T) {
 
 	stats := NewReceiverStats()
 	t1 := &TagStats{
-		Tags{Lang: "python"},
 		Stats{},
+		Tags{Lang: "python"},
 	}
 	t1.Stats.TracesReceived.Store(23)
 	t1.Stats.TracesBytes.Store(3244)
 	t1.Stats.SpansReceived.Store(213)
 	t1.Stats.SpansDropped.Store(14)
 	t2 := &TagStats{
-		Tags{Lang: "go"},
 		Stats{},
+		Tags{Lang: "go"},
 	}
 	stats.Stats = map[Tags]*TagStats{
 		t1.Tags: t1,

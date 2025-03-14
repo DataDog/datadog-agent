@@ -18,11 +18,11 @@ import (
 // Launcher summons different protocol specific listeners based on configuration
 type Launcher struct {
 	pipelineProvider pipeline.Provider
-	frameSize        int
 	tcpSources       chan *sources.LogSource
 	udpSources       chan *sources.LogSource
-	listeners        []startstop.StartStoppable
 	stop             chan struct{}
+	listeners        []startstop.StartStoppable
+	frameSize        int
 }
 
 // NewLauncher returns an initialized Launcher

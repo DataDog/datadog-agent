@@ -67,12 +67,12 @@ var (
 
 // SenderStats contains statistics showing the count of various types of telemetry sent by a check sender
 type SenderStats struct {
-	MetricSamples    int64
-	Events           int64
-	ServiceChecks    int64
-	HistogramBuckets int64
 	// EventPlatformEvents tracks the number of events submitted for each eventType
 	EventPlatformEvents map[string]int64
+	MetricSamples       int64
+	Events              int64
+	ServiceChecks       int64
+	HistogramBuckets    int64
 	// LongRunningCheck is a field that is only set for long running checks
 	// converted to a normal check
 	LongRunningCheck bool
@@ -97,16 +97,17 @@ func (s SenderStats) Copy() (result SenderStats) {
 
 // Stats holds basic runtime statistics about check instances
 type Stats struct {
-	CheckName         string
-	CheckVersion      string
-	CheckConfigSource string
-	CheckLoader       string
-	CheckID           checkid.ID
-	Interval          time.Duration
-	// LongRunning is true if the check is a long running check
-	// converted to a normal check
-	LongRunning              bool
-	Cancelling               bool
+	EventPlatformEvents      map[string]int64
+	TotalEventPlatformEvents map[string]int64
+	CheckName                string
+	CheckVersion             string
+	CheckConfigSource        string
+	CheckLoader              string
+	CheckID                  checkid.ID
+	LastError                string    // error that occurred in the last run, if any
+	LastWarnings             []string  // warnings that occurred in the last run, if any
+	ExecutionTimes           [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	Interval                 time.Duration
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -118,19 +119,18 @@ type Stats struct {
 	TotalEvents              uint64
 	TotalServiceChecks       uint64
 	TotalHistogramBuckets    uint64
-	EventPlatformEvents      map[string]int64
-	TotalEventPlatformEvents map[string]int64
-	ExecutionTimes           [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
-	AverageExecutionTime     int64     // average run duration
-	LastExecutionTime        int64     // most recent run duration, provided for convenience
-	LastSuccessDate          int64     // most recent successful execution date, unix timestamp in seconds
-	LastError                string    // error that occurred in the last run, if any
-	LastDelay                int64     // most recent check start time delay relative to the previous check run, in seconds
-	LastWarnings             []string  // warnings that occurred in the last run, if any
-	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
+	AverageExecutionTime     int64 // average run duration
+	LastExecutionTime        int64 // most recent run duration, provided for convenience
+	LastSuccessDate          int64 // most recent successful execution date, unix timestamp in seconds
+	LastDelay                int64 // most recent check start time delay relative to the previous check run, in seconds
+	UpdateTimestamp          int64 // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
-	Telemetry                bool // do we want telemetry on this Check
-	HASupported              bool
+	// LongRunning is true if the check is a long running check
+	// converted to a normal check
+	LongRunning bool
+	Cancelling  bool
+	Telemetry   bool // do we want telemetry on this Check
+	HASupported bool
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

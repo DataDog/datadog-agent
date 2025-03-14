@@ -22,13 +22,13 @@ import (
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
+	listener         net.Listener
 	source           *sources.LogSource
+	stop             chan struct{}
+	tailers          []*tailer.Tailer
 	idleTimeout      time.Duration
 	frameSize        int
-	listener         net.Listener
-	tailers          []*tailer.Tailer
 	mu               sync.Mutex
-	stop             chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener

@@ -11,10 +11,10 @@ import (
 
 // Entry is a single entry in the connection table.
 type Entry struct {
-	Local, Remote netip.AddrPort
-	Pid           int
-	State         string
 	OSMetadata    OSMetadata
+	Local, Remote netip.AddrPort
+	State         string
+	Pid           int
 }
 
 // Table contains local machine's TCP connection entries.

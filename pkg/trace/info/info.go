@@ -206,22 +206,22 @@ func InitInfo(conf *config.AgentConfig) error {
 // to display when called with `-info` as JSON unmarshaller will
 // automatically ignore extra fields.
 type StatusInfo struct {
-	CmdLine  []string `json:"cmdline"`
-	Pid      string   `json:"pid"`
-	Uptime   int      `json:"uptime"`
-	MemStats struct {
-		Alloc uint64
-	} `json:"memstats"`
-	Version struct {
+	Config        config.AgentConfig `json:"config"`
+	RateByService map[string]float64 `json:"ratebyservice_filtered"`
+	Version       struct {
 		Version   string
 		GitCommit string
 	} `json:"version"`
-	Receiver      []TagStats         `json:"receiver"`
-	RateByService map[string]float64 `json:"ratebyservice_filtered"`
-	TraceWriter   TraceWriterInfo    `json:"trace_writer"`
-	StatsWriter   StatsWriterInfo    `json:"stats_writer"`
-	Watchdog      watchdog.Info      `json:"watchdog"`
-	Config        config.AgentConfig `json:"config"`
+	Pid         string          `json:"pid"`
+	CmdLine     []string        `json:"cmdline"`
+	Receiver    []TagStats      `json:"receiver"`
+	TraceWriter TraceWriterInfo `json:"trace_writer"`
+	StatsWriter StatsWriterInfo `json:"stats_writer"`
+	Watchdog    watchdog.Info   `json:"watchdog"`
+	Uptime      int             `json:"uptime"`
+	MemStats    struct {
+		Alloc uint64
+	} `json:"memstats"`
 }
 
 func getProgramBanner(version string) (string, string) {
@@ -284,9 +284,9 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 
 	var buffer bytes.Buffer
 	err = infoTmpl.Execute(&buffer, struct {
+		Status  *StatusInfo
 		Banner  string
 		Program string
-		Status  *StatusInfo
 	}{
 		Banner:  banner,
 		Program: program,

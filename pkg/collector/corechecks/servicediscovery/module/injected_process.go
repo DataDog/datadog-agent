@@ -11,8 +11,8 @@ package module
 // process.
 type InjectedProcess struct {
 	LocalHostname   string   `msgp:"local_hostname"`
-	InjectedEnv     [][]byte `msgp:"injected_envs"`
 	LanguageName    string   `msgp:"language_name"`
 	TracerVersion   string   `msgp:"tracer_version"`
 	InjectorVersion string   `msgp:"injector_version"`
+	InjectedEnv     [][]byte `msgp:"injected_envs"`
 }

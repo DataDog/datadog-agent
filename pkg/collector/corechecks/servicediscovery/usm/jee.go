@@ -86,8 +86,8 @@ type (
 	jeeDeployment struct {
 		name        string
 		path        string
-		dt          deploymentType
 		contextRoot string
+		dt          deploymentType
 	}
 )
 

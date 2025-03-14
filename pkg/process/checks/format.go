@@ -86,9 +86,9 @@ func HumanFormat(check string, msgs []model.MessageBody, w io.Writer) error {
 
 func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
+		Hostname   string
 		Processes  []*model.Process
 		Containers []*model.Container
-		Hostname   string
 		CPUCount   int
 		Memory     uint64
 	}
@@ -147,9 +147,9 @@ func humanFormatProcess(msgs []model.MessageBody, w io.Writer) error {
 
 func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
+		Hostname       string
 		ProcessStats   []*model.ProcessStat
 		ContainerStats []*model.ContainerStat
-		Hostname       string
 		CPUCount       int
 		Memory         uint64
 	}
@@ -206,8 +206,8 @@ func humanFormatRealTimeProcess(msgs []model.MessageBody, w io.Writer) error {
 
 func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
-		Containers []*model.Container
 		Hostname   string
+		Containers []*model.Container
 		CPUCount   int
 		Memory     uint64
 	}
@@ -250,8 +250,8 @@ func humanFormatContainer(msgs []model.MessageBody, w io.Writer) error {
 
 func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
-		ContainerStats []*model.ContainerStat
 		Hostname       string
+		ContainerStats []*model.ContainerStat
 		CPUCount       int
 		Memory         uint64
 	}
@@ -294,8 +294,8 @@ func humanFormatRealTimeContainer(msgs []model.MessageBody, w io.Writer) error {
 
 func humanFormatProcessDiscovery(msgs []model.MessageBody, w io.Writer) error {
 	var data struct {
-		Discoveries []*model.ProcessDiscovery
 		Hostname    string
+		Discoveries []*model.ProcessDiscovery
 	}
 
 	var (
@@ -340,9 +340,9 @@ func HumanFormatProcessEvents(msgs []model.MessageBody, w io.Writer, checkOutput
 	}
 
 	var data struct {
-		CheckOutput bool
 		Hostname    string
 		Events      []*extendedEvent
+		CheckOutput bool
 	}
 
 	data.CheckOutput = checkOutput

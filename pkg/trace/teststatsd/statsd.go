@@ -18,8 +18,8 @@ import (
 // MetricsArgs represents arguments to a StatsClient Gauge method call.
 type MetricsArgs struct {
 	Name  string
-	Value float64
 	Tags  []string
+	Value float64
 	Rate  float64
 }
 
@@ -41,17 +41,17 @@ var _ statsd.ClientInterface = (*Client)(nil)
 // Client is a mocked StatsClient that records all calls and replies with configurable error return values.
 // Don't create this Client directly. Instead, use the constructor provided through `testutil.WithStatsClient`.
 type Client struct {
-	mu sync.RWMutex
 	statsd.NoOpClient
 
 	GaugeErr       error
-	GaugeCalls     []MetricsArgs
 	CountErr       error
-	CountCalls     []MetricsArgs
 	HistogramErr   error
-	HistogramCalls []MetricsArgs
 	TimingErr      error
+	GaugeCalls     []MetricsArgs
+	CountCalls     []MetricsArgs
+	HistogramCalls []MetricsArgs
 	TimingCalls    []MetricsArgs
+	mu             sync.RWMutex
 }
 
 // Reset resets client's internal records.

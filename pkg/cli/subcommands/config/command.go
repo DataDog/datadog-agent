@@ -28,11 +28,11 @@ import (
 type cliParams struct {
 	GlobalParams
 
-	// source enables detailed information about each source and its value
-	source bool
-
 	// args are the positional command line args
 	args []string
+
+	// source enables detailed information about each source and its value
+	source bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -40,12 +40,12 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
+	SettingsClient       func() (settings.Client, error)
 	ConfFilePath         string
-	ExtraConfFilePaths   []string
 	ConfigName           string
 	LoggerName           string
-	SettingsClient       func() (settings.Client, error)
 	FleetPoliciesDirPath string
+	ExtraConfFilePaths   []string
 }
 
 // MakeCommand returns a `config` command to be used by agent binaries.

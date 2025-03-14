@@ -73,38 +73,55 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
+	lastRun         time.Time
+	realtimeLastRun time.Time
+
 	config pkgconfigmodel.Reader
 
-	probe procutil.Probe
+	probe             procutil.Probe
+	containerProvider proccontainers.ContainerProvider
+
+	wmeta workloadmetacomp.Component
+
+	statsd statsd.ClientInterface
+
+	gpuSubscriber gpusubscriber.Component
 	// scrubber is a DataScrubber to hide command line sensitive words
 	scrubber *procutil.DataScrubber
 
-	// disallowList to hide processes
-	disallowList []*regexp.Regexp
-
-	// determine if zombies process will be collected
-	ignoreZombieProcesses bool
-
 	hostInfo                   *HostInfo
-	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
-	lastRun                    time.Time
-	containerProvider          proccontainers.ContainerProvider
 	lastContainerRates         map[string]*proccontainers.ContainerRateMetrics
 	realtimeLastContainerRates map[string]*proccontainers.ContainerRateMetrics
-	networkID                  string
-
-	realtimeLastCPUTime cpu.TimesStat
-	realtimeLastProcs   map[int32]*procutil.Stats
-	realtimeLastRun     time.Time
+	realtimeLastProcs          map[int32]*procutil.Stats
 
 	notInitializedLogLimit *log.Limit
+
+	sysProbeConfig *SysProbeConfig
+
+	//nolint:revive // TODO(PROC) Fix revive linter
+	lookupIdProbe *LookupIdProbe
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
+
+	serviceExtractor *parser.ServiceExtractor
+
+	sysprobeClient *http.Client
+	networkID      string
+
+	// disallowList to hide processes
+	disallowList []*regexp.Regexp
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	sysProbeConfig *SysProbeConfig
+	extractors []metadata.Extractor
+
+	lastCPUTime cpu.TimesStat
+
+	realtimeLastCPUTime cpu.TimesStat
 
 	maxBatchSize  int
 	maxBatchBytes int
@@ -112,22 +129,8 @@ type ProcessCheck struct {
 	checkCount uint32
 	skipAmount uint32
 
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe
-
-	extractors []metadata.Extractor
-
-	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
-	workloadMetaServer    *workloadmeta.GRPCServer
-
-	serviceExtractor *parser.ServiceExtractor
-
-	wmeta workloadmetacomp.Component
-
-	sysprobeClient *http.Client
-	statsd         statsd.ClientInterface
-
-	gpuSubscriber gpusubscriber.Component
+	// determine if zombies process will be collected
+	ignoreZombieProcesses bool
 }
 
 // Init initializes the singleton ProcessCheck.

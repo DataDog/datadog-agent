@@ -42,11 +42,11 @@ type CLCRunnerClientInterface interface {
 
 // CLCRunnerClient is required to query the API of Datadog Cluster Level Check Runner
 type CLCRunnerClient struct {
-	sync.Once
 	initErr                    error
 	clcRunnerAPIRequestHeaders http.Header
 	clcRunnerAPIClient         *http.Client
 	clcRunnerPort              int
+	sync.Once
 }
 
 // GetCLCRunnerClient returns or init the CLCRunnerClient

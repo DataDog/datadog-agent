@@ -86,12 +86,12 @@ func (c *Config) Parse(data []byte) error {
 
 // Check reports container images
 type Check struct {
-	core.CheckBase
 	workloadmetaStore workloadmeta.Component
 	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
+	core.CheckBase
 }
 
 // Factory returns a new check factory

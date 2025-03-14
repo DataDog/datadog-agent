@@ -29,18 +29,19 @@ import (
 
 // Server is used to implement helloworld.GreeterServer.
 type Server struct {
-	Address string
-	grpcSrv *grpc.Server
-	lis     net.Listener
-
-	savedFeatures []*routeguide.Feature // read-only after initialized
-
-	mu         sync.Mutex // protects routeNotes
-	routeNotes map[string][]*routeguide.RouteNote
-
 	pb.UnimplementedGreeterServer
 	routeguide.UnimplementedRouteGuideServer
 	pbStream.UnimplementedMathServer
+	lis net.Listener
+
+	grpcSrv    *grpc.Server
+	routeNotes map[string][]*routeguide.RouteNote
+
+	Address string
+
+	savedFeatures []*routeguide.Feature // read-only after initialized
+
+	mu sync.Mutex // protects routeNotes
 }
 
 // SayHello implements helloworld.GreeterServer.

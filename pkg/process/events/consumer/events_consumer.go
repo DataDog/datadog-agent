@@ -29,11 +29,12 @@ const (
 // over GRPC when requested
 type ProcessConsumer struct {
 	api.EventMonitoringModuleServer
-	messages        chan *api.ProcessEventMessage
-	maxMessageBurst int
-	expiredEvents   *atomic.Int64
 
-	statsdClient statsd.ClientInterface
+	statsdClient  statsd.ClientInterface
+	messages      chan *api.ProcessEventMessage
+	expiredEvents *atomic.Int64
+
+	maxMessageBurst int
 }
 
 // NewProcessConsumer returns a new ProcessConsumer instance

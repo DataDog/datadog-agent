@@ -77,10 +77,9 @@ type trigger struct {
 // flushTrigger is a trigger used to flush data, results is expected to be written
 // in flushedSeries (or seriesSink depending on the implementation) and flushedSketches.
 type flushTrigger struct {
-	trigger
-
 	sketchesSink metrics.SketchesSink
 	seriesSink   metrics.SerieSink
+	trigger
 }
 
 func createIterableMetrics(

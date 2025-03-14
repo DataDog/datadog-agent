@@ -52,20 +52,20 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	Type          string                 `json:"type"`
 	Configuration map[string]interface{} `json:"configuration"`
+	Info          map[string][]string    `json:"info"`
+	Type          string                 `json:"type"`
 	Status        string                 `json:"status"`
 	Inputs        []string               `json:"inputs"`
 	Messages      []string               `json:"messages"`
-	Info          map[string][]string    `json:"info"`
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 type Tailer struct {
-	//nolint:revive // TODO(AML) Fix revive linter
-	Id   string              `json:"id"`
-	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`
+	//nolint:revive // TODO(AML) Fix revive linter
+	Id   string `json:"id"`
+	Type string `json:"type"`
 }
 
 // Integration provides some information about a logs integration.
@@ -76,15 +76,15 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning           bool              `json:"is_running"`
-	WaitingForSDSConfig bool              `json:"waiting_for_sds_config"`
-	Endpoints           []string          `json:"endpoints"`
 	StatusMetrics       map[string]string `json:"metrics"`
 	ProcessFileStats    map[string]uint64 `json:"process_file_stats"`
+	Endpoints           []string          `json:"endpoints"`
 	Integrations        []Integration     `json:"integrations"`
 	Tailers             []Tailer          `json:"tailers"`
 	Errors              []string          `json:"errors"`
 	Warnings            []string          `json:"warnings"`
+	IsRunning           bool              `json:"is_running"`
+	WaitingForSDSConfig bool              `json:"waiting_for_sds_config"`
 	UseHTTP             bool              `json:"use_http"`
 }
 

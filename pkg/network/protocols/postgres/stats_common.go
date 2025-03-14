@@ -18,9 +18,9 @@ import (
 
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
-	Operation  Operation
 	Parameters string
 	types.ConnectionKey
+	Operation Operation
 }
 
 // NewKey creates a new postgres key

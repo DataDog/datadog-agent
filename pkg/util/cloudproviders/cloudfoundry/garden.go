@@ -70,8 +70,8 @@ type GardenUtilInterface interface {
 
 // GardenUtil wraps interactions with a local garden API.
 type GardenUtil struct {
-	retrier retry.Retrier
 	cli     client.Client
+	retrier retry.Retrier
 }
 
 // GetGardenUtil returns the global instance of the garden utility and initializes it first if needed

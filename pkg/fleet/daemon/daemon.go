@@ -76,18 +76,18 @@ type Daemon interface {
 }
 
 type daemonImpl struct {
-	m        sync.Mutex
 	stopChan chan struct{}
 
 	env             *env.Env
 	installer       func(env *env.Env) installer.Installer
 	rc              *remoteConfig
-	catalog         catalog
-	catalogOverride catalog
 	configs         map[string]installerConfig
 	requests        chan remoteAPIRequest
-	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	catalog         catalog
+	catalogOverride catalog
+	requestsWG      sync.WaitGroup
+	m               sync.Mutex
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -672,9 +672,9 @@ var requestStateKey requestKey
 type requestState struct {
 	Package   string
 	ID        string
-	State     pbgo.TaskState
 	Err       string
 	ErrorCode installerErrors.InstallerErrorCode
+	State     pbgo.TaskState
 }
 
 func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Context) {

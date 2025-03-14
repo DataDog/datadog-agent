@@ -30,10 +30,10 @@ const (
 // ProbabilisticSampler is a sampler that overrides all other samplers,
 // it deterministically samples incoming traces by a hash of their trace ID
 type ProbabilisticSampler struct {
-	enabled                  bool
 	hashSeed                 []byte
-	scaledSamplingPercentage uint32
 	samplingPercentage       float64
+	scaledSamplingPercentage uint32
+	enabled                  bool
 	// fullTraceIDMode looks at the full 128-bit trace ID to make the sampling decision
 	// This can be useful when trying to run this probabilistic sampler alongside the
 	// OTEL probabilistic sampler processor which always looks at the full 128-bit trace id.

@@ -142,10 +142,10 @@ type Client struct {
 
 // Options allows to determine the behavior of the client.
 type Options struct {
-	// DialTimeout the timeout before giving up on a dialing to the server. Set as 0 for the default (currently 5 seconds).
-	DialTimeout time.Duration
 	// CustomDialer allows to modify the underlying dialer used by grpc package. Set nil for the default dialer.
 	CustomDialer *net.Dialer
+	// DialTimeout the timeout before giving up on a dialing to the server. Set as 0 for the default (currently 5 seconds).
+	DialTimeout time.Duration
 }
 
 // NewClient returns a new gRPC client

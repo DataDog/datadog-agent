@@ -75,6 +75,8 @@ const (
 
 // tokenizer provides a stream of tokens for a given URL
 type tokenizer struct {
+	path []byte
+
 	// These variables represent the moving cursors (left and right side
 	// respectively) of the tokenizer. After each "Next()" execution, they will
 	// point to the beginning and end of a segment like the following:
@@ -84,8 +86,6 @@ type tokenizer struct {
 	//           i       j
 	//
 	i, j int
-
-	path []byte
 
 	countAllowedChars int // a-Z, "-", "_"
 	countNumbers      int // 0-9

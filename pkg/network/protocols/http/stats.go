@@ -108,6 +108,9 @@ func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath boo
 type RequestStat struct {
 	// this field order is intentional to help the GC pointer tracking
 	Latencies *ddsketch.DDSketch
+
+	// Dynamic tags (if attached)
+	DynamicTags []string
 	// Note: every time we add a latency value to the DDSketch, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
@@ -121,9 +124,6 @@ type RequestStat struct {
 
 	// Tags bitfields from tags-types.h
 	StaticTags uint64
-
-	// Dynamic tags (if attached)
-	DynamicTags []string
 }
 
 func (r *RequestStat) initSketch() error {

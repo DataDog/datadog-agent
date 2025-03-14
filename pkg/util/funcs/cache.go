@@ -15,10 +15,10 @@ type CachedFunc[T any] interface {
 }
 
 type cachedFunc[T any] struct {
-	mtx    sync.RWMutex
 	fn     func() (*T, error)
 	cb     func()
 	result *T
+	mtx    sync.RWMutex
 }
 
 // Do either returns a cached result, or executes the stored function.

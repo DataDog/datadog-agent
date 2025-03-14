@@ -24,11 +24,12 @@ const maxEPSReportFrequency = 10 * time.Second
 // Note that events associated with traces with UserPriorityKeep are always sampled and don't influence underlying
 // rate counters so as not to skew stats.
 type maxEPSSampler struct {
-	maxEPS      float64
 	rateCounter rateCounter
 
+	statsd statsd.ClientInterface
+
 	reportDone chan bool
-	statsd     statsd.ClientInterface
+	maxEPS     float64
 }
 
 // NewMaxEPSSampler creates a new instance of a maxEPSSampler with the provided maximum amount of events per second.

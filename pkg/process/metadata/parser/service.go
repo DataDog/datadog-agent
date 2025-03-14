@@ -59,16 +59,16 @@ var _ metadata.Extractor = &ServiceExtractor{}
 
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
+	serviceByPID          map[int32]*serviceMetadata
+	scmReader             *scmReader
 	enabled               bool
 	useImprovedAlgorithm  bool
 	useWindowsServiceName bool
-	serviceByPID          map[int32]*serviceMetadata
-	scmReader             *scmReader
 }
 
 type serviceMetadata struct {
-	cmdline        []string
 	serviceContext string
+	cmdline        []string
 }
 
 // WindowsServiceInfo represents service data that is parsed from the SCM. On non-Windows platforms these fields should always be empty.

@@ -13,19 +13,19 @@ import (
 
 // Process holds all relevant metadata and metrics for a process
 type Process struct {
-	Pid      int32
-	Ppid     int32
-	NsPid    int32 // process namespaced PID
+	Stats    *Stats
 	Name     string
 	Cwd      string
 	Exe      string
 	Comm     string
-	Cmdline  []string
 	Username string // (Windows only)
+	Cmdline  []string
 	Uids     []int32
 	Gids     []int32
 
-	Stats *Stats
+	Pid   int32
+	Ppid  int32
+	NsPid int32 // process namespaced PID
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -75,16 +75,6 @@ func (p *Process) DeepCopy() *Process {
 
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
-	CreateTime int64
-	// Status returns the process status.
-	// Return value could be one of these.
-	// R: Running S: Sleep T: Stop I: Idle
-	// Z: Zombie W: Wait L: Lock
-	// The character is the same within all supported platforms.
-	Status      string
-	Nice        int32
-	OpenFdCount int32
-	NumThreads  int32
 	CPUPercent  *CPUPercentStat
 	CPUTime     *CPUTimesStat
 	MemInfo     *MemoryInfoStat
@@ -92,6 +82,16 @@ type Stats struct {
 	IOStat      *IOCountersStat
 	IORateStat  *IOCountersRateStat
 	CtxSwitches *NumCtxSwitchesStat
+	// Status returns the process status.
+	// Return value could be one of these.
+	// R: Running S: Sleep T: Stop I: Idle
+	// Z: Zombie W: Wait L: Lock
+	// The character is the same within all supported platforms.
+	Status      string
+	CreateTime  int64
+	Nice        int32
+	OpenFdCount int32
+	NumThreads  int32
 }
 
 // DeepCopy creates a deep copy of Stats
@@ -137,8 +137,8 @@ func (s *Stats) DeepCopy() *Stats {
 
 // StatsWithPerm is a collection of stats that require elevated permission to collect in linux
 type StatsWithPerm struct {
-	OpenFdCount int32
 	IOStat      *IOCountersStat
+	OpenFdCount int32
 }
 
 // CPUTimesStat holds CPU stat metrics of a process

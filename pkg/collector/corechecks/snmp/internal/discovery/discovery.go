@@ -34,9 +34,9 @@ var (
 
 // Discovery handles snmp discovery states
 type Discovery struct {
-	config    *checkconfig.CheckConfig
-	stop      chan struct{}
-	discDevMu sync.RWMutex
+	agentConfig config.Component
+	config      *checkconfig.CheckConfig
+	stop        chan struct{}
 
 	// TODO: use a new type for device deviceDigest
 	// discoveredDevices contains devices with device deviceDigest as map key
@@ -44,21 +44,17 @@ type Discovery struct {
 	discoveredDevices map[checkconfig.DeviceDigest]Device
 
 	sessionFactory session.Factory
-	agentConfig    config.Component
+	discDevMu      sync.RWMutex
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
 type Device struct {
+	deviceCheck  *devicecheck.DeviceCheck
 	deviceDigest checkconfig.DeviceDigest
 	deviceIP     string
-	deviceCheck  *devicecheck.DeviceCheck
 }
 type snmpSubnet struct {
-	config     *checkconfig.CheckConfig
-	startingIP net.IP
-	network    net.IPNet
-
-	cacheKey string
+	config *checkconfig.CheckConfig
 
 	// discoveredDevices contains devices ip with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
@@ -66,7 +62,13 @@ type snmpSubnet struct {
 
 	// discoveredDevices contains device failures count with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
-	deviceFailures        map[checkconfig.DeviceDigest]int
+	deviceFailures map[checkconfig.DeviceDigest]int
+
+	cacheKey string
+
+	network net.IPNet
+
+	startingIP            net.IP
 	devicesScannedCounter atomic.Uint32
 }
 

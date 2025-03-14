@@ -34,19 +34,19 @@ const (
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
 // is sourced from config files and the environment variables.
 type OrchestratorConfig struct {
-	CollectorDiscoveryEnabled      bool
-	OrchestrationCollectionEnabled bool
-	KubeClusterName                string
-	IsScrubbingEnabled             bool
 	Scrubber                       *redact.DataScrubber
+	KubeClusterName                string
 	OrchestratorEndpoints          []apicfg.Endpoint
+	ExtraTags                      []string
 	MaxPerMessage                  int
 	MaxWeightPerMessageBytes       int
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
-	ExtraTags                      []string
+	ManifestBufferFlushInterval    time.Duration
+	CollectorDiscoveryEnabled      bool
+	OrchestrationCollectionEnabled bool
+	IsScrubbingEnabled             bool
 	IsManifestCollectionEnabled    bool
 	BufferedManifestEnabled        bool
-	ManifestBufferFlushInterval    time.Duration
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil

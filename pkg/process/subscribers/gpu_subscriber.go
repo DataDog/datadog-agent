@@ -19,11 +19,11 @@ import (
 
 // GPUSubscriber is a subscriber that listens for GPU events from workloadmeta
 type GPUSubscriber struct {
-	gpuDetected atomic.Bool
-	gpuEventsCh chan workloadmeta.EventBundle
-	stopCh      chan struct{}
 	wmeta       workloadmeta.Component
 	tagger      tagger.Component
+	gpuEventsCh chan workloadmeta.EventBundle
+	stopCh      chan struct{}
+	gpuDetected atomic.Bool
 }
 
 // NewGPUSubscriber creates a new GPUDetector instance

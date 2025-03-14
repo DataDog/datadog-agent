@@ -19,11 +19,9 @@ import (
 // After the scheduler is started, the tags assigned to the log source can be
 // updated with SetLogsTags.
 type Scheduler struct {
-	// sourceName is the name of the LogSource the scheduler creates
-	sourceName string
 
-	// source is the Source of the LogsConfig the scheduler creates
-	source string
+	// sourceMgr is the schedulers.SourceManager used to add/remove sources
+	sourceMgr schedulers.SourceManager
 
 	// logsChan is the channel carrying messages to be sent to the pipeline
 	logsChan chan *config.ChannelMessage
@@ -31,8 +29,11 @@ type Scheduler struct {
 	// logSource is the source currently managed by the scheduler
 	logSource *sources.LogSource
 
-	// sourceMgr is the schedulers.SourceManager used to add/remove sources
-	sourceMgr schedulers.SourceManager
+	// sourceName is the name of the LogSource the scheduler creates
+	sourceName string
+
+	// source is the Source of the LogsConfig the scheduler creates
+	source string
 }
 
 var _ schedulers.Scheduler = &Scheduler{}

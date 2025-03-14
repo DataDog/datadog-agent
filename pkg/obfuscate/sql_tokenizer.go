@@ -189,18 +189,19 @@ const escapeCharacter = '\\'
 // SQLTokenizer is the struct used to generate SQL
 // tokens for the parser.
 type SQLTokenizer struct {
-	pos      int    // byte offset of lastChar
-	lastChar rune   // last read rune
+	err error // any error occurred while reading
+
+	cfg      *SQLConfig
 	buf      []byte // buf holds the query that we are parsing
+	pos      int    // byte offset of lastChar
 	off      int    // off is the index into buf where the unread portion of the query begins.
-	err      error  // any error occurred while reading
+	lastChar rune   // last read rune
 
 	curlys uint32 // number of active open curly braces in top-level SQL escape sequences.
 
 	literalEscapes bool // indicates we should not treat backslashes as escape characters
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 
-	cfg *SQLConfig
 }
 
 // NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies

@@ -24,6 +24,10 @@ type Settings struct {
 	Env string
 	// Service specifies the service name to attach to a profile.
 	Service string
+	// Tags are the additional tags to attach to profiles.
+	Tags []string
+	// CustomAttributes names of goroutine labels to use as custom attributes in Datadog Profiling UI
+	CustomAttributes []string
 	// Period specifies the interval at which to collect profiles.
 	Period time.Duration
 	// CPUDuration specifies the length at which to collect CPU profiles.
@@ -42,10 +46,6 @@ type Settings struct {
 	WithMutexProfile bool
 	// WithDeltaProfiles specifies if delta profiles are enabled
 	WithDeltaProfiles bool
-	// Tags are the additional tags to attach to profiles.
-	Tags []string
-	// CustomAttributes names of goroutine labels to use as custom attributes in Datadog Profiling UI
-	CustomAttributes []string
 }
 
 func (settings *Settings) String() string {

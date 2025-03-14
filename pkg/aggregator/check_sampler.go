@@ -22,13 +22,13 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
+	metrics                metrics.CheckMetrics
+	contextResolver        *countBasedContextResolver
+	sketchMap              sketchMap
+	lastBucketValue        map[ckey.ContextKey]int64
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
-	contextResolver        *countBasedContextResolver
-	metrics                metrics.CheckMetrics
-	sketchMap              sketchMap
-	lastBucketValue        map[ckey.ContextKey]int64
 	deregistered           bool
 	contextResolverMetrics bool
 }

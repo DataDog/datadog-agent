@@ -40,10 +40,10 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath         string
-	ExtraConfFilePaths   []string
 	ConfigName           string
 	LoggerName           string
 	FleetPoliciesDirPath string
+	ExtraConfFilePaths   []string
 }
 
 // MakeCommand returns a `health` command to be used by agent binaries.

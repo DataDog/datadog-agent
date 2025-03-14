@@ -29,8 +29,8 @@ type CappedSender struct {
 }
 
 type ratePoint struct {
-	value float64
 	time  time.Time
+	value float64
 }
 
 // NewCappedSender returns a capped sender

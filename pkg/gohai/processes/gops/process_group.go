@@ -13,12 +13,12 @@ import (
 
 // ProcessNameGroup represents a group of processes, grouped by name
 type ProcessNameGroup struct {
+	usernames map[string]bool
+	name      string
 	pids      []int32
 	rss       uint64
 	pctMem    float64
 	vms       uint64
-	name      string
-	usernames map[string]bool
 }
 
 // ProcessNameGroups represents a list of ProcessNameGroup.

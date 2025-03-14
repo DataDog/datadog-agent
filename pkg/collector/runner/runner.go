@@ -43,14 +43,14 @@ type Runner struct {
 	senderManager       sender.SenderManager
 	haAgent             haagent.Component
 	isRunning           *atomic.Bool
-	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
-	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
-	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
+	id                  int                           // Globally unique identifier for the Runner
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
+	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
+	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.

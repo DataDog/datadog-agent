@@ -21,13 +21,6 @@ var questionMark = []byte("?")
 // metadataFinderFilter is a filter which attempts to collect metadata from a query, such as comments and tables.
 // It is meant to run before all the other filters.
 type metadataFinderFilter struct {
-	collectTableNames bool
-	collectCommands   bool
-	collectComments   bool
-	replaceDigits     bool
-
-	// size holds the byte size of the metadata collected by the filter.
-	size int64
 	// tablesSeen keeps track of unique table names encountered by the filter.
 	tablesSeen map[string]struct{}
 	// tablesCSV specifies a comma-separated list of tables.
@@ -36,6 +29,13 @@ type metadataFinderFilter struct {
 	commands []string
 	// comments keeps track of comments encountered by the filter.
 	comments []string
+
+	// size holds the byte size of the metadata collected by the filter.
+	size              int64
+	collectTableNames bool
+	collectCommands   bool
+	collectComments   bool
+	replaceDigits     bool
 }
 
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {

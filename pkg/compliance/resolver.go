@@ -85,6 +85,14 @@ func DefaultLinuxAuditProvider(_ context.Context) (LinuxAuditClient, error) {
 // ResolverOptions is an options struct required to instantiate a Resolver
 // instance.
 type ResolverOptions struct {
+
+	// StatsdClient is the statsd client used internally by the compliance
+	// resolver (optional)
+	StatsdClient statsd.ClientInterface
+
+	DockerProvider
+	KubernetesProvider
+	LinuxAuditProvider
 	// Hostname is the name of the host running the resolver.
 	Hostname string
 
@@ -95,14 +103,6 @@ type ResolverOptions struct {
 	// HostRootPID sets the resolving context relative to a specific process
 	// ID (optional)
 	HostRootPID int32
-
-	// StatsdClient is the statsd client used internally by the compliance
-	// resolver (optional)
-	StatsdClient statsd.ClientInterface
-
-	DockerProvider
-	KubernetesProvider
-	LinuxAuditProvider
 }
 
 // Resolver interface defines a generic method to resolve the inputs
@@ -116,24 +116,25 @@ type Resolver interface {
 type defaultResolver struct {
 	opts ResolverOptions
 
-	procsCache         []*process.Process
-	filesCache         []fileMeta
+	dockerCl           docker.CommonAPIClient
+	kubernetesCl       kubedynamic.Interface
+	linuxAuditCl       LinuxAuditClient
 	pkgsCache          map[string]*packageInfo
-	kubeClusterIDCache string
 	kubeResourcesCache *[]*kubemetav1.APIResourceList
 
-	dockerCl                        docker.CommonAPIClient
-	kubernetesCl                    kubedynamic.Interface
 	kubernetesGroupAndResourcesFunc KubernetesGroupsAndResourcesProvider
-	linuxAuditCl                    LinuxAuditClient
+	kubeClusterIDCache              string
+
+	procsCache []*process.Process
+	filesCache []fileMeta
 }
 
 type fileMeta struct {
 	path  string
-	data  []byte
-	perms uint64
 	user  string
 	group string
+	data  []byte
+	perms uint64
 }
 
 // NewResolver returns the default inputs resolver that is able to resolve any

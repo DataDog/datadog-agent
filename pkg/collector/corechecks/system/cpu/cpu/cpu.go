@@ -31,9 +31,9 @@ var getContextSwitches = GetContextSwitches
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	instanceConfig cpuInstanceConfig
-	lastNbCycle    float64
 	lastTimes      cpu.TimesStat
+	lastNbCycle    float64
+	instanceConfig cpuInstanceConfig
 }
 
 type cpuInstanceConfig struct {

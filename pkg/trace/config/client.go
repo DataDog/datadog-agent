@@ -17,12 +17,12 @@ import (
 // ResetClient wraps (http.Client).Do and resets the underlying connections at the
 // configured interval
 type ResetClient struct {
+	lastReset         time.Time
 	httpClientFactory func() *http.Client
+	httpClient        *http.Client
 	resetInterval     time.Duration
 
-	mu         sync.RWMutex
-	httpClient *http.Client
-	lastReset  time.Time
+	mu sync.RWMutex
 }
 
 // NewResetClient returns an initialized Client resetting connections at the passed resetInterval ("0"

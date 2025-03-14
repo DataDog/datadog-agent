@@ -18,9 +18,9 @@ import (
 // Test coverage is ensured by TestClusterChecksRedirect
 type leaderClient struct {
 	http.Client
-	m          sync.Mutex
 	serviceURL string // Common URL to fallback to
 	leaderURL  string // Current leader URL
+	m          sync.Mutex
 }
 
 func newLeaderClient(mainClient *http.Client, serviceURL string) *leaderClient {

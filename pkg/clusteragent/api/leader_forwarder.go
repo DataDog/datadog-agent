@@ -35,8 +35,8 @@ type LeaderForwarder struct {
 	transport http.RoundTripper
 	logger    *stdLog.Logger
 	proxy     *httputil.ReverseProxy
-	proxyLock sync.RWMutex
 	apiPort   string
+	proxyLock sync.RWMutex
 }
 
 // NewLeaderForwarder initializes a new LeaderForwarder instance and is used for test purposes

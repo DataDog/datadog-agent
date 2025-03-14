@@ -31,14 +31,14 @@ const (
 // is that the final data, the one with send after a call to Export(), is correct.
 
 type groupedStats struct {
-	// using float64 here to avoid the accumulation of rounding issues.
-	hits            float64
-	topLevelHits    float64
-	errors          float64
-	duration        float64
 	okDistribution  *ddsketch.DDSketch
 	errDistribution *ddsketch.DDSketch
 	peerTags        []string
+	// using float64 here to avoid the accumulation of rounding issues.
+	hits         float64
+	topLevelHits float64
+	errors       float64
+	duration     float64
 }
 
 // round a float to an int, uniformly choosing
@@ -103,13 +103,14 @@ func newGroupedStats() *groupedStats {
 type RawBucket struct {
 	// This should really have no public fields. At all.
 
-	start    uint64 // timestamp of start in our format
-	duration uint64 // duration of a bucket in nanoseconds
-
 	// this should really remain private as it's subject to refactoring
 	data map[Aggregation]*groupedStats
 
 	containerTagsByID map[string][]string // a map from container ID to container tags
+
+	start    uint64 // timestamp of start in our format
+	duration uint64 // duration of a bucket in nanoseconds
+
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly

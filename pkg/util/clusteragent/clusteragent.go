@@ -48,10 +48,10 @@ type metadataNames []string
 
 // Metadata represents the metadata of a kubernetes resource including its name, namespace, annotations and labels
 type Metadata struct {
-	Name        string
-	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+	Name        string
+	Namespace   string
 }
 
 // DCAClientInterface  is required to query the API of Datadog cluster agent
@@ -78,16 +78,18 @@ type DCAClientInterface interface {
 
 // DCAClient is required to query the API of Datadog cluster agent
 type DCAClient struct {
+	clusterAgentAPIRequestHeaders http.Header
+
+	clusterAgentAPIClient *http.Client
+	leaderClient          *leaderClient
+	clusterAgentVersion   version.Version // Version of the cluster-agent we're connected to
+
+	clusterAgentAPIEndpoint string // ${SCHEME}://${clusterAgentHost}:${PORT}
+
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	clusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
-	clusterAgentAPIRequestHeaders http.Header
-
 	clusterAgentClientLock sync.RWMutex
-	clusterAgentVersion    version.Version // Version of the cluster-agent we're connected to
-	clusterAgentAPIClient  *http.Client
-	leaderClient           *leaderClient
 }
 
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global

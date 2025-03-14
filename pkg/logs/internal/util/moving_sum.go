@@ -22,11 +22,11 @@ type bucket struct {
 
 // MovingSum is a time-based moving sum that uses buckets to calculate the sum over a specified window.
 type MovingSum struct {
+	clock      clock.Clock
 	buckets    []bucket
 	timeWindow time.Duration
 	bucketSize time.Duration
 	currentSum int64
-	clock      clock.Clock
 	lock       sync.Mutex
 }
 

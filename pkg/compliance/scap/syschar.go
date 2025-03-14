@@ -33,8 +33,8 @@ type Object struct {
 
 // Item contains the messages of an OVAL Object's fields.
 type Item struct {
-	ID       string            `json:"id"`
 	Messages map[string]string `json:"messages"`
+	ID       string            `json:"id"`
 }
 
 // SysChar returns the refined system characteristics from a Document.

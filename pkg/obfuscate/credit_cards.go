@@ -11,8 +11,8 @@ import (
 
 // creditCard maintains credit card obfuscation state and processing.
 type creditCard struct {
-	luhn       bool
 	keepValues map[string]struct{}
+	luhn       bool
 }
 
 func newCCObfuscator(config *CreditCardsConfig) *creditCard {
