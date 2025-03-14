@@ -80,12 +80,13 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
             runner = unittest.TextTestRunner(buffer=buffer, verbosity=verbosity)
             res = runner.run(suite)
 
-            # print(res.failures)
+            t = start_time
             for name, duration in res.collectedDurations:
                 print(f'Test {name} took {duration:.2f}s')
-                # TODO: Add tag for error etc.
                 simple_name = name.split(' ')[0]
-                CIVisibilitySection.create(simple_name, start_time, start_time + duration, tags={'test-name': name, 'agent-category': 'invoke-unit-tests'})
+                CIVisibilitySection.create(simple_name, t, t + duration, tags={'test-name': name, 'agent-category': 'invoke-unit-tests'})
+
+                t += duration
 
             return res.wasSuccessful()
     finally:
