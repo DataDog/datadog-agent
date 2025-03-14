@@ -42,6 +42,12 @@ func getLinkProbe(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_filename_create",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook___lookup_hash",
+			},
+		},
 	}
 
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{

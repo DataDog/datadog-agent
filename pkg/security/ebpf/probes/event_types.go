@@ -276,7 +276,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("complete_walk"),
+			}},
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kretprobeOrFexit("filename_create"),
+				kretprobeOrFexit("__lookup_hash"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", fentry, EntryAndExit)},
