@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
@@ -55,6 +56,8 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
 
+	timeout := getWatchdogTimeout()
+
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		return err
@@ -71,7 +74,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 	// now we start our watchdog to make sure the Agent is running
 	// and we can restore the stable Agent if it stops.
-	err = startWatchdog(ctx)
+	err = startWatchdog(ctx, time.Now().Add(time.Duration(timeout)*time.Minute))
 	if err != nil {
 		log.Errorf("Watchdog failed: %s", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a stop-experiment signal
@@ -93,8 +96,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	return nil
 }
 
-func startWatchdog(_ context.Context) error {
-	timeout := time.Now().Add(60 * time.Minute)
+func startWatchdog(_ context.Context, timeout time.Time) error {
 
 	// open events that signal the end of the experiment
 	stopEvent, err := createEvent()
@@ -291,4 +293,30 @@ func setWatchdogStopEvent() error {
 		return fmt.Errorf("Failed to set event: %w", err)
 	}
 	return nil
+}
+
+func getWatchdogTimeout() uint64 {
+	// get optional registry key for watchdog timeout
+	// if not set default to 60 minutes
+	// this is the time the watchdog will run before stopping the experiment
+	// and restoring the stable Agent
+	var timeout uint64 = 60
+
+	// open the registry key
+	keyname := "SOFTWARE\\Datadog\\Datadog Agent"
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		keyname,
+		registry.ALL_ACCESS)
+	if err != nil {
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Windows installation key root not found, using timeout")
+		return timeout
+	}
+	defer k.Close()
+	val, _, err := k.GetIntegerValue("WatchdogTimeout")
+	if err != nil {
+		log.Warnf("Windows installation key wathdogTimeout not found, using default")
+		return timeout
+	}
+	return val
 }
