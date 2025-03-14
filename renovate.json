@@ -34,18 +34,7 @@
         "depNameTemplate": "omnibus-ruby",
         "packageNameTemplate": "https://github.com/DataDog/omnibus-ruby",
         "datasourceTemplate": "git-refs"
-     },
-     {
-        "customType": "regex",
-        "fileMatch": ["release.json"],
-        "matchStrings": [
-          "[ ]+\"OMNIBUS_SOFTWARE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
-        ],
-        "currentValueTemplate": "master",
-        "depNameTemplate": "omnibus-software",
-        "packageNameTemplate": "https://github.com/DataDog/omnibus-software",
-        "datasourceTemplate": "git-refs"
-   }
+     }
     ],
     "customDatasources": {
       "buildimages": {
