@@ -227,7 +227,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not create temporary directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		msiName := fmt.Sprintf("datadog-agent-%s-1-x86_64.msi", version.AgentVersion)
+		msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
 		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)
@@ -236,7 +236,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	}
 
 	// create the installer package
-	err = i.packages.Create(ctx, packageDatadogAgent, version.AgentVersion, path)
+	err = i.packages.Create(ctx, packageDatadogAgent, version.AgentPackageVersion, path)
 	if err != nil {
 		return fmt.Errorf("could not create installer repository: %w", err)
 	}
@@ -244,7 +244,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	// add to the db
 	err = i.db.SetPackage(db.Package{
 		Name:             packageDatadogAgent,
-		Version:          version.AgentVersion,
+		Version:          version.AgentPackageVersion,
 		InstallerVersion: version.AgentVersion,
 	})
 	if err != nil {
