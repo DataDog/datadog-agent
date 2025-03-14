@@ -49,25 +49,25 @@ const (
 
 // RuleEngine defines a rule engine
 type RuleEngine struct {
-	sync.RWMutex
+	AutoSuppression  autosuppression.AutoSuppression
+	apiServer        APIServer
+	statsdClient     statsd.ClientInterface
+	eventSender      events.EventSender
 	config           *config.RuntimeSecurityConfig
 	probe            *probe.Probe
-	apiServer        APIServer
 	reloading        *atomic.Bool
 	rateLimiter      *events.RateLimiter
 	currentRuleSet   *atomic.Value
 	rulesLoaded      func(rs *rules.RuleSet, err *multierror.Error)
+	policyLoader     *rules.PolicyLoader
+	policyMonitor    *monitor.PolicyMonitor
 	policiesVersions []string
 	policyProviders  []rules.PolicyProvider
-	policyLoader     *rules.PolicyLoader
-	policyOpts       rules.PolicyLoaderOpts
-	policyMonitor    *monitor.PolicyMonitor
-	statsdClient     statsd.ClientInterface
-	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
-	AutoSuppression  autosuppression.AutoSuppression
-	pid              uint32
+	policyOpts       rules.PolicyLoaderOpts
 	wg               sync.WaitGroup
+	sync.RWMutex
+	pid uint32
 }
 
 // APIServer defines the API server

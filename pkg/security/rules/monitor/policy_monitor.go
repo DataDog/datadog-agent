@@ -47,11 +47,11 @@ type ruleStatus = map[eval.RuleID]string
 
 // PolicyMonitor defines a policy monitor
 type PolicyMonitor struct {
+	statsdClient statsd.ClientInterface
+	rules        ruleStatus
+	policies     []*policy
 	sync.RWMutex
 
-	statsdClient         statsd.ClientInterface
-	policies             []*policy
-	rules                ruleStatus
 	perRuleMetricEnabled bool
 }
 
@@ -203,11 +203,11 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name   string      `json:"name,omitempty"`
 	Value  interface{} `json:"value,omitempty"`
+	Name   string      `json:"name,omitempty"`
 	Field  string      `json:"field,omitempty"`
-	Append bool        `json:"append,omitempty"`
 	Scope  string      `json:"scope,omitempty"`
+	Append bool        `json:"append,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action

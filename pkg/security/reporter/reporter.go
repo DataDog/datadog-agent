@@ -25,9 +25,9 @@ import (
 
 // RuntimeReporter represents a CWS reporter, used to send events to the intake
 type RuntimeReporter struct {
-	hostname  string
 	logSource *sources.LogSource
 	logChan   chan *message.Message
+	hostname  string
 }
 
 // ReportRaw reports raw (bytes) events to the intake

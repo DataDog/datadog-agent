@@ -33,8 +33,8 @@ func FindStruct(pkg *packages.Package, name string) *types.Struct {
 }
 
 type Field struct {
-	Name    string
 	Handler map[string]string
+	Name    string
 }
 
 var tmpl = `
@@ -196,8 +196,8 @@ func main() {
 		Struct        string
 		StructPackage string
 		Scope         string
-		Fields        []Field
 		Import        string
+		Fields        []Field
 	}{
 		Package:       *flagPkg,
 		Struct:        args[0],

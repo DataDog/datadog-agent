@@ -19,10 +19,10 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name              string
-	accountIDName     string
 	callback          func(context.Context) bool
 	accountIDCallback func(context.Context) (string, error)
+	name              string
+	accountIDName     string
 }
 
 func queryAccountID(ctx context.Context) (string, string, error) {
@@ -51,8 +51,8 @@ func queryAccountID(ctx context.Context) (string, string, error) {
 }
 
 var accountIDTagCache struct {
-	sync.Once
 	value string
+	sync.Once
 }
 
 // QueryAccountIDTag returns the account id tag matching the current deployment

@@ -42,52 +42,72 @@ type Policy struct {
 
 // RuntimeSecurityConfig holds the configuration for the runtime security agent
 type RuntimeSecurityConfig struct {
-	// RuntimeEnabled defines if the runtime security module should be enabled
-	RuntimeEnabled bool
+
+	// # Dynamic configuration fields:
+	// ActivityDumpMaxDumpSize defines the maximum size of a dump
+	ActivityDumpMaxDumpSize func() int
+
+	// AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events
+	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
+	// event.
+	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
+	// HashResolverReplace is used to apply specific hash to specific file path
+	HashResolverReplace map[string]string
+
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
-	// PolicyMonitorEnabled enable policy monitoring
-	PolicyMonitorEnabled bool
-	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
-	PolicyMonitorPerRuleEnabled bool
-	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
-	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// HostServiceName string
+	HostServiceName string
+	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
+	// this field empty to prevent writing any output to disk.
+	ActivityDumpLocalStorageDirectory string
+	// SecurityProfileDir defines the directory in which Security Profiles are stored
+	SecurityProfileDir string
+	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
+	EBPFLessSocket string
+
+	// LogPatterns pattern to be used by the logger for trace level
+	LogPatterns []string
+	// LogTags tags to be used by the logger for trace level
+	LogTags []string
+	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
+	ActivityDumpCgroupsManagers []string
+
+	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
+	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
+	// to this list.
+	ActivityDumpTracedEventTypes []model.EventType
+	// ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
+	ActivityDumpLocalStorageFormats []StorageFormat
+	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
+	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
+	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
+	ActivityDumpWorkloadDenyList []string
+	// SecurityProfileAutoSuppressionEventTypes defines the list of event types the can be auto suppressed using security profiles
+	SecurityProfileAutoSuppressionEventTypes []model.EventType
+
+	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	AnomalyDetectionEventTypes []model.EventType
+	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
+	SBOMResolverAnalyzers []string
+
+	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
+	HashResolverHashAlgorithms []model.HashAlgorithm
+	// HashResolverEventTypes defines the list of event which files may be hashed
+	HashResolverEventTypes []model.EventType
+	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+	SysCtlSnapshotIgnoredBaseNames []string
+
+	EnforcementBinaryExcluded    []string
+	EnforcementRuleSourceAllowed []string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
 	// EventServerRetention defines an event retention period so that some fields can be resolved
 	EventServerRetention time.Duration
-	// FIMEnabled determines whether fim rules will be loaded
-	FIMEnabled bool
-	// SelfTestEnabled defines if the self tests should be executed at startup or not
-	SelfTestEnabled bool
-	// SelfTestSendReport defines if a self test event will be emitted
-	SelfTestSendReport bool
-	// RemoteConfigurationEnabled defines whether to use remote monitoring
-	RemoteConfigurationEnabled bool
-	// RemoteConfigurationDumpPolicies defines whether to dump remote config policy
-	RemoteConfigurationDumpPolicies bool
-	// LogPatterns pattern to be used by the logger for trace level
-	LogPatterns []string
-	// LogTags tags to be used by the logger for trace level
-	LogTags []string
-	// HostServiceName string
-	HostServiceName string
-	// OnDemandEnabled defines whether the on-demand probes should be enabled
-	OnDemandEnabled bool
-	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
-	OnDemandRateLimiterEnabled bool
-	// ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
-	ReducedProcPidCacheSize bool
-
-	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
-	InternalMonitoringEnabled bool
-
-	// ActivityDumpEnabled defines if the activity dump manager should be enabled
-	ActivityDumpEnabled bool
 	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
 	// operation.
 	ActivityDumpCleanupPeriod time.Duration
@@ -102,29 +122,10 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
-	ActivityDumpCgroupsManagers []string
-
-	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
-	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
-	// to this list.
-	ActivityDumpTracedEventTypes []model.EventType
 	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
 	ActivityDumpCgroupDumpTimeout time.Duration
-	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
-	ActivityDumpRateLimiter uint16
 	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
 	ActivityDumpCgroupWaitListTimeout time.Duration
-	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
-	// arguments for dumps.
-	ActivityDumpCgroupDifferentiateArgs bool
-	// ActivityDumpLocalStorageDirectory defines the output directory for the activity dumps and graphs. Leave
-	// this field empty to prevent writing any output to disk.
-	ActivityDumpLocalStorageDirectory string
-	// ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
-	ActivityDumpLocalStorageFormats []StorageFormat
-	// ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
-	ActivityDumpLocalStorageCompression bool
 	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
 	// When the limit is reached, the oldest dumps will be deleted first.
 	ActivityDumpLocalStorageMaxDumpsCount int
@@ -133,31 +134,12 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
-	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
-	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
-	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
-	ActivityDumpWorkloadDenyList []string
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
-	ActivityDumpTagRulesEnabled bool
 	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
 	ActivityDumpSilentWorkloadsDelay time.Duration
 	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
 	ActivityDumpSilentWorkloadsTicker time.Duration
-	// ActivityDumpAutoSuppressionEnabled bool do not send event if part of a dump
-	ActivityDumpAutoSuppressionEnabled bool
-
-	// # Dynamic configuration fields:
-	// ActivityDumpMaxDumpSize defines the maximum size of a dump
-	ActivityDumpMaxDumpSize func() int
-
-	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
-	SecurityProfileEnabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	SecurityProfileMaxImageTags int
-	// SecurityProfileDir defines the directory in which Security Profiles are stored
-	SecurityProfileDir string
-	// SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
-	SecurityProfileWatchDir bool
 	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
 	SecurityProfileCacheSize int
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
@@ -165,21 +147,10 @@ type RuntimeSecurityConfig struct {
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
 
-	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
-	SecurityProfileAutoSuppressionEnabled bool
-	// SecurityProfileAutoSuppressionEventTypes defines the list of event types the can be auto suppressed using security profiles
-	SecurityProfileAutoSuppressionEventTypes []model.EventType
-
-	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
-	AnomalyDetectionEventTypes []model.EventType
 	// AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events
 	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
 	// event.
 	AnomalyDetectionDefaultMinimumStablePeriod time.Duration
-	// AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events
-	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
-	// event.
-	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
 	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
 	// hasn't reached a stable state is considered as unstable.
 	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
@@ -195,72 +166,26 @@ type RuntimeSecurityConfig struct {
 	AnomalyDetectionRateLimiterNumEventsAllowed int
 	// AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
 	AnomalyDetectionRateLimiterNumKeys int
-	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
-	// rules they might have matched.
-	AnomalyDetectionTagRulesEnabled bool
-	// AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
-	AnomalyDetectionSilentRuleEventsEnabled bool
-	// AnomalyDetectionEnabled defines if we should send anomaly detection events
-	AnomalyDetectionEnabled bool
-
-	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
-	SBOMResolverEnabled bool
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
-	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
-	SBOMResolverHostEnabled bool
-	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
-	SBOMResolverAnalyzers []string
-
-	// HashResolverEnabled defines if the hash resolver should be enabled
-	HashResolverEnabled bool
 	// HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash
 	HashResolverMaxFileSize int64
 	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
 	HashResolverMaxHashRate int
-	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
-	HashResolverHashAlgorithms []model.HashAlgorithm
-	// HashResolverEventTypes defines the list of event which files may be hashed
-	HashResolverEventTypes []model.EventType
 	// HashResolverCacheSize defines the number of hashes to keep in cache
 	HashResolverCacheSize int
-	// HashResolverReplace is used to apply specific hash to specific file path
-	HashResolverReplace map[string]string
-
-	// SysCtlEnabled defines if the sysctl event should be enabled
-	SysCtlEnabled bool
-	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
-	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
 	SysCtlSnapshotPeriod time.Duration
-	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
-	SysCtlSnapshotIgnoredBaseNames []string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
 
-	// EBPFLessEnabled enables the ebpfless probe
-	EBPFLessEnabled bool
-	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
-	EBPFLessSocket string
-
-	// Enforcement capabilities
-	// EnforcementEnabled defines if the enforcement capability should be enabled
-	EnforcementEnabled bool
-	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
-	EnforcementRawSyscallEnabled bool
-	EnforcementBinaryExcluded    []string
-	EnforcementRuleSourceAllowed []string
-	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
-	EnforcementDisarmerContainerEnabled bool
 	// EnforcementDisarmerContainerMaxAllowed defines the maximum number of different containers that can trigger an enforcement rule
 	// within a period before the enforcement is disarmed for this rule
 	EnforcementDisarmerContainerMaxAllowed int
 	// EnforcementDisarmerContainerPeriod defines the period during which EnforcementDisarmerContainerMaxAllowed is checked
 	EnforcementDisarmerContainerPeriod time.Duration
-	// EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
-	EnforcementDisarmerExecutableEnabled bool
 	// EnforcementDisarmerExecutableMaxAllowed defines the maximum number of different executables that can trigger an enforcement rule
 	// within a period before the enforcement is disarmed for this rule
 	EnforcementDisarmerExecutableMaxAllowed int
@@ -278,14 +203,97 @@ type RuntimeSecurityConfig struct {
 	//ETWEventsMaxBuffers sets the maximumbuffers argument to ETW
 	ETWEventsMaxBuffers int
 
-	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
-	WindowsProbeBlockOnChannelSend bool
-
 	WindowsWriteEventRateLimiterMaxAllowed int
 	WindowsWriteEventRateLimiterPeriod     time.Duration
 
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
+
+	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
+	ActivityDumpRateLimiter uint16
+	// RuntimeEnabled defines if the runtime security module should be enabled
+	RuntimeEnabled bool
+	// PolicyMonitorEnabled enable policy monitoring
+	PolicyMonitorEnabled bool
+	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
+	PolicyMonitorPerRuleEnabled bool
+	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
+	PolicyMonitorReportInternalPolicies bool
+	// FIMEnabled determines whether fim rules will be loaded
+	FIMEnabled bool
+	// SelfTestEnabled defines if the self tests should be executed at startup or not
+	SelfTestEnabled bool
+	// SelfTestSendReport defines if a self test event will be emitted
+	SelfTestSendReport bool
+	// RemoteConfigurationEnabled defines whether to use remote monitoring
+	RemoteConfigurationEnabled bool
+	// RemoteConfigurationDumpPolicies defines whether to dump remote config policy
+	RemoteConfigurationDumpPolicies bool
+	// OnDemandEnabled defines whether the on-demand probes should be enabled
+	OnDemandEnabled bool
+	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	OnDemandRateLimiterEnabled bool
+	// ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
+	ReducedProcPidCacheSize bool
+
+	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
+	InternalMonitoringEnabled bool
+
+	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	ActivityDumpEnabled bool
+	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
+	// arguments for dumps.
+	ActivityDumpCgroupDifferentiateArgs bool
+	// ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
+	ActivityDumpLocalStorageCompression bool
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
+	ActivityDumpTagRulesEnabled bool
+	// ActivityDumpAutoSuppressionEnabled bool do not send event if part of a dump
+	ActivityDumpAutoSuppressionEnabled bool
+
+	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
+	SecurityProfileEnabled bool
+	// SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
+	SecurityProfileWatchDir bool
+
+	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
+	SecurityProfileAutoSuppressionEnabled bool
+	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
+	// rules they might have matched.
+	AnomalyDetectionTagRulesEnabled bool
+	// AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
+	AnomalyDetectionSilentRuleEventsEnabled bool
+	// AnomalyDetectionEnabled defines if we should send anomaly detection events
+	AnomalyDetectionEnabled bool
+
+	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
+	SBOMResolverEnabled bool
+	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	SBOMResolverHostEnabled bool
+
+	// HashResolverEnabled defines if the hash resolver should be enabled
+	HashResolverEnabled bool
+
+	// SysCtlEnabled defines if the sysctl event should be enabled
+	SysCtlEnabled bool
+	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
+	SysCtlSnapshotEnabled bool
+
+	// EBPFLessEnabled enables the ebpfless probe
+	EBPFLessEnabled bool
+
+	// Enforcement capabilities
+	// EnforcementEnabled defines if the enforcement capability should be enabled
+	EnforcementEnabled bool
+	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
+	EnforcementRawSyscallEnabled bool
+	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
+	EnforcementDisarmerContainerEnabled bool
+	// EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
+	EnforcementDisarmerExecutableEnabled bool
+
+	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	WindowsProbeBlockOnChannelSend bool
 
 	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
 	SendEventFromSystemProbe bool

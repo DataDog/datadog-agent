@@ -13,8 +13,8 @@ import (
 
 // LRUStringInterner is a best-effort LRU-based string deduplicator
 type LRUStringInterner struct {
-	sync.Mutex
 	store *simplelru.LRU[string, string]
+	sync.Mutex
 }
 
 // NewLRUStringInterner returns a new LRUStringInterner, with the cache size provided

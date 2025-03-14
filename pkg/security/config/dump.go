@@ -18,12 +18,12 @@ import (
 
 // StorageRequest is used to request a type of storage for a dump
 type StorageRequest struct {
-	Type        StorageType
-	Format      StorageFormat
-	Compression bool
 
 	// LocalStorage specific parameters
 	OutputDirectory string
+	Type            StorageType
+	Format          StorageFormat
+	Compression     bool
 }
 
 // NewStorageRequest returns a new StorageRequest instance

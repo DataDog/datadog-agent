@@ -36,11 +36,10 @@ func (t *TagStringer) String() string {
 
 // PatternLogger is a wrapper for the agent logger that add a level of filtering to trace log level
 type PatternLogger struct {
-	sync.RWMutex
-
 	tags     []string
 	patterns []string
 	nodes    [][]string
+	sync.RWMutex
 }
 
 func (l *PatternLogger) match(els []string) bool {
