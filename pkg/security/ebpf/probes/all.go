@@ -151,7 +151,6 @@ func AllMaps() []*manager.Map {
 		{Name: "enabled_events"},
 		// Syscall stats monitor (inflight syscall)
 		{Name: "syscalls_stats_enabled"},
-		{Name: "kill_list"},
 		// used by raw packet filters
 		{Name: "raw_packet_event"},
 	}

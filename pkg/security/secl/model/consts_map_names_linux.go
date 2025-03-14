@@ -44,7 +44,6 @@ var bpfMapNames = []string{
 	"io_uring_ctx_pi",
 	"is_discarded_by",
 	"is_new_kthread",
-	"kill_list",
 	"mmap_flags_appr",
 	"mmap_protection",
 	"mount_ref",
