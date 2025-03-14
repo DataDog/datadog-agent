@@ -94,7 +94,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev, name)
+				log.Warnf("device %s does not support collector %s", dev.UUID, name)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
