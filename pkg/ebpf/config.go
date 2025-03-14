@@ -17,38 +17,15 @@ const (
 
 // Config stores all common flags used by system-probe
 type Config struct {
-	// BPFDebug enables bpf debug logs
-	BPFDebug bool
 
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
 
-	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
-	ExcludedBPFLinuxVersions []string
-
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
 
-	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
-	InternalTelemetryEnabled bool
-
-	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
-	EnableTracepoints bool
-
-	// EnableCORE enables the use of CO-RE to load eBPF programs
-	EnableCORE bool
-
 	// BTFPath is the path to BTF data for the current kernel
 	BTFPath string
-
-	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
-	EnableRuntimeCompiler bool
-
-	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
-	EnableKernelHeaderDownload bool
-
-	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
-	KernelHeadersDirs []string
 
 	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
 	KernelHeadersDownloadDir string
@@ -67,6 +44,30 @@ type Config struct {
 
 	// ZypperReposDir is the path to the zypper repository directory
 	ZypperReposDir string
+
+	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
+	ExcludedBPFLinuxVersions []string
+
+	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
+	KernelHeadersDirs []string
+
+	// BPFDebug enables bpf debug logs
+	BPFDebug bool
+
+	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
+	InternalTelemetryEnabled bool
+
+	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
+	EnableTracepoints bool
+
+	// EnableCORE enables the use of CO-RE to load eBPF programs
+	EnableCORE bool
+
+	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompiler bool
+
+	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
+	EnableKernelHeaderDownload bool
 
 	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrebuiltFallback bool
