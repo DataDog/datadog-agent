@@ -27,5 +27,8 @@ var _ common.Initializable = (*RemoteHostAgent)(nil)
 // Init is called by e2e test Suite after the component is provisioned.
 func (a *RemoteHostAgent) Init(ctx common.Context) (err error) {
 	a.Client, err = client.NewHostAgentClientWithParams(ctx, a.HostAgentOutput.Host, a.ClientOptions...)
+	a.Client.UseEnvVars(map[string]string{
+		"GOCOVERDIR": ctx.RemoteCoverageDir(),
+	})
 	return err
 }

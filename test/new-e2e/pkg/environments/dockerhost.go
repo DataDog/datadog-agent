@@ -46,6 +46,9 @@ func (e *DockerHost) SetupCoverage() (string, error) {
 		return "", fmt.Errorf("output does not contain the path to the coverage folder, output: %s", r)
 	}
 	coveragePath := matches[1]
+	e.Agent.Client.UseEnvVars(map[string]string{
+		"GOCOVERDIR": coveragePath,
+	})
 	return coveragePath, nil
 }
 

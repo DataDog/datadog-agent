@@ -36,6 +36,9 @@ func (e *Kubernetes) Init(ctx common.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create k8s agent client: %w", err)
 		}
+		e.Agent.Client.UseEnvVars(map[string]string{
+			"GOCOVERDIR": ctx.RemoteCoverageDir(),
+		})
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import "testing"
 type Context interface {
 	T() *testing.T
 	SessionOutputDir() string
+	RemoteCoverageDir() string
 }
 
 // Initializable defines the interface for an object that needs to be initialized

@@ -28,5 +28,8 @@ var _ common.Initializable = (*DockerAgent)(nil)
 // Init is called by e2e test Suite after the component is provisioned.
 func (a *DockerAgent) Init(ctx common.Context) (err error) {
 	a.Client, err = client.NewDockerAgentClient(ctx, a.DockerAgentOutput, a.ClientOptions...)
+	a.Client.UseEnvVars(map[string]string{
+		"GOCOVERDIR": ctx.RemoteCoverageDir(),
+	})
 	return err
 }

@@ -35,5 +35,6 @@ func (v *agentSuiteEx4) TestLogInfo() {
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")),
 	))
+	v.Env().Agent.Client.Hostname()
 	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 }

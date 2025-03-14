@@ -671,6 +671,11 @@ func (bs *BaseSuite[Env]) SessionOutputDir() string {
 	return bs.outputDir
 }
 
+// RemoteCoverageDir returns the remote coverage directory for tests to store coverage files.
+func (bs *BaseSuite[Env]) RemoteCoverageDir() string {
+	return bs.remoteCoverageDir
+}
+
 // Run is a helper function to run a test suite.
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
