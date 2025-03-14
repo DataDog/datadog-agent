@@ -41,15 +41,15 @@ type containerIDEntry struct {
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
-	mux                sync.Mutex
-	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
-	maxAddrToCtrIDSize int
-	ctrForPid          map[int]*containerIDEntry
-	maxCtrForPidSize   int
-	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
+	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
+	ctrForPid          map[int]*containerIDEntry
+	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	done               chan bool
+	maxAddrToCtrIDSize int
+	maxCtrForPidSize   int
+	mux                sync.Mutex
 }
 
 // NewLocalResolver creates a new LocalResolver

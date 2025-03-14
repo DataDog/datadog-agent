@@ -32,9 +32,9 @@ const (
 
 // SysProbeConfig provides access to system probe configuration
 type SysProbeConfig struct {
-	MaxConnsPerMessage int
 	// System probe collection configuration
 	SystemProbeAddress string
+	MaxConnsPerMessage int
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
 	// System probe network_tracer module on/off configuration
