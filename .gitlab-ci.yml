@@ -1341,15 +1341,15 @@ test-datadog-ci:
     - dda inv -e gitlab.celian
     - dda inv -e gitlab.celian2
 
-# # Unit test of internal python code
-# invoke_unit_tests:
-#   stage: source_test
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#   tags: ["arch:amd64"]
-#   needs: []
-#   # rules:
-#   #   - !reference [.on_invoke_tasks_changes]
-#   script:
-#     - !reference [.setup-datadog-ci-sections]
-#     # - dda inv -e invoke-unit-tests.run-and-profile
-#     - dda inv -e invoke-unit-tests
+# Unit test of internal python code
+celian_invoke_unit_tests:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: []
+  # rules:
+  #   - !reference [.on_invoke_tasks_changes]
+  script:
+    - !reference [.setup-datadog-ci-sections]
+    # - dda inv -e invoke-unit-tests.run-and-profile
+    - dda inv -e invoke-unit-tests
