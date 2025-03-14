@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,7 +71,7 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 	var err error
 	var networkID string
 	if ec2.IsRunningOn(context.TODO()) {
-		networkID, err = cloudproviders.GetNetworkID(context.Background())
+		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
 		if err != nil {
 			log.Errorf("failed to get network ID: %s", err.Error())
 		}
