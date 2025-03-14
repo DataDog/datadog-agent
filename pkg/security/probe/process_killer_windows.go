@@ -19,11 +19,11 @@ var (
 )
 
 // KillFromUserspace tries to kill from userspace
-func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, _ *model.Event) error {
+func (p *ProcessKiller) KillFromUserspace(sig uint32, pc *processContext) error {
 	if sig != model.SIGKILL {
 		return nil
 	}
-	return winutil.KillProcess(int(pid), 0)
+	return winutil.KillProcess(int(pc.pid), 0)
 }
 
 func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]uint32, []string, error) {
