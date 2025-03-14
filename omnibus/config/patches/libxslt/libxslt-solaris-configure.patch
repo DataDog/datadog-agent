@@ -1,0 +1,19 @@
+--- libxslt-1.1.28/configure.in	2016-01-19 13:45:52.000000000 -0800
++++ libxslt-1.1.28/configure	2016-01-19 13:46:11.000000000 -0800
+@@ -12849,11 +12849,11 @@
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking how to pass version script to the linker ($LD)" >&5
+ $as_echo_n "checking how to pass version script to the linker ($LD)... " >&6; }
+ VERSION_SCRIPT_FLAGS=none
+-if $LD --help 2>&1 | grep "version-script" >/dev/null 2>/dev/null; then
+-    VERSION_SCRIPT_FLAGS=-Wl,--version-script=
+-elif $LD --help 2>&1 | grep "M mapfile" >/dev/null 2>/dev/null; then
+-    VERSION_SCRIPT_FLAGS="-Wl,-M -Wl,"
+-fi
++#if $LD --help 2>&1 | grep "version-script" >/dev/null 2>/dev/null; then
++#    VERSION_SCRIPT_FLAGS=-Wl,--version-script=
++#elif $LD --help 2>&1 | grep "M mapfile" >/dev/null 2>/dev/null; then
++#    VERSION_SCRIPT_FLAGS="-Wl,-M -Wl,"
++#fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $VERSION_SCRIPT_FLAGS" >&5
+ $as_echo "$VERSION_SCRIPT_FLAGS" >&6; }
+ 
