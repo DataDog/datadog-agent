@@ -18,10 +18,10 @@ import (
 )
 
 type sctl struct {
-	ttl      time.Duration
 	lastRead time.Time
-	path     string
 	err      error
+	path     string
+	ttl      time.Duration
 }
 
 func newSCtl(sysctl string, cacheFor time.Duration) *sctl {

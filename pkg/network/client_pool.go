@@ -15,14 +15,14 @@ const defaultClientBufferSize = 1024
 // ClientBuffer amortizes the allocations of objects generated when a client
 // calls `GetConnections`.
 type ClientBuffer struct {
-	clientID string
 	*ConnectionBuffer
 	// TODO: consider recycling objects for HTTP and DNS data as well
+	clientID string
 }
 
 type clientBufferPool struct {
-	mux            sync.Mutex
 	bufferByClient map[string]*ClientBuffer
+	mux            sync.Mutex
 }
 
 func (p *clientBufferPool) Get(clientID string) *ClientBuffer {

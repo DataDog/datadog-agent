@@ -26,12 +26,12 @@ type CompileUnits struct {
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/bininfo.go#L436
 // which is licensed under MIT.
 type CompileUnit struct {
+	// debug_info entry describing this compile unit
+	Entry  *dwarf.Entry
+	Ranges [][2]uint64
+	LowPC  uint64
 	// DWARF version of this compile unit
 	Version uint8
-	LowPC   uint64
-	Ranges  [][2]uint64
-	// debug_info entry describing this compile unit
-	Entry *dwarf.Entry
 }
 
 // FindCompileUnit returns the compile unit containing address pc,

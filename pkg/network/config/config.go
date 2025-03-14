@@ -30,7 +30,147 @@ const (
 
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
+
+	// ExcludedSourceConnections is a map of source connections to blacklist
+	ExcludedSourceConnections map[string][]string
+
+	// ExcludedDestinationConnections is a map of destination connections to blacklist
+	ExcludedDestinationConnections map[string][]string
+
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
+
+	// RecordedQueryTypes enables specific DNS query types to be recorded
+	RecordedQueryTypes []string
+
+	// HTTP replace rules
+	HTTPReplaceRules []*ReplaceRule
+
 	ebpf.Config
+
+	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
+	DNSTimeout time.Duration
+
+	// MaxDNSStats determines the number of separate DNS Stats objects DNSStatkeeper can have at any given time
+	// These stats objects get flushed on every client request (default 30s check interval)
+	MaxDNSStats int
+
+	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
+	// value is currently Windows only
+	MaxTrackedHTTPConnections int64
+
+	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling
+	// to be retrieved.  Currently Windows only
+	HTTPNotificationThreshold int64
+
+	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
+	// Currently Windows only
+	HTTPMaxRequestFragment int64
+
+	// UDPConnTimeout determines the length of traffic inactivity between two
+	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
+	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
+	// default.
+	UDPConnTimeout time.Duration
+
+	// UDPStreamTimeout is the timeout for udp streams. This is set to
+	// /proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream on Linux by
+	// default.
+	UDPStreamTimeout time.Duration
+
+	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
+	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
+	// tcp_close is not intercepted for some reason.
+	TCPConnTimeout time.Duration
+
+	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
+	// the agent to flush the connections.  This value only valid on Windows
+	ClosedConnectionFlushThreshold int
+
+	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxDNSStatsBuffered int
+
+	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxHTTPStatsBuffered int
+
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxKafkaStatsBuffered int
+
+	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres.
+	MaxPostgresTelemetryBuffer int
+
+	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxPostgresStatsBuffered int
+
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxRedisStatsBuffered int
+
+	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
+	// the stats for a connection so we can accurately determine traffic change between client requests.
+	MaxConnectionsStateBuffered int
+
+	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
+	ClientStateExpiry time.Duration
+
+	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
+	ConntrackMaxStateSize int
+
+	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
+	// Setting it to -1 disables the limit and can result in a high CPU usage.
+	ConntrackRateLimit int
+
+	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
+	ConntrackRateLimitInterval time.Duration
+
+	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
+	ConntrackInitTimeout time.Duration
+
+	// ClosedChannelSize specifies the size for closed channel for the tracer
+	ClosedChannelSize int
+
+	// ClosedBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up.
+	ClosedBufferWakeupCount int
+
+	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
+	OffsetGuessThreshold uint64
+
+	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
+	MaxProcessesTracked int
+
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+
+	// HTTPMapCleanerInterval is the interval to run the cleaner function.
+	HTTPMapCleanerInterval time.Duration
+
+	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
+	HTTPIdleConnectionTTL time.Duration
+
+	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer, used for either ring buffers or perf maps.
+	USMKernelBufferPages int
+
+	// USMDataChannelSize specifies the size of the data channel for USM, used to temporarily store data from the kernel in user mode before processing.
+	USMDataChannelSize int
+
+	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
+	MaxTrackedConnections uint32
+
+	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
+	// get flushed on every client request (default 30s check interval)
+	MaxClosedConnectionsBuffered uint32
+
+	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
+	// removed from memory as they are matched to closed connections
+	MaxFailedConnectionsBuffered uint32
+
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxUSMConcurrentRequests uint32
 
 	// NPMEnabled is whether the network performance monitoring feature is explicitly enabled or not
 	NPMEnabled bool
@@ -65,13 +205,6 @@ type Config struct {
 	// It is relevant *only* when DNSInspection and CollectDNSStats is enabled.
 	CollectDNSDomains bool
 
-	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
-	DNSTimeout time.Duration
-
-	// MaxDNSStats determines the number of separate DNS Stats objects DNSStatkeeper can have at any given time
-	// These stats objects get flushed on every client request (default 30s check interval)
-	MaxDNSStats int
-
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
@@ -94,9 +227,6 @@ type Config struct {
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
 
-	// EnvoyPath specifies the envoy path to be used for Istio monitoring
-	EnvoyPath string
-
 	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
 	EnableNodeJSMonitoring bool
 
@@ -108,102 +238,12 @@ type Config struct {
 	// hooking the system-probe test binary. Defaults to true.
 	GoTLSExcludeSelf bool
 
-	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
-	// value is currently Windows only
-	MaxTrackedHTTPConnections int64
-
-	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling
-	// to be retrieved.  Currently Windows only
-	HTTPNotificationThreshold int64
-
-	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
-	// Currently Windows only
-	HTTPMaxRequestFragment int64
-
-	// UDPConnTimeout determines the length of traffic inactivity between two
-	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
-	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
-	// default.
-	UDPConnTimeout time.Duration
-
-	// UDPStreamTimeout is the timeout for udp streams. This is set to
-	// /proc/sys/net/netfilter/nf_conntrack_udp_timeout_stream on Linux by
-	// default.
-	UDPStreamTimeout time.Duration
-
-	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
-	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
-	// tcp_close is not intercepted for some reason.
-	TCPConnTimeout time.Duration
-
-	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
-	MaxTrackedConnections uint32
-
-	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
-	// get flushed on every client request (default 30s check interval)
-	MaxClosedConnectionsBuffered uint32
-
-	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
-	// removed from memory as they are matched to closed connections
-	MaxFailedConnectionsBuffered uint32
-
-	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
-	// the agent to flush the connections.  This value only valid on Windows
-	ClosedConnectionFlushThreshold int
-
-	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxDNSStatsBuffered int
-
-	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
-	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
-	MaxUSMConcurrentRequests uint32
-
-	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxHTTPStatsBuffered int
-
-	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxKafkaStatsBuffered int
-
-	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres.
-	MaxPostgresTelemetryBuffer int
-
-	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxPostgresStatsBuffered int
-
-	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
-	// get flushed on every client request (default 30s check interval)
-	MaxRedisStatsBuffered int
-
-	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
-	// the stats for a connection so we can accurately determine traffic change between client requests.
-	MaxConnectionsStateBuffered int
-
-	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
-	ClientStateExpiry time.Duration
-
 	// EnableConntrack enables probing conntrack for network address translation
 	EnableConntrack bool
 
 	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
 	// will fail to start if there is a conntrack initialization failure.
 	IgnoreConntrackInitFailure bool
-
-	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
-	ConntrackMaxStateSize int
-
-	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
-	// Setting it to -1 disables the limit and can result in a high CPU usage.
-	ConntrackRateLimit int
-
-	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
-	ConntrackRateLimitInterval time.Duration
-
-	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
-	ConntrackInitTimeout time.Duration
 
 	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
 	// default is true
@@ -215,51 +255,18 @@ type Config struct {
 	// EnableCiliumLBConntracker enables the cilium load balancer conntracker
 	EnableCiliumLBConntracker bool
 
-	// ClosedChannelSize specifies the size for closed channel for the tracer
-	ClosedChannelSize int
-
-	// ClosedBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up.
-	ClosedBufferWakeupCount int
-
-	// ExcludedSourceConnections is a map of source connections to blacklist
-	ExcludedSourceConnections map[string][]string
-
-	// ExcludedDestinationConnections is a map of destination connections to blacklist
-	ExcludedDestinationConnections map[string][]string
-
-	// OffsetGuessThreshold is the size of the byte threshold we will iterate over when guessing offsets
-	OffsetGuessThreshold uint64
-
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
 
-	// RecordedQueryTypes enables specific DNS query types to be recorded
-	RecordedQueryTypes []string
-
-	// HTTP replace rules
-	HTTPReplaceRules []*ReplaceRule
-
 	// EnableProcessEventMonitoring enables consuming CWS process monitoring events from the runtime security module
 	EnableProcessEventMonitoring bool
-
-	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
-	MaxProcessesTracked int
 
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
-
-	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
-	HTTP2DynamicTableMapCleanerInterval time.Duration
-
-	// HTTPMapCleanerInterval is the interval to run the cleaner function.
-	HTTPMapCleanerInterval time.Duration
-
-	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
-	HTTPIdleConnectionTTL time.Duration
 
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
@@ -294,12 +301,6 @@ type Config struct {
 
 	// CustomBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
 	CustomBatchingEnabled bool
-
-	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer, used for either ring buffers or perf maps.
-	USMKernelBufferPages int
-
-	// USMDataChannelSize specifies the size of the data channel for USM, used to temporarily store data from the kernel in user mode before processing.
-	USMDataChannelSize int
 }
 
 // New creates a config for the network tracer

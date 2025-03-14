@@ -14,12 +14,12 @@ import (
 
 // Version holds SemVer infos for the agent and friends
 type Version struct {
-	Major  int64
-	Minor  int64
-	Patch  int64
 	Pre    string
 	Meta   string
 	Commit string
+	Major  int64
+	Minor  int64
+	Patch  int64
 }
 
 var versionRx = regexp.MustCompile(`(\d+\.\d+\.\d+)(\-[^\+]+)*(\+.+)*`)

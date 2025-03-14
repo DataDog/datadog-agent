@@ -19,10 +19,11 @@ import (
 
 // Options is a struct to hold the options for the amqp client
 type Options struct {
+	Dialer *net.Dialer
+
 	ServerAddress string
 	Username      string
 	Password      string
-	Dialer        *net.Dialer
 
 	// WithTLS indicates whether the connection should be made using TLS
 	WithTLS bool
@@ -30,11 +31,11 @@ type Options struct {
 
 // Client is a wrapper around the amqp client
 type Client struct {
-	opts           Options
 	PublishConn    *amqp.Connection
 	PublishChannel *amqp.Channel
 	ConsumeConn    *amqp.Connection
 	ConsumeChannel *amqp.Channel
+	opts           Options
 }
 
 // NewClient creates a new amqp client
