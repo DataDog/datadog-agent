@@ -53,8 +53,7 @@ func TestDiscovery(t *testing.T) {
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:         "192.168.0.0/29",
-		CommunityString: "public",
+		Network: "192.168.0.0/29",
 		Authentications: []checkconfig.Authentication{
 			{
 				CommunityString: "public",
@@ -344,8 +343,12 @@ func TestDiscovery_createDevice(t *testing.T) {
 	config.SetWithoutSource("run_path", t.TempDir())
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:                  "192.168.0.0/32",
-		CommunityString:          "public",
+		Network: "192.168.0.0/32",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval:        1,
 		DiscoveryWorkers:         1,
 		DiscoveryAllowedFailures: 3,
