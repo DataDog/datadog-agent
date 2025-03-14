@@ -196,7 +196,7 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 	}
 	for _, config := range allConfigs {
 		if len(config.LogsConfig) == 0 {
-			fmt.Println("Logs config is not configured for this check")
+			fmt.Println("Logs collection is not configured for this check")
 		}
 		if config.Name != cliParams.LogConfigPath {
 			continue
