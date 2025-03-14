@@ -284,3 +284,39 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     # Remove the local archive
     print(color_message(f'Successfully extracted coverage cache from {downloaded_archive}', Color.GREEN))
     os.remove(downloaded_archive)
+
+@task
+def get_covered_files(ctx: Context, coverage_file: str) -> list[str]:
+    """
+    Get the list of covered files from the coverage file.
+    """
+    with open(coverage_file, encoding='utf-8') as cov:
+        cov_lines = cov.readlines()
+    covered_files = set()
+    for line in cov_lines:
+        if line.startswith("mode: atomic"):
+            continue
+        file_path = line.split(':')[0]
+
+        if line.split(" ")[-1].strip() != "0":
+            covered_files.add(file_path)
+
+    # for file in covered_files:
+    #     print("  - "+file)
+    return covered_files
+
+@task
+def diff_covered_files(ctx: Context, coverage_file: str, previous_coverage_file: str):
+    """
+    Diff the covered files between two coverage files.
+    """
+    covered_files = get_covered_files(ctx, coverage_file)
+    print("Len covered files: "+str(len(covered_files)))    
+    previous_covered_files = get_covered_files(ctx, previous_coverage_file)
+    print("Len previous covered files: "+str(len(previous_covered_files)))
+    diff = covered_files - previous_covered_files
+    print("Diff: "+str(len(diff)))
+    diff = list(diff)
+    diff.sort()
+    for file in diff:
+        print("  - "+file)
