@@ -33,8 +33,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
@@ -1818,9 +1818,17 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				defer cancel()
 				res := collection.FindOne(timedContext, bson.M{"test": "test"})
 				require.NoError(t, res.Err())
-				var output map[string]string
-				require.NoError(t, res.Decode(&output))
-				delete(output, "_id")
+				var outputTmp map[string]interface{}
+				require.NoError(t, res.Decode(&outputTmp))
+				delete(outputTmp, "_id")
+
+				output := make(map[string]string)
+				for key, value := range outputTmp {
+					if str, ok := value.(string); ok {
+						output[key] = str
+					}
+				}
+
 				require.EqualValues(t, output, ctx.extras["input"])
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
