@@ -65,15 +65,15 @@ func GetAlertTypeFromString(val string) (AlertType, error) {
 type Event struct {
 	Title          string                 `json:"msg_title"`
 	Text           string                 `json:"msg_text"`
-	Ts             int64                  `json:"timestamp"`
 	Priority       Priority               `json:"priority,omitempty"`
 	Host           string                 `json:"host"`
-	Tags           []string               `json:"tags,omitempty"`
 	AlertType      AlertType              `json:"alert_type,omitempty"`
 	AggregationKey string                 `json:"aggregation_key,omitempty"`
 	SourceTypeName string                 `json:"source_type_name,omitempty"`
 	EventType      string                 `json:"event_type,omitempty"`
 	OriginInfo     taggertypes.OriginInfo `json:"-"` // OriginInfo is not serialized, it's used for origin detection
+	Tags           []string               `json:"tags,omitempty"`
+	Ts             int64                  `json:"timestamp"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling

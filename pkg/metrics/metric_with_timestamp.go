@@ -7,8 +7,8 @@ package metrics
 
 // MetricWithTimestamp allows sending metric values with a given timestamp
 type MetricWithTimestamp struct {
-	apiType APIMetricType
 	points  []Point
+	apiType APIMetricType
 }
 
 // NewMetricWithTimestamp returns a new MetricWithTimestamp with the given API type

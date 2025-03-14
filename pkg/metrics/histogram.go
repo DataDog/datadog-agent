@@ -31,8 +31,8 @@ func (w weightSamples) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 type Histogram struct {
 	aggregates  []string // aggregates configured on this histogram
 	percentiles []int    // percentiles configured on this histogram, each in the 1-100 range
-	interval    int64    // interval over which the `count` value is normalized (bucket interval for Dogstatsd, 1 otherwise)
 	samples     weightSamples
+	interval    int64 // interval over which the `count` value is normalized (bucket interval for Dogstatsd, 1 otherwise)
 	sum         float64
 	count       int64
 }

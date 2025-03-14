@@ -48,11 +48,11 @@ func (s ServiceCheckStatus) String() string {
 type ServiceCheck struct {
 	CheckName  string                 `json:"check"`
 	Host       string                 `json:"host_name"`
+	Message    string                 `json:"message"`
+	OriginInfo taggertypes.OriginInfo `json:"-"` // OriginInfo is not serialized, it's used for origin detection
+	Tags       []string               `json:"tags"`
 	Ts         int64                  `json:"timestamp"`
 	Status     ServiceCheckStatus     `json:"status"`
-	Message    string                 `json:"message"`
-	Tags       []string               `json:"tags"`
-	OriginInfo taggertypes.OriginInfo `json:"-"` // OriginInfo is not serialized, it's used for origin detection
 }
 
 func (sc ServiceCheck) String() string {

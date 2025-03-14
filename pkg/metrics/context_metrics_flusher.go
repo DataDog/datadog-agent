@@ -10,8 +10,8 @@ import (
 )
 
 type timestampedContextMetrics struct {
-	bucketTimestamp float64
 	contextMetrics  ContextMetrics
+	bucketTimestamp float64
 }
 
 // ContextMetricsFlusher sorts Metrics by context key, in a streaming fashion.

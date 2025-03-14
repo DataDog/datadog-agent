@@ -44,11 +44,11 @@ var (
 // after expiration, as a precaution against checks that send metrics intermittently.
 // Older stateful metrics need to be cleaned up by calling RemoveExpired().
 type CheckMetrics struct {
-	expireMetrics bool
+	metrics   ContextMetrics
+	deadlines map[ckey.ContextKey]float64
 	// additional time to keep stateful metrics in memory, after the context key has expired
 	statefulTimeout float64
-	metrics         ContextMetrics
-	deadlines       map[ckey.ContextKey]float64
+	expireMetrics   bool
 }
 
 // NewCheckMetrics returns new CheckMetrics instance.
