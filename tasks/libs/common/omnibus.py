@@ -216,11 +216,8 @@ def omnibus_compute_cache_key(ctx):
     # Omnibus ruby & software versions can be forced through the environment
     # so we need to read it from there first, and fallback to release.json
     omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
-    omnibus_software_commit = os.getenv('OMNIBUS_SOFTWARE_VERSION', _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION'))
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
-    print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))
-    h.update(str.encode(omnibus_software_commit))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')

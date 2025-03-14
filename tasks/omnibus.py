@@ -103,7 +103,7 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
