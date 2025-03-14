@@ -1181,6 +1181,25 @@ setup_agent_version:
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
   needs: []
 
+go_e2e_deps:
+  extends: .cache
+  script:
+    - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
+    - dda inv -e new-e2e-tests.deps
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_e2e.tar.xz
+  cache:
+    - key:
+        files:
+          - ./test/new-e2e/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "go_e2e_deps_modcache"
+      paths:
+        - modcache_e2e.tar.xz
+
 e2e_pre_test:
   stage: e2e_pre_test
   extends: .new_e2e_template
