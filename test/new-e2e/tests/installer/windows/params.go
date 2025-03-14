@@ -118,7 +118,7 @@ func WithMSILogFile(filename string) MsiOption {
 	}
 }
 
-// WithDevEnvOverrides applies overrides to the package config based on environment variables.
+// WithMSIDevEnvOverrides applies overrides to the MSI source config based on environment variables.
 //
 // Example: local MSI package file
 //
@@ -128,24 +128,32 @@ func WithMSILogFile(filename string) MsiOption {
 //
 //	export CURRENT_AGENT_MSI_PIPELINE="123456"
 //
-// Example: from a different pipeline
-// (assumes that the package being overridden is already from a pipeline)
+// Example: stable version from installers_v2.json
 //
-//	export CURRENT_AGENT_MSI_VERSION="pipeline-123456"
+//	export CURRENT_AGENT_MSI_VERSION=7.60.0-1"
 //
 // Example: custom URL
 //
-//	export CURRENT_AGENT_MSI_URL="msi://installtesting.datad0g.com/agent-package:pipeline-123456"
+//	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
 func WithMSIDevEnvOverrides(prefix string) MsiOption {
 	return func(params *MsiParams) error {
 		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", prefix)); ok {
-			WithOption(WithInstallerURL(url))(params)
+			err := WithOption(WithInstallerURL(url))(params)
+			if err != nil {
+				return err
+			}
 		}
 		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", prefix)); ok {
-			WithOption(WithURLFromPipeline(pipeline))(params)
+			err := WithOption(WithURLFromPipeline(pipeline))(params)
+			if err != nil {
+				return err
+			}
 		}
 		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", prefix)); ok {
-			WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
+			err := WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}

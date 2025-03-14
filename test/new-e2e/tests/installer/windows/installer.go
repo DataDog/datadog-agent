@@ -368,6 +368,9 @@ type TestPackageConfig struct {
 	urloverride string
 }
 
+// URL returns the OCI URL of the package
+//
+// It may begin with `file://` if the package is local.
 func (c TestPackageConfig) URL() string {
 	if c.urloverride != "" {
 		// if the URL had been overridden, use it
@@ -463,21 +466,36 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		// env vars for convenience
 		if url, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_URL", prefix)); ok {
-			WithURLOverride(url)(params)
+			err := WithURLOverride(url)(params)
+			if err != nil {
+				return err
+			}
 		}
 		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_PIPELINE", prefix)); ok {
-			WithPipeline(pipeline)(params)
+			err := WithPipeline(pipeline)(params)
+			if err != nil {
+				return err
+			}
 		}
 
 		// env vars for specific fields
 		if version, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_VERSION", prefix)); ok {
-			WithVersion(version)(params)
+			err := WithVersion(version)(params)
+			if err != nil {
+				return err
+			}
 		}
 		if registry, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_REGISTRY", prefix)); ok {
-			WithRegistry(registry)(params)
+			err := WithRegistry(registry)(params)
+			if err != nil {
+				return err
+			}
 		}
 		if auth, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_AUTH", prefix)); ok {
-			WithAuthentication(auth)(params)
+			err := WithAuthentication(auth)(params)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}

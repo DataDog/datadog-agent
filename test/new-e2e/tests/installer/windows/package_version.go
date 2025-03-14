@@ -32,12 +32,14 @@ func NewVersionFromPackageVersion(packageVersion string) PackageVersion {
 	}
 }
 
+// PackageEntry is a struct to represent a package entry in the catalog
 type PackageEntry struct {
 	Package string `json:"package"`
 	Version string `json:"version"`
 	URL     string `json:"url"`
 }
 
+// Catalog is a struct to represent a catalog of packages, used with the set-catalog subcommand
 type Catalog struct {
 	Packages []PackageEntry `json:"packages"`
 }
