@@ -141,6 +141,7 @@ use (
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
+	pkg/util/otel
 	pkg/util/pointer
 	pkg/util/prometheus
 	pkg/util/scrubber

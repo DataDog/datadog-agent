@@ -270,6 +270,8 @@ modules:
     used_by_otel: true
   pkg/util/option:
     used_by_otel: true
+  pkg/util/otel:
+    used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true
   pkg/util/prometheus: default

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -81,6 +82,7 @@ type Exporter struct {
 	params          exporter.Settings
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
+	gatewayUsage    otel.GatewayUsage
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -147,6 +149,7 @@ func NewExporter(
 	tr *metrics.Translator,
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
+	gatewayUsage otel.GatewayUsage,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -172,6 +175,7 @@ func NewExporter(
 		params:          params,
 		hostmetadata:    cfg.HostMetadata,
 		reporter:        reporter,
+		gatewayUsage:    gatewayUsage,
 	}, nil
 }
 
@@ -185,7 +189,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		}
 	}
 	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
-	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, nil)
+	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
 	}
@@ -196,6 +200,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addGatewayUsage(hostname, e.gatewayUsage)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

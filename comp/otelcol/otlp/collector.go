@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -117,7 +118,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	}
 
 	if logsAgentChannel != nil {
-		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel, otel.NewDisabledGatewayUsage()))
 	}
 
 	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](exporterFactories...)
