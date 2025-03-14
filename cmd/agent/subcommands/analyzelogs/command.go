@@ -99,7 +99,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
 	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
@@ -163,7 +162,8 @@ func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.Lo
 
 	sources, err = resolveCheckConfig(ac, cliParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve check config: %w", err)
+		fmt.Println("Invalid check name OR config path, please make sure the check/config is properly set up")
+		return nil, err
 	}
 	return sources, nil
 }
