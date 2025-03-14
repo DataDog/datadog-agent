@@ -19,8 +19,6 @@ import (
 // This must be a distinct type from schedulers, since both types implement
 // interfaces with different Stop methods.
 type ADListener struct {
-	// name is the name of this listener
-	name string
 
 	// ac is the AutoConfig instance
 	ac autodiscovery.Component
@@ -28,6 +26,8 @@ type ADListener struct {
 	// schedule and unschedule are the functions to which Schedule and
 	// Unschedule calls should be proxied.
 	schedule, unschedule func([]integration.Config)
+	// name is the name of this listener
+	name string
 }
 
 var _ scheduler.Scheduler = &ADListener{}

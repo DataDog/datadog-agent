@@ -25,14 +25,14 @@ import (
 const autoMultiLineTelemetryMetricName = "datadog.logs_agent.auto_multi_line"
 
 type scoredPattern struct {
-	score  int
 	regexp *regexp.Regexp
+	score  int
 }
 
 // DetectedPattern is a container to safely access a detected multiline pattern
 type DetectedPattern struct {
-	sync.Mutex
 	pattern *regexp.Regexp
+	sync.Mutex
 }
 
 // Set sets the pattern
@@ -52,24 +52,24 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 // LegacyAutoMultilineHandler can attempts to detect a known/commob pattern (a timestamp) in the logs
 // and will switch to a MultiLine handler if one is detected and the thresholds are met.
 type LegacyAutoMultilineHandler struct {
+	clk                 clock.Clock
 	multiLineHandler    *MultiLineHandler
 	singleLineHandler   *SingleLineHandler
 	outputFn            func(*message.Message)
-	isRunning           bool
+	processFunc         func(message *message.Message)
+	source              *sources.ReplaceableSource
+	timeoutTimer        *clock.Timer
+	detectedPattern     *DetectedPattern
+	autoMultiLineStatus *status.MappedInfo
+	tailerInfo          *status.InfoRegistry
+	scoredMatches       []*scoredPattern
 	linesToAssess       int
 	linesTested         int
 	lineLimit           int
 	matchThreshold      float64
-	scoredMatches       []*scoredPattern
-	processFunc         func(message *message.Message)
 	flushTimeout        time.Duration
-	source              *sources.ReplaceableSource
 	matchTimeout        time.Duration
-	timeoutTimer        *clock.Timer
-	detectedPattern     *DetectedPattern
-	clk                 clock.Clock
-	autoMultiLineStatus *status.MappedInfo
-	tailerInfo          *status.InfoRegistry
+	isRunning           bool
 }
 
 // NewLegacyAutoMultilineHandler returns a new LegacyAutoMultilineHandler.

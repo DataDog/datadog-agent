@@ -85,18 +85,18 @@ type chooser struct {
 	// choice carries the result, once it is known.
 	choice chan LogWhat
 
+	// kubeletReady determines if kubelet is ready, or how long to wait
+	kubeletReady func() (bool, time.Duration)
+
+	// dockerReady determines if dockerutil is ready, or how long to wait
+	dockerReady func() (bool, time.Duration)
+
 	// m covers the 'started' field
 	m sync.Mutex
 
 	// if started is true, then the process of choosing has begun
 	// and it is safe to wait for a value in `choice`.
 	started bool
-
-	// kubeletReady determines if kubelet is ready, or how long to wait
-	kubeletReady func() (bool, time.Duration)
-
-	// dockerReady determines if dockerutil is ready, or how long to wait
-	dockerReady func() (bool, time.Duration)
 }
 
 // NewChooser returns a new Chooser.

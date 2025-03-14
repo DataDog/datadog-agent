@@ -19,23 +19,24 @@ const defaultMatchThreshold = 0.75
 
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
-	// Sample is a raw log message sample used to aggregate logs.
-	Sample string `mapstructure:"sample"`
 	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
 	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
 	// Optional - Default value is 0.75.
 	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty"`
-	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
-	Regex string `mapstructure:"regex,omitempty"`
 	// Label is the label to apply to the log message if it matches the sample.
 	// Optional - Default value is "start_group".
 	Label *string `mapstructure:"label,omitempty"`
+
+	compiledRegex *regexp.Regexp
+	// Sample is a raw log message sample used to aggregate logs.
+	Sample string `mapstructure:"sample"`
+	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
+	Regex string `mapstructure:"regex,omitempty"`
 
 	// Parse fields
 	tokens         []tokens.Token
 	matchThreshold float64
 	label          Label
-	compiledRegex  *regexp.Regexp
 }
 
 // UserSamples is a heuristic that represents a collection of user-defined samples for auto multi-line aggreagtion.

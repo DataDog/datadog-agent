@@ -36,24 +36,24 @@ const DefaultSleepDuration = 1 * time.Second
 // or update the old ones if needed
 type Launcher struct {
 	pipelineProvider    pipeline.Provider
+	registry            auditor.Registry
+	tagger              tagger.Component
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
-	activeSources       []*sources.LogSource
-	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
-	rotatedTailers      []*tailer.Tailer
-	registry            auditor.Registry
-	tailerSleepDuration time.Duration
 	stop                chan struct{}
 	done                chan struct{}
+	flarecontroller     *flareController.FlareController
+	activeSources       []*sources.LogSource
+	rotatedTailers      []*tailer.Tailer
+	tailingLimit        int
+	tailerSleepDuration time.Duration
+	scanPeriod          time.Duration
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
-	scanPeriod             time.Duration
-	flarecontroller        *flareController.FlareController
-	tagger                 tagger.Component
 }
 
 // NewLauncher returns a new launcher.
