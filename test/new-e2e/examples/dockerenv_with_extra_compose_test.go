@@ -51,7 +51,7 @@ func (v *dockerSuiteWithExtraCompose) TestListContainers() {
 
 func (v *dockerSuiteWithExtraCompose) TestExecuteCommandStdoutStdErr() {
 	t := v.T()
-	stdout, stderr, err := v.Env().Docker.Client.ExecuteCommandStdoutStdErr("fake-process", "echo", "hello")
+	stdout, stderr, err := v.Env().Docker.Client.ExecuteCommandStdoutStdErr("fake-process", []string{"echo", "hello"})
 	require.NoError(t, err)
 	assert.Equal(t, "hello", strings.Trim(stdout, "\n"))
 	assert.Empty(t, stderr)

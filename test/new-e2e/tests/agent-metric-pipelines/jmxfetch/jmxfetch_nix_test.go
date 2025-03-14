@@ -180,7 +180,7 @@ func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXFIPSMode() {
-	env, err := j.Env().Docker.Client.ExecuteCommandWithErr(j.Env().Agent.ContainerName, "env")
+	env, err := j.Env().Docker.Client.ExecuteCommandWithErr(j.Env().Agent.ContainerName, []string{"env"})
 	require.NoError(j.T(), err)
 	if j.fips {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")

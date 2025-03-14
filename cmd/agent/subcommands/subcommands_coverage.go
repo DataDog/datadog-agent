@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !e2ecoverage
+//go:build e2ecoverage
 
 // Package subcommands defines the agent subcommands.
 package subcommands
@@ -15,6 +15,7 @@ import (
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
+	cmdcoverage "github.com/DataDog/datadog-agent/cmd/agent/subcommands/coverage"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose"
 	cmddogstatsd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsd"
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
@@ -76,5 +77,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
 		cmdprocesschecks.Commands,
+		cmdcoverage.Commands,
 	}
 }

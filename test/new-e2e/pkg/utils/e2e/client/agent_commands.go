@@ -19,6 +19,7 @@ import (
 )
 
 type agentCommandExecutor interface {
+	useEnvVars(envVars map[string]string)
 	execute(arguments []string) (string, error)
 }
 
@@ -101,6 +102,11 @@ func (agent *agentCommandRunner) ConfigWithError(commandArgs ...agentclient.Agen
 	return agent.executor.execute(arguments)
 }
 
+// Coverage runs coverage command and returns the runtime Agent coverage
+func (agent *agentCommandRunner) CoverageWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("coverage", commandArgs...)
+}
+
 // Diagnose runs diagnose command and returns its output
 func (agent *agentCommandRunner) Diagnose(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("diagnose", commandArgs...)
@@ -178,6 +184,10 @@ func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption)
 	return &agentclient.Status{
 		Content: status,
 	}, err
+}
+
+func (agent *agentCommandRunner) UseEnvVars(envVars map[string]string) {
+	agent.executor.useEnvVars(envVars)
 }
 
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.

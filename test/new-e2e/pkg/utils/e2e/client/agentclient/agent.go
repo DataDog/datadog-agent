@@ -17,6 +17,9 @@ type Agent interface {
 	// Check runs check command and returns the runtime Agent check
 	Check(commandArgs ...AgentArgsOption) string
 
+	// Coverage runs coverage command and returns the runtime Agent coverage
+	CoverageWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Check runs check command and returns the runtime Agent check or an error
 	CheckWithError(commandArgs ...AgentArgsOption) (string, error)
 
@@ -65,6 +68,9 @@ type Agent interface {
 
 	// JMX run the jmx command and returns a Status struct and error
 	JMX(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// UseEnvVars sets the environment variables for the agent command executed
+	UseEnvVars(envVars map[string]string)
 }
 
 // Status contains the Agent status content

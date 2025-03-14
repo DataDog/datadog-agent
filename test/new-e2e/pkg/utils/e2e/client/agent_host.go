@@ -18,6 +18,7 @@ import (
 type agentHostExecutor struct {
 	baseCommand string
 	host        *Host
+	envVars     map[string]string
 }
 
 func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientparams.Params) agentCommandExecutor {
@@ -31,7 +32,7 @@ func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientpar
 		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case os.LinuxFamily:
-		baseCommand = "sudo datadog-agent"
+		baseCommand = "sudo -E datadog-agent"
 	case os.MacOSFamily:
 		baseCommand = "datadog-agent"
 	default:
@@ -44,13 +45,18 @@ func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientpar
 	}
 }
 
+func (ae *agentHostExecutor) useEnvVars(envVars map[string]string) {
+	fmt.Printf("using env vars: %v\n", envVars)
+	ae.envVars = envVars
+}
+
 func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	parameters := ""
 	if len(arguments) > 0 {
 		parameters = `"` + strings.Join(arguments, `" "`) + `"`
 	}
-
-	return ae.host.Execute(ae.baseCommand + " " + parameters)
+	fmt.Printf("executing command: %s %v\n", ae.baseCommand, ae.envVars)
+	return ae.host.Execute(ae.baseCommand+" "+parameters, WithEnvVariables(ae.envVars))
 }
 
 // defaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.

@@ -171,5 +171,5 @@ func (v *vmPlusDockerEnvSuite) TestAgentMonitorsLighttpd() {
 	}, 5*time.Minute, 10*time.Second)
 	assert.True(v.T(), v.Env().Agent.Client.IsReady())
 	// ExecuteCommand executes a command on containerName and returns the output
-	assert.NotEmpty(v.T(), v.Env().Docker.Client.ExecuteCommand("lighttpd", "ls"))
+	assert.NotEmpty(v.T(), v.Env().Docker.Client.ExecuteCommand("lighttpd", []string{"ls"}))
 }

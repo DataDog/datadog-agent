@@ -8,10 +8,11 @@ package listener
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
@@ -98,7 +99,7 @@ func assertLogsReceived(
 		"hostname", "-i",
 	}
 
-	ipAddress, _, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", ipCmd...)
+	ipAddress, _, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", ipCmd)
 	require.NoError(t, err)
 	ipAddress = strings.TrimSpace(ipAddress)
 	t.Logf("Logger-app IP address: %s", ipAddress)
@@ -109,7 +110,7 @@ func assertLogsReceived(
 		"bob",
 	}
 
-	stdout, stderr, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", cmd...)
+	stdout, stderr, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", cmd)
 	require.NoError(t, err)
 
 	t.Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)

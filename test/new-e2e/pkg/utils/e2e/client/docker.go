@@ -19,6 +19,9 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/dockerexecuteparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -71,15 +74,15 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 }
 
 // ExecuteCommand executes a command on containerName and returns the output.
-func (docker *Docker) ExecuteCommand(containerName string, commands ...string) string {
-	output, err := docker.ExecuteCommandWithErr(containerName, commands...)
+func (docker *Docker) ExecuteCommand(containerName string, commands []string, options ...dockerexecuteparams.Options) string {
+	output, err := docker.ExecuteCommandWithErr(containerName, commands, options...)
 	require.NoErrorf(docker.t, err, "%v: %v", output, err)
 	return output
 }
 
 // ExecuteCommandWithErr executes a command on containerName and returns the output and an error.
-func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...string) (string, error) {
-	output, errOutput, err := docker.ExecuteCommandStdoutStdErr(containerName, commands...)
+func (docker *Docker) ExecuteCommandWithErr(containerName string, commands []string, options ...dockerexecuteparams.Options) (string, error) {
+	output, errOutput, err := docker.ExecuteCommandStdoutStdErr(containerName, commands, options...)
 	if len(errOutput) != 0 {
 		output += " " + errOutput
 	}
@@ -87,13 +90,21 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 }
 
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
-func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (stdout string, stderr string, err error) {
+func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands []string, options ...dockerexecuteparams.Options) (stdout string, stderr string, err error) {
+	params, err := optional.MakeParams(options...)
+	require.NoError(docker.t, err)
+
 	cmd := strings.Join(commands, " ")
 	scrubbedCommand := docker.scrubber.ScrubLine(cmd) // scrub the command in case it contains secrets
 	docker.t.Logf("Executing command `%s`", scrubbedCommand)
 
 	context := context.Background()
-	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
+	envVariablesList := make([]string, 0, len(params.EnvVariables))
+	for envVar, value := range params.EnvVariables {
+		envVariablesList = append(envVariablesList, fmt.Sprintf("%s=%s", envVar, value))
+	}
+
+	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true, Env: envVariablesList}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
 	require.NoError(docker.t, err)
 

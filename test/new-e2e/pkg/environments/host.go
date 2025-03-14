@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	commonos "os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -35,6 +37,9 @@ var _ common.Diagnosable = (*Host)(nil)
 
 // Diagnose returns a string containing the diagnosis of the environment
 func (e *Host) Diagnose(outputDir string) (string, error) {
+	if e.Agent == nil || e.RemoteHost == nil {
+		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
+	}
 	diagnoses := []string{}
 	if e.RemoteHost == nil {
 		return "", fmt.Errorf("RemoteHost component is not initialized")
@@ -94,4 +99,49 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}
 	return dstPath, nil
+}
+
+// Coverage generates coverage files and downloads them to the given output directory
+func (e *Host) Coverage(remoteCoverageDir, outputDir string) error {
+	if e.Agent == nil || e.RemoteHost == nil {
+		return fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
+	}
+	_, err := e.Agent.Client.CoverageWithError(agentclient.WithArgs([]string{"generate"}))
+	if err != nil {
+		return fmt.Errorf("failed to generate coverage: %w", err)
+	}
+
+	if err := commonos.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create coverage folder: %w", err)
+	}
+
+	err = e.RemoteHost.GetFolder(remoteCoverageDir, outputDir)
+	if err != nil {
+		return fmt.Errorf("failed to download coverage folder: %w", err)
+	}
+
+	return nil
+}
+
+// SetupCoverage creates a temporary folder for coverage files
+func (e *Host) SetupCoverage() (string, error) {
+	if e.RemoteHost == nil || e.Agent == nil {
+		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot create coverage folder")
+	}
+	r, err := e.Agent.Client.CoverageWithError(agentclient.WithArgs([]string{"generate"}))
+	if err != nil {
+		return "", fmt.Errorf("failed to setup coverage: %w", err)
+	}
+
+	// find coverage folder in command output
+	re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+	matches := re.FindStringSubmatch(r)
+	if len(matches) < 2 {
+		return "", fmt.Errorf("output does not contain the path to the coverage folder, output: %s", r)
+	}
+	e.Agent.Client.UseEnvVars(map[string]string{
+		"GOCOVERDIR": matches[1],
+	})
+	coveragePath := matches[1]
+	return coveragePath, nil
 }
