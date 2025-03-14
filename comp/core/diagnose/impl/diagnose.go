@@ -67,54 +67,28 @@ func (d *diagnoseRegistry) RunSuite(suiteName string, formatOutput string, verbo
 		return []byte{}, fmt.Errorf("diagnose suite %s not found", suiteName)
 	}
 
-	diagnoseResult, err := getDiagnoses(diagnose.Config{
+	diagnoseConfig := diagnose.Config{
 		Verbose: verbose,
-	}, []suite{{name: suiteName, diagnose: diag}})
+	}
+
+	diagnoseResult, err := getDiagnoses(diagnoseConfig, []suite{{name: suiteName, diagnose: diag}})
 
 	if err != nil {
 		return nil, err
 	}
-
-	var buffer bytes.Buffer
-	writer := bufio.NewWriter(&buffer)
-	switch formatOutput {
-	case "json":
-		err = format.JSON(writer, diagnoseResult)
-	case "text":
-		err = format.Text(writer, diagnose.Config{Verbose: true}, diagnoseResult)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	writer.Flush()
-
-	return buffer.Bytes(), nil
+	return formatResult(diagnoseResult, diagnoseConfig, formatOutput)
 }
 
 func (d *diagnoseRegistry) RunSuites(formatOutput string, verbose bool) ([]byte, error) {
-	diagnoseResult, err := d.run(diagnose.Config{
+	diagnoseConfig := diagnose.Config{
 		Verbose: verbose,
-	})
+	}
+	diagnoseResult, err := d.run(diagnoseConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	var buffer bytes.Buffer
-	writer := bufio.NewWriter(&buffer)
-	switch formatOutput {
-	case "json":
-		err = format.JSON(writer, diagnoseResult)
-	case "text":
-		err = format.Text(writer, diagnose.Config{Verbose: true}, diagnoseResult)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	writer.Flush()
-
-	return buffer.Bytes(), nil
+	return formatResult(diagnoseResult, diagnoseConfig, formatOutput)
 }
 
 func (d *diagnoseRegistry) RunLocalSuite(suites diagnose.Suites, config diagnose.Config) (*diagnose.Result, error) {
@@ -181,23 +155,35 @@ func (d *diagnoseRegistry) run(diagCfg diagnose.Config) (*diagnose.Result, error
 
 func (d *diagnoseRegistry) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) {
-		result, err := d.run(diagnose.Config{})
+		diagnoseConfig := diagnose.Config{Verbose: true}
+		result, err := d.run(diagnoseConfig)
 		if err != nil {
 			return nil, err
 		}
-		var buffer bytes.Buffer
 
-		writer := bufio.NewWriter(&buffer)
-		err = format.Text(writer, diagnose.Config{Verbose: true}, result)
-
-		if err != nil {
-			return nil, err
-		}
-		writer.Flush()
-
-		return buffer.Bytes(), nil
+		return formatResult(result, diagnoseConfig, "text")
 	})
 	return nil
+}
+
+func formatResult(diagnoseResult *diagnose.Result, diagCfg diagnose.Config, formatOutput string) ([]byte, error) {
+	var buffer bytes.Buffer
+	var err error
+	writer := bufio.NewWriter(&buffer)
+
+	switch formatOutput {
+	case "json":
+		err = format.JSON(writer, diagnoseResult)
+	case "text":
+		err = format.Text(writer, diagCfg, diagnoseResult)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	writer.Flush()
+
+	return buffer.Bytes(), nil
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
