@@ -23,7 +23,6 @@ type agentK8sexecutor struct {
 var _ agentCommandExecutor = &agentK8sexecutor{}
 
 const agentNamespace = "datadog"
-const podSelectorField = "app"
 
 func newAgentK8sExecutor(k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient) *agentK8sexecutor {
 	// Find this specific pod object in the cluster
