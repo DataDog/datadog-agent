@@ -25,10 +25,11 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -119,7 +120,11 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	fakeTagger := taggerMock.New().Comp
+	mockReq := taggerimpl.MockRequires{
+		Config:    s.configComp,
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	fakeTagger := taggerimpl.NewMock(mockReq).Comp
 	if fakeTagger == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
@@ -141,7 +146,6 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 			StandardTags:                entity.StandardTags,
 		})
 	}
-
 	fakeTagger.LoadState(state)
 
 	s.pidMap.SetPidMap(req.PidMap)

@@ -32,6 +32,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -71,7 +72,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		demultiplexerimpl.MockModule(),
 		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),

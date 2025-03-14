@@ -46,6 +46,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_id:cluster123",
 				"cluster_name:example___job_name",
 				"databricks_workspace:example_workspace",
+				"workspace:example_workspace",
 			},
 		},
 		{
