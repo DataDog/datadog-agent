@@ -325,7 +325,7 @@ def _normalize_architecture(architecture):
     return normalize_table.get(architecture, architecture)
 
 
-def produce_junit_tar(files, result_path):
+def produce_junit_tar(file, result_path):
     """
     Produce a tgz file containing all given files JUnit XML files and add a special file
     with additional tags.
@@ -338,8 +338,7 @@ def produce_junit_tar(files, result_path):
         "os.architecture": _normalize_architecture(platform.machine()),
     }
     with tarfile.open(result_path, "w:gz") as tgz:
-        for f in files:
-            tgz.add(f, arcname=f.replace(os.path.sep, "-"))
+        tgz.add(file, arcname=file.replace(os.path.sep, "-"))
 
         tags_file = io.BytesIO()
         for k, v in tags.items():
