@@ -131,6 +131,10 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
 	var err error
 	c.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(c.nvmlLib)
 	if err != nil {
@@ -148,10 +152,6 @@ func (c *Check) ensureInitCollectors() error {
 	// also we map the device tags in this function only once, so new hot-lugged devices won't have the tags
 	if c.collectors != nil {
 		return nil
-	}
-
-	if err := c.ensureInitNVML(); err != nil {
-		return err
 	}
 
 	if err := c.ensureInitDeviceCache(); err != nil {
@@ -209,6 +209,10 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
 		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 	}()
+
+	if err := c.ensureInitDeviceCache(); err != nil {
+		return err
+	}
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
