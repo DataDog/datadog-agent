@@ -7,7 +7,6 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "7.53.x",
-        "OMNIBUS_SOFTWARE_VERSION": "6.53.x",
         "OMNIBUS_RUBY_VERSION": "6.53.x",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
@@ -26,7 +25,6 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "7.53.x",
-        "OMNIBUS_SOFTWARE_VERSION": "6.53.x",
         "OMNIBUS_RUBY_VERSION": "6.53.x",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
@@ -45,7 +43,6 @@
     },
     "release-a6": {
         "INTEGRATIONS_CORE_VERSION": "7.53.0",
-        "OMNIBUS_SOFTWARE_VERSION": "6.53.0",
         "OMNIBUS_RUBY_VERSION": "6.53.0",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
@@ -60,7 +57,6 @@
     },
     "release-a7": {
         "INTEGRATIONS_CORE_VERSION": "7.53.0",
-        "OMNIBUS_SOFTWARE_VERSION": "6.53.0",
         "OMNIBUS_RUBY_VERSION": "6.53.0",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
