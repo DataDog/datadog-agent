@@ -14,11 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
 	return http.NewRequest(method, client.endpoint+uri, body)
 }
 
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
 func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	// // Cross-forgery token
@@ -51,6 +53,7 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	return body, resp.StatusCode, nil
 }
 
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // get executes a GET request to the given endpoint with the given query params
 func (client *Client) get(endpoint string, params map[string]string) ([]byte, error) {
 	req, err := client.newRequest("GET", endpoint, nil)
@@ -84,6 +87,7 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
 func get[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
 	bytes, err := client.get(endpoint, params)

@@ -35,7 +35,7 @@ func GetDevicesMetadata(namespace string, devices []client.ApplianceLite) []devi
 func GetDevicesTags(namespace string, devices []client.ApplianceLite) map[string][]string {
 	deviceTags := make(map[string][]string)
 	for _, device := range devices {
-		deviceTags[device.IPAddress] = buildDeviceTags(namespace, device)
+		deviceTags[device.IPAddress] = buildApplianceDeviceTags(namespace, device)
 		deviceTags[device.IPAddress] = append(deviceTags[device.IPAddress], fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, device)))
 	}
 	return deviceTags
@@ -76,9 +76,9 @@ func buildDeviceMetadata(namespace string, device client.ApplianceLite) deviceme
 		IPAddress:    device.IPAddress,
 		Vendor:       "versa",
 		Name:         device.Name,
-		Tags:         append(buildDeviceTags(namespace, device), "source:versa"),
+		Tags:         append(buildApplianceDeviceTags(namespace, device), "source:versa"),
 		IDTags:       []string{"device_namespace:" + namespace, "system_ip:" + device.IPAddress},
-		Status:       mapNDMStatus(device.Unreachable),
+		Status:       mapNDMBoolStatus(device.Unreachable),
 		PingStatus:   mapNDMPingStatus(device.PingStatus),
 		Model:        device.Hardware.Model,
 		OsName:       "Versa PLACEHOLDER",
@@ -91,8 +91,30 @@ func buildDeviceMetadata(namespace string, device client.ApplianceLite) deviceme
 	}
 }
 
-func mapNDMStatus(versaUnreachable bool) devicemetadata.DeviceStatus {
+func buildControllerMetadata(namespace string, controller client.ControllerStatus) devicemetadata.DeviceMetadata {
+	id := fmt.Sprintf("%s:%s", namespace, controller.Name)
+
+	return devicemetadata.DeviceMetadata{
+		ID:        id,
+		IPAddress: controller.IPAddress,
+		Vendor:    "versa",
+		Name:      controller.Name,
+		Tags:      append(buildControllerDeviceTags(namespace, controller), "source:versa"),
+		IDTags:    []string{"device_namespace:" + namespace, "system_ip:" + controller.IPAddress},
+		Status:    mapNDMStringStatus(controller.Status),
+	}
+}
+
+// TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
+func mapNDMBoolStatus(versaUnreachable bool) devicemetadata.DeviceStatus {
 	if versaUnreachable {
+		return devicemetadata.DeviceStatusUnreachable
+	}
+	return devicemetadata.DeviceStatusReachable
+}
+
+func mapNDMStringStatus(versaStatus string) devicemetadata.DeviceStatus {
+	if versaStatus == "UNREACHABLE" {
 		return devicemetadata.DeviceStatusUnreachable
 	}
 	return devicemetadata.DeviceStatusReachable
@@ -109,7 +131,7 @@ func mapNDMDeviceType(versaType string) string {
 	return "Versa PLACEHOLDER"
 }
 
-func buildDeviceTags(namespace string, device client.ApplianceLite) []string {
+func buildApplianceDeviceTags(namespace string, device client.ApplianceLite) []string {
 	return []string{
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
@@ -120,6 +142,20 @@ func buildDeviceTags(namespace string, device client.ApplianceLite) []string {
 		"device_ip:" + device.IPAddress,
 		"device_hostname:" + device.Name,
 		"device_id:" + buildDeviceID(namespace, device),
+	}
+}
+
+func buildControllerDeviceTags(namespace string, controller client.ControllerStatus) []string {
+	return []string{
+		"device_vendor:versa",
+		"device_namespace:" + namespace,
+		"hostname:" + controller.Name,
+		"system_ip:" + controller.IPAddress,
+		"lock_status:" + controller.LockStatus,
+		"sync_status:" + controller.SyncStatus,
+		"device_ip:" + controller.IPAddress,
+		"device_hostname:" + controller.Name,
+		"device_id:" + fmt.Sprintf("%s:%s", namespace, controller.Name),
 	}
 }
 

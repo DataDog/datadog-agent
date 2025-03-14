@@ -7,7 +7,9 @@
 package client
 
 type Content interface {
-	ApplianceLiteResponse
+	ApplianceLiteResponse |
+		ControllerResponse |
+		DirectorStatus
 }
 
 // ApplicanceResponse /versa/ncs-services/vnms/appliance/appliance/lite
@@ -16,7 +18,7 @@ type ApplianceLiteResponse struct {
 	TotalCount int             `json:"totalCount"`
 }
 
-// Appliance encapsulates metadata for appliances
+// ApplianceLite encapsulates metadata for appliances
 type ApplianceLite struct {
 	Name                    string      `json:"name"`
 	UUID                    string      `json:"uuid"`
@@ -95,4 +97,75 @@ type Nodes struct {
 // UcpeNodes encapsulates UCPE node metadata for an appliance
 type UcpeNodes struct {
 	UcpeNodeStatusList []interface{} `json:"ucpeNodeStatusList"`
+}
+
+// ControllerResponse /versa/ncs-services/vnms/dashboard/status/headEnds
+type ControllerResponse struct {
+	ControllerStatuses []ControllerStatus `json:"applianceStatus"`
+	HAStatus           HAStatus           `json:"haStatus"`
+}
+
+// HAStatus encapsulates HA status metadata for a headend
+type HAStatus struct {
+	Enabled bool `json:"enabled"`
+}
+
+// Controller encapsulates metadata for a controller
+type ControllerStatus struct {
+	Name       string `json:"name"`
+	UUID       string `json:"uuid"`
+	Status     string `json:"status"`
+	LockStatus string `json:"lockStatus"`
+	SyncStatus string `json:"syncStatus"`
+	IPAddress  string `json:"ip-address"`
+}
+
+// DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
+type DirectorStatus struct {
+	HAConfig struct {
+		ClusterID                      string   `json:"clusterid"`
+		FailoverTimeout                int      `json:"failoverTimeout"`
+		SlaveStartTimeout              int      `json:"slaveStartTimeout"`
+		AutoSwitchOverTimeout          int      `json:"autoSwitchOverTimeout"`
+		AutoSwitchOverEnabled          bool     `json:"autoSwitchOverEnabled"`
+		DesignatedMaster               bool     `json:"designatedMaster"`
+		StartupMode                    string   `json:"startupMode"`
+		MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+		VDSBInterfaces                 []string `json:"vdsbinterfaces"`
+		StartupModeHA                  bool     `json:"startupModeHA"`
+		MyNcsHaSetAsMaster             bool     `json:"myNcsHaSet"`
+		PingViaAnyDeviceSuccessful     bool     `json:"pingViaAnyDeviceSuccessful"`
+		PeerReachableViaNcsPortDevices bool     `json:"peerReachableViaNcsPortAndDevices"`
+		HAEnabledOnBothNodes           bool     `json:"haEnabledOnBothNodes"`
+	} `json:"haConfig"`
+	HADetails struct {
+		Enabled           bool `json:"enabled"`
+		DesignatedMaster  bool `json:"designatedMaster"`
+		PeerVnmsHaDetails []struct {
+		} `json:"peerVnmsHaDetails"`
+		EnableHaInProgress bool `json:"enableHaInProgress"`
+	} `json:"haDetails"`
+	VDSBInterfaces []string `json:"vdSBInterfaces"`
+	SystemDetails  struct {
+		CPUCount   int    `json:"cpuCount"`
+		CPULoad    string `json:"cpuLoad"`
+		Memory     string `json:"memory"`
+		MemoryFree string `json:"memoryFree"`
+		Disk       string `json:"disk"`
+		DiskUsage  string `json:"diskUsage"`
+	} `json:"systemDetails"`
+	PkgInfo struct {
+		Version     string `json:"version"`
+		PackageDate string `json:"packageDate"`
+		Name        string `json:"name"`
+		PackageID   string `json:"packageId"`
+		UIPackageID string `json:"uiPackageId"`
+		Branch      string `json:"branch"`
+	} `json:"pkgInfo"`
+	SystemUpTime struct {
+		CurrentTime       string `json:"currentTime"`
+		ApplicationUpTime string `json:"applicationUpTime"`
+		SysProcUptime     string `json:"sysProcUptime"`
+		SysUpTimeDetail   string `json:"sysUpTimeDetail"`
+	} `json:"systemUpTime"`
 }

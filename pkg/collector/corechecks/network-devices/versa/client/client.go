@@ -182,7 +182,7 @@ func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
 		"offset": "0",
 	}
 
-	resp, err := get(client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+	resp, err := get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
 	}
@@ -190,7 +190,7 @@ func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
 
 	for len(appliances) < resp.TotalCount {
 		params["offset"] = fmt.Sprintf("%d", len(appliances))
-		resp, err = get(client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
+		resp, err = get[ApplianceLiteResponse](client, "/versa/ncs-services/vnms/appliance/appliance/lite", params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance lite response: %v", err)
 		}
@@ -198,4 +198,22 @@ func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
 	}
 
 	return appliances, nil
+}
+
+func (client *Client) GetControllerMetadata() ([]ControllerStatus, error) {
+	resp, err := get[ControllerResponse](client, "/versa/ncs-services/vnms/dashboard/status/headEnds", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get controller metadata: %v", err)
+	}
+
+	return resp.ControllerStatuses, nil
+}
+
+func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
+	resp, err := get[DirectorStatus](client, "/versa/ncs-services/vnms/dashboard/status/director", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get director status: %v", err)
+	}
+
+	return resp, nil
 }
