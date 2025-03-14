@@ -34,6 +34,7 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
+	DeviceScanStatus *ScanStatusMetadata    `json:"scan_status,omitempty"`
 	Subnet           string                 `json:"subnet,omitempty"`
 	Namespace        string                 `json:"namespace"`
 	Devices          []DeviceMetadata       `json:"devices,omitempty"`
@@ -43,24 +44,18 @@ type NetworkDevicesMetadata struct {
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
-	DeviceScanStatus *ScanStatusMetadata    `json:"scan_status,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
 	ID             string       `json:"id"`
-	IDTags         []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
-	Tags           []string     `json:"tags"`
 	IPAddress      string       `json:"ip_address"`
-	Status         DeviceStatus `json:"status"`
-	PingStatus     DeviceStatus `json:"ping_status,omitempty"`
 	Name           string       `json:"name,omitempty"`
 	Description    string       `json:"description,omitempty"`
 	SysObjectID    string       `json:"sys_object_id,omitempty"`
 	Location       string       `json:"location,omitempty"`
 	Profile        string       `json:"profile,omitempty"`
-	ProfileVersion uint64       `json:"profile_version,omitempty"`
 	Vendor         string       `json:"vendor,omitempty"`
 	Subnet         string       `json:"subnet,omitempty"`
 	SerialNumber   string       `json:"serial_number,omitempty"`
@@ -72,6 +67,11 @@ type DeviceMetadata struct {
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
 	DeviceType     string       `json:"device_type,omitempty"`
+	IDTags         []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
+	Tags           []string     `json:"tags"`
+	ProfileVersion uint64       `json:"profile_version,omitempty"`
+	Status         DeviceStatus `json:"status"`
+	PingStatus     DeviceStatus `json:"ping_status,omitempty"`
 }
 
 // DeviceOID device scan oid data
@@ -113,19 +113,19 @@ type ScanStatusMetadata struct {
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
+	MerakiEnabled *bool         `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
 	DeviceID      string        `json:"device_id"`
-	IDTags        []string      `json:"id_tags"`               // used to correlate with interface metrics
-	Index         int32         `json:"index"`                 // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
 	RawID         string        `json:"raw_id,omitempty"`      // used to uniquely identify the interface in the context of the device
 	RawIDType     string        `json:"raw_id_type,omitempty"` // used to indicate the type of identifier used (i.e. portId for Meraki switches, uplink for Meraki uplinks, blank for SNMP for compatibility)
 	Name          string        `json:"name,omitempty"`
 	Alias         string        `json:"alias,omitempty"`
 	Description   string        `json:"description,omitempty"`
 	MacAddress    string        `json:"mac_address,omitempty"`
-	AdminStatus   IfAdminStatus `json:"admin_status,omitempty"`   // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus    IfOperStatus  `json:"oper_status,omitempty"`    // IF-MIB ifOperStatus type is INTEGER
-	MerakiEnabled *bool         `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
-	MerakiStatus  string        `json:"meraki_status,omitempty"`  // status for Meraki devices
+	MerakiStatus  string        `json:"meraki_status,omitempty"` // status for Meraki devices
+	IDTags        []string      `json:"id_tags"`                 // used to correlate with interface metrics
+	AdminStatus   IfAdminStatus `json:"admin_status,omitempty"`  // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus    IfOperStatus  `json:"oper_status,omitempty"`   // IF-MIB ifOperStatus type is INTEGER
+	Index         int32         `json:"index"`                   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
 }
 
 // IPAddressMetadata contains ip address metadata
@@ -161,11 +161,11 @@ type TopologyLinkSide struct {
 
 // TopologyLinkMetadata contains topology interface to interface links metadata
 type TopologyLinkMetadata struct {
+	Local       *TopologyLinkSide `json:"local"`
+	Remote      *TopologyLinkSide `json:"remote"`
 	ID          string            `json:"id"`
 	SourceType  string            `json:"source_type"`
 	Integration string            `json:"integration,omitempty"`
-	Local       *TopologyLinkSide `json:"local"`
-	Remote      *TopologyLinkSide `json:"remote"`
 }
 
 // NetflowExporter contains netflow exporters info

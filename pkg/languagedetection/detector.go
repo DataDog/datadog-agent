@@ -32,8 +32,8 @@ var cliDetectors = []languagemodels.Detector{
 }
 
 type languageFromCLI struct {
-	name      languagemodels.LanguageName
 	validator func(exe string) bool
+	name      languagemodels.LanguageName
 }
 
 var (

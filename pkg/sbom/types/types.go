@@ -18,10 +18,10 @@ type ScanRequest interface {
 // ScanOptions defines the scan options
 type ScanOptions struct {
 	Analyzers        []string
-	CheckDiskUsage   bool
 	MinAvailableDisk uint64
 	Timeout          time.Duration
 	WaitAfter        time.Duration
+	CheckDiskUsage   bool
 	Fast             bool
 	UseMount         bool
 	OverlayFsScan    bool

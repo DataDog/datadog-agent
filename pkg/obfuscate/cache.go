@@ -51,9 +51,9 @@ func (c *measuredCache) statsLoop() {
 }
 
 type cacheOptions struct {
-	On      bool
 	Statsd  StatsClient
 	MaxSize int64
+	On      bool
 }
 
 // newMeasuredCache returns a new measuredCache.
