@@ -759,7 +759,7 @@ new-e2e-cspm:
   timeout: 35m
 
 new-e2e-gpu:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_gpu_or_e2e_changes]
     - !reference [.manual]
@@ -769,9 +769,12 @@ new-e2e-gpu:
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
-    - !reference [.needs_new_e2e_template]
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
-
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: "--run TestGPUHostSuite"
+      - EXTRA_PARAMS: "--run TestGPUK8sSuite"
 
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

@@ -8,14 +8,19 @@ package gpu
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/nvidia"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	componentsremote "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -24,6 +29,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 // gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
@@ -58,14 +64,42 @@ const validationCommandMarker = "echo 'gpu-validation-command'"
 const defaultSysprobeConfig = `
 gpu_monitoring:
   enabled: true
+
+system_probe_config:
+  log_level: debug
+`
+
+const helmValuesTemplate = `
+datadog:
+  kubelet:
+    tlsVerify: false
+  clusterName: "%s"
+  gpuMonitoring:
+    enabled: true
+  logLevel: DEBUG
+agents:
+  useHostNetwork: true
+  volumes:
+    - name: host-root-proc
+      hostPath:
+        path: /host/proc
+  volumeMounts:
+    - name: host-root-proc
+      mountPath: /host/root/proc
+  containers:
+    systemProbe:
+      env:
+        - name: HOST_PROC
+          value: "/host/root/proc"
 `
 
 type provisionerParams struct {
-	agentOptions []agentparams.Option
-	ami          string
-	amiOS        os.Descriptor
-	instanceType string
-	dockerImages []string
+	agentOptions           []agentparams.Option
+	kubernetesAgentOptions []kubernetesagentparams.Option
+	ami                    string
+	amiOS                  os.Descriptor
+	instanceType           string
+	dockerImages           []string
 }
 
 func getDefaultProvisionerParams() *provisionerParams {
@@ -73,14 +107,16 @@ func getDefaultProvisionerParams() *provisionerParams {
 		agentOptions: []agentparams.Option{
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
 		},
-		ami:          gpuEnabledAMI,
-		amiOS:        os.Ubuntu2204,
-		instanceType: gpuInstanceType,
-		dockerImages: []string{cudaSanityCheckImage},
+		kubernetesAgentOptions: nil,
+		ami:                    gpuEnabledAMI,
+		amiOS:                  os.Ubuntu2204,
+		instanceType:           gpuInstanceType,
+		dockerImages:           []string{cudaSanityCheckImage},
 	}
 }
 
-func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner {
+// gpuHostProvisioner provisions a single EC2 instance with GPU support
+func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[environments.Host]("gpu", func(ctx *pulumi.Context, env *environments.Host) error {
 		name := "gpuvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
@@ -167,6 +203,111 @@ func gpuInstanceProvisioner(params *provisionerParams) provisioners.Provisioner 
 	}, nil)
 }
 
+// gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
+func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
+	provisioner := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+		name := "gpu-k8s"
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return fmt.Errorf("aws.NewEnvironment: %w", err)
+		}
+
+		host, err := ec2.NewVM(awsEnv, name,
+			ec2.WithInstanceType(params.instanceType),
+			ec2.WithAMI(params.ami, params.amiOS, os.AMD64Arch),
+		)
+		if err != nil {
+			return fmt.Errorf("ec2.NewVM: %w", err)
+		}
+
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		if err != nil {
+			return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
+		}
+
+		validateDevices, err := validateGPUDevices(&awsEnv, host)
+		if err != nil {
+			return fmt.Errorf("validateGPUDevices: %w", err)
+		}
+
+		deps := append(validateDevices, installEcrCredsHelperCmd)
+
+		clusterOpts := nvidia.NewKindClusterOptions(
+			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),
+			nvidia.WithCudaSanityCheckImage(cudaSanityCheckImage),
+		)
+
+		kindCluster, err := nvidia.NewKindCluster(&awsEnv, host, name, clusterOpts, utils.PulumiDependsOn(deps...))
+		if err != nil {
+			return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
+		}
+
+		err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
+		if err != nil {
+			return fmt.Errorf("kindCluster.Export: %w", err)
+		}
+
+		kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
+			EnableServerSideApply: pulumi.Bool(true),
+			Kubeconfig:            kindCluster.KubeConfig,
+		})
+		if err != nil {
+			return fmt.Errorf("kubernetes.NewProvider: %w", err)
+		}
+
+		// Create the fakeintake instance
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Pull all the docker images required for the tests
+		// Note: we don't pre-pull images from the internal registry as it's not
+		// available in the kind nodes
+		imagesForKindNodes := []string{}
+		for _, image := range params.dockerImages {
+			if !strings.Contains(image, "dkr.ecr") {
+				imagesForKindNodes = append(imagesForKindNodes, image)
+			}
+		}
+		dockerPullCmds, err := downloadContainerdImagesInKindNodes(&awsEnv, host, kindCluster, imagesForKindNodes, kindCluster.GPUOperator)
+		if err != nil {
+			return err
+		}
+
+		kindClusterName := ctx.Stack()
+		helmValues := fmt.Sprintf(helmValuesTemplate, kindClusterName)
+
+		// Combine agent options from the parameters with the fakeintake and docker dependencies, and helm values
+		params.kubernetesAgentOptions = append(params.kubernetesAgentOptions,
+			kubernetesagentparams.WithFakeintake(fakeIntake),
+			kubernetesagentparams.WithHelmValues(helmValues),
+			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
+			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(dockerPullCmds...)),
+		)
+
+		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.kubernetesAgentOptions...)
+		if err != nil {
+			return fmt.Errorf("agent.NewKubernetesAgent: %w", err)
+		}
+		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		if err != nil {
+			return fmt.Errorf("agent.Export: %w", err)
+		}
+
+		return nil
+	}, nil)
+
+	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+
+	return provisioner
+}
+
 // validateGPUDevices checks that there are GPU devices present and accesible
 func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
 	commands := map[string]string{
@@ -223,4 +364,25 @@ func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn
 		},
 		utils.PulumiDependsOn(dependsOn...),
 	)
+}
+
+func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremote.Host, kindCluster *nvidia.KindCluster, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+	var cmds []pulumi.Resource
+
+	for i, image := range images {
+		cmd, err := vm.OS.Runner().Command(
+			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
+			&command.Args{
+				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} crictl pull %s", kindCluster.ClusterName, image),
+			},
+			utils.PulumiDependsOn(dependsOn...),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds, nil
 }
