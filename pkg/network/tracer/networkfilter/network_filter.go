@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package network
+// Package networkfilter has logic to allow customers to configure CIDRs/port ranges to exclude from CNM
+package networkfilter
 
 import (
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 var wildcard = netip.Prefix{}
@@ -27,6 +30,13 @@ type ConnectionFilter struct {
 type ConnTypeFilter struct {
 	TCP bool
 	UDP bool
+}
+
+// FilterableConnection represents a connection that can be filtered
+type FilterableConnection struct {
+	Type   model.ConnectionType
+	Source netip.AddrPort
+	Dest   netip.AddrPort
 }
 
 // ParseConnectionFilters takes the user defined excludelist and returns a slice of ConnectionFilters
@@ -155,19 +165,19 @@ func parsePortString(port string) (uint64, error) {
 
 // IsExcludedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
-func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn *ConnectionStats) bool {
+func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn FilterableConnection) bool {
 	// No filters so short-circuit
 	if len(scf) == 0 && len(dcf) == 0 {
 		return false
 	}
 
 	if len(scf) > 0 {
-		if findMatchingFilter(scf, conn.Source.Addr, conn.SPort, conn.Type) {
+		if findMatchingFilter(scf, conn.Source, conn.Type) {
 			return true
 		}
 	}
 	if len(dcf) > 0 {
-		if findMatchingFilter(dcf, conn.Dest.Addr, conn.DPort, conn.Type) {
+		if findMatchingFilter(dcf, conn.Dest, conn.Type) {
 			return true
 		}
 	}
@@ -175,21 +185,22 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 }
 
 // findMatchingFilter iterates through filters to see if this connection matches any defined filter
-func findMatchingFilter(cf []*ConnectionFilter, ip netip.Addr, addrPort uint16, addrType ConnectionType) bool {
+func findMatchingFilter(cf []*ConnectionFilter, addrPort netip.AddrPort, addrType model.ConnectionType) bool {
+	port := addrPort.Port()
 	for _, filter := range cf {
-		if filter.IP == wildcard || filter.IP.Contains(ip) {
+		if filter.IP == wildcard || filter.IP.Contains(addrPort.Addr()) {
 			if filter.AllPorts.TCP && filter.AllPorts.UDP { // Wildcard port range case
 				return true
-			} else if filter.AllPorts.TCP && addrType == TCP { // Wildcard port range for only TCP
+			} else if filter.AllPorts.TCP && addrType == model.ConnectionType_tcp { // Wildcard port range for only TCP
 				return true
-			} else if filter.AllPorts.UDP && addrType == UDP { // Wildcard port range for only UDP
+			} else if filter.AllPorts.UDP && addrType == model.ConnectionType_udp { // Wildcard port range for only UDP
 				return true
-			} else if _, ok := filter.Ports[addrPort]; ok {
-				if filter.Ports[addrPort].TCP && filter.Ports[addrPort].UDP {
+			} else if _, ok := filter.Ports[port]; ok {
+				if filter.Ports[port].TCP && filter.Ports[port].UDP {
 					return true
-				} else if filter.Ports[addrPort].TCP && addrType == TCP {
+				} else if filter.Ports[port].TCP && addrType == model.ConnectionType_tcp {
 					return true
-				} else if filter.Ports[addrPort].UDP && addrType == UDP {
+				} else if filter.Ports[port].UDP && addrType == model.ConnectionType_udp {
 					return true
 				}
 			}

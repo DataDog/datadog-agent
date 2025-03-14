@@ -413,7 +413,7 @@ def list_get_parameter_calls(file):
 
 
 @task
-def gitlab_ci(ctx, test="all", custom_context=None):
+def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml"):
     """Lints Gitlab CI files in the datadog-agent repository.
 
     This will lint the main gitlab ci file with different
@@ -424,7 +424,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
         custom_context: A custom context to test the gitlab ci file with.
     """
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
+    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
