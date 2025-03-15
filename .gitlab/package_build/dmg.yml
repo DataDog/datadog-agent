@@ -31,5 +31,3 @@ agent_dmg-x64-a7:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
   timeout: 6h
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7

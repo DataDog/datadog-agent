@@ -284,8 +284,23 @@ func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	return c.persistentCache, nil
 }
 
+type artifactWithType struct {
+	inner     artifact.Artifact
+	forceType artifact.Type
+}
+
+func (fa *artifactWithType) Inspect(ctx context.Context) (artifact.Reference, error) {
+	ref, err := fa.inner.Inspect(ctx)
+	ref.Type = fa.forceType
+	return ref, err
+}
+
+func (fa *artifactWithType) Clean(ref artifact.Reference) error {
+	return fa.inner.Clean(ref)
+}
+
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
@@ -295,7 +310,15 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache))
+	wrapper := &artifactWithType{
+		inner:     fsArtifact,
+		forceType: artifact.TypeContainerImage,
+	}
+	if removeLayers {
+		wrapper.forceType = artifact.TypeFilesystem
+	}
+
+	trivyReport, err := c.scan(ctx, wrapper, applier.NewApplier(cache))
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}

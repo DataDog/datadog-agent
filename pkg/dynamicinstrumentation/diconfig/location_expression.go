@@ -166,6 +166,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 					slicePointer := elementParam.ParameterPieces[0]
 					sliceLength := elementParam.ParameterPieces[1]
+
+					if slicePointer == nil || sliceLength == nil {
+						continue
+					}
+
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 						ditypes.PrintStatement("%s", "Reading the length of slice"),
 					)
@@ -188,6 +193,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
 					sliceElementType := slicePointer.ParameterPieces[0]
+
+					if sliceElementType == nil {
+						continue
+					}
+
 					sliceIdentifier := randomLabel()
 					labelName := randomLabel()
 
@@ -292,9 +302,15 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
-		if param == nil || param.DoNotCapture {
+		if param == nil {
 			return
 		}
+
+		if param.DoNotCapture {
+			log.Tracef("Not going to capture parameter: %s", param.Name)
+			return
+		}
+
 		trieKeys = append(trieKeys, expressionParamTuple{path + param.Type, param})
 
 		if (len(param.ParameterPieces) == 0 ||

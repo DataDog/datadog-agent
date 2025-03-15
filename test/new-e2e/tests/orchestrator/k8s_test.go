@@ -31,6 +31,7 @@ type k8sSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskubernetes.KindProvisioner(
 			awskubernetes.WithDeployTestWorkload(),
@@ -52,7 +53,7 @@ func (suite *k8sSuite) TestRedisPod() {
 		},
 		message: "find a redis-query pod",
 		timeout: defaultTimeout,
-	}.Assert(suite)
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
 func (suite *k8sSuite) TestNode() {
@@ -63,7 +64,7 @@ func (suite *k8sSuite) TestNode() {
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,
-	}.Assert(suite)
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
 func (suite *k8sSuite) TestDeploymentManif() {

@@ -1,0 +1,37 @@
+{
+  "node": {
+    "nodeName": "my-node-name",
+    "systemContainers": [
+      {
+        "name": "kubelet",
+        "cpu": {
+          "time": "2025-03-03T21:35:34Z",
+          "usageNanoCores": 1000000000,
+          "usageCoreNanoSeconds": 5000000000
+        },
+        "memory": {
+          "availableBytes": 8589934592,
+          "usageBytes": 4294967296,
+          "workingSetBytes": 3221225472,
+          "rssBytes": 1073741824,
+          "pageFaults": 1234,
+          "majorPageFaults": 34
+        }
+      }
+    ],
+    "cpu": {
+      "time": "2025-03-03T21:35:34Z",
+      "usageNanoCores": 250000000,
+      "usageCoreNanoSeconds": 1250000000
+    },
+    "memory": {
+      "availableBytes": 17179869184,
+      "usageBytes": 8589934592,
+      "workingSetBytes": 6442450944,
+      "rssBytes": 2147483648,
+      "pageFaults": 5678,
+      "majorPageFaults": 78
+    }
+  },
+  "pods": []
+}
