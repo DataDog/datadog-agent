@@ -7,11 +7,15 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrAddressNotFound means no such address could be found
@@ -155,7 +159,23 @@ func getMultiNetworkInfo() ([]Interface, error) {
 	return multiNetworkInfo, nil
 }
 
+// externalIpv6Address returns the IP address of the host.
+// First it tries to resolve the IP from hostname, in case the IP has been set by
+// the customer themselves in /etc/hosts (or equivalent). If it has been set manually
+// then it's very likely that this IP is the "preferred" one.
+// If there are multiple results, takes the first one.
+//
+// If this fails, if the IP is not IPv6, or if it is a loopback,
+// it tries to get the IP address from the network interfaces & takes
+// the first non-loopback IPv6 address.
 func externalIpv6Address() (string, error) {
+	_, ipv6s, err := resolveFromHostname(context.Background())
+	if err == nil && len(ipv6s) > 0 {
+		return ipv6s[0], nil
+	} else if err != nil {
+		log.Warnf("Failed to resolve IPv6 address from hostname: %s", err)
+	}
+
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
@@ -197,9 +217,24 @@ func externalIpv6Address() (string, error) {
 	return "", nil
 }
 
+// externalIPAddress returns the IP address of the host.
+// First it tries to resolve the IP from hostname, in case the IP has been set by
+// the customer themselves in /etc/hosts (or equivalent). If it has been set manually
+// then it's very likely that this IP is the "preferred" one.
+// If there are multiple results, takes the first one.
+//
+// If this fails, if the IP is not IPv4, or if it is a loopback,
+// it tries to get the IP address from the network interfaces & takes
+// the first non-loopback IPv4 address.
 func externalIPAddress() (string, error) {
-	ifaces, err := net.Interfaces()
+	ipv4s, _, err := resolveFromHostname(context.Background())
+	if err == nil && len(ipv4s) > 0 {
+		return ipv4s[0], nil
+	} else if err != nil {
+		log.Warnf("Failed to resolve IPv4 address from hostname: %s", err)
+	}
 
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
@@ -297,4 +332,33 @@ func getNetworkInfo() (*Info, error) {
 	}
 
 	return networkInfo, nil
+}
+
+// resolveFromHostname resolves the non-loopback addresses from the hostname
+func resolveFromHostname(ctx context.Context) (ipv4s []string, ipv6s []string, err error) {
+	// Adds a 1s timeout to the context to avoid hanging forever
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	hostname, err := hostname.Get(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ipLookup, err := net.LookupIP(hostname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, ip := range ipLookup {
+		if ip.IsLoopback() {
+			continue
+		}
+		if ip.To4() != nil {
+			ipv4s = append(ipv4s, ip.String())
+		} else {
+			ipv6s = append(ipv6s, ip.String())
+		}
+	}
+	return ipv4s, ipv6s, nil
 }
