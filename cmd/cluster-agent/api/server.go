@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -145,11 +146,12 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
-	srv := grpcutil.NewMuxedGRPCServer(
+	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		grpcutil.TimeoutHandlerFunc(router, timeout),
+		router,
+		timeout,
 	)
 	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 
