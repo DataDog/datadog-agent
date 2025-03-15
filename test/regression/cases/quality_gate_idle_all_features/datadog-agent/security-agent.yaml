@@ -2,7 +2,7 @@
 
 runtime_security_config:
   # Set to true to enable CWS
-  enabled: true
+  enabled: false
 
 compliance_config:
   # Set to true to enable CIS benchmarks for Misconfigurations (CSPM).

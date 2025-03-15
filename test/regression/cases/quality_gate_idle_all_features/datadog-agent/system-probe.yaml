@@ -2,7 +2,7 @@
 
 runtime_security_config:
   # Set to true to enable CWS
-  enabled: true
+  enabled: false
   activity_dump:
     enabled: false
   security_profile:
