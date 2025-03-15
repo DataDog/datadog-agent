@@ -56,11 +56,25 @@ func memoryMock() *memory.Info {
 	}
 }
 
-func networkMock() (*network.Info, error) {
+func networkMock(_ string) (*network.Info, error) {
 	return &network.Info{
 		IPAddress:   "192.168.24.138",
 		IPAddressV6: gohaiutils.NewValue("fe80::20c:29ff:feb6:d232"),
 		MacAddress:  "00:0c:29:b6:d2:32",
+		Interfaces: []network.Interface{
+			{
+				Name:       "bond0",
+				IPv4:       []string{"192.168.24.138"},
+				IPv6:       []string{"fe80::20c:29ff:feb6:d232"},
+				MacAddress: gohaiutils.NewValue("00:0c:29:b6:d2:32"),
+			},
+			{
+				Name:       "bon1",
+				IPv4:       []string{"10.11.12.13"},
+				IPv6:       []string{"2001:0db8:85a3:0370:7334"},
+				MacAddress: gohaiutils.NewValue("00:0c:29:b6:d2:33"),
+			},
+		},
 	}, nil
 }
 
@@ -82,10 +96,10 @@ func platformMock() *platform.Info {
 }
 func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
-func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
-func memoryErrorMock() *memory.Info            { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
-func platformErrorMock() *platform.Info        { return &platform.Info{} }
+func cpuErrorMock() *cpu.Info                          { return &cpu.Info{} }
+func memoryErrorMock() *memory.Info                    { return &memory.Info{} }
+func networkErrorMock(_ string) (*network.Info, error) { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info                { return &platform.Info{} }
 
 func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
@@ -152,6 +166,7 @@ func TestGetPayload(t *testing.T) {
 		IPAddress:                    "192.168.24.138",
 		IPv6Address:                  "fe80::20c:29ff:feb6:d232",
 		MacAddress:                   "00:0c:29:b6:d2:32",
+		Interfaces:                   "[{\"name\":\"bond0\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"192.168.24.138\"],\"ipv6\":[\"fe80::20c:29ff:feb6:d232\"]},{\"name\":\"bon1\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"10.11.12.13\"],\"ipv6\":[\"2001:0db8:85a3:0370:7334\"]}]",
 		AgentVersion:                 version.AgentVersion,
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",

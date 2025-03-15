@@ -52,30 +52,30 @@ type Payload struct {
 }
 
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
-func GetPayload(isContainerized bool) *Payload {
+func GetPayload(hostname string, isContainerized bool) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(isContainerized, false),
+		Gohai: getGohaiInfo(hostname, isContainerized, false),
 	}
 }
 
 // GetPayloadWithProcesses builds a pyaload of all metdata including processes
-func GetPayloadWithProcesses(isContainerized bool) *Payload {
+func GetPayloadWithProcesses(hostname string, isContainerized bool) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(isContainerized, true),
+		Gohai: getGohaiInfo(hostname, isContainerized, true),
 	}
 }
 
 // GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
 // string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
-func GetPayloadAsString(IsContainerized bool) (string, error) {
-	marshalledPayload, err := json.Marshal(getGohaiInfo(IsContainerized, false))
+func GetPayloadAsString(hostname string, IsContainerized bool) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, IsContainerized, false))
 	if err != nil {
 		return "", err
 	}
 	return string(marshalledPayload), nil
 }
 
-func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
+func getGohaiInfo(hostname string, isContainerized, withProcesses bool) *gohai {
 	res := new(gohai)
 
 	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
@@ -115,7 +115,7 @@ func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
 
 	if !isContainerized || detectDocker0() {
 		var networkPayload interface{}
-		networkInfo, err := network.CollectInfo()
+		networkInfo, err := network.CollectInfo(hostname)
 		warns = nil
 		if err == nil {
 			networkPayload, warns, err = networkInfo.AsJSON()
