@@ -2790,26 +2790,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				// very last check to ensure that we kill the correct process
-				inode := ev.ProcessContext.FileEvent.Inode
-
-				procExecPath := utils.ProcExePath(pid)
-				stat, err := utils.UnixStat(procExecPath)
-				if err != nil {
-					return err
-				}
-				if stat.Ino != inode {
-					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
-				}
-
-				if p.supportsBPFSendSignal {
-					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
-					}
-				}
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 

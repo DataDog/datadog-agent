@@ -376,8 +376,14 @@ var (
 
 	// Enforcement metrics
 
-	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// MetricEnforcementKillQueued is the name of the metric used to report the number of kill action queued
 	// Tags: rule_id
+	MetricEnforcementKillQueued = newRuntimeMetric(".enforcement.kill_queued")
+	// MetricEnforcementKillQueuedDiscarded is the name of the metric used to report the number of kill action queued which has been discarded
+	// Tags: rule_id, cause:global_reset/rule_disarmed/process_exited
+	MetricEnforcementKillQueuedDiscarded = newRuntimeMetric(".enforcement.kill_queued_discarded")
+	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// Tags: rule_id, queued:true/false
 	MetricEnforcementProcessKilled = newRuntimeMetric(".enforcement.process_killed")
 	// MetricEnforcementRuleDisarmed is the name of the metric used to report that a rule was disarmed
 	// Tags: rule_id, disarmer_type ('executable', 'container')
