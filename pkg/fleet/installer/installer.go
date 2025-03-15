@@ -202,6 +202,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		}
 
 	} else if !errors.Is(err, db.ErrPackageNotFound) {
+		// there was a real error
 		return fmt.Errorf("could not get package: %w", err)
 	}
 
@@ -211,13 +212,14 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		return fmt.Errorf("could not get agent state: %w", err)
 	}
 
+	// need to make sure there is an agent package
+	// in the repository before we can call Delete
 	if pkgState.HasStable() {
 		err = i.packages.Delete(ctx, packageDatadogAgent)
 		if err != nil {
 			return fmt.Errorf("could not delete agent repository: %w", err)
 		}
 	}
-	// setup the installer
 
 	// if windows we need to copy the MSI to temp directory
 	if runtime.GOOS == "windows" {
