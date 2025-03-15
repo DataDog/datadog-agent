@@ -32,7 +32,9 @@ import (
 )
 
 const (
-	calendarService              = "calendar-rest-go"
+	// CalendarService is the default service value for the calendar app
+	CalendarService = "calendar-rest-go"
+
 	telemetrygenService          = "telemetrygen-job"
 	telemetrygenTopLevelResource = "lets-go"
 	env                          = "e2e"
@@ -86,7 +88,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), calendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
 		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
 			assert.True(s.T(), ok)
@@ -104,7 +106,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), calendarService, sp.Service)
+		assert.Equal(s.T(), CalendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
@@ -258,7 +260,7 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		tags := []string{fmt.Sprintf("service:%v", calendarService)}
+		tags := []string{fmt.Sprintf("service:%v", CalendarService)}
 		if iaParams.InfraAttributes {
 			tags = append(tags, "kube_ownerref_kind:replicaset")
 		}
@@ -270,7 +272,7 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 
 	for _, metricSeries := range metrics {
 		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
@@ -302,9 +304,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		if iaParams.InfraAttributes {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
 		} else {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
@@ -323,7 +325,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 			tags[k] = fmt.Sprint(v)
 		}
 		assert.Contains(s.T(), log.Message, logBody)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
@@ -353,11 +355,11 @@ func TestHosts(s OTelTestSuite) {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
 
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", calendarService)}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", CalendarService)}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -481,6 +483,90 @@ func TestHostMetrics(s OTelTestSuite) {
 	}, 1*time.Minute, 10*time.Second)
 }
 
+func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
+	spanMap := make(map[string][]*trace.Span)
+	spans := 0
+	for _, tracePayload := range traces {
+		for _, tracerPayload := range tracePayload.TracerPayloads {
+			for _, chunk := range tracerPayload.Chunks {
+				for _, span := range chunk.Spans {
+					if len(spanMap[span.Service]) < 3 {
+						spanMap[span.Service] = append(spanMap[span.Service], span)
+						spans++
+					}
+					if spans == 12 {
+						return spanMap
+					}
+				}
+			}
+		}
+	}
+	assert.Equal(t, 12, spans)
+	return spanMap
+}
+
+func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeries) map[string][]map[string]string {
+	metricTagsMap := make(map[string][]map[string]string)
+	ms := 0
+	for _, metricSeries := range metrics {
+		tags := getTagMapFromSlice(t, metricSeries.Tags)
+		service := tags["service"]
+		if len(metricTagsMap[service]) < 3 {
+			metricTagsMap[service] = append(metricTagsMap[service], tags)
+			ms++
+		}
+		if ms == 12 {
+			return metricTagsMap
+		}
+	}
+	assert.Equal(t, 12, ms)
+	return metricTagsMap
+}
+
+// TestLoadBalancing verifies that the loadbalancingexporter correctly routes traces and metrics by service
+func TestLoadBalancing(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	var spanMap map[string][]*trace.Span
+	var metricTagsMap map[string][]map[string]string
+
+	s.T().Log("Waiting for telemetry")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		traces, err := s.Env().FakeIntake.Client().GetTraces()
+		require.NoError(c, err)
+		require.NotEmpty(c, traces)
+		spanMap = getLoadBalancingSpans(c, traces)
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter")
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics)
+		metricTagsMap = getLoadBalancingMetrics(c, metrics)
+	}, 2*time.Minute, 10*time.Second)
+	s.T().Log("Got telemetry")
+	for service, spans := range spanMap {
+		backend := ""
+		for _, span := range spans {
+			s.T().Log("Span service:", service+",", "Backend:", span.Meta["backend"])
+			if backend == "" {
+				backend = span.Meta["backend"]
+				continue
+			}
+			assert.Equal(s.T(), backend, span.Meta["backend"])
+		}
+	}
+	for service, metricTags := range metricTagsMap {
+		backend := ""
+		for _, tags := range metricTags {
+			s.T().Log("Metric service:", service+",", "Backend:", tags["backend"])
+			if backend == "" {
+				backend = tags["backend"]
+				continue
+			}
+			assert.Equal(s.T(), backend, tags["backend"])
+		}
+	}
+}
+
 // SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
 func SetupSampleTraces(s OTelTestSuite) {
 	flake.Mark(s.T())
@@ -554,25 +640,25 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 }
 
 // TestCalendarApp starts the calendar app to send telemetry for e2e tests
-func TestCalendarApp(s OTelTestSuite, ust bool) {
+func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
-	s.T().Log("Starting calendar app")
-	createCalendarApp(ctx, s, ust)
+	s.T().Log("Starting calendar app:", service)
+	createCalendarApp(ctx, s, ust, service)
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
 }
 
-func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool) {
+func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service string) {
 	var replicas int32 = 1
-	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
+	name := fmt.Sprintf("%v-%v", service, strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 
 	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	serviceSpec := &corev1.Service{
@@ -664,7 +750,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool) {
 								},
 							},
 						},
-						Env: getCalendarAppEnvVars(name, otlpEndpoint, ust),
+						Env: getCalendarAppEnvVars(name, otlpEndpoint, ust, service),
 					},
 					},
 				},
@@ -678,7 +764,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool) {
 	require.NoError(s.T(), err, "Could not properly start deployment")
 }
 
-func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.EnvVar {
+func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool, service string) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{{
 		Name:  "OTEL_CONTAINER_NAME",
 		Value: name,
@@ -713,7 +799,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 	if ust {
 		return append(envVars, []corev1.EnvVar{{
 			Name:  "DD_SERVICE",
-			Value: calendarService,
+			Value: service,
 		}, {
 			Name:  "DD_ENV",
 			Value: env,
@@ -728,7 +814,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 
 	return append(envVars, []corev1.EnvVar{{
 		Name:  "OTEL_SERVICE_NAME",
-		Value: calendarService,
+		Value: service,
 	}, {
 		Name: "OTEL_RESOURCE_ATTRIBUTES",
 		Value: resourceAttrs +
@@ -771,7 +857,7 @@ func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 	return getTagMapFromSlice(t, splits), true
 }
 
-func getTagMapFromSlice(t *testing.T, tagSlice []string) map[string]string {
+func getTagMapFromSlice(t assert.TestingT, tagSlice []string) map[string]string {
 	m := make(map[string]string)
 	for _, s := range tagSlice {
 		kv := strings.SplitN(s, ":", 2)
