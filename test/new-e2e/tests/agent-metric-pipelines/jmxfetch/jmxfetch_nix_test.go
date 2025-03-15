@@ -43,12 +43,13 @@ const testCertsARN = "arn:aws:secretsmanager:us-east-1:376334461865:secret:agent
 
 type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
-
-	fips bool
 }
 
-func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
-	adLabelsManifest, err := makeADLabelsManifest(mtls, fips)
+func testJMXFetchNix(t *testing.T, mtls bool) {
+	suite := &jmxfetchNixTest{}
+	isFips := suite.Env().Agent.FIPSEnabled
+
+	adLabelsManifest, err := makeADLabelsManifest(mtls, isFips)
 	require.NoError(t, err)
 
 	extraManifests := []docker.ComposeInlineManifest{
@@ -57,7 +58,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 	}
 
 	if mtls {
-		mtlsManifest, err := makeMtlsManifest(fips)
+		mtlsManifest, err := makeMtlsManifest(isFips)
 		require.NoError(t, err)
 		extraManifests = append(extraManifests, *mtlsManifest)
 	}
@@ -71,34 +72,25 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 			awsdocker.WithAgentOptions(
 				dockeragentparams.WithLogs(),
 				dockeragentparams.WithJMX(),
-				choice(fips, dockeragentparams.WithFIPS(), none),
 				dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
 			),
 			choice(mtls, awsdocker.WithPreAgentInstallHook(fetchCertificates), none),
 		)),
-		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
+		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", isFips, mtls)),
 	}
 
 	e2e.Run(t,
-		&jmxfetchNixTest{fips: fips},
+		suite,
 		suiteParams...,
 	)
 }
 
 func TestJMXFetchNix(t *testing.T) {
-	testJMXFetchNix(t, false, false)
-}
-
-func TestJMXFetchNixFIPS(t *testing.T) {
-	testJMXFetchNix(t, false, true)
+	testJMXFetchNix(t, false)
 }
 
 func TestJMXFetchNixMtls(t *testing.T) {
-	testJMXFetchNix(t, true, false)
-}
-
-func TestJMXFetchNixMtlsFIPS(t *testing.T) {
-	testJMXFetchNix(t, true, true)
+	testJMXFetchNix(t, true)
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
@@ -182,7 +174,7 @@ func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
 func (j *jmxfetchNixTest) TestJMXFIPSMode() {
 	env, err := j.Env().Docker.Client.ExecuteCommandWithErr(j.Env().Agent.ContainerName, "env")
 	require.NoError(j.T(), err)
-	if j.fips {
+	if j.Env().Agent.FIPSEnabled {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
 	} else {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
