@@ -191,7 +191,7 @@ func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, i
 // Warning: do not change this number. It is shared with other probabilistic samplers
 // in the agent, the Datadog libraries, and in OpenTelemetry. This ensures consistency
 // in a distributed system.
-const knuthFactor = uint64(1111111111111111111)
+const knuthFactor = uint64(1_111_111_111_111_111_111)
 
 // samplingRate returns the rate as defined by the probabilistic sampler.
 func (o *OTLPReceiver) samplingRate() float64 {
