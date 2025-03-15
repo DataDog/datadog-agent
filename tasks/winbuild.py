@@ -31,6 +31,14 @@ def agent_package(
         skip_deps=skip_deps,
     )
 
+    # Build installer
+    omnibus_build(
+        ctx,
+        release_version=release_version,
+        skip_deps=skip_deps,
+        target_project="installer",
+    )
+
     # Package Agent into MSI
     build_agent_msi(ctx, release_version=release_version, build_upgrade=build_upgrade)
 
