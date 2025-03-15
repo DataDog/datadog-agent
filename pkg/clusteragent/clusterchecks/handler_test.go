@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -105,6 +105,8 @@ func TestUpdateLeaderIP(t *testing.T) {
 	h = &Handler{
 		leadershipChan:       make(chan state, 1),
 		leaderStatusCallback: le.get,
+
+		leadershipStateNotifChan: le.subscribe(),
 	}
 	le.set("1.2.3.4", nil)
 	err = h.updateLeaderIP()
@@ -117,6 +119,8 @@ func TestUpdateLeaderIP(t *testing.T) {
 	h = &Handler{
 		leadershipChan:       make(chan state, 1),
 		leaderStatusCallback: le.get,
+
+		leadershipStateNotifChan: le.subscribe(),
 	}
 	le.set("", errors.New("failing"))
 	for i := 0; i < 4; i++ {
@@ -139,11 +143,9 @@ func TestUpdateLeaderIP(t *testing.T) {
 func TestHandlerRun(t *testing.T) {
 	dummyT := &testing.T{}
 	ac := &mockedPluggableAutoConfig{}
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	ac.Test(t)
-	le := &fakeLeaderEngine{
-		err: errors.New("failing"),
-	}
+	le := newFakeLeaderEngine()
 
 	testServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "I'm a teapot", 418)
@@ -153,12 +155,13 @@ func TestHandlerRun(t *testing.T) {
 
 	h := &Handler{
 		autoconfig:           ac,
-		leaderStatusFreq:     100 * time.Millisecond,
 		warmupDuration:       250 * time.Millisecond,
 		leadershipChan:       make(chan state, 1),
 		dispatcher:           newDispatcher(fakeTagger),
 		leaderStatusCallback: le.get,
 		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
+
+		leadershipStateNotifChan: le.subscribe(),
 	}
 
 	//
