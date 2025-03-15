@@ -478,8 +478,8 @@ def update_resources(
 
 
 @task
-def start_compiler(ctx: Context):
-    cc = get_compiler(ctx)
+def start_compiler(ctx: Context, arch: Arch | str = "local",):
+    cc = get_compiler(ctx, Arch.from_str(arch))
     info(f"[+] Starting compiler {cc.name}")
     try:
         cc.start()
@@ -522,10 +522,12 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     paths = KMTPaths(None, arch)
     paths.tools.mkdir(parents=True, exist_ok=True)
 
-    cc = get_compiler(ctx)
+    cc = get_compiler(ctx, arch)
     target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
+    env = {"GOARCH": arch.go_arch, "CC": "\\$DD_CC", "CXX": "\\$DD_CXX"}
+    env_str = " ".join(f"{key}={value}" for key, value in env.items())
     cc.exec(
-        f"cd {TOOLS_PATH} && GOARCH={arch.go_arch} go build -o {target_path} {GOTESTSUM}",
+        f"cd {TOOLS_PATH} && {env_str} go build -o {target_path} {GOTESTSUM}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -766,10 +768,7 @@ def _prepare(
     domains: list[LibvirtDomain] | None = None,
 ):
     if not ci:
-        cc = get_compiler(ctx)
-
-        if arch_obj.is_cross_compiling():
-            cc.ensure_ready_for_cross_compile()
+        cc = get_compiler(ctx, arch_obj)
 
     pkgs = ""
     if packages:
@@ -896,7 +895,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    info("[+] Generating eBPF object files...")
+    setup_runtime_clang(ctx)
+    info(f"[+] Generating eBPF object files... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 
@@ -1312,14 +1312,11 @@ def build(
     paths = KMTPaths(stack, arch_obj)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
-    cc = get_compiler(ctx)
+    cc = get_compiler(ctx, arch_obj)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv {inv_echo} system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} {component}.build --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1331,7 +1328,7 @@ def build(
 
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        err_msg = f"no alien VMs discovered from provided profile {alien_vms}."
     else:
         err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 

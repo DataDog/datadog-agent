@@ -656,6 +656,7 @@ def build_libpcap(ctx):
     lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
     ctx.run(f"rm -rf {lib_dir}")
     with ctx.cd(dist_dir):
+        # TODO check the checksum of the download before using
         ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
         env = {}
