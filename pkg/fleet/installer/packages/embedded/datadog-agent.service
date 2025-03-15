@@ -21,3 +21,4 @@ RuntimeDirectory=datadog
 
 [Install]
 WantedBy=multi-user.target
+Alias=datadog-agent.service

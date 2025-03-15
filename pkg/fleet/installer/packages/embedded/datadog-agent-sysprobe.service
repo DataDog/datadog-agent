@@ -20,3 +20,4 @@ StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
+Alias=datadog-agent-sysprobe.service
