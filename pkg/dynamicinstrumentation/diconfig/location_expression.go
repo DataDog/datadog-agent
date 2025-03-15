@@ -129,15 +129,20 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					stringLength.LocationExpressions = append(stringLength.LocationExpressions, targetExpressions...)
 					if stringLength.Location != nil {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.DirectReadLocationExpression(stringLength),
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.ApplyOffsetLocationExpression(uint(stringLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
+
+					targetExpressions = append(targetExpressions,
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)))
 
 					if stringCharArray.Location != nil && stringLength.Location != nil {
 						// Fields of the string are directly assigned
