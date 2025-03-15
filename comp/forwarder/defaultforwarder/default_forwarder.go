@@ -335,6 +335,10 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
+			numberOfWorkers := options.NumberOfWorkers
+			if isLocal {
+				numberOfWorkers = 1 // Local domain resolver should only have one worker
+			}
 			fwd := newDomainForwarder(
 				config,
 				log,
@@ -342,7 +346,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				isMRF,
 				isLocal,
 				transactionContainer,
-				options.NumberOfWorkers,
+				numberOfWorkers,
 				options.ConnectionResetInterval,
 				domainForwarderSort,
 				pointCountTelemetry)
