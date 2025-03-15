@@ -170,7 +170,7 @@ func externalIpv6Address(hostname string) (string, error) {
 	if err == nil && len(ipv6s) > 0 {
 		return ipv6s[0], nil
 	} else if err != nil {
-		log.Warnf("Failed to resolve IPv6 address from hostname: %s", err)
+		log.Infof("Failed to resolve IPv6 address from hostname: %s", err)
 	}
 
 	ifaces, err := net.Interfaces()
@@ -228,7 +228,7 @@ func externalIPAddress(hostname string) (string, error) {
 	if err == nil && len(ipv4s) > 0 {
 		return ipv4s[0], nil
 	} else if err != nil {
-		log.Warnf("Failed to resolve IPv4 address from hostname: %s", err)
+		log.Infof("Failed to resolve IPv4 address from hostname: %s", err)
 	}
 
 	ifaces, err := net.Interfaces()
