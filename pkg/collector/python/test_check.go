@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 /*
@@ -650,14 +650,14 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[0].RawError))
 	assert.NotZero(t, len(diagnoses[1].RawError))
 
-	assert.Equal(t, diagnoses[0].Result, diagnosis.DiagnosisSuccess)
+	assert.Equal(t, diagnoses[0].Status, diagnose.DiagnosisSuccess)
 	assert.NotZero(t, len(diagnoses[0].Name))
 	assert.NotZero(t, len(diagnoses[0].Diagnosis))
 	assert.NotZero(t, len(diagnoses[0].Category))
 	assert.NotZero(t, len(diagnoses[0].Description))
 	assert.NotZero(t, len(diagnoses[0].Remediation))
 
-	assert.Equal(t, diagnoses[1].Result, diagnosis.DiagnosisFail)
+	assert.Equal(t, diagnoses[1].Status, diagnose.DiagnosisFail)
 	assert.NotZero(t, len(diagnoses[1].Name))
 	assert.NotZero(t, len(diagnoses[1].Diagnosis))
 	assert.Zero(t, len(diagnoses[1].Category))

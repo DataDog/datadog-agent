@@ -148,8 +148,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		w.Write([]byte("Invalid CaseID (must be a number)"))
 		return
 	}
-
-	filePath, e := flare.Create(nil, 0, nil)
+	filePath, e := flare.Create(nil, 0, nil, []byte{})
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: %s", e.Error())

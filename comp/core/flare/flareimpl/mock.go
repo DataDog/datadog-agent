@@ -45,7 +45,7 @@ func (fc *MockFlare) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Create mocks the flare create function
-func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error) (string, error) {
+func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, _ []byte) (string, error) {
 	return "a string", nil
 }
 

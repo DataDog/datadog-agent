@@ -69,8 +69,10 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 		}
 
 		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-		conn := apiutils.GetConnection(r)
-		_ = conn.SetDeadline(time.Time{})
+		conn, ok := apiutils.GetConnection(r)
+		if ok {
+			_ = conn.SetDeadline(time.Time{})
+		}
 
 		done := make(chan struct{})
 		defer close(done)

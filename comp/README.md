@@ -130,6 +130,10 @@ component temporarily wraps pkg/config.
 
 Package configsync implements synchronizing the configuration using the core agent config API
 
+### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
+
+Package diagnose provides the diagnose suite for the agent.
+
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
 *Datadog Team*: agent-configuration

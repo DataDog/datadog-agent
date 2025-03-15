@@ -21,6 +21,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkbase "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -376,7 +376,7 @@ func (c *PythonCheck) ID() checkid.ID {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	// Lock the GIL and release it at the end of the run (will crash otherwise)
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -398,7 +398,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Deserialize it
 	strDiagnoses := C.GoString(pyDiagnoses)
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)

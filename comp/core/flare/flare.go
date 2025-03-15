@@ -18,21 +18,15 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,16 +40,11 @@ var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
 type dependencies struct {
 	fx.In
 
-	Log                   log.Component
-	Config                config.Component
-	Diagnosesendermanager diagnosesendermanager.Component
-	Params                Params
-	Providers             []*types.FlareFiller `group:"flare"`
-	Collector             option.Option[collector.Component]
-	WMeta                 option.Option[workloadmeta.Component]
-	Secrets               secrets.Component
-	AC                    autodiscovery.Component
-	Tagger                tagger.Component
+	Log       log.Component
+	Config    config.Component
+	Params    Params
+	Providers []*types.FlareFiller `group:"flare"`
+	WMeta     option.Option[workloadmeta.Component]
 }
 
 type provides struct {
@@ -67,21 +56,18 @@ type provides struct {
 }
 
 type flare struct {
-	log          log.Component
-	config       config.Component
-	params       Params
-	providers    []*types.FlareFiller
-	diagnoseDeps diagnose.SuitesDeps
+	log       log.Component
+	config    config.Component
+	params    Params
+	providers []*types.FlareFiller
 }
 
 func newFlare(deps dependencies) provides {
-	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC, deps.Tagger)
 	f := &flare{
-		log:          deps.Log,
-		config:       deps.Config,
-		params:       deps.Params,
-		providers:    fxutil.GetAndFilterGroup(deps.Providers),
-		diagnoseDeps: diagnoseDeps,
+		log:       deps.Log,
+		config:    deps.Config,
+		params:    deps.Params,
+		providers: fxutil.GetAndFilterGroup(deps.Providers),
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
@@ -90,7 +76,7 @@ func newFlare(deps dependencies) provides {
 	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	f.providers = append(
 		f.providers,
-		pkgFlare.ExtraFlareProviders(f.diagnoseDeps)...,
+		pkgFlare.ExtraFlareProviders(deps.WMeta)...,
 	)
 	f.providers = append(
 		f.providers,
@@ -141,7 +127,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Infof("Unrecognized value passed via enable_streamlogs, creating flare without streamlogs enabled: %q", streamlogs)
 	}
 
-	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
+	filePath, err := f.CreateWithArgs(flareArgs, 0, nil, []byte{})
 	if err != nil {
 		return true, err
 	}
@@ -181,12 +167,14 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := apiutils.GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
+	conn, ok := apiutils.GetConnection(r)
+	if ok {
+		_ = conn.SetDeadline(time.Time{})
+	}
 
 	var filePath string
 	f.log.Infof("Making a flare")
-	filePath, err := f.Create(profile, providerTimeout, nil)
+	filePath, err := f.Create(profile, providerTimeout, nil, []byte{})
 
 	if err != nil || filePath == "" {
 		if err != nil {
@@ -209,18 +197,18 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
-	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata)
+func (f *flare) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata, diagnoseResult)
 }
 
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error) {
-	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{})
+func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
+	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{}, diagnoseResult)
 }
 
-func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData) (string, error) {
+func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData, diagnoseResult []byte) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
@@ -243,6 +231,10 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 
 	for name, data := range pdata {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
+	}
+
+	if fb.IsLocal() {
+		fb.AddFile("diagnose.log", diagnoseResult)
 	}
 
 	f.runProviders(fb, providerTimeout)
