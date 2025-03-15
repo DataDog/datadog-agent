@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -100,7 +99,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
 	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
@@ -127,8 +125,8 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 			idleTimer.Reset(inactivityTimeout)
 		case <-idleTimer.C:
 			// Timeout reached, signal quit
-			pipelineProvider.Stop()
 			launchers.Stop()
+			pipelineProvider.Stop()
 			return nil
 		}
 	}
@@ -143,6 +141,11 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	}
 
 	for _, source := range sources {
+		err := source.Config.Validate()
+		if err != nil {
+			fmt.Println("Error with config: ", err)
+			return nil, nil, nil, err
+		}
 		if source.Config.TailingMode == "" {
 			source.Config.TailingMode = "beginning"
 		}
@@ -159,18 +162,14 @@ func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.Lo
 
 	sources, err = resolveCheckConfig(ac, cliParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve check config: %w", err)
+		fmt.Println("Invalid check name OR config path, please make sure the check/config is properly set up")
+		return nil, err
 	}
 	return sources, nil
 }
 
 func resolveFileConfig(cliParams *CliParams) ([]*sources.LogSource, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	absolutePath := filepath.Join(wd, cliParams.LogConfigPath)
-	data, err := os.ReadFile(absolutePath)
+	data, err := os.ReadFile(cliParams.LogConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +195,9 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 		return nil, err
 	}
 	for _, config := range allConfigs {
+		if len(config.LogsConfig) == 0 {
+			fmt.Println("Logs collection is not configured for this check")
+		}
 		if config.Name != cliParams.LogConfigPath {
 			continue
 		}
