@@ -554,7 +554,9 @@ func (s *npCollectorImpl) runWorker(workerID int) {
 			checkDuration := s.TimeNowFn().Sub(startTime)
 			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)
 			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)
-			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			if checkInterval > 0 {
+				_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			}
 		}
 	}
 }
