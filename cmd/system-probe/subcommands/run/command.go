@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -171,8 +172,13 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
 
-	if _, err := ddruntime.SetGoMemLimit(env.IsContainerized(), 0.5); err != nil {
+	softLimit, err := ddruntime.SetGoMemLimit(env.IsContainerized(), 0.5)
+	if err != nil {
 		log.Warnf("cannot set Go memory limit: %s", err)
+	}
+	if softLimit == 0 {
+		const fallbackSoftLimit = 500 * (1 << 20) // 500MiB
+		debug.SetMemoryLimit(fallbackSoftLimit)
 	}
 
 	// Setup a channel to catch OS signals
