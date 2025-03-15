@@ -45,6 +45,17 @@ authKey: my-authKey
 privProtocol: aes
 privKey: my-privKey
 context_name: my-contextName
+authentications:
+  - community_string: my-community-string-2
+  - timeout: 6
+    retries: 4
+    snmp_version: 3
+    user: my-user-2
+    authProtocol: sha
+    authKey: my-authKey-2
+    privProtocol: aes
+    privKey: my-privKey-2
+    context_name: my-contextName-2
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -150,15 +161,25 @@ bulk_max_repetitions: 20
 	assert.Equal(t, uint32(20), config.BulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)
 	assert.Equal(t, uint16(1161), config.Port)
-	assert.Equal(t, 7, config.Timeout)
-	assert.Equal(t, 5, config.Retries)
-	assert.Equal(t, "2c", config.SnmpVersion)
-	assert.Equal(t, "my-user", config.User)
-	assert.Equal(t, "sha", config.AuthProtocol)
-	assert.Equal(t, "my-authKey", config.AuthKey)
-	assert.Equal(t, "aes", config.PrivProtocol)
-	assert.Equal(t, "my-privKey", config.PrivKey)
-	assert.Equal(t, "my-contextName", config.ContextName)
+	assert.Equal(t, 7, config.Authentications[0].Timeout)
+	assert.Equal(t, 5, config.Authentications[0].Retries)
+	assert.Equal(t, "2c", config.Authentications[0].SnmpVersion)
+	assert.Equal(t, "my-user", config.Authentications[0].User)
+	assert.Equal(t, "sha", config.Authentications[0].AuthProtocol)
+	assert.Equal(t, "my-authKey", config.Authentications[0].AuthKey)
+	assert.Equal(t, "aes", config.Authentications[0].PrivProtocol)
+	assert.Equal(t, "my-privKey", config.Authentications[0].PrivKey)
+	assert.Equal(t, "my-contextName", config.Authentications[0].ContextName)
+	assert.Equal(t, "my-community-string-2", config.Authentications[1].CommunityString)
+	assert.Equal(t, 6, config.Authentications[2].Timeout)
+	assert.Equal(t, 4, config.Authentications[2].Retries)
+	assert.Equal(t, "3", config.Authentications[2].SnmpVersion)
+	assert.Equal(t, "my-user-2", config.Authentications[2].User)
+	assert.Equal(t, "sha", config.Authentications[2].AuthProtocol)
+	assert.Equal(t, "my-authKey-2", config.Authentications[2].AuthKey)
+	assert.Equal(t, "aes", config.Authentications[2].PrivProtocol)
+	assert.Equal(t, "my-privKey-2", config.Authentications[2].PrivKey)
+	assert.Equal(t, "my-contextName-2", config.Authentications[2].ContextName)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
@@ -268,6 +289,49 @@ bulk_max_repetitions: 20
 	})
 }
 
+func TestAuthenticationsConfiguration(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+network_address: 127.0.0.0/24
+authentications:
+  - community_string: my-community-string
+    snmp_version: 2c
+    timeout: 12
+    retries: 2
+  - user: my-user
+    authProtocol: sha
+    authKey: my-authKey
+    privProtocol: aes
+    privKey: my-privKey
+    context_name: my-contextName
+    timeout: 9
+    retries: 4
+  - community_string: my-community-string-2
+    timeout: 11
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "127.0.0.0/24", config.Network)
+	assert.Equal(t, "my-community-string", config.Authentications[0].CommunityString)
+	assert.Equal(t, "2c", config.Authentications[0].SnmpVersion)
+	assert.Equal(t, 12, config.Authentications[0].Timeout)
+	assert.Equal(t, 2, config.Authentications[0].Retries)
+	assert.Equal(t, "my-user", config.Authentications[1].User)
+	assert.Equal(t, "sha", config.Authentications[1].AuthProtocol)
+	assert.Equal(t, "my-authKey", config.Authentications[1].AuthKey)
+	assert.Equal(t, "aes", config.Authentications[1].PrivProtocol)
+	assert.Equal(t, "my-privKey", config.Authentications[1].PrivKey)
+	assert.Equal(t, "my-contextName", config.Authentications[1].ContextName)
+	assert.Equal(t, 9, config.Authentications[1].Timeout)
+	assert.Equal(t, 4, config.Authentications[1].Retries)
+	assert.Equal(t, "my-community-string-2", config.Authentications[2].CommunityString)
+	assert.Equal(t, 11, config.Authentications[2].Timeout)
+}
+
 func TestDiscoveryConfigurations(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -347,6 +411,8 @@ ip_address: 1.2.3.4
 snmp_version: 2c
 profile: inline-profile
 community_string: '123'
+authentications:
+  - community_string: '456'
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -373,7 +439,8 @@ profiles:
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
-	assert.Equal(t, "123", config.CommunityString)
+	assert.Equal(t, "123", config.Authentications[0].CommunityString)
+	assert.Equal(t, "456", config.Authentications[1].CommunityString)
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.True(t, config.ProfileProvider.HasProfile("inline-profile"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
@@ -404,6 +471,8 @@ func TestDefaultConfigurations(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: abc
+authentications:
+  - community_string: dce
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
@@ -413,8 +482,10 @@ community_string: abc
 	assert.Equal(t, "default", config.Namespace)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)
 	assert.Equal(t, uint16(161), config.Port)
-	assert.Equal(t, 2, config.Timeout)
-	assert.Equal(t, 3, config.Retries)
+	assert.Equal(t, 2, config.Authentications[0].Timeout)
+	assert.Equal(t, 3, config.Authentications[0].Retries)
+	assert.Equal(t, 2, config.Authentications[1].Timeout)
+	assert.Equal(t, 3, config.Authentications[1].Retries)
 
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.True(t, config.ProfileProvider.HasProfile("another_profile"))
@@ -767,13 +838,17 @@ community_string: abc
 port: "123"
 timeout: "15"
 retries: "5"
+authentications:
+  - timeout: "10"
+  - retries: "3"
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(123), config.Port)
-	assert.Equal(t, 15, config.Timeout)
-	assert.Equal(t, 5, config.Retries)
-
+	assert.Equal(t, 15, config.Authentications[0].Timeout)
+	assert.Equal(t, 5, config.Authentications[0].Retries)
+	assert.Equal(t, 10, config.Authentications[1].Timeout)
+	assert.Equal(t, 3, config.Authentications[1].Retries)
 }
 
 func TestExtraTags(t *testing.T) {

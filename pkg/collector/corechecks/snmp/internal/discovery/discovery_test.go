@@ -53,8 +53,12 @@ func TestDiscovery(t *testing.T) {
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:            "192.168.0.0/29",
-		CommunityString:    "public",
+		Network: "192.168.0.0/29",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval:  3600,
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
@@ -105,8 +109,12 @@ func TestDiscoveryCache(t *testing.T) {
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:           "192.168.0.0/30",
-		CommunityString:   "public",
+		Network: "192.168.0.0/30",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  1,
 		ProfileProvider:   profile.StaticProvider(nil),
@@ -138,8 +146,12 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 
 	checkConfig = &checkconfig.CheckConfig{
-		Network:           "192.168.0.0/30",
-		CommunityString:   "public",
+		Network: "192.168.0.0/30",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
 		ProfileProvider:   profile.StaticProvider(nil),
@@ -181,8 +193,12 @@ func TestDiscoveryTicker(t *testing.T) {
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:           "192.168.0.0/32",
-		CommunityString:   "public",
+		Network: "192.168.0.0/32",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 		ProfileProvider:   profile.StaticProvider(nil),
@@ -201,8 +217,12 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	config := agentconfig.NewMock(t)
 	config.SetWithoutSource("run_path", t.TempDir())
 	checkConfig := &checkconfig.CheckConfig{
-		Network:           "192.168.0.0/32",
-		CommunityString:   "public",
+		Network: "192.168.0.0/32",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 		ProfileProvider:   profile.StaticProvider(nil),
@@ -319,8 +339,12 @@ func TestDiscovery_createDevice(t *testing.T) {
 	config.SetWithoutSource("run_path", t.TempDir())
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:                  "192.168.0.0/32",
-		CommunityString:          "public",
+		Network: "192.168.0.0/32",
+		Authentications: []checkconfig.Authentication{
+			{
+				CommunityString: "public",
+			},
+		},
 		DiscoveryInterval:        1,
 		DiscoveryWorkers:         1,
 		DiscoveryAllowedFailures: 3,

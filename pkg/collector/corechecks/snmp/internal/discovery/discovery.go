@@ -190,41 +190,75 @@ func (d *Discovery) discoverDevices() {
 }
 
 func (d *Discovery) checkDevice(job checkDeviceJob) error {
-	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
-	config.IPAddress = deviceIP
-	sess, err := d.sessionFactory(&config)
-	if err != nil {
-		return fmt.Errorf("error configure session for ip %s: %v", deviceIP, err)
+	config.IPAddress = job.currentIP.String()
+
+	deviceFound := false
+	for _, authentication := range config.Authentications {
+		config.CommunityString = authentication.CommunityString
+		config.SnmpVersion = authentication.SnmpVersion
+		config.Timeout = authentication.Timeout
+		config.Retries = authentication.Retries
+		config.User = authentication.User
+		config.AuthProtocol = authentication.AuthProtocol
+		config.AuthKey = authentication.AuthKey
+		config.PrivProtocol = authentication.PrivProtocol
+		config.PrivKey = authentication.PrivKey
+		config.ContextName = authentication.ContextName
+
+		okCheck, err := d.checkDeviceForConfig(&config)
+		if err != nil {
+			return err
+		}
+
+		if okCheck {
+			deviceFound = true
+			break
+		}
 	}
-	deviceDigest := job.subnet.config.DeviceDigest(deviceIP)
-	if err := sess.Connect(); err != nil {
-		log.Debugf("subnet %s: SNMP connect to %s error: %v", d.config.Network, deviceIP, err)
+
+	deviceDigest := job.subnet.config.DeviceDigest(config.IPAddress)
+	if !deviceFound {
 		d.deleteDevice(deviceDigest, job.subnet)
 	} else {
-		defer sess.Close()
-
-		oids := []string{sysObjectIDOid}
-		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
-		// a first call might be needed to retrieve the engineID and then the call to get the oid values.
-		value, err := sess.Get(oids)
-		if err != nil {
-			log.Debugf("subnet %s: SNMP get to %s error: %v", d.config.Network, deviceIP, err)
-			d.deleteDevice(deviceDigest, job.subnet)
-		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("subnet %s: SNMP get to %s no data", d.config.Network, deviceIP)
-			d.deleteDevice(deviceDigest, job.subnet)
-		} else {
-			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
-			d.createDevice(deviceDigest, job.subnet, deviceIP, true)
-		}
+		d.createDevice(deviceDigest, job.subnet, config.IPAddress, true)
 	}
 
 	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
 	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &discoveryStatus)
 
 	return nil
+}
+
+func (d *Discovery) checkDeviceForConfig(config *checkconfig.CheckConfig) (bool, error) {
+	sess, err := d.sessionFactory(config)
+	if err != nil {
+		return false, fmt.Errorf("error configure session for ip %s: %v", config.IPAddress, err)
+	}
+
+	if err := sess.Connect(); err != nil {
+		log.Debugf("subnet %s: SNMP connect to %s error: %v", d.config.Network, config.IPAddress, err)
+		return false, nil
+	}
+
+	defer sess.Close()
+
+	oids := []string{sysObjectIDOid}
+	// Since `params<GoSNMP>.ContextEngineID` is empty
+	// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
+	// a first call might be needed to retrieve the engineID and then the call to get the oid values.
+	value, err := sess.Get(oids)
+	if err != nil {
+		log.Debugf("subnet %s: SNMP get to %s error: %v", d.config.Network, config.IPAddress, err)
+		return false, nil
+	}
+	if len(value.Variables) < 1 || value.Variables[0].Value == nil {
+		log.Debugf("subnet %s: SNMP get to %s no data", d.config.Network, config.IPAddress)
+		return false, nil
+	}
+
+	log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, config.IPAddress, value.Variables[0].Value)
+	return true, nil
 }
 
 func (d *Discovery) getDevicesFound() []string {

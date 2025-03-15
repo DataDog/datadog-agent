@@ -96,6 +96,19 @@ type InitConfig struct {
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
 }
 
+type InstanceConfigAuthentication struct {
+	CommunityString string `yaml:"community_string"`
+	SnmpVersion     string `yaml:"snmp_version"`
+	Timeout         Number `yaml:"timeout"`
+	Retries         Number `yaml:"retries"`
+	User            string `yaml:"user"`
+	AuthProtocol    string `yaml:"authProtocol"`
+	AuthKey         string `yaml:"authKey"`
+	PrivProtocol    string `yaml:"privProtocol"`
+	PrivKey         string `yaml:"privKey"`
+	ContextName     string `yaml:"context_name"`
+}
+
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
 	Name                  string                              `yaml:"name"`
@@ -111,6 +124,7 @@ type InstanceConfig struct {
 	PrivProtocol          string                              `yaml:"privProtocol"`
 	PrivKey               string                              `yaml:"privKey"`
 	ContextName           string                              `yaml:"context_name"`
+	Authentications       []InstanceConfigAuthentication      `yaml:"authentications"`
 	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
 	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
 	Profile               string                              `yaml:"profile"`
@@ -154,6 +168,19 @@ type InstanceConfig struct {
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
 }
 
+type Authentication struct {
+	CommunityString string
+	SnmpVersion     string
+	Timeout         int
+	Retries         int
+	User            string
+	AuthProtocol    string
+	AuthKey         string
+	PrivProtocol    string
+	PrivKey         string
+	ContextName     string
+}
+
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
 	Name            string
@@ -169,6 +196,7 @@ type CheckConfig struct {
 	PrivProtocol    string
 	PrivKey         string
 	ContextName     string
+	Authentications []Authentication
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
@@ -291,7 +319,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c := &CheckConfig{}
 
 	c.Name = instance.Name
-	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
@@ -365,18 +392,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Port = defaultPort
 	}
 
-	if instance.Retries == 0 {
-		c.Retries = defaultRetries
-	} else {
-		c.Retries = int(instance.Retries)
-	}
-
-	if instance.Timeout == 0 {
-		c.Timeout = defaultTimeout
-	} else {
-		c.Timeout = int(instance.Timeout)
-	}
-
 	if instance.ExtraMinCollectionInterval != 0 {
 		c.MinCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
 	} else if instance.MinCollectionInterval != 0 {
@@ -390,14 +405,24 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
-	// SNMP connection configs
-	c.CommunityString = instance.CommunityString
-	c.User = instance.User
-	c.AuthProtocol = instance.AuthProtocol
-	c.AuthKey = instance.AuthKey
-	c.PrivProtocol = instance.PrivProtocol
-	c.PrivKey = instance.PrivKey
-	c.ContextName = instance.ContextName
+	if instance.CommunityString != "" || instance.User != "" {
+		ica := InstanceConfigAuthentication{
+			CommunityString: instance.CommunityString,
+			SnmpVersion:     instance.SnmpVersion,
+			Timeout:         instance.Timeout,
+			Retries:         instance.Retries,
+			User:            instance.User,
+			AuthProtocol:    instance.AuthProtocol,
+			AuthKey:         instance.AuthKey,
+			PrivProtocol:    instance.PrivProtocol,
+			PrivKey:         instance.PrivKey,
+			ContextName:     instance.ContextName,
+		}
+		c.Authentications = append(c.Authentications, ica.toAuthentication())
+	}
+	for _, ica := range instance.Authentications {
+		c.Authentications = append(c.Authentications, ica.toAuthentication())
+	}
 
 	if instance.OidBatchSize != 0 {
 		c.OidBatchSize = int(instance.OidBatchSize)
@@ -523,6 +548,31 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
 	return c, nil
+}
+
+func (ica *InstanceConfigAuthentication) toAuthentication() Authentication {
+	authentication := Authentication{
+		CommunityString: ica.CommunityString,
+		SnmpVersion:     ica.SnmpVersion,
+		Timeout:         int(ica.Timeout),
+		Retries:         int(ica.Retries),
+		User:            ica.User,
+		AuthProtocol:    ica.AuthProtocol,
+		AuthKey:         ica.AuthKey,
+		PrivProtocol:    ica.PrivProtocol,
+		PrivKey:         ica.PrivKey,
+		ContextName:     ica.ContextName,
+	}
+
+	if authentication.Timeout == 0 {
+		authentication.Timeout = defaultTimeout
+	}
+
+	if authentication.Retries == 0 {
+		authentication.Retries = defaultRetries
+	}
+
+	return authentication
 }
 
 func (c *CheckConfig) getResolvedSubnetName() string {
