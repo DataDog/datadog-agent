@@ -176,7 +176,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 	}
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
-	cgmem, err := agentrt.SetGoMemLimit(env.IsContainerized())
+	cgmem, err := agentrt.SetGoMemLimit(env.IsContainerized(), 0.9)
 	if err != nil {
 		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
