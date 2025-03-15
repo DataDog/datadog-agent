@@ -8,26 +8,26 @@
 package oracle
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checktypes "github.com/DataDog/datadog-agent/pkg/collector/check/types"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	csharedapi "github.com/DataDog/datadog-agent/pkg/collector/cshared/api"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/benbjohnson/clock"
 
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
@@ -407,12 +407,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
-	agentHostname, err := hostname.Get(context.Background())
-	if err == nil {
-		c.agentHostname = agentHostname
-	} else {
-		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt, err)
-	}
+	c.agentHostname = csharedapi.GetHostname()
 	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
 
 	c.configTags = make([]string, len(tags))
@@ -424,11 +419,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
+func Factory() option.Option[func() checktypes.Check] {
 	return option.New(newCheck)
 }
 
-func newCheck() check.Check {
+func newCheck() checktypes.Check {
 	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 

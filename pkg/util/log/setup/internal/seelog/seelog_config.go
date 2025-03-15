@@ -32,8 +32,10 @@ type Config struct {
 	commonFormat          string
 }
 
+// explicitly use a sync logger to get logs happening just before a panic in this experiment
+// TODO: revert this
 const seelogConfigurationTemplate = `
-<seelog minlevel="%[1]s">
+<seelog type="sync" minlevel="%[1]s">
 	<outputs formatid="%[2]s">
 		%[3]s
 		%[4]s

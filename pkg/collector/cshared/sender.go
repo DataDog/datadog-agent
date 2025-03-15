@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+package cshared
 
-package run
+/*
+#include <stdlib.h>
+#include "sender.h"
 
-import "go.uber.org/fx"
-import "github.com/DataDog/datadog-agent/pkg/collector/cshared"
-
-func init() {
-	cshared.Initialize()
+sender_manager_t *new_sender_manager(void *handle) {
+	sender_manager_t *manager = malloc(sizeof(sender_manager_t));
+	manager->handle = handle;
+	return manager;
 }
-
-func getPlatformModules() fx.Option {
-	return fx.Options()
-}
+*/
+import "C"
