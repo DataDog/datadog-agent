@@ -153,25 +153,26 @@ func (pt *ProcessTracker) inspectBinaryForRegistration(exePath string, pid uint3
 		return
 	}
 	noStructs := make(map[bininspect.FieldIdentifier]bininspect.StructLookupFunction)
-	var functionsConfig = map[string]bininspect.FunctionConfiguration{
-		ditypes.RemoteConfigCallback: {
-			IncludeReturnLocations: false,
-			ParamLookupFunction:    remoteConfigCallback,
-		},
-	}
+	//var functionsConfig = map[string]bininspect.FunctionConfiguration{
+	//	ditypes.RemoteConfigCallback: {
+	//		IncludeReturnLocations: false,
+	//		ParamLookupFunction:    remoteConfigCallback,
+	//	},
+	//}
+	noFuncs := make(map[string]bininspect.FunctionConfiguration)
 
 	var ddtracegoVersion = ditypes.DDTraceGoVersionV1
-	_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
+	_, err = bininspect.InspectNewProcessBinary(elfFile, noFuncs, noStructs)
 	if err != nil {
 		log.Errorf("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
 
 		// Since dd-trace-go v2 has a different import path (therefore different symbol name) for the remote config callback, we need to handle both cases.
-		functionsConfig[ditypes.RemoteConfigCallbackV2] = bininspect.FunctionConfiguration{
+		noFuncs[ditypes.RemoteConfigCallbackV2] = bininspect.FunctionConfiguration{
 			IncludeReturnLocations: false,
 			ParamLookupFunction:    remoteConfigCallback,
 		}
-		delete(functionsConfig, ditypes.RemoteConfigCallback)
-		_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
+		delete(noFuncs, ditypes.RemoteConfigCallback)
+		_, err = bininspect.InspectNewProcessBinary(elfFile, noFuncs, noStructs)
 		if err != nil {
 			log.Errorf("error reading binary for %d %s: %s, %s", pid, serviceName, binPath, err)
 			return
