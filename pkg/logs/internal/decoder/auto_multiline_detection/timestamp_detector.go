@@ -80,7 +80,7 @@ var staticTokenGraph = makeStaticTokenGraph()
 // minimumTokenLength is the minimum number of tokens needed to evaluate a timestamp probability.
 // This is not configurable because it has a large impact of the relative accuracy of the heuristic.
 // For example, a string 12:30:2017 is tokenized to 5 tokens DD:DD:DDDD which can easily be confused
-// with other non timestamp string. Enforcing more tokens to determine a likely timetamp decreases
+// with other non timestamp string. Enforcing more tokens to determine a likely timestamp decreases
 // the likelihood of a false positive. 8 was chosen by iterative testing using the tests in timestamp_detector_test.go.
 var minimumTokenLength = 8
 
