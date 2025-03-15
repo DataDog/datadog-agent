@@ -7,14 +7,11 @@
 package network
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,8 +47,8 @@ type Info struct {
 }
 
 // CollectInfo collects the network information.
-func CollectInfo() (*Info, error) {
-	info, err := getNetworkInfo()
+func CollectInfo(hostname string) (*Info, error) {
+	info, err := getNetworkInfo(hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +165,8 @@ func getMultiNetworkInfo() ([]Interface, error) {
 // If this fails, if the IP is not IPv6, or if it is a loopback,
 // it tries to get the IP address from the network interfaces & takes
 // the first non-loopback IPv6 address.
-func externalIpv6Address() (string, error) {
-	_, ipv6s, err := resolveFromHostname(context.Background())
+func externalIpv6Address(hostname string) (string, error) {
+	_, ipv6s, err := resolveFromHostname(hostname)
 	if err == nil && len(ipv6s) > 0 {
 		return ipv6s[0], nil
 	} else if err != nil {
@@ -226,8 +223,8 @@ func externalIpv6Address() (string, error) {
 // If this fails, if the IP is not IPv4, or if it is a loopback,
 // it tries to get the IP address from the network interfaces & takes
 // the first non-loopback IPv4 address.
-func externalIPAddress() (string, error) {
-	ipv4s, _, err := resolveFromHostname(context.Background())
+func externalIPAddress(hostname string) (string, error) {
+	ipv4s, _, err := resolveFromHostname(hostname)
 	if err == nil && len(ipv4s) > 0 {
 		return ipv4s[0], nil
 	} else if err != nil {
@@ -303,18 +300,18 @@ func macAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-func getNetworkInfo() (*Info, error) {
+func getNetworkInfo(hostname string) (*Info, error) {
 	macaddress, err := macAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	ipAddress, err := externalIPAddress()
+	ipAddress, err := externalIPAddress(hostname)
 	if err != nil {
 		return nil, err
 	}
 
-	ipAddressV6, err := externalIpv6Address()
+	ipAddressV6, err := externalIpv6Address(hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -335,16 +332,7 @@ func getNetworkInfo() (*Info, error) {
 }
 
 // resolveFromHostname resolves the non-loopback addresses from the hostname
-func resolveFromHostname(ctx context.Context) (ipv4s []string, ipv6s []string, err error) {
-	// Adds a 1s timeout to the context to avoid hanging forever
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-
-	hostname, err := hostname.Get(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func resolveFromHostname(hostname string) (ipv4s []string, ipv6s []string, err error) {
 	ipLookup, err := net.LookupIP(hostname)
 	if err != nil {
 		return nil, nil, err

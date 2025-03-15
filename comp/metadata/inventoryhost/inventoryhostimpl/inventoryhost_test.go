@@ -56,7 +56,7 @@ func memoryMock() *memory.Info {
 	}
 }
 
-func networkMock() (*network.Info, error) {
+func networkMock(_ string) (*network.Info, error) {
 	return &network.Info{
 		IPAddress:   "192.168.24.138",
 		IPAddressV6: gohaiutils.NewValue("fe80::20c:29ff:feb6:d232"),
@@ -96,10 +96,10 @@ func platformMock() *platform.Info {
 }
 func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
-func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
-func memoryErrorMock() *memory.Info            { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
-func platformErrorMock() *platform.Info        { return &platform.Info{} }
+func cpuErrorMock() *cpu.Info                          { return &cpu.Info{} }
+func memoryErrorMock() *memory.Info                    { return &memory.Info{} }
+func networkErrorMock(_ string) (*network.Info, error) { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info                { return &platform.Info{} }
 
 func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {

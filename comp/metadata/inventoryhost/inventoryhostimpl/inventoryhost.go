@@ -219,7 +219,7 @@ func (ih *invHost) fillData() {
 		ih.data.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, err := networkGet()
+	networkInfo, err := networkGet(ih.hostname)
 	if err == nil {
 		_, warnings, err = networkInfo.AsJSON()
 	}

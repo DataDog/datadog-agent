@@ -12,7 +12,7 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	gohai := GetPayload(false)
+	gohai := GetPayload("hostname", false)
 
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
@@ -29,7 +29,7 @@ func TestGetPayloadContainerized(t *testing.T) {
 	docker0Detected = false
 	defer func() { docker0Detected = oldDocker0Detected }()
 
-	gohai := GetPayload(true)
+	gohai := GetPayload("hostname", true)
 
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
@@ -46,7 +46,7 @@ func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
 	docker0Detected = true
 	defer func() { docker0Detected = oldDocker0Detected }()
 
-	gohai := GetPayload(false)
+	gohai := GetPayload("hostname", false)
 
 	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
