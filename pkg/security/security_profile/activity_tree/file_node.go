@@ -26,7 +26,7 @@ type FileNode struct {
 	Name           string
 	ImageTags      []string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	FirstSeen      time.Time
 
@@ -59,10 +59,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.ImageTags = []string{imageTag}
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
-		fan.File.PathnameStr = reducedFilePath
-		fan.File.BasenameStr = name
+		fan.File = NewFileInfo(fileEvent, reducedFilePath, name)
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -93,8 +90,8 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	var out string
 	if fn.Open != nil && fn.File != nil {
 		var pkg string
-		if len(fn.File.PkgName) != 0 {
-			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+		if len(fn.File.PackageName) != 0 {
+			pkg = fmt.Sprintf("%s:%s", fn.File.PackageName, fn.File.PackageVersion)
 		}
 		out += "<TR>"
 		out += "<TD>open</TD>"
@@ -212,4 +209,50 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 		}
 	}
 	return false
+}
+
+// FileInfo represents info from a file in an activity tree
+type FileInfo struct {
+	Uid               uint32
+	User              string
+	Gid               uint32
+	Group             string
+	Mode              uint16
+	Ctime             uint64
+	Mtime             uint64
+	MountId           uint32
+	Inode             uint64
+	InUpperLayer      bool
+	Path              string
+	Basename          string
+	Filesystem        string
+	PackageName       string
+	PackageVersion    string
+	PackageSrcversion string
+	Hashes            []string
+	HashState         model.HashState
+}
+
+// NewFileInfo creates a new FileInfo
+func NewFileInfo(f *model.FileEvent, path, basename string) *FileInfo {
+	return &FileInfo{
+		Uid:               f.UID,
+		User:              f.User,
+		Gid:               f.GID,
+		Group:             f.Group,
+		Mode:              f.Mode,
+		Ctime:             f.CTime,
+		Mtime:             f.MTime,
+		MountId:           f.MountID,
+		Inode:             f.Inode,
+		InUpperLayer:      f.InUpperLayer,
+		Path:              path,
+		Basename:          basename,
+		Filesystem:        f.Filesystem,
+		PackageName:       f.PkgName,
+		PackageVersion:    f.PkgVersion,
+		PackageSrcversion: f.PkgSrcVersion,
+		Hashes:            f.Hashes,
+		HashState:         f.HashState,
+	}
 }

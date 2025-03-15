@@ -209,29 +209,29 @@ func credentialsToProto(creds *model.Credentials) *adproto.Credentials {
 	return pcreds
 }
 
-func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
+func fileEventToProto(fe *FileInfo) *adproto.FileInfo {
 	if fe == nil {
 		return nil
 	}
 
 	fi := adproto.FileInfoFromVTPool()
 	*fi = adproto.FileInfo{
-		Uid:               fe.UID,
+		Uid:               fe.Uid,
 		User:              fe.User,
-		Gid:               fe.GID,
+		Gid:               fe.Gid,
 		Group:             fe.Group,
 		Mode:              uint32(fe.Mode), // yeah sorry
-		Ctime:             fe.CTime,
-		Mtime:             fe.MTime,
-		MountId:           fe.MountID,
+		Ctime:             fe.Ctime,
+		Mtime:             fe.Mtime,
+		MountId:           fe.MountId,
 		Inode:             fe.Inode,
 		InUpperLayer:      fe.InUpperLayer,
-		Path:              escape(fe.PathnameStr),
-		Basename:          escape(fe.BasenameStr),
+		Path:              escape(fe.Path),
+		Basename:          escape(fe.Basename),
 		Filesystem:        escape(fe.Filesystem),
-		PackageName:       fe.PkgName,
-		PackageVersion:    fe.PkgVersion,
-		PackageSrcversion: fe.PkgSrcVersion,
+		PackageName:       fe.PackageName,
+		PackageVersion:    fe.PackageVersion,
+		PackageSrcversion: fe.PackageSrcversion,
 		Hashes:            make([]string, len(fe.Hashes)),
 		HashState:         adproto.HashState(fe.HashState),
 	}
