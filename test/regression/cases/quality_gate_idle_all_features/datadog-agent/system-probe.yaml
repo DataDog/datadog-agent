@@ -3,6 +3,10 @@
 runtime_security_config:
   # Set to true to enable CWS
   enabled: true
+  activity_dump:
+    enabled: false
+  security_profile:
+    enabled: false
 
 system_probe_config:
   debug_port: 7654
