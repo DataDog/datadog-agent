@@ -177,7 +177,7 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 		log.Warnf("cannot set Go memory limit: %s", err)
 	}
 	if softLimit == 0 {
-		const fallbackSoftLimit = 500 * (1 << 20) // 500MiB
+		const fallbackSoftLimit = 200 * (1 << 20) // 200MiB
 		debug.SetMemoryLimit(fallbackSoftLimit)
 	}
 
