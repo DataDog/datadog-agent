@@ -1248,6 +1248,9 @@ func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPCon
 	c, err = net.DialUDP(udpnet, laddr, raddr)
 	require.NoError(t, err)
 
+	err = tracertestutil.SetTestDeadline(c)
+	require.NoError(t, err)
+
 	return ln, c
 }
 
