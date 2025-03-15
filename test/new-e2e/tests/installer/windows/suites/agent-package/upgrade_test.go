@@ -63,6 +63,22 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Assert
 }
 
+func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.mustStartExperimentPreviousVersion()
+	s.assertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSILogFile("install-current-version-again.log"),
+	)
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+}
+
 // TestUpgradeAgentPackage tests that the daemon can downgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
@@ -235,12 +251,16 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
 		})
 }
 
-func (s *testAgentUpgradeSuite) installCurrentAgentVersion() {
+func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
 
-	s.Require().NoError(s.Installer().Install(
+	options := []installerwindows.MsiOption{
 		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 		installerwindows.WithMSILogFile("install-current-version.log"),
+	}
+	options = append(options, opts...)
+	s.Require().NoError(s.Installer().Install(
+		options...,
 	))
 
 	// sanity check: make sure we did indeed install the stable version
