@@ -19,8 +19,9 @@ import (
 
 // ParsingContext defines a parsing context
 type ParsingContext struct {
-	ruleParser  *participle.Parser
-	macroParser *participle.Parser
+	ruleParser       *participle.Parser
+	macroParser      *participle.Parser
+	expressionParser *participle.Parser
 
 	ruleCache map[string]*Rule
 }
@@ -54,9 +55,10 @@ any = "\u0000"…"\uffff" .
 	}
 
 	return &ParsingContext{
-		ruleParser:  buildParser(&Rule{}, seclLexer),
-		macroParser: buildParser(&Macro{}, seclLexer),
-		ruleCache:   ruleCache,
+		ruleParser:       buildParser(&Rule{}, seclLexer),
+		macroParser:      buildParser(&Macro{}, seclLexer),
+		expressionParser: buildParser(&Expression{}, seclLexer),
+		ruleCache:        ruleCache,
 	}
 }
 
@@ -138,6 +140,17 @@ func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
 	}
 
 	return macro, nil
+}
+
+// ParseExpression parses a SECL expression
+func (pc *ParsingContext) ParseExpression(expr string) (*Expression, error) {
+	expression := &Expression{}
+	err := pc.expressionParser.Parse(bytes.NewBufferString(expr), expression)
+	if err != nil {
+		return nil, err
+	}
+
+	return expression, nil
 }
 
 // Macro describes a SECL macro

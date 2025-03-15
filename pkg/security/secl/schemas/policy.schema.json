@@ -410,6 +410,9 @@
         "field": {
           "type": "string"
         },
+        "expression": {
+          "type": "string"
+        },
         "append": {
           "type": "boolean"
         },
