@@ -23,7 +23,7 @@ service_monitoring_config:
   enabled: false
 
 network_config:
-  enabled: true
+  enabled: false
 
 discovery:
   enabled: true
