@@ -1624,6 +1624,21 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
     }
 
+    // Classification has different versions for different API keys.
+    switch (kafka_header.api_key) {
+        case KAFKA_FETCH:
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+                // Fetch request version 13 and above is not supported.
+                return false;
+            }
+            break;
+        case KAFKA_PRODUCE:
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+                return false;
+            }
+            break;
+    }
+
     kafka_transaction->request_started = bpf_ktime_get_ns();
     kafka_transaction->response_last_seen = 0;
     kafka_transaction->request_api_key = kafka_header.api_key;
