@@ -500,7 +500,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	a.logComp.Info("Showing agent telemetry payload")
-	payload, err := a.GetAsJSON()
+	payload, err := a.getAsJSON()
 	if err != nil {
 		httputils.SetJSONError(w, a.logComp.Error(err.Error()), 500)
 		return
@@ -509,7 +509,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	w.Write(payload)
 }
 
-func (a *atel) GetAsJSON() ([]byte, error) {
+func (a *atel) getAsJSON() ([]byte, error) {
 	session, err := a.loadPayloads(a.atelCfg.Profiles)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
@@ -561,7 +561,7 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	a.sender.sendEventPayload(ss, eventInfo, eventPayloadJSON)
 	err = a.sender.flushSession(ss)
 	if err != nil {
-		a.logComp.Errorf("failed to flush sent payload: %w", err)
+		a.logComp.Errorf("failed to flush sent payload: %v", err)
 		return err
 	}
 

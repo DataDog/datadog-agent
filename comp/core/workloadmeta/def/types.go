@@ -1359,6 +1359,18 @@ func (e EventBundle) Acknowledge() {
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
 
+// GPUClockType is an enum to access different clock rates of the GPU Device through the MaxClockRates array field of the GPU.
+type GPUClockType int
+
+const (
+	// GPUSM represents SM Clock, use nvml.CLOCK_SM to get the value
+	GPUSM GPUClockType = iota
+	// GPUMemory represents Memory Clock, use nvml.CLOCK_MEM to get the value
+	GPUMemory
+	// GPUCOUNT is the total number of clock types in this enum
+	GPUCOUNT
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1366,12 +1378,17 @@ type GPU struct {
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
 	Vendor string
 
-	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// Device is the commercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Device     string
+	Device string
+
+	//DriverVersion is the version of the driver used for the gpu device
+	DriverVersion string
+
+	//ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1386,8 +1403,18 @@ type GPU struct {
 	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
 	ComputeCapability GPUComputeCapability
 
-	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
-	SMCount int
+	// Total number of cores available for the device,
+	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
+	TotalCores int
+
+	//TotalMemory is the total available memory for the device in bytes
+	TotalMemory uint64
+
+	// MaxClockRates contains the maximum clock rates for SM and Memory
+	MaxClockRates [GPUCOUNT]uint32
+
+	// MemoryBusWidth is the width of the memory bus in bits.
+	MemoryBusWidth uint32
 
 	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
 	MigEnabled bool
@@ -1428,7 +1455,7 @@ func (g *GPU) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge GPU with different kind %T", e)
 	}
 
-	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
 	}
@@ -1453,12 +1480,17 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
-	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
+	_, _ = fmt.Fprintln(&sb, "Total Number of Cores:", g.TotalCores)
+	_, _ = fmt.Fprintln(&sb, "Device Total Memory (in bytes):", g.TotalMemory)
+	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
+	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
+	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
 	if g.MigEnabled {
 		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
 		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
@@ -1482,3 +1514,16 @@ type GPUComputeCapability struct {
 func (gcc GPUComputeCapability) String() string {
 	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
 }
+
+// CollectorStatus is the status of collector which is used to determine if the collectors
+// are not started, starting, started (pulled once)
+type CollectorStatus uint8
+
+const (
+	// CollectorsNotStarted means workloadmeta collectors are not started
+	CollectorsNotStarted CollectorStatus = iota
+	// CollectorsStarting means workloadmeta collectors are starting
+	CollectorsStarting
+	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
+	CollectorsInitialized
+)

@@ -7,22 +7,26 @@ package installer
 
 import (
 	"context"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 )
 
 var testCtx = context.TODO()
@@ -34,9 +38,9 @@ type testPackageManager struct {
 	installerImpl
 }
 
-func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
-	packages := repository.NewRepositories(rootPath, locksPath)
-	configs := repository.NewRepositories(t.TempDir(), t.TempDir())
+func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	packages := repository.NewRepositories(rootPath, packages.PreRemoveHooks)
+	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
@@ -59,7 +63,7 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 func TestInstallStable(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -77,7 +81,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -98,7 +102,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -120,7 +124,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -142,7 +146,7 @@ func TestUninstallExperiment(t *testing.T) {
 
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -161,7 +165,7 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 
 func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -181,7 +185,7 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 func TestReinstallAfterDBClean(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -245,7 +249,7 @@ func TestPurge(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
 		rootPath := t.TempDir()
-		installer := newTestPackageManager(t, s, rootPath, t.TempDir())
+		installer := newTestPackageManager(t, s, rootPath)
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
@@ -276,5 +280,57 @@ func doTestInstallers(t *testing.T, testFunc func(installFnFactory, *testing.T))
 		t.Run(runtime.FuncForPC(reflect.ValueOf(inst).Pointer()).Name(), func(t *testing.T) {
 			testFunc(inst, t)
 		})
+	}
+}
+
+func TestNoOutsideImport(t *testing.T) {
+	// Root directory to start the walk
+	rootDir := "."
+
+	// Define the unwanted import path
+	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
+	allowedPaths := []string{
+		"pkg/fleet/installer",
+		"pkg/version",  // TODO: cleanup & remove
+		"pkg/util/log", // TODO: cleanup & remove
+	}
+
+	// Walk the directory tree
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Only check .go files
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+			// Create a file set and parse the file
+			fs := token.NewFileSet()
+			node, err := parser.ParseFile(fs, path, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatalf("failed to parse file: %v", err)
+			}
+
+			// Loop through the imports in the AST
+			for _, imp := range node.Imports {
+				// Check if the import path matches the unwanted import
+				isAllowedImport := true
+				if strings.HasPrefix(imp.Path.Value, "\""+datadogAgentPrefix) {
+					isAllowedImport = false
+					for _, allowedPath := range allowedPaths {
+						if strings.HasPrefix(imp.Path.Value, "\""+datadogAgentPrefix+allowedPath) {
+							isAllowedImport = true
+						}
+					}
+				}
+				if !isAllowedImport {
+					t.Errorf("file %s imports %s, which is not allowed", path, imp.Path.Value)
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("failed to walk directory: %v", err)
 	}
 }

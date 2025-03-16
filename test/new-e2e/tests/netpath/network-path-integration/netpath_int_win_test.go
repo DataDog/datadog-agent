@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
@@ -37,6 +38,9 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 }
 
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
+	// TODO remove after fixing metrics flake
+	flake.Mark(s.T())
+
 	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {

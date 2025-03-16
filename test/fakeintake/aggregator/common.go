@@ -142,17 +142,17 @@ func (agg *Aggregator[P]) getNamesUnsorted() []string {
 	return names
 }
 
-func enflate(payload []byte, encoding string) (enflated []byte, err error) {
+func inflate(payload []byte, encoding string) (inflated []byte, err error) {
 	rc, err := getReadCloserForEncoding(payload, encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	enflated, err = io.ReadAll(rc)
+	inflated, err = io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}
-	return enflated, nil
+	return inflated, nil
 }
 
 func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {

@@ -98,12 +98,12 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 ) {
 	var errs []error
 
-	extensions, err := extension.MakeFactoryMap()
+	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	receivers, err := receiver.MakeFactoryMap(
+	receivers, err := otelcol.MakeFactoryMap[receiver.Factory](
 		otlpreceiver.NewFactory(),
 	)
 	if err != nil {
@@ -112,7 +112,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
+		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
 		debugexporter.NewFactory(),
 	}
 
@@ -120,7 +120,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
 	}
 
-	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
+	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](exporterFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -129,7 +129,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	if tagger != nil {
 		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger))
 	}
-	processors, err := processor.MakeFactoryMap(processorFactories...)
+	processors, err := otelcol.MakeFactoryMap[processor.Factory](processorFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}

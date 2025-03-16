@@ -97,9 +97,9 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		nps, err := s.Env().FakeIntake.Client().GetNetpathEvents()
-		assert.NoError(c, err, "GetNetpathEvents() errors")
-		if !assert.NotNil(c, nps, "GetNetpathEvents() returned nil netpaths") {
+		nps, err := s.Env().FakeIntake.Client().GetLatestNetpathEvents()
+		assert.NoError(c, err, "GetLatestNetpathEvents() errors")
+		if !assert.NotNil(c, nps, "GetLatestNetpathEvents() returned nil netpaths") {
 			return
 		}
 

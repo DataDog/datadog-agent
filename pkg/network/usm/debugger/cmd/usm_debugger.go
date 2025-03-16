@@ -37,7 +37,7 @@ func main() {
 	cleanupFn := setupBytecode()
 	defer cleanupFn()
 
-	monitor, err := usm.NewMonitor(getConfiguration(), nil)
+	monitor, err := usm.NewMonitor(getConfiguration(), nil, nil)
 	checkError(err)
 
 	err = monitor.Start()
@@ -46,7 +46,8 @@ func main() {
 	go func() {
 		t := time.NewTicker(10 * time.Second)
 		for range t.C {
-			_ = monitor.GetProtocolStats()
+			_, cleaners = monitor.GetProtocolStats()
+			cleaners()
 		}
 	}()
 

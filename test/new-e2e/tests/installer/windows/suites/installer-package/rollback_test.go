@@ -14,7 +14,7 @@ import (
 )
 
 type testInstallerRollbackSuite struct {
-	baseInstallerSuite
+	baseInstallerPackageSuite
 }
 
 // TestInstallerRollback tests the MSI rollback of the Datadog Installer on a system.

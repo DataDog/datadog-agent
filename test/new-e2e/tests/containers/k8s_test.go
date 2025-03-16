@@ -500,6 +500,12 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^sub-team:contint$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -596,6 +602,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -791,14 +799,45 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestKSM() {
+	// Test VPA metrics for nginx
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-nginx$",
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^kube_namespace:workload-(?:nginx|redis)$`,
+				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+
+	// Test VPA metrics for redis
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-redis$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -820,6 +859,8 @@ func (suite *k8sSuite) TestKSM() {
 				`^cr_type:ddm$`,
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 		},
 	})

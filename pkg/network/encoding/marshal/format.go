@@ -76,7 +76,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		w.SetContainerId(containerID)
 	})
 	builder.SetFamily(uint64(formatFamily(conn.Family)))
-	builder.SetType(uint64(formatType(conn.Type)))
+	builder.SetType(uint64(FormatType(conn.Type)))
 	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
@@ -157,17 +157,9 @@ func FormatCompilationTelemetry(builder *model.ConnectionsBuilder, telByAsset ma
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(builder *model.ConnectionsBuilder, tel map[network.ConnTelemetryType]int64) {
-	// Fetch USM payload telemetry
-	ret := GetUSMPayloadTelemetry()
-
-	// Merge it with NPM telemetry
 	for k, v := range tel {
-		ret[string(k)] = v
-	}
-
-	for k, v := range ret {
 		builder.AddConnTelemetryMap(func(w *model.Connections_ConnTelemetryMapEntryBuilder) {
-			w.SetKey(k)
+			w.SetKey(string(k))
 			w.SetValue(v)
 		})
 	}
@@ -199,7 +191,8 @@ func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
 	}
 }
 
-func formatType(f network.ConnectionType) model.ConnectionType {
+// FormatType converts a network.ConnectionType to a protobuf model.ConnectionType
+func FormatType(f network.ConnectionType) model.ConnectionType {
 	switch f {
 	case network.TCP:
 		return model.ConnectionType_tcp

@@ -17,6 +17,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -49,6 +50,7 @@ var (
 	py3LintedLock    sync.Mutex
 	linterLock       sync.Mutex
 	agentVersionTags []string
+	pythonOnce       sync.Once
 )
 
 const (
@@ -58,6 +60,9 @@ const (
 	a7TagUnknown   = "unknown"
 	a7TagPython3   = "python3" // Already running on python3, linting is disabled
 )
+
+// PythonCheckLoaderName is the name of the Python check loader
+const PythonCheckLoaderName string = "python"
 
 func init() {
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
@@ -105,16 +110,20 @@ func getRtLoaderError() error {
 	return nil
 }
 
-// Load returns Python loader name
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (cl *PythonCheckLoader) Name() string {
-	return "python"
+// Name returns Python loader name
+func (*PythonCheckLoader) Name() string {
+	return PythonCheckLoaderName
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
+		pythonOnce.Do(func() {
+			InitPython(common.GetPythonPaths()...)
+		})
+	}
+
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
@@ -207,7 +216,20 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
+	var goHASupported bool
+	if pkgconfigsetup.Datadog().GetBool("ha_agent.enabled") {
+		var haSupported C.bool
+
+		haSupportedAttr := TrackedCString("HA_SUPPORTED")
+		defer C._free(unsafe.Pointer(haSupportedAttr))
+		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
+			goHASupported = haSupported == C.bool(true)
+		} else {
+			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
+		}
+	}
+
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported)
 	if err != nil {
 		return c, err
 	}

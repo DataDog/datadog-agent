@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import sys
 import unittest
@@ -13,7 +14,7 @@ from invoke.exceptions import Exit
 
 from tasks import release
 from tasks.libs.common.gomodules import GoModule
-from tasks.libs.releasing.documentation import nightly_entry_for, parse_table, release_entry_for
+from tasks.libs.releasing.documentation import parse_table
 from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
     _get_jmxfetch_release_json_info,
@@ -189,9 +190,8 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                nightly_entry_for(6): {
+                "nightly": {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -204,39 +204,8 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
-                nightly_entry_for(7): {
+                "release": {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(6): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(7): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -254,7 +223,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
-        omnibus_software_version = Version(major=7, minor=30, patch=0)
         macos_build_version = Version(major=7, minor=30, patch=0)
         jmxfetch_version = Version(major=0, minor=45, patch=0)
         jmxfetch_shasum = "jmxfetchhashsum"
@@ -268,10 +236,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         release_json = _update_release_json_entry(
             release_json=initial_release_json,
-            release_entry=release_entry_for(7),
+            release_entry="release",
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
-            omnibus_software_version=omnibus_software_version,
             macos_build_version=macos_build_version,
             jmxfetch_version=jmxfetch_version,
             jmxfetch_shasum=jmxfetch_shasum,
@@ -286,9 +253,8 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                nightly_entry_for(6): {
+                "nightly": {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -301,39 +267,8 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
-                nightly_entry_for(7): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(6): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(7): {
+                "release": {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
-                    "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
                     "JMXFETCH_VERSION": str(jmxfetch_version),
                     "JMXFETCH_HASH": str(jmxfetch_shasum),
@@ -354,48 +289,30 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        nightly_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        release_entry_for(6): {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
-        release_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        "release": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
 
-    def test_release_version_6(self):
-        version = _get_release_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
-        self.assertEqual(version, release_entry_for(6))
+    def test_release_version(self):
+        version = _get_release_version_from_release_json(self.test_release_json, release.VERSION_RE)
+        self.assertEqual(version, "release")
 
-    def test_release_version_7(self):
-        version = _get_release_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
-        self.assertEqual(version, release_entry_for(7))
-
-    def test_release_jmxfetch_version_6(self):
+    def test_release_jmxfetch_version(self):
         version = _get_release_version_from_release_json(
-            self.test_release_json, 6, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
-        )
-        self.assertEqual(version, Version(major=0, minor=43, patch=0))
-
-    def test_release_jmxfetch_version_7(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
+            self.test_release_json, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
-    def test_release_security_version_6(self):
+    def test_release_security_version(self):
         version = _get_release_version_from_release_json(
-            self.test_release_json, 6, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
-        )
-        self.assertEqual(version, Version(prefix="v", major=0, minor=10))
-
-    def test_release_security_version_7(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
+            self.test_release_json, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
+        "nightly": {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -403,23 +320,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
-        nightly_entry_for(7): {
-            "WINDOWS_DDNPM_DRIVER": "attestation-signed",
-            "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
-            "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
-            "WINDOWS_DDPROCMON_DRIVER": "attestation-signed",
-            "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
-            "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
-        },
-        release_entry_for(6): {
-            "WINDOWS_DDNPM_DRIVER": "release-signed",
-            "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
-            "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
-            "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-            "WINDOWS_DDPROCMON_VERSION": "rc3-ddprocmon-version",
-            "WINDOWS_DDPROCMON_SHASUM": "rc3-ddprocmon-sha",
-        },
-        release_entry_for(7): {
+        "release": {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
@@ -437,7 +338,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, 7, True)
+        ) = _get_windows_release_json_info(self.test_release_json, True)
 
         self.assertEqual(ddnpm_driver, 'attestation-signed')
         self.assertEqual(ddnpm_version, 'nightly-ddnpm-version')
@@ -454,7 +355,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, 7, False)
+        ) = _get_windows_release_json_info(self.test_release_json, False)
 
         self.assertEqual(ddnpm_driver, 'release-signed')
         self.assertEqual(ddnpm_version, 'rc3-ddnpm-version')
@@ -466,26 +367,18 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
 
 class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
-            "VERSION": "ver6_nightly",
-            "HASH": "hash6_nightly",
-        },
-        nightly_entry_for(7): {
+        "nightly": {
             "VERSION": "ver7_nightly",
             "HASH": "hash7_nightly",
         },
-        release_entry_for(6): {
-            "VERSION": "ver6_release",
-            "HASH": "hash6_release",
-        },
-        release_entry_for(7): {
+        "release": {
             "VERSION": "ver7_release",
             "HASH": "hash7_release",
         },
     }
 
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7, True)
+        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, True)
 
         self.assertEqual(
             previous_release_json,
@@ -496,7 +389,7 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
         )
 
     def test_get_release_json_info_for_next_rc_on_second_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7, False)
+        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, False)
 
         self.assertEqual(
             previous_release_json,
@@ -509,26 +402,18 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
 
 class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
-            "JMXFETCH_VERSION": "ver6_nightly",
-            "JMXFETCH_HASH": "hash6_nightly",
-        },
-        nightly_entry_for(7): {
+        "nightly": {
             "JMXFETCH_VERSION": "ver7_nightly",
             "JMXFETCH_HASH": "hash7_nightly",
         },
-        release_entry_for(6): {
-            "JMXFETCH_VERSION": "ver6_release",
-            "JMXFETCH_HASH": "hash6_release",
-        },
-        release_entry_for(7): {
+        "release": {
             "JMXFETCH_VERSION": "ver7_release",
             "JMXFETCH_HASH": "hash7_release",
         },
     }
 
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, 7, True)
+        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, True)
 
         self.assertEqual(jmxfetch_version, "ver7_nightly")
         self.assertEqual(jmxfetch_hash, "hash7_nightly")
@@ -657,7 +542,6 @@ class TestGenerateRepoData(unittest.TestCase):
         new=MagicMock(
             return_value={
                 'integrations-core': '9.1.1-rc.0',
-                'omnibus-software': '1.2.3-rc.4',
                 'omnibus-ruby': "5.4.3-rc.2",
                 "datadog-agent-macos-build": "6.6.6-rc.6",
             }
@@ -667,11 +551,9 @@ class TestGenerateRepoData(unittest.TestCase):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
         repo_data = generate_repo_data(Context(), False, next_version, "main")
-        self.assertEqual(len(repo_data), 5)
+        self.assertEqual(len(repo_data), 4)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
         self.assertEqual("9.1.1-rc.0", repo_data["integrations-core"]["previous_tag"])
-        self.assertEqual("master", repo_data["omnibus-software"]["branch"])
-        self.assertEqual("1.2.3-rc.4", repo_data["omnibus-software"]["previous_tag"])
         self.assertEqual("datadog-5.5.0", repo_data["omnibus-ruby"]["branch"])
         self.assertEqual("5.4.3-rc.2", repo_data["omnibus-ruby"]["previous_tag"])
         self.assertEqual("master", repo_data["datadog-agent-macos-build"]["branch"])
@@ -684,7 +566,6 @@ class TestGenerateRepoData(unittest.TestCase):
         new=MagicMock(
             return_value={
                 'integrations-core': '9.1.1-rc.0',
-                'omnibus-software': '1.2.3-rc.4',
                 'omnibus-ruby': "5.4.3-rc.2",
                 "datadog-agent-macos-build": "6.6.6-rc.6",
             }
@@ -694,12 +575,21 @@ class TestGenerateRepoData(unittest.TestCase):
         next_version = MagicMock()
         next_version.branch.return_value = "9.1.x"
         repo_data = generate_repo_data(Context(), False, next_version, "9.1.x")
-        self.assertEqual(len(repo_data), 5)
+        self.assertEqual(len(repo_data), 4)
         self.assertEqual("9.1.x", repo_data["integrations-core"]["branch"])
-        self.assertEqual("9.1.x", repo_data["omnibus-software"]["branch"])
         self.assertEqual("9.1.x", repo_data["omnibus-ruby"]["branch"])
         self.assertEqual("9.1.x", repo_data["datadog-agent-macos-build"]["branch"])
         self.assertEqual("9.1.x", repo_data["datadog-agent"]["branch"])
+
+    @patch('tasks.libs.releasing.json.find_previous_tags', new=MagicMock(return_value={'datadog-agent': '6.53.4-rc.2'}))
+    def test_agent_6(self):
+        next_version = MagicMock()
+        next_version.major = 6
+        next_version.branch.return_value = "6.53.x"
+        repo_data = generate_repo_data(Context(), False, next_version, "6.53.x")
+        self.assertEqual(len(repo_data), 1)
+        self.assertEqual("6.53.x", repo_data["datadog-agent"]["branch"])
+        self.assertEqual("6.53.4-rc.2", repo_data["datadog-agent"]["previous_tag"])
 
 
 class TestCheckForChanges(unittest.TestCase):
@@ -710,7 +600,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -725,12 +614,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t0        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
@@ -760,6 +644,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main")
         print_mock.assert_called_with("false")
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -767,7 +652,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -775,30 +659,25 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'slock'})
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _):
+    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                        "4n0th3rc0mm1t9        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
+                    'git config user.name github-actions[bot]': Result(""),
+                    'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                         "4n0th3rc0mm1t1        refs/heads/main"
                     ),
                     'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
-                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
+                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                     ),
                     f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby {MOCK_TMP_DIR}': Result(
                         ""
@@ -832,13 +711,16 @@ class TestCheckForChanges(unittest.TestCase):
             )
             release.check_for_changes(c, "main")
             calls = [
-                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
+                call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 3)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\nMake sure to tag them before merging the next RC PR.",
+            )
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -846,7 +728,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -855,24 +736,17 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _):
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'slick'})
+    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                        "4n0th3rc0mm1t9        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                         "4n0th3rc0mm1t8        refs/heads/main"
                     ),
@@ -911,18 +785,17 @@ class TestCheckForChanges(unittest.TestCase):
             )
             release.check_for_changes(c, "main")
             calls = [
-                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
                 call("datadog-agent-macos-build has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on datadog-agent-macos-build", file=sys.stderr),
                 call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("datadog-agent has new commits since 7.55.0-devel", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 9)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\n - <https://github.com/DataDog/datadog-agent-macos-build/commits/main/|datadog-agent-macos-build>\nMake sure to tag them before merging the next RC PR.",
+            )
 
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
@@ -931,7 +804,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': 'main', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -946,12 +818,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t0        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
@@ -989,6 +856,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls, any_order=True)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -996,7 +864,6 @@ class TestCheckForChanges(unittest.TestCase):
         'tasks.release.generate_repo_data',
         new=MagicMock(
             return_value={
-                'omnibus-software': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'omnibus-ruby': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'datadog-agent-macos-build': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
                 'integrations-core': {'branch': '7.55.x', 'previous_tag': '7.55.0-rc.1'},
@@ -1004,25 +871,20 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'sluck'})
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _):
+    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
-                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
-                        "4n0th3rc0mm1t0        refs/heads/main"
-                    ),
-                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                    ),
-                    f'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
-                        ""
-                    ),
-                    'rm -rf omnibus-software': Result(""),
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
+                    'git config user.name github-actions[bot]': Result(""),
+                    'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/7.55.x"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
@@ -1062,11 +924,13 @@ class TestCheckForChanges(unittest.TestCase):
             release.check_for_changes(c, "7.55.x")
             calls = [
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 3)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `7.55.x` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/7.55.x/|omnibus-ruby>\nMake sure to tag them before merging the next RC PR.",
+            )
 
     # def test_no_changes_warning(self, print_mock):
     @patch('tasks.release.agent_context')
@@ -1087,6 +951,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1118,6 +983,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1149,6 +1015,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
@@ -1185,6 +1052,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
@@ -1245,6 +1113,7 @@ class TestUpdateModules(unittest.TestCase):
 class TestTagModules(unittest.TestCase):
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_2_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1257,6 +1126,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(3)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_3_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1269,6 +1139,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(4)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_4_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1285,6 +1156,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(100)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_100_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:

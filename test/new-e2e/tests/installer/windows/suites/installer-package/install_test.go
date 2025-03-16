@@ -8,15 +8,17 @@ package installertests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 type testInstallerSuite struct {
-	baseInstallerSuite
+	baseInstallerPackageSuite
 }
 
 // TestInstaller tests the installation of the Datadog installer on a system.
@@ -28,7 +30,8 @@ func TestInstaller(t *testing.T) {
 func (s *testInstallerSuite) TestInstalls() {
 	s.Run("Fresh install", func() {
 		s.freshInstall()
-		s.Run("Start service with a configuration file", s.startServiceWithConfigFile)
+		s.Run("Start service with a configuration file with updates disabled", s.startServiceWithConfigFileUpdatesDisabled)
+		s.Run("Start service with a configuration file with updates enabled", s.startServiceWithConfigFileUpdatesEnabled)
 		s.Run("Uninstall", func() {
 			s.uninstall()
 			s.Run("Install with existing configuration file", func() {
@@ -43,41 +46,41 @@ func (s *testInstallerSuite) TestInstalls() {
 	})
 }
 
-func (s *testInstallerSuite) startServiceWithConfigFile() {
+func (s *testInstallerSuite) startServiceWithConfigFileUpdatesDisabled() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.ConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_disabled", consts.ConfigPath)
 
 	// Act
-	s.Require().NoError(common.StartService(s.Env().RemoteHost, installerwindows.ServiceName))
+	// We still expect StartService to succeed, because the service should "start" then stop itself
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
-		WithStatus("Running").
-		HasNamedPipe(installerwindows.NamedPipe).
-		WithSecurity(
-			// Only accessible to Administrators and LocalSystem
-			common.NewProtectedSecurityInfo(
-				common.GetIdentityForSID(common.AdministratorsSID),
-				common.GetIdentityForSID(common.LocalSystemSID),
-				[]common.AccessRule{
-					common.NewExplicitAccessRule(
-						common.GetIdentityForSID(common.LocalSystemSID),
-						common.FileFullControl,
-						common.AccessControlTypeAllow,
-					),
-					common.NewExplicitAccessRule(
-						common.GetIdentityForSID(common.AdministratorsSID),
-						common.FileFullControl,
-						common.AccessControlTypeAllow,
-					),
-				},
-			))
+	// Wait a bit for the service to stop itself
+	s.Require().Eventually(func() bool {
+		status, err := common.GetServiceStatus(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return false
+		}
+		return status == "Stopped"
+	}, 60*time.Second, 5*time.Second, "Service should stop itself after starting")
+	// Have to do this after the eventually b/c it uses require calls that will hard fail the test
+	s.requireNotRunning()
+}
+
+func (s *testInstallerSuite) startServiceWithConfigFileUpdatesEnabled() {
+	// Arrange
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_enabled", consts.ConfigPath)
+
+	// Act
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
 	status, err := s.Installer().Status()
 	s.Require().NoError(err)
 	// with no packages installed just prints version
-	// e.g. Datadog Installer v7.60.0-devel+git.56.86b2ae2
-	s.Require().Contains(status, "Datadog Installer")
+	// e.g. Datadog Agent installer v7.60.0-devel+git.56.86b2ae2
+	s.Require().Contains(status, "Datadog Agent installer")
 }
 
 func (s *testInstallerSuite) uninstall() {
@@ -89,7 +92,7 @@ func (s *testInstallerSuite) uninstall() {
 	// Assert
 	s.requireUninstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		FileExists(installerwindows.ConfigPath)
+		FileExists(consts.ConfigPath)
 }
 
 func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
@@ -103,14 +106,14 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Assert
 	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
+		HasAService(consts.ServiceName).
 		WithStatus("Running")
 }
 
 func (s *testInstallerSuite) repair() {
 	// Arrange
-	s.Require().NoError(common.StopService(s.Env().RemoteHost, installerwindows.ServiceName))
-	s.Require().NoError(s.Env().RemoteHost.Remove(installerwindows.BinaryPath))
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName))
+	s.Require().NoError(s.Env().RemoteHost.Remove(consts.BinaryPath))
 
 	// Act
 	s.Require().NoError(s.Installer().Install(
@@ -120,7 +123,7 @@ func (s *testInstallerSuite) repair() {
 	// Assert
 	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.ServiceName).
+		HasAService(consts.ServiceName).
 		WithStatus("Running")
 }
 

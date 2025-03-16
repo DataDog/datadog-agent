@@ -6,8 +6,10 @@
 // Package status implements the core status component information provider interface
 package status
 
-// team: opentelemetry opentelemetry-agent
+// team: opentelemetry-agent
 
 // Component is the status interface.
 type Component interface {
+	// GetStatus returns the OTel Agent status in string form
+	GetStatus() (string, error)
 }
