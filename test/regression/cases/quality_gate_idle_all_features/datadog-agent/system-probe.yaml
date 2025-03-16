@@ -26,7 +26,7 @@ network_config:
   enabled: false
 
 discovery:
-  enabled: true
+  enabled: false
 
 ping:
   enabled: true
