@@ -17,7 +17,7 @@ system_probe_config:
     enabled: true
 
 dynamic_instrumentation:
-  enabled: true
+  enabled: false
 
 service_monitoring_config:
   enabled: false
