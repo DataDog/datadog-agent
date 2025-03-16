@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	batchDataSize = 4096
+	batchDataSize = 16384
 )
 
 type HTTPEventData struct {
