@@ -90,12 +90,6 @@ const (
 
 	fetchAPIKey   = 1
 	produceAPIKey = 0
-
-	produceMaxSupportedVersion = 8
-	produceMinSupportedVersion = 1
-
-	fetchMaxSupportedVersion = 12
-	fetchMinSupportedVersion = 0
 )
 
 func httpSupported() bool {
@@ -1004,30 +998,46 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			fetchVersion:   9,
 		},
 		{
-			produceVersion: 9,
+			produceVersion: 10,
 			fetchVersion:   10,
 		},
 		{
-			produceVersion: 9,
+			produceVersion: 11,
 			fetchVersion:   11,
 		},
 		{
-			produceVersion: 9,
+			produceVersion: 11,
 			fetchVersion:   12,
 		},
 		{
-			produceVersion: 9,
+			produceVersion: 11,
 			fetchVersion:   13,
+		},
+		{
+			produceVersion: 11,
+			fetchVersion:   14,
+		},
+		{
+			produceVersion: 11,
+			fetchVersion:   15,
+		},
+		{
+			produceVersion: 11,
+			fetchVersion:   16,
+		},
+		{
+			produceVersion: 11,
+			fetchVersion:   17,
 		},
 	}
 	for _, pair := range versions {
 		produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 		fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 
-		if pair.produceVersion < produceMinSupportedVersion || pair.produceVersion > produceMaxSupportedVersion {
+		if pair.produceVersion < kafka.ClassificationMinSupportedProduceRequestApiVersion || pair.produceVersion > kafka.ClassificationMaxSupportedProduceRequestApiVersion {
 			produceExpectedStack.Application = protocols.Unknown
 		}
-		if pair.fetchVersion < fetchMinSupportedVersion || pair.fetchVersion > fetchMaxSupportedVersion {
+		if pair.fetchVersion < kafka.ClassificationMinSupportedFetchRequestApiVersion || pair.fetchVersion > kafka.ClassificationMaxSupportedFetchRequestApiVersion {
 			fetchExpectedStack.Application = protocols.Unknown
 		}
 
