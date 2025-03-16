@@ -20,7 +20,7 @@ dynamic_instrumentation:
   enabled: true
 
 service_monitoring_config:
-  enabled: true
+  enabled: false
 
 network_config:
   enabled: true
