@@ -16,8 +16,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -111,15 +109,9 @@ func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
-
-	var content []byte
-	if strings.Contains(unit, "-exp.service") {
-		content, err = generateExperimentUnit(ctx, unit)
-	} else {
-		content, err = embedded.FS.ReadFile(unit)
-	}
+	content, err := embedded.FS.ReadFile(unit)
 	if err != nil {
-		return fmt.Errorf("error getting unit %s: %w", unit, err)
+		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
 	}
 	err = os.MkdirAll(UnitsPath, 0755)
 	if err != nil {
@@ -179,101 +171,4 @@ func IsRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
-}
-
-var (
-	regexBefore      = regexp.MustCompile(`Before=(.*?)\n`)
-	regexDescription = regexp.MustCompile(`Description=(.*)\n`)
-	regexBindsTo     = regexp.MustCompile(`BindsTo=(.*)\n`)
-	regexAlias       = regexp.MustCompile(`Alias=(.*)\n`)
-	regexAfter       = regexp.MustCompile(`After=(.*)\n`)
-	regexType        = regexp.MustCompile(`Type=(.*)\n`)
-	regexWants       = regexp.MustCompile(`Wants=(.*)\n`)
-	regexConflicts   = regexp.MustCompile(`Conflicts=(.*)\n`)
-	regexRestart     = regexp.MustCompile(`Restart=(.*)\n`)
-	regexStartLimits = regexp.MustCompile(`# Since systemd 229, should be in \[Unit\] but in order to support systemd <229,\n# it is also supported to have it here.\nStartLimitInterval=(.*?)\nStartLimitBurst=(.*?)\n`)
-)
-
-// generateExperimentUnit generates a systemd unit for an experiment
-func generateExperimentUnit(ctx context.Context, unitName string) (unitExp []byte, err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "generate_experiment_unit")
-	defer func() { span.Finish(err) }()
-	span.SetTag("unit", unitName)
-	unitName = strings.ReplaceAll(unitName, "-exp.service", ".service")
-
-	content, err := embedded.FS.ReadFile(unitName)
-	if err != nil {
-		return nil, fmt.Errorf("error reading embedded unit %s: %w", unitName, err)
-	}
-
-	if unitName == "datadog-agent.service" {
-		return generateCoreAgentExperimentUnit(content)
-	}
-
-	if unitName == "datadog-installer.service" {
-		// Cheat a bit here, we don't need to generate the unit file for the installer as it's deprecated
-		content, err := embedded.FS.ReadFile("datadog-installer-exp.service")
-		if err != nil {
-			return nil, fmt.Errorf("error reading embedded unit %s: %w", "datadog-installer-exp.service", err)
-		}
-		return content, nil
-	}
-
-	return generateAgentSubprocessExperimentUnit(unitName, content)
-}
-
-func generateCoreAgentExperimentUnit(content []byte) ([]byte, error) {
-	if submatches := regexAfter.FindSubmatch(content); len(submatches) > 1 {
-		content = regexAfter.ReplaceAll(content, []byte("After="+string(submatches[1])+"\nOnFailure=datadog-agent.service\nJobTimeoutSec=3000\n"))
-	} else {
-		return nil, fmt.Errorf("could not find After in datadog-agent.service")
-	}
-
-	if submatches := regexWants.FindSubmatch(content); len(submatches) > 1 {
-		content = regexWants.ReplaceAll(content, []byte("Wants="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	} else {
-		return nil, fmt.Errorf("could not find Wants in datadog-agent.service")
-	}
-
-	content = regexType.ReplaceAll(content, []byte("Type=oneshot\n"))
-	content = regexConflicts.ReplaceAll(content, []byte("Conflicts=datadog-agent.service\n"))
-	content = regexBefore.ReplaceAll(content, []byte("Before=datadog-agent.service\n"))
-	content = regexRestart.ReplaceAll(content, []byte(""))
-	content = regexStartLimits.ReplaceAll(content, []byte("ExecStart=/bin/false\nExecStop=/bin/false\n"))
-
-	if submatches := regexAlias.FindSubmatch(content); len(submatches) > 1 {
-		content = regexAlias.ReplaceAll(content, []byte("Alias="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	}
-	content = regexDescription.ReplaceAll(content, []byte("Description=$1 Experiment\n"))
-	content = []byte(strings.ReplaceAll(string(content), "stable", "experiment"))
-
-	return content, nil
-}
-
-func generateAgentSubprocessExperimentUnit(unitName string, content []byte) ([]byte, error) {
-	content = regexBefore.ReplaceAll(content, []byte{})
-	if submatches := regexBindsTo.FindSubmatch(content); len(submatches) > 1 {
-		content = regexBindsTo.ReplaceAll(content, []byte("BindsTo="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	} else {
-		return nil, fmt.Errorf("could not find BindsTo in %s", unitName)
-	}
-
-	if submatches := regexAfter.FindSubmatch(content); len(submatches) > 1 {
-		afterNoAgent := strings.TrimSpace(strings.ReplaceAll(string(submatches[1]), "datadog-agent.service", ""))
-		if afterNoAgent == "" {
-			content = regexAfter.ReplaceAll(content, []byte{})
-		} else {
-			content = regexAfter.ReplaceAll(content, []byte("After="+afterNoAgent+"\n"))
-		}
-	} else {
-		return nil, fmt.Errorf("could not find After in %s", unitName)
-	}
-
-	if submatches := regexAlias.FindSubmatch(content); len(submatches) > 1 {
-		content = regexAlias.ReplaceAll(content, []byte("Alias="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	}
-	content = regexDescription.ReplaceAll(content, []byte("Description=$1 Experiment\n"))
-	content = []byte(strings.ReplaceAll(string(content), "stable", "experiment"))
-
-	return content, nil
 }

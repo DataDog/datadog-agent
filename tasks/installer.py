@@ -2,6 +2,7 @@
 installer namespaced tasks
 """
 
+import glob
 import hashlib
 from os import makedirs, path
 
@@ -91,3 +92,62 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)
+
+
+@task
+def generate_experiment_units(ctx):
+    '''
+    Generates systemd units for the experiment service.
+    '''
+
+    files = glob.glob('./pkg/fleet/installer/packages/embedded/*.service')
+    for file in files:
+        if "datadog-installer" in file or "-exp.service" in file:
+            continue
+
+        experiment_file = ""
+        with open(file) as f:
+            for line in f:
+                # Special handling for datadog-agent.service, which is the main service
+                if "datadog-agent.service" in file:
+                    if "After=" in line:
+                        line += "OnFailure=datadog-agent.service\n"
+                        line += "JobTimeoutSec=3000\n"
+                    if "Wants=" in line:
+                        line = line.replace(".service", "-exp.service")
+                    if "Type=" in line:
+                        line = "Type=oneshot\n"
+                    if "Conflicts=" in line:
+                        line = "Conflicts=datadog-agent.service\n"
+                    if "Before=" in line:
+                        line = "Before=datadog-agent.service\n"
+                    if (
+                        "Restart=" in line
+                        or "# " in line
+                        or "StartLimitInterval=" in line
+                        or "StartLimitBurst=" in line
+                    ):
+                        continue  # Skip line
+                    if "ExecStart=" in line:
+                        line += "ExecStart=/bin/false\n"
+                        line += "ExecStop=/bin/false\n"
+                else:
+                    if "Before=" in line:
+                        continue  # Skip line
+                    if "After=" in line:
+                        after_no_agent = line.split("After=")[1].replace("datadog-agent.service", "").strip()
+                        if len(after_no_agent) == 0:
+                            continue  # Skip line
+                        line = "After=" + after_no_agent + "\n"
+                    if "BindsTo=" in line:
+                        line = line.replace(".service", "-exp.service")
+
+                if "Alias=" in line:
+                    line = line.replace(".service", "-exp.service")
+                if "Description=" in line:
+                    line = line.replace("\n", "") + " Experiment\n"
+                line = line.replace("stable", "experiment")
+                experiment_file += line
+
+        with open(file.replace(".service", "-exp.service"), 'w') as f:
+            f.write(experiment_file)
