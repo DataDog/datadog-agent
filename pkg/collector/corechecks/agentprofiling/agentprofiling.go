@@ -150,7 +150,7 @@ func (m *AgentProfilingCheck) generateFlare() error {
 			log.Errorf("Zendesk response: %s", response)
 			return fmt.Errorf("Failed to send flare to Zendesk: %w", err)
 		}
-		log.Infof("Flare sent to Zendesk with case ID %d", m.instance.TicketID)
+		log.Infof("Flare sent to Zendesk with case ID %s", m.instance.TicketID)
 	} else {
 		log.Infof("Flare generated locally at %s", flarePath)
 	}
