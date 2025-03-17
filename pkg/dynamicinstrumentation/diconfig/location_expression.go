@@ -182,6 +182,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						)
 					} else {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.ApplyOffsetLocationExpression(uint(sliceLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
@@ -222,6 +223,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
 						targetExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)), // Apply offset to the slice struct itself (incase we're in a struct on the stack or pointer)
 							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (indirect read)"),
 							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
 							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
