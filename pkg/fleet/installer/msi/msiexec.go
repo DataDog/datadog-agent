@@ -137,15 +137,6 @@ func HideControlPanelEntry() MsiexecOption {
 	}
 }
 
-// WithFleetInstallMarker passes a flag to msiexec to indicate that the MSI
-// is being run by the Fleet Installer
-func WithFleetInstallMarker() MsiexecOption {
-	return func(a *msiexecArgs) error {
-		a.additionalArgs = append(a.additionalArgs, "FLEET_INSTALL=1")
-		return nil
-	}
-}
-
 // Msiexec is a type wrapping msiexec
 type Msiexec struct {
 	*exec.Cmd

@@ -1,5 +1,4 @@
 using Datadog.CustomActions;
-using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
@@ -223,17 +222,6 @@ namespace Datadog.AgentCustomActions
         {
             try
             {
-                // If fleet is managing the uninstall, then keep the registry values around for the next install to use.
-                // Since fleet upgrades via uninstall/install, we want to ensure the Agent username is not lost between upgrades.
-                var fleetInstall = _session.Property("FLEET_INSTALL");
-                if (!string.IsNullOrEmpty(fleetInstall) && fleetInstall == "1")
-                {
-                    _session.Log("Fleet is managing the uninstall, keeping registry values for next install.");
-                    return ActionResult.Success;
-                }
-
-                // Remove agent user registry values
-
                 using var subkey =
                     _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey,
                         writable: true);

@@ -598,7 +598,7 @@ namespace WixSetup.Datadog_Agent
             DeleteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(DeleteInstallState)),
                     CustomActions.DeleteInstallState,
-                    Return.ignore,
+                    Return.check,
                     // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
                     // so that the built-in registry keys can be removed if they are empty.
                     When.Before,
