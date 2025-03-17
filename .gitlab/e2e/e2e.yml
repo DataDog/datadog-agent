@@ -572,6 +572,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRunAgentMSIAfterExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
       # install-script
       # TODO: disabling tests during MSI merge, so we can split PRs
       # - EXTRA_PARAMS: --run "TestInstallScript$"
