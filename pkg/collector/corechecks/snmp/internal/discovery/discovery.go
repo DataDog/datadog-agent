@@ -193,6 +193,10 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = job.currentIP.String()
 
+	fmt.Println("=====================================")
+	fmt.Println("AUTHENTICATIONS LENGTH: " + fmt.Sprint(len(config.Authentications)))
+	fmt.Println("=====================================")
+
 	deviceFound := false
 	for _, authentication := range config.Authentications {
 		config.CommunityString = authentication.CommunityString
