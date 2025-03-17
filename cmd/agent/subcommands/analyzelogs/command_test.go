@@ -191,7 +191,7 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	// Set CLI params
