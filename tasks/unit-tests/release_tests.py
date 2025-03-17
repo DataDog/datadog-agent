@@ -314,18 +314,12 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
         release.nightly_entry_for(6): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        release.nightly_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
         release.release_entry_for(6): {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
-        release.release_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
 
     def test_release_version_6(self):
         version = release._get_release_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
         self.assertEqual(version, release.release_entry_for(6))
-
-    def test_release_version_7(self):
-        version = release._get_release_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
-        self.assertEqual(version, release.release_entry_for(7))
 
     def test_release_jmxfetch_version_6(self):
         version = release._get_release_version_from_release_json(
@@ -333,21 +327,9 @@ class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=0, minor=43, patch=0))
 
-    def test_release_jmxfetch_version_7(self):
-        version = release._get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
-        )
-        self.assertEqual(version, Version(major=0, minor=44, patch=1))
-
     def test_release_security_version_6(self):
         version = release._get_release_version_from_release_json(
             self.test_release_json, 6, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
-        )
-        self.assertEqual(version, Version(prefix="v", major=0, minor=10))
-
-    def test_release_security_version_7(self):
-        version = release._get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
