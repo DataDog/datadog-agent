@@ -8,7 +8,6 @@ package defaultforwarder
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/http/httptrace"
 	"sync"
 
@@ -27,7 +26,7 @@ type Worker struct {
 	log    log.Component
 
 	// Client the http client used to processed transactions.
-	Client *http.Client
+	Client *SharedConnection
 	// HighPrio is the channel used to receive high priority transaction from the Forwarder.
 	HighPrio <-chan transaction.Transaction
 	// LowPrio is the channel used to receive low priority transaction from the Forwarder.
@@ -35,7 +34,6 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- transaction.Transaction
 
-	resetConnectionChan   chan *http.Client
 	stopped               chan struct{}
 	blockedList           *blockedEndpoints
 	pointSuccessfullySent PointSuccessfullySent
@@ -62,7 +60,7 @@ func NewWorker(
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
-	httpClient *http.Client,
+	httpClient *SharedConnection,
 	maxConcurrentRequests int64,
 ) *Worker {
 	if maxConcurrentRequests <= 0 {
@@ -78,7 +76,6 @@ func NewWorker(
 		HighPrio:              highPrioChan,
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
-		resetConnectionChan:   make(chan *http.Client, 1),
 		stopped:               make(chan struct{}),
 		Client:                httpClient,
 		blockedList:           blocked,
@@ -151,16 +148,6 @@ func (w *Worker) Start() {
 	}()
 }
 
-// ScheduleConnectionReset allows signaling the worker that all connections should
-// be recreated before sending the next transaction. Returns immediately.
-func (w *Worker) ScheduleConnectionReset(client *http.Client) {
-	select {
-	case w.resetConnectionChan <- client:
-	default:
-		// a reset is already planned, we can ignore this one
-	}
-}
-
 // acquireRequestSemaphore attempts to acquire a semaphore, which will block
 // if we are already sending too many requests.
 // This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
@@ -180,13 +167,6 @@ func (w *Worker) releaseRequestSemaphore() {
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
 func (w *Worker) callProcess(t transaction.Transaction) error {
-	// poll for connection reset events first
-	select {
-	case client := <-w.resetConnectionChan:
-		w.Client = client
-	default:
-	}
-
 	ctx := httptrace.WithClientTrace(w.workerCtx, transaction.GetClientTrace(w.log))
 
 	// Block here if we are already sending too many requests
@@ -214,7 +194,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlock(target) {
 		w.requeue(t)
 		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.log, w.Client); err != nil {
+	} else if err := t.Process(ctx, w.config, w.log, w.Client.GetClient()); err != nil {
 		w.blockedList.close(target)
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

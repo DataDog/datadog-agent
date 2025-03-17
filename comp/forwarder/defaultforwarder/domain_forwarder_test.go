@@ -272,7 +272,7 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.requeueTransaction(notReady)
 	requireLenForwarderRetryQueue(t, forwarder, 2)
 
-	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
+	ready.On("Process", forwarder.workers[0].Client.GetClient()).Return(nil).Times(1)
 	ready.On("GetTarget").Return("").Times(2)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)

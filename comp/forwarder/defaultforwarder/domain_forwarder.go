@@ -42,7 +42,7 @@ type domainForwarder struct {
 	requeuedTransaction       chan transaction.Transaction
 	stopRetry                 chan bool
 	stopConnectionReset       chan bool
-	Client                    *http.Client
+	Client                    *SharedConnection
 	workers                   []*Worker
 	retryQueue                *retry.TransactionRetryQueue
 	connectionResetInterval   time.Duration
@@ -182,9 +182,6 @@ func (f *domainForwarder) scheduleConnectionResets() {
 		case <-ticker.C:
 			f.log.Debugf("Scheduling reset of connections used for domain: %q", f.domain)
 			f.resetConnections()
-			for _, worker := range f.workers {
-				worker.ScheduleConnectionReset(f.Client)
-			}
 		case <-f.stopConnectionReset:
 			ticker.Stop()
 			return
@@ -220,11 +217,13 @@ func (f *domainForwarder) Start() error {
 
 	maxConcurrentRequests := f.config.GetInt64("forwarder_max_concurrent_requests")
 
+	var client *http.Client
 	if f.isLocal {
-		f.Client = newBearerAuthHTTPClient(f.numberOfWorkers)
+		client = newBearerAuthHTTPClient(f.numberOfWorkers)
 	} else {
-		f.Client = NewHTTPClient(f.config, f.numberOfWorkers, f.log)
+		client = NewHTTPClient(f.config, f.numberOfWorkers, f.log)
 	}
+	f.Client = NewSharedConnection(client)
 
 	for i := 0; i < f.numberOfWorkers; i++ {
 		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, maxConcurrentRequests)
@@ -244,11 +243,11 @@ func (f *domainForwarder) Start() error {
 // the worker, in order to create new connections when the next transactions are processed.
 // It must not be called while a transaction is being processed.
 func (f *domainForwarder) resetConnections() {
-	f.Client.CloseIdleConnections()
+	f.Client.GetClient().CloseIdleConnections()
 	if f.isLocal {
-		f.Client = newBearerAuthHTTPClient(f.numberOfWorkers)
+		f.Client.SetClient(newBearerAuthHTTPClient(f.numberOfWorkers))
 	} else {
-		f.Client = NewHTTPClient(f.config, f.numberOfWorkers, f.log)
+		f.Client.SetClient(NewHTTPClient(f.config, f.numberOfWorkers, f.log))
 	}
 }
 

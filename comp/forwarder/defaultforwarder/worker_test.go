@@ -31,9 +31,9 @@ func TestNewWorker(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
 	assert.NotNil(t, w)
-	assert.Equal(t, w.Client.Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
+	assert.Equal(t, w.Client.GetClient().Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
 }
 
 func TestNewNoSSLWorker(t *testing.T) {
@@ -45,8 +45,8 @@ func TestNewNoSSLWorker(t *testing.T) {
 	mockConfig.SetWithoutSource("skip_ssl_validation", true)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
-	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	assert.True(t, w.Client.GetClient().Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
 func TestWorkerStart(t *testing.T) {
@@ -57,15 +57,15 @@ func TestWorkerStart(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(httpClient), 1)
 
 	mock := newTestTransaction()
 	mock.pointCount = 1
-	mock.On("Process", w.Client).Return(nil).Times(1)
+	mock.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mock.On("GetTarget").Return("").Times(1)
 	mock2 := newTestTransaction()
 	mock2.pointCount = 2
-	mock2.On("Process", w.Client).Return(nil).Times(1)
+	mock2.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mock2.On("GetTarget").Return("").Times(1)
 
 	w.Start()
@@ -95,10 +95,10 @@ func TestWorkerRetry(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
 
 	mock := newTestTransaction()
-	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
+	mock.On("Process", w.Client.GetClient()).Return(fmt.Errorf("some kind of error")).Times(1)
 	mock.On("GetTarget").Return("error_url").Times(1)
 
 	w.Start()
@@ -119,7 +119,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -143,10 +143,11 @@ func TestWorkerResetConnections(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	connection := NewSharedConnection(httpClient)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, connection, 1)
 
 	mock := newTestTransaction()
-	mock.On("Process", w.Client).Return(nil).Times(1)
+	mock.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mock.On("GetTarget").Return("").Times(1)
 
 	w.Start()
@@ -157,9 +158,9 @@ func TestWorkerResetConnections(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 
-	httpClientBefore := w.Client
+	httpClientBefore := w.Client.GetClient()
 	newHTTPClient := NewHTTPClient(mockConfig, 1, log)
-	w.ScheduleConnectionReset(newHTTPClient)
+	connection.SetClient(newHTTPClient)
 
 	// tricky to test here that "Process" is called with a new http client
 	mock2 := newTestTransactionWithoutClientAssert()
@@ -170,10 +171,10 @@ func TestWorkerResetConnections(t *testing.T) {
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
-	assert.NotSame(t, httpClientBefore, w.Client)
+	assert.NotSame(t, httpClientBefore, w.Client.GetClient())
 
 	mock3 := newTestTransaction()
-	mock3.On("Process", w.Client).Return(nil).Times(1)
+	mock3.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mock3.On("GetTarget").Return("").Times(1)
 	highPrio <- mock3
 	<-mock3.processed
@@ -194,7 +195,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 
 	log := logmock.New(t)
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
 
 	go func() {
 		w.Start()
@@ -204,7 +205,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 
 	mockTransaction := newTestTransaction()
 	mockTransaction.shouldBlock = true
-	mockTransaction.On("Process", w.Client).Return(fmt.Errorf("Cancelled")).Times(1)
+	mockTransaction.On("Process", w.Client.GetClient()).Return(fmt.Errorf("Cancelled")).Times(1)
 	mockTransaction.On("GetTarget").Return("").Times(1)
 
 	highPrio <- mockTransaction
@@ -234,7 +235,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 
 	httpClient := NewHTTPClient(mockConfig, 1, log)
 	// Configure the worker to have 3 maximum concurrent requests
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 3)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 3)
 
 	go func() {
 		w.Start()
@@ -253,10 +254,10 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 		// exit with an error.
 		if i <= 3 {
 			mockTransaction.shouldBlock = true
-			mockTransaction.On("Process", w.Client).Return(fmt.Errorf("Cancelled")).Times(1)
+			mockTransaction.On("Process", w.Client.GetClient()).Return(fmt.Errorf("Cancelled")).Times(1)
 		} else {
 			// The other transactions succeed.
-			mockTransaction.On("Process", w.Client).Return(nil).Times(1)
+			mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 		}
 
 		// Each transaction has a different target to ensure the block list doesn't prevent
@@ -299,16 +300,16 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	log := logmock.New(t)
 
 	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, httpClient, 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
 	close(w.stopped)
 
 	mockTransaction := newTestTransaction()
-	mockTransaction.On("Process", w.Client).Return(nil).Times(1)
+	mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mockTransaction.On("GetTarget").Return("").Times(1)
 	highPrio <- mockTransaction
 
 	mockRetryTransaction := newTestTransaction()
-	mockRetryTransaction.On("Process", w.Client).Return(nil).Times(1)
+	mockRetryTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
 	mockRetryTransaction.On("GetTarget").Return("").Times(1)
 	lowPrio <- mockRetryTransaction
 
