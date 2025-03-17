@@ -309,6 +309,7 @@ const (
 	MetricSourceMilvus
 	MetricSourceNvidiaNim
 	MetricSourceQuarkus
+	MetricSourceVelero
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -927,6 +928,8 @@ func (ms MetricSource) String() string {
 		return "milvus"
 	case MetricSourceQuarkus:
 		return "quarkus"
+	case MetricSourceVelero:
+		return "velero"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1557,6 +1560,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceMilvus
 	case "quarkus":
 		return MetricSourceQuarkus
+	case "velero":
+		return MetricSourceVelero
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":

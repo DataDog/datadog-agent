@@ -306,6 +306,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVelero,
 		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
@@ -1002,6 +1003,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 426
 	case metrics.MetricSourceQuarkus:
 		return 427
+	case metrics.MetricSourceVelero:
+		return 458
 	default:
 		return 0
 	}
