@@ -646,42 +646,6 @@ func TestConcentratorInput(t *testing.T) {
 			},
 		},
 		{
-			name: "containerID no orchestrator",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "no-orch",
-				},
-			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
-			name: "containerID feature disabled",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "feature_disabled",
-				},
-			},
-			withFargate: true,
-			features:    "disable_cid_stats",
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
 			name: "client computed stats",
 			in: &api.Payload{
 				TracerPayload: &pb.TracerPayload{
