@@ -65,7 +65,7 @@ func (sc *SharedConnection) ResetClient() {
 func (sc *SharedConnection) newClient() *http.Client {
 	if sc.isLocal {
 		return newBearerAuthHTTPClient(sc.numberOfWorkers)
-	} else {
-		return NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
 	}
+
+	return NewHTTPClient(sc.config, sc.numberOfWorkers, sc.log)
 }
