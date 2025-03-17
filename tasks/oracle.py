@@ -11,12 +11,12 @@ def test(ctx, verbose=False) -> None:
     Runs oracle functional tests against a containerized database.
     """
 
-    if not os.environ.get("SKIP_DOCKER"):
+    if not os.environ.get("CI") and not os.environ.get("SKIP_DOCKER"):
         start_docker(ctx, verbose)
 
     try:
         os.environ["ORACLE_TEST_PORT"] = "1521"
-        os.environ["ORACLE_TEST_SERVER"] = "localhost"
+        os.environ["ORACLE_TEST_SERVER"] = "oracle" if os.environ.get("CI") else "localhost"
 
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
