@@ -97,8 +97,8 @@ func NewWatcher(cfg *config.Config, libset Libset, mapsCleaner func(map[uint32]s
 		registry:       utils.NewFileRegistry(consts.USMModuleName, "shared_libraries"),
 		scannedPIDs:    make(map[uint32]int),
 
-		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
-		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
+		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptStatsd),
+		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptStatsd),
 
 		mapsCleaner: mapsCleaner,
 	}, nil

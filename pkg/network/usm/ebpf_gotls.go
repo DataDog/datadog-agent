@@ -189,8 +189,8 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			cfg:                c,
 			manager:            m,
 			procRoot:           c.ProcRoot,
-			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptStatsd),
+			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptStatsd),
 			registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
 		}, nil
 	}
