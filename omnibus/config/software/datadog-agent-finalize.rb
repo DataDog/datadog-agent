@@ -57,6 +57,9 @@ build do
             # service_discovery isn't supported by windows
             delete "#{conf_dir}/service_discovery.d"
 
+            # ebpf isn't supported by windows
+            delete "#{conf_dir}/ebpf.d"
+
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end

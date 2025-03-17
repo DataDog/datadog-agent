@@ -325,7 +325,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	cfg.BindEnvAndSetDefault(join(spNS, "process_config.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
 	// ebpf module
-	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
 
 	// settings for the entry count of the ebpfcheck
