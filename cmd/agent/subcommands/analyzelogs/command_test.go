@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -104,7 +104,7 @@ Auto-discovery IDs:
       - type: exclude_at_match
         name: exclude_random
         pattern: "datadog-agent"
-      
+
 `, tempLogFile.Name())
 	tempConfigFile := CreateTestFile(tempDir, "config.yaml", yamlContent)
 	assert.NotNil(t, tempConfigFile)
@@ -120,7 +120,7 @@ Auto-discovery IDs:
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	// Set CLI params

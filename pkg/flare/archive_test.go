@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -97,9 +96,7 @@ func setupProcessAPIServer(t *testing.T, port int) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),

@@ -29,6 +29,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -75,7 +76,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Supply(option.None[rcservicemrf.Component]()),
 		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),
