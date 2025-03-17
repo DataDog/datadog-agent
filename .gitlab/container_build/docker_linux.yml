@@ -203,9 +203,8 @@ docker_build_ot_agent7_arm64:
     TAG_SUFFIX: -7-ot-beta
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
-# agent base image for standalone images
+# agent base image: future agent images will be based on this image
 .docker_build_base_image:
-  extends: [.docker_build_job_definition_amd64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -216,22 +215,18 @@ docker_build_ot_agent7_arm64:
     BUILD_ARG: --target release
     TAG_SUFFIX: -base-image
 
-# agent base image for standalone images
 docker_build_base_image_amd64:
   extends: [.docker_build_base_image, .docker_build_job_definition_amd64]
 
-# agent base image for standalone images
-docker_build_base_image:
+docker_build_base_image_arm64:
   extends: [.docker_build_base_image, .docker_build_job_definition_arm64]
 
-
-# standalone otel-agent
 .docker_build_ot_agent_standalone:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: docker_build_base_image
+    - job: docker_build_base_image_arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
     BUILD_CONTEXT: Dockerfiles/otel-agent
