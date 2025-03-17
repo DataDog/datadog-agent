@@ -38,7 +38,6 @@ RuntimeDirectory=datadog
 
 [Install]
 WantedBy=multi-user.target
-Alias=datadog-agent-exp.service
 `
 
 	expectedProcessAgentExpUnit = `[Unit]
@@ -61,7 +60,6 @@ StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
-Alias=datadog-agent-process-exp.service
 `
 )
 

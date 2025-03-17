@@ -243,8 +243,6 @@ func generateCoreAgentExperimentUnit(content []byte) ([]byte, error) {
 
 	if submatches := regexAlias.FindSubmatch(content); len(submatches) > 1 {
 		content = regexAlias.ReplaceAll(content, []byte("Alias="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	} else {
-		return nil, fmt.Errorf("could not find Alias in datadog-agent.service")
 	}
 	content = regexDescription.ReplaceAll(content, []byte("Description=$1 Experiment\n"))
 	content = []byte(strings.ReplaceAll(string(content), "stable", "experiment"))
@@ -273,8 +271,6 @@ func generateAgentSubprocessExperimentUnit(unitName string, content []byte) ([]b
 
 	if submatches := regexAlias.FindSubmatch(content); len(submatches) > 1 {
 		content = regexAlias.ReplaceAll(content, []byte("Alias="+strings.ReplaceAll(string(submatches[1]), ".service", "-exp.service")+"\n"))
-	} else {
-		return nil, fmt.Errorf("could not find Alias in %s", unitName)
 	}
 	content = regexDescription.ReplaceAll(content, []byte("Description=$1 Experiment\n"))
 	content = []byte(strings.ReplaceAll(string(content), "stable", "experiment"))
