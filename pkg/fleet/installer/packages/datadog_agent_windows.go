@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -71,6 +72,9 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		span.Finish(err)
 	}()
 
+	// must get env before uninstalling the Agent since it may read from the registry
+	env := getenv()
+
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
@@ -83,12 +87,12 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = installAgentPackage("experiment", nil, "start_agent_experiment.log")
+	err = installAgentPackage(env, "experiment", nil, "start_agent_experiment.log")
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
 		// if the reinstall of the sable fails again we can't do much.
-		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
+		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
 	}
 
@@ -109,7 +113,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 			return fmt.Errorf("Failed to remove experiment Agent: %w", err)
 		}
 		// reinstall the stable Agent
-		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
+		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
 	}
 
@@ -200,6 +204,9 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 	// this will just stop a watchdog that is running
 	_ = setWatchdogStopEvent()
 
+	// must get env before uninstalling the Agent since it may read from the registry
+	env := getenv()
+
 	// remove the Agent
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
@@ -209,7 +216,7 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 	}
 
 	// reinstall the stable Agent
-	err = installAgentPackage("stable", nil, "restore_stable_agent.log")
+	err = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 	if err != nil {
 		// we failed to reinstall the stable Agent
 		// we can't do much here
@@ -241,7 +248,7 @@ func RemoveAgent(ctx context.Context) (err error) {
 	return removeAgentIfInstalled(ctx)
 }
 
-func installAgentPackage(target string, args []string, logFileName string) error {
+func installAgentPackage(env *env.Env, target string, args []string, logFileName string) error {
 
 	rootPath := ""
 	_, err := os.Stat(paths.RootTmpDir)
@@ -263,14 +270,21 @@ func installAgentPackage(target string, args []string, logFileName string) error
 	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
 	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
 
-	args = append(args, "FLEET_INSTALL=1", dataDir, projectLocation)
-
-	cmd, err := msi.Cmd(
+	opts := []msi.MsiexecOption{
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
-		msi.WithAdditionalArgs(args),
 		msi.WithLogFile(logFile),
-	)
+	}
+	if env.AgentUserName != "" {
+		opts = append(opts, msi.WithDdAgentUserName(env.AgentUserName))
+	}
+	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
+
+	// append input args last so they can take precedence
+	additionalArgs = append(additionalArgs, args...)
+	opts = append(opts, msi.WithAdditionalArgs(additionalArgs))
+	cmd, err := msi.Cmd(opts...)
+
 	var output []byte
 	if err == nil {
 		output, err = cmd.Run()
@@ -351,4 +365,50 @@ func getWatchdogTimeout() time.Duration {
 		return defaultTimeout
 	}
 	return time.Duration(val) * time.Minute
+}
+
+// getAgentUserNameFromRegistry returns the user name for the Agent, stored in the registry by the Agent MSI
+func getAgentUserNameFromRegistry() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
+	if err != nil {
+		return "", err
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
+	}
+
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	return user, nil
+}
+
+// getenv returns an Env struct with values from the environment.
+//
+// See also env.FromEnv()
+//
+// This function also reads the Agent user name from the registry if it is not set in the environment.
+func getenv() *env.Env {
+	env := env.FromEnv()
+
+	// fallback to registry for agent user
+	if env.AgentUserName == "" {
+		user, err := getAgentUserNameFromRegistry()
+		if err != nil {
+			log.Warnf("Could not read Agent user from registry: %v", err)
+		} else {
+			env.AgentUserName = user
+		}
+	}
+
+	return env
 }
