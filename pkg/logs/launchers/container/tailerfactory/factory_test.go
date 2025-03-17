@@ -18,7 +18,7 @@ import (
 )
 
 func TestMakeTailerFile(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return File }
+	whichTailer := func(*sources.LogSource) whichTailer { return file }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { panic("socket shouldn't be called") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -29,7 +29,7 @@ func TestMakeTailerFile(t *testing.T) {
 }
 
 func TestMakeTailerFileFallback(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return File }
+	whichTailer := func(*sources.LogSource) whichTailer { return file }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -45,7 +45,7 @@ func TestMakeTailerFileFallback(t *testing.T) {
 }
 
 func TestMakeTailerFileFallbackFailsToo(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return File }
+	whichTailer := func(*sources.LogSource) whichTailer { return file }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -57,7 +57,7 @@ func TestMakeTailerFileFallbackFailsToo(t *testing.T) {
 }
 
 func TestMakeTailerSocket(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return Socket }
+	whichTailer := func(*sources.LogSource) whichTailer { return socket }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { panic("shouldn't be called") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -68,7 +68,7 @@ func TestMakeTailerSocket(t *testing.T) {
 }
 
 func TestMakeTailerSocketFallback(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return Socket }
+	whichTailer := func(*sources.LogSource) whichTailer { return socket }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -85,7 +85,7 @@ func TestMakeTailerSocketFallback(t *testing.T) {
 }
 
 func TestMakeTailerSocketFallbackFailsToo(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return Socket }
+	whichTailer := func(*sources.LogSource) whichTailer { return socket }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { panic("api shouldn't be called") }
@@ -97,7 +97,7 @@ func TestMakeTailerSocketFallbackFailsToo(t *testing.T) {
 }
 
 func TestMakeTailerAPI(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return API }
+	whichTailer := func(*sources.LogSource) whichTailer { return api }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { panic("file shouldn't be called") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { panic("socket shouldn't be called") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
@@ -108,7 +108,7 @@ func TestMakeTailerAPI(t *testing.T) {
 }
 
 func TestMakeTailerAPIFails(t *testing.T) {
-	whichTailer := func(*sources.LogSource) whichTailer { return API }
+	whichTailer := func(*sources.LogSource) whichTailer { return api }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { panic("file shouldn't be called") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { panic("socket shouldn't be called") }
 	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh") }

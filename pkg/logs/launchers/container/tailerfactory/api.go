@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// makeSocketTailer makes a socket-based tailer for the given source, or returns
-// an error if it cannot do so (e.g., due to permission errors)
+// makeAPITailer makes a tailer that proxies calls to the kubelet through the API Server
+// for the given source, or returns an error if it cannot do so (e.g., due to permission errors)
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	containerID := source.Config.Identifier
 
