@@ -39,6 +39,7 @@ func TestVMLogsExampleSuite(t *testing.T) {
 }
 
 func (s *vmLogsExampleSuite) TestLogs() {
+	s.Env().Agent.Client.Status()
 	fakeintake := s.Env().FakeIntake.Client()
 	// part 1: no logs
 	s.EventuallyWithT(func(c *assert.CollectT) {

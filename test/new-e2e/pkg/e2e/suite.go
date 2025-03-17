@@ -146,6 +146,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -626,7 +627,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	// If environment implement Coverage interface, retrieve code coverage before destroying stack
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
-		err := coverageEnv.Coverage(bs.remoteCoverageDir, os.Getenv("E2E_GOCOVERDIR"))
+		err := coverageEnv.Coverage(bs.remoteCoverageDir, path.Join(os.Getenv("E2E_GOCOVERDIR"), bs.getSuiteSessionSubdirectory()))
 		if err != nil {
 			bs.T().Logf("unable to get coverage: %v", err)
 		}
