@@ -61,6 +61,7 @@ type serviceInfo struct {
 	additionalGeneratedNames   []string
 	containerServiceName       string
 	containerServiceNameSource string
+	containerTags              []string
 	ddServiceName              string
 	ddServiceInjected          bool
 	ports                      []uint16
@@ -904,12 +905,14 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	}
 
 	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
+	service.ContainerTags = container.Tags
 	service.ContainerServiceName = serviceName
 	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
+		serviceInfo.containerTags = container.Tags
 		serviceInfo.containerServiceName = serviceName
 		serviceInfo.containerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
