@@ -517,10 +517,10 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())
-	if sysProbeClient == nil {
-		return "", fmt.Errorf("no network ID detected. system-probe client not available: %w", err)
-	}
 	if err != nil {
+		if sysProbeClient == nil {
+			return "", fmt.Errorf("no network ID detected and system-probe client not available: %w", err)
+		}
 		log.Debugf("no network ID detected. retrying via system-probe: %s", err)
 		networkID, err = net.GetNetworkID(sysProbeClient)
 		if err != nil {
