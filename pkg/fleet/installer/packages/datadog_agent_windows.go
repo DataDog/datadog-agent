@@ -94,7 +94,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 	// now we start our watchdog to make sure the Agent is running
 	// and we can restore the stable Agent if it stops.
-	err = startWatchdog(ctx, time.Now().Add(time.Duration(timeout)*time.Minute))
+	err = startWatchdog(ctx, time.Now().Add(timeout))
 	if err != nil {
 		log.Errorf("Watchdog failed: %s", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
@@ -324,15 +324,15 @@ func setWatchdogStopEvent() error {
 	return nil
 }
 
-// getWatchdogTimeout returns the number of minutes the watchdog will run before stopping the experiment
+// getWatchdogTimeout returns the duration the watchdog will run before stopping the experiment
 // and restoring the stable Agent.
 //
 // Default is 60 minutes.
 //
-// The timeout can be configured by setting the registry key
+// The timeout can be configured by setting the registry key to the desired timeout in minutes:
 // `HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout`
-func getWatchdogTimeout() uint64 {
-	var timeout uint64 = 60
+func getWatchdogTimeout() time.Duration {
+	defaultTimeout := 60 * time.Minute
 
 	// open the registry key
 	keyname := "SOFTWARE\\Datadog\\Datadog Agent"
@@ -341,14 +341,14 @@ func getWatchdogTimeout() uint64 {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root not found, using timeout")
-		return timeout
+		log.Debugf("Windows installation key root not found, using default")
+		return defaultTimeout
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("WatchdogTimeout")
 	if err != nil {
-		log.Warnf("Windows installation key wathdogTimeout not found, using default")
-		return timeout
+		log.Warnf("Windows installation key watchdogTimeout not found, using default")
+		return defaultTimeout
 	}
-	return val
+	return time.Duration(val) * time.Minute
 }
