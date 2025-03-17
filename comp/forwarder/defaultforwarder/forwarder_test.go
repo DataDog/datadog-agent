@@ -616,6 +616,9 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	require.False(t, ok) // channel should have been closed without receiving any responses
 }
 
+// Whilst high priority transactions are processed by the worker first,  because the transactions
+// are sent in a separate go func, the actual order the get sent will depend on the go scheduler.
+// This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
 	var mutex sync.Mutex
@@ -657,7 +660,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	headers.Set("key", "value")
 
 	for i := range 100 {
-		// Every third transaction is high priority
+		// Every other transaction is high priority
 		if i%2 == 0 {
 			data := []byte(fmt.Sprintf("high priority %d", i))
 			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))

@@ -61,8 +61,8 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
 	httpClient *SharedConnection,
-	maxConcurrentRequests int64,
 ) *Worker {
+	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
 	if maxConcurrentRequests <= 0 {
 		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
 		maxConcurrentRequests = 1
@@ -150,7 +150,6 @@ func (w *Worker) Start() {
 
 // acquireRequestSemaphore attempts to acquire a semaphore, which will block
 // if we are already sending too many requests.
-// This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
 func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
 	err := w.maxConcurrentRequests.Acquire(ctx, 1)
 	if err != nil {

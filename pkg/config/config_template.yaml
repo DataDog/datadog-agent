@@ -299,8 +299,6 @@ api_key:
 ## at any one time. If the connection is over HTTP/1 each request will be waiting
 ## for the previous request to complete before sending the next one. With HTTP/2
 ## each request can be sent before waiting for the response.
-##
-## A value of 0 means there is no limit applied.
 #
 # forwarder_max_concurrent_requests: 10
 

@@ -30,8 +30,7 @@ func TestNewWorker(t *testing.T) {
 
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.GetClient().Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
 }
@@ -44,8 +43,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("skip_ssl_validation", true)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 	assert.True(t, w.Client.GetClient().Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
@@ -56,8 +54,7 @@ func TestWorkerStart(t *testing.T) {
 	sender := &PointSuccessfullySentMock{}
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig), 1)
 
 	mock := newTestTransaction()
 	mock.pointCount = 1
@@ -94,8 +91,7 @@ func TestWorkerRetry(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client.GetClient()).Return(fmt.Errorf("some kind of error")).Times(1)
@@ -118,8 +114,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -142,8 +137,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	connection := NewSharedConnection(httpClient)
+	connection := NewSharedConnection(log, false, 1, mockConfig)
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, connection, 1)
 
 	mock := newTestTransaction()
@@ -159,8 +153,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Process", 1)
 
 	httpClientBefore := w.Client.GetClient()
-	newHTTPClient := NewHTTPClient(mockConfig, 1, log)
-	connection.SetClient(newHTTPClient)
+	connection.ResetClient()
 
 	// tricky to test here that "Process" is called with a new http client
 	mock2 := newTestTransactionWithoutClientAssert()
@@ -194,8 +187,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	mockConfig := mock.New(t)
 
 	log := logmock.New(t)
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 
 	go func() {
 		w.Start()
@@ -233,9 +225,8 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 
 	log := logmock.New(t)
 
-	httpClient := NewHTTPClient(mockConfig, 1, log)
 	// Configure the worker to have 3 maximum concurrent requests
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 3)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 3)
 
 	go func() {
 		w.Start()
@@ -245,7 +236,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	}()
 
 	// Create enough transactions that some will be waiting on the semaphore when we cancel.
-	transactions := make([]*testTransaction, 0)
+	transactions := []*testTransaction{}
 	for i := 0; i < 5; i++ {
 		mockTransaction := newTestTransaction()
 
@@ -299,8 +290,7 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 
-	httpClient := NewHTTPClient(mockConfig, 1, log)
-	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(httpClient), 1)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig), 1)
 	close(w.stopped)
 
 	mockTransaction := newTestTransaction()

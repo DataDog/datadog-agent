@@ -78,6 +78,7 @@ func newDomainForwarder(
 		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
+		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config),
 	}
 }
 
@@ -215,18 +216,8 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
-	maxConcurrentRequests := f.config.GetInt64("forwarder_max_concurrent_requests")
-
-	var client *http.Client
-	if f.isLocal {
-		client = newBearerAuthHTTPClient(f.numberOfWorkers)
-	} else {
-		client = NewHTTPClient(f.config, f.numberOfWorkers, f.log)
-	}
-	f.Client = NewSharedConnection(client)
-
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, maxConcurrentRequests)
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -243,12 +234,7 @@ func (f *domainForwarder) Start() error {
 // the worker, in order to create new connections when the next transactions are processed.
 // It must not be called while a transaction is being processed.
 func (f *domainForwarder) resetConnections() {
-	f.Client.GetClient().CloseIdleConnections()
-	if f.isLocal {
-		f.Client.SetClient(newBearerAuthHTTPClient(f.numberOfWorkers))
-	} else {
-		f.Client.SetClient(NewHTTPClient(f.config, f.numberOfWorkers, f.log))
-	}
+	f.Client.ResetClient()
 }
 
 func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
