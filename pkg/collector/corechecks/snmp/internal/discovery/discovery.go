@@ -231,6 +231,20 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 }
 
 func (d *Discovery) checkDeviceForConfig(config *checkconfig.CheckConfig) (bool, error) {
+	fmt.Println("=====================================")
+	fmt.Println("CommunityString: " + config.CommunityString)
+	fmt.Println("SnmpVersion: " + config.SnmpVersion)
+	fmt.Println("Timeout: " + fmt.Sprint(config.Timeout))
+	fmt.Println("Retries: " + fmt.Sprint(config.Retries))
+	fmt.Println("User: " + config.User)
+	fmt.Println("AuthProtocol: " + config.AuthProtocol)
+	fmt.Println("AuthKey: " + config.AuthKey)
+	fmt.Println("PrivProtocol: " + config.PrivProtocol)
+	fmt.Println("PrivKey: " + config.PrivKey)
+	fmt.Println("ContextName: " + config.ContextName)
+	fmt.Println("IPAddress: " + config.IPAddress)
+	fmt.Println("=====================================")
+
 	sess, err := d.sessionFactory(config)
 	if err != nil {
 		return false, fmt.Errorf("error configure session for ip %s: %v", config.IPAddress, err)

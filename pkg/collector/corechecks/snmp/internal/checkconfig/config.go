@@ -405,6 +405,17 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
+	fmt.Println("READING AUTHENTICATIONS OF LEN ", len(instance.Authentications))
+	fmt.Println("CommunityString: ", instance.CommunityString)
+	fmt.Println("SnmpVersion: ", instance.SnmpVersion)
+	fmt.Println("Timeout: ", instance.Timeout)
+	fmt.Println("Retries: ", instance.Retries)
+	fmt.Println("User: ", instance.User)
+	fmt.Println("AuthProtocol: ", instance.AuthProtocol)
+	fmt.Println("AuthKey: ", instance.AuthKey)
+	fmt.Println("PrivProtocol: ", instance.PrivProtocol)
+	fmt.Println("PrivKey: ", instance.PrivKey)
+	fmt.Println("ContextName: ", instance.ContextName)
 	if instance.CommunityString != "" || instance.User != "" {
 		ica := InstanceConfigAuthentication{
 			CommunityString: instance.CommunityString,
