@@ -81,6 +81,8 @@
     paths:
       # Root directory of the e2e tests output, if used by the test
       - $E2E_OUTPUT_DIR
+      # Go test output, kept for investigations
+      - $E2E_RESULT_JSON
       # junit tarball, kept for investigations
       - junit-*.tgz
     reports:
