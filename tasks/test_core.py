@@ -4,7 +4,6 @@ import abc
 import json
 import os
 from collections import defaultdict
-from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
@@ -126,36 +125,6 @@ class ModuleTestResult(ModuleResult):
         return self.failed, failure_string
 
 
-def test_core(
-    modules: Iterable[GoModule],
-    flavor: AgentFlavor,
-    module_class: GoModule,
-    operation_name: str,
-    command,
-    skip_module_class: bool = False,
-    headless_mode: bool = False,
-):
-    """
-    Run the command function on each module of the modules list.
-    """
-    modules_results = []
-    if not headless_mode:
-        print(f"--- Flavor {flavor.name}: {operation_name}")
-    for module in modules:
-        module_result = None
-        if not skip_module_class:
-            module_result = module_class(path=module.full_path())
-        if not headless_mode:
-            skipped_header = "[Skipped]" if not module.should_test() else ""
-            print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.should_test():
-            continue
-
-        command(modules_results, module, module_result)
-
-    return modules_results
-
-
 def process_input_args(
     ctx,
     input_module,
@@ -198,17 +167,16 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results):
+def process_module_result(flavor: AgentFlavor, module_result):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """
 
     success = True
-    for module_result in module_results:
-        if module_result is not None:
-            module_failed, failure_string = module_result.get_failure(flavor)
-            success = success and (not module_failed)
-            if module_failed:
-                print(failure_string)
+    if module_result is not None:
+        module_failed, failure_string = module_result.get_failure(flavor)
+        success = success and (not module_failed)
+        if module_failed:
+            print(failure_string)
 
     return success
