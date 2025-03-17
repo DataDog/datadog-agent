@@ -386,7 +386,10 @@ func SetRepositoryPermissions(path string) error {
 	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
 }
 
-// GetAdminInstallerBinaryPath returns the path to the admin install binary
+// GetAdminInstallerBinaryPath returns the path to the datadog-installer executable
+// inside an MSI administrative install extracted directory tree.
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/administrative-installation
 func GetAdminInstallerBinaryPath(path string) string {
 	return filepath.Join(path, "ProgramFiles64Folder", "Datadog", "Datadog Agent", "bin", "datadog-installer.exe")
 }

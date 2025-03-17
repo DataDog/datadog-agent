@@ -43,6 +43,25 @@ func SetupAgent(_ context.Context, _ []string) (err error) {
 }
 
 // StartAgentExperiment starts the agent experiment
+//
+// Function requirements:
+//   - be its own process, not run within the daemon
+//   - be run from a copy of the installer, not from the install path,
+//     to avoid locking the executable
+//
+// Rollback notes:
+// The Agent package uses an MSI to manage the installation.
+// This restricts us to one install present at a time, the previous version
+// must always be removed before installing the new version.
+// Thus we need a way to rollback to the previous version if installing the
+// new version fails, or if the new version fails to start.
+// This function/process will stay running for a time after installing the
+// new Agent version to ensure the new daemon is running.
+//   - If the new daemon is working properly then it will receive "promote"
+//     from the backend and will set an event to stop the watchdog.
+//   - If the new daemon fails to start, then after a timeout the watchdog will
+//     restore the previous version, which should start and then receive
+//     "stop experiment" from the backend.
 func StartAgentExperiment(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() {
@@ -170,6 +189,11 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 }
 
 // StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
+//
+// Function requirements:
+//   - be its own process, not run within the daemon
+//   - be run from a copy of the installer, not from the install path,
+//     to avoid locking the executable
 func StopAgentExperiment(ctx context.Context) (err error) {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
@@ -278,6 +302,10 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	return nil
 }
 
+// createEvent returns a new manual reset event that stops the watchdog when set.
+// it is expected to be set by the new daemon upon promoteExperiment
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw
 func createEvent() (windows.Handle, error) {
 	return windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(watchdogStopEventName))
 }
@@ -296,11 +324,14 @@ func setWatchdogStopEvent() error {
 	return nil
 }
 
+// getWatchdogTimeout returns the number of minutes the watchdog will run before stopping the experiment
+// and restoring the stable Agent.
+//
+// Default is 60 minutes.
+//
+// The timeout can be configured by setting the registry key
+// `HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout`
 func getWatchdogTimeout() uint64 {
-	// get optional registry key for watchdog timeout
-	// if not set default to 60 minutes
-	// this is the time the watchdog will run before stopping the experiment
-	// and restoring the stable Agent
 	var timeout uint64 = 60
 
 	// open the registry key

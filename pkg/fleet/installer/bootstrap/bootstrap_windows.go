@@ -75,7 +75,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-1-x86_64.msi"))
+	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
 	if err != nil {
 		return nil, err
 	}

@@ -120,7 +120,8 @@ func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err 
 // RemoveExperiment removes an experiment.
 func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err error) {
 	var cmd *installerCmd
-	// on windows we need to make a copy of installer binary to avoid issues installing MSI
+	// on windows we need to make a copy of installer binary so that it isn't in use
+	// while the MSI tries to remove it
 	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
 		repositories := repository.NewRepositories(paths.PackagesPath, nil)
 		tmpDir, err := repositories.MkdirTemp()

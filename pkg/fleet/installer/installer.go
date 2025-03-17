@@ -551,6 +551,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	if err != nil {
 		log.Warnf("could not remove agent: %v", err)
 	}
+	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
 		// on windows the installer package has been merged with the agent package
 		err = i.removePackage(ctx, packageDatadogInstaller)
