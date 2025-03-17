@@ -878,6 +878,30 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					}
 					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 				}
+
+			case *CIDRArrayEvaluator:
+				cidrEvaluator, ok := next.(*CIDREvaluator)
+				if !ok {
+					return nil, pos, NewTypeError(pos, reflect.String)
+				}
+
+				switch *obj.ScalarComparison.Op {
+				case "!=":
+					boolEvaluator, err = CIDRArrayMatchesCIDREvaluator(unary, cidrEvaluator, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return Not(boolEvaluator, state), obj.Pos, nil
+				case "==":
+					boolEvaluator, err = CIDRArrayMatchesCIDREvaluator(unary, cidrEvaluator, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				}
+
+				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+
 			case *StringArrayEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {

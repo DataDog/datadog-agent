@@ -248,13 +248,13 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					case reflect.Bool:
 						variableValue = false
 					case reflect.Struct:
-						if goType == "net.IP" {
-							variableValue = []net.IP{}
+						if goType == "net.IPNet" {
+							variableValue = []net.IPNet{}
 							break
 						}
 						fallthrough
 					default:
-						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, actionDef.Set.Name))
+						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s (%s)' for variable '%s'", kind, goType, actionDef.Set.Name))
 						continue
 					}
 				}
