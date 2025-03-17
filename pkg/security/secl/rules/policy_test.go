@@ -10,6 +10,7 @@ package rules
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -656,32 +657,59 @@ func TestActionSetVariableConflict(t *testing.T) {
 
 func TestActionSetVariableExpression(t *testing.T) {
 	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{
-				{
-					Set: &SetDefinition{
-						Name:       "var1",
-						Value:      123,
-						Expression: "${var1} + ${var1} + 1",
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:       "var1",
+							Value:      123,
+							Expression: "${var1} + ${var1} + 1",
+						},
 					},
-				},
-				{
-					Set: &SetDefinition{
-						Name:  "var2",
-						Value: "foo",
+					{
+						Set: &SetDefinition{
+							Name:  "var2",
+							Value: "foo",
+						},
 					},
-				},
-				{
-					Set: &SetDefinition{
-						Name:       "var3",
-						Expression: `"${var2}:${var2}"`,
-						Value:      "",
+					{
+						Set: &SetDefinition{
+							Name:       "var3",
+							Expression: `"${var2}:${var2}"`,
+							Value:      "",
+						},
 					},
 				},
 			},
-		}},
+			{
+				ID:         "test_rule_connect",
+				Expression: `connect.addr.ip == 192.168.1.0/24`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "connected",
+							Value: true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:  "connected_to",
+							Field: "connect.addr.ip",
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:       "connected_to_check",
+							Expression: "${connected_to} == 192.168.1.1/32",
+							Value:      false,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	tmpDir := t.TempDir()
@@ -709,6 +737,12 @@ func TestActionSetVariableExpression(t *testing.T) {
 	existingVariable2 := opts.VariableStore.Get("var3")
 	assert.NotNil(t, existingVariable2)
 
+	existingVariable3 := opts.VariableStore.Get("connected")
+	assert.NotNil(t, existingVariable3)
+
+	existingVariable4 := opts.VariableStore.Get("connected_to")
+	assert.NotNil(t, existingVariable4)
+
 	intVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, intVar)
 	assert.True(t, ok)
@@ -720,6 +754,20 @@ func TestActionSetVariableExpression(t *testing.T) {
 	assert.NotNil(t, strVar)
 	assert.True(t, ok)
 	value, set = strVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	connectedVar, ok := existingVariable3.(eval.Variable)
+	assert.NotNil(t, connectedVar)
+	assert.True(t, ok)
+	value, set = connectedVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	connectedToVar, ok := existingVariable4.(eval.Variable)
+	assert.NotNil(t, connectedToVar)
+	assert.True(t, ok)
+	value, set = connectedToVar.GetValue()
 	assert.NotNil(t, value)
 	assert.False(t, set)
 
@@ -749,6 +797,36 @@ func TestActionSetVariableExpression(t *testing.T) {
 	value, set = intVar.GetValue()
 	assert.True(t, set)
 	assert.Equal(t, 3, value)
+
+	value, set = strVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, "foo:foo", value)
+
+	event2 := model.NewFakeEvent()
+	event2.Type = uint32(model.ConnectEventType)
+	processCacheEntry = &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event2.ProcessCacheEntry = processCacheEntry
+	connectIP := net.IPNet{
+		IP:   net.IPv4(192, 168, 1, 1),
+		Mask: net.IPv4Mask(255, 255, 255, 0),
+	}
+	event2.SetFieldValue("connect.addr.ip", connectIP)
+
+	if !rs.Evaluate(event2) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = connectedVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, true, value)
+
+	value, set = connectedToVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, []net.IPNet{{
+		IP:   net.IPv4(192, 168, 1, 0).To4(),
+		Mask: connectIP.Mask,
+	}}, value)
 }
 
 func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*RuleSet, *multierror.Error) {
