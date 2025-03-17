@@ -146,6 +146,16 @@ go_binary(
     name = "security-agent",
     embed = [":security-agent_lib"],
     visibility = ["//visibility:public"],
+    # keep
+    gotags = [
+        "netcgo",
+        "datadog.no_waf",
+        "docker",
+        "zlib",
+        "zstd",
+        "ec2",
+        "no_dynamic_plugins",
+    ],
 )
 
 go_test(
