@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    APM: Container-based second primary tags are now available by default.
