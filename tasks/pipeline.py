@@ -139,32 +139,6 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
-    """
-    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
-    """
-
-    use_release_entries = ""
-    major_versions = []
-
-    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
-        use_release_entries = "--use-release-entries "
-
-    if release_version_6 != "":
-        major_versions.append("6")
-
-    if release_version_7 != "":
-        major_versions.append("7")
-
-    raise Exit(
-        f"""The pipeline.trigger task is obsolete. Use:
-    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch} {use_release_entries}
-instead.""",
-        1,
-    )
-
-
-@task
 def auto_cancel_previous_pipelines(ctx):
     """
     Automatically cancel previous pipelines running on the same ref
@@ -235,8 +209,8 @@ def run(
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
-    By default, the nightly release.json entries (nightly and nightly-a7) are used.
-    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
+    By default, the nightly release.json entries (nightly) are used.
+    Use the --use-release-entries option to use the release release.json entries instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -271,11 +245,9 @@ def run(
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
-        release_version_6 = release_entry_for(6)
-        release_version_7 = release_entry_for(7)
+        release_version = release_entry_for(6)
     else:
-        release_version_6 = nightly_entry_for(6)
-        release_version_7 = nightly_entry_for(7)
+        release_version = nightly_entry_for(6)
 
     major_versions = major_versions.split(',')
     if '6' not in major_versions:
@@ -323,8 +295,7 @@ def run(
         pipeline_id = trigger_agent_pipeline(
             gitlab,
             git_ref,
-            release_version_6,
-            release_version_7,
+            release_version,
             repo_branch,
             deploy=deploy,
             all_builds=all_builds,
