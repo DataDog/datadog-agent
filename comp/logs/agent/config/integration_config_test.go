@@ -100,6 +100,10 @@ func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	assert.True(t, decode(`{"auto_multi_line_match_threshold": 0.4}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = config.NewMock(t)
+	mockConfig.SetWithoutSource("logs_config.force_auto_multi_line_detection_v1", true)
+	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
+
+	mockConfig = config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_sample_size", 10)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
@@ -113,6 +117,10 @@ func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_match_threshold", 501)
 	assert.True(t, decode(`{}`).LegacyAutoMultiLineEnabled(mockConfig))
+
+	mockConfig = config.NewMock(t)
+	mockConfig.SetWithoutSource("logs_config.force_auto_multi_line_detection_v1", true)
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
 
 	mockConfig = config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_default_sample_size", 10)

@@ -315,7 +315,7 @@ func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader
 	// Handle explicit user initiated fallback to V1
 	if coreConfig.GetBool("logs_config.force_auto_multi_line_detection_v1") {
 		log.Info("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the force_auto_multi_line_detection_v1 is set to true.")
-		return true
+		return c.AutoMultiLineEnabled(coreConfig)
 	}
 
 	// Handle transparent fallback if V1 was explicitly configured.
