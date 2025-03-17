@@ -8,12 +8,13 @@ package metadata
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/gosnmp/gosnmp"
 )
 
 // BatchPayloads batch NDM metadata payloads
-func BatchPayloads(integration, namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
+func BatchPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
@@ -68,7 +69,7 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 	return payloads
 }
 
-func newNetworkDevicesMetadata(integration string, namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
+func newNetworkDevicesMetadata(integration integrations.Integration, namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
 	return NetworkDevicesMetadata{
 		Subnet:           subnet,
 		Namespace:        namespace,
@@ -77,7 +78,7 @@ func newNetworkDevicesMetadata(integration string, namespace string, subnet stri
 	}
 }
 
-func appendToPayloads(integration, namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
+func appendToPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, resourceCount int, payloads []NetworkDevicesMetadata, payload NetworkDevicesMetadata) ([]NetworkDevicesMetadata, NetworkDevicesMetadata, int) {
 	if resourceCount == batchSize {
 		payloads = append(payloads, payload)
 		payload = newNetworkDevicesMetadata(integration, namespace, subnet, collectTime)
