@@ -8,10 +8,11 @@ package config
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/collector/featuregate"
 	"io/fs"
 	"os"
 	"testing"
+
+	"go.opentelemetry.io/collector/featuregate"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -171,7 +172,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	assert.Equal(t, "debug", c.Get("log_level"))
 	assert.True(t, c.GetBool("otelcollector.enabled"))
 	assert.Equal(t, "https://localhost:7777", c.GetString("otelcollector.extension_url"))
-	assert.Equal(t, 5009, c.GetInt("agent_ipc.port"))
+	assert.Equal(t, 0, c.GetInt("agent_ipc.port"))
 	assert.Equal(t, 60, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
