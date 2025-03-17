@@ -30,4 +30,4 @@ ping:
   enabled: true
 
 traceroute:
-  enabled: true
+  enabled: false
