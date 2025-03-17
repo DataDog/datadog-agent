@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agentmemprof
+package agentprofiling
 
 import (
 	"runtime"
@@ -36,7 +36,7 @@ func TestRun(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
 	agentConfig := mock.New(t)
-	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 
 	// Mock memory usage to exceed threshold
@@ -56,7 +56,7 @@ func TestRunProfileAlreadyCaptured(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
 	agentConfig := mock.New(t)
-	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 	check.profileCaptured = true
 
@@ -72,7 +72,7 @@ func TestRunThresholdNotSet(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
 	agentConfig := mock.New(t)
-	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 0 // Threshold not set
 
 	// Run the check
@@ -87,7 +87,7 @@ func TestGenerateFlareLocal(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
 	agentConfig := mock.New(t)
-	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.TicketID = ""
 
 	// Generate the flare
@@ -102,7 +102,7 @@ func TestGenerateFlareZendesk(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
 	agentConfig := mock.New(t)
-	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.TicketID = "12345"
 	check.instance.UserEmail = "user@example.com"
 

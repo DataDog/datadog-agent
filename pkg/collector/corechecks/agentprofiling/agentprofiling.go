@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agentmemprof is a core check that can capture a memory profile of the
+// Package agentprofiling is a core check that can capture a memory profile of the
 // core agent when the core agent's memory usage exceeds a certain threshold.
-package agentmemprof
+package agentprofiling
 
 import (
 	"fmt"
@@ -27,46 +27,46 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// CheckName is the name of the agentmemprof check
+// CheckName is the name of the agentprofiling check
 const (
-	CheckName = "agentmemprof"
+	CheckName = "agentprofiling"
 )
 
-// AgentMemProfConfig is the configuration for the agentmemprof check
-type AgentMemProfConfig struct {
+// AgentProfilingConfig is the configuration for the agentprofiling check
+type AgentProfilingConfig struct {
 	MemoryThreshold int    `yaml:"memory_threshold"`
 	TicketID        string `yaml:"ticket_id"`
 	UserEmail       string `yaml:"user_email"`
 }
 
-// AgentMemProfCheck is the check that captures a memory profile of the core agent
-type AgentMemProfCheck struct {
+// AgentProfilingCheck is the check that captures a memory profile of the core agent
+type AgentProfilingCheck struct {
 	core.CheckBase
-	instance        *AgentMemProfConfig
+	instance        *AgentProfilingConfig
 	profileCaptured bool
 	flareComponent  flare.Component
 	agentConfig     config.Component
 }
 
-// Factory creates a new instance of the agentmemprof check
+// Factory creates a new instance of the agentprofiling check
 func Factory(flareComponent flare.Component, agentConfig config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(flareComponent, agentConfig)
 	})
 }
 
-// newCheck creates a new instance of the agentmemprof check
+// newCheck creates a new instance of the agentprofiling check
 func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
-	return &AgentMemProfCheck{
+	return &AgentProfilingCheck{
 		CheckBase:      core.NewCheckBase(CheckName),
-		instance:       &AgentMemProfConfig{},
+		instance:       &AgentProfilingConfig{},
 		flareComponent: flareComponent,
 		agentConfig:    agentConfig,
 	}
 }
 
-// Parse parses the configuration for the agentmemprof check
-func (c *AgentMemProfConfig) Parse(data []byte) error {
+// Parse parses the configuration for the agentprofiling check
+func (c *AgentProfilingConfig) Parse(data []byte) error {
 	// default values
 	c.MemoryThreshold = 0
 	c.TicketID = ""
@@ -74,8 +74,8 @@ func (c *AgentMemProfConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
-// Configure configures the agentmemprof check
-func (m *AgentMemProfCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+// Configure configures the agentprofiling check
+func (m *AgentProfilingCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
@@ -84,8 +84,8 @@ func (m *AgentMemProfCheck) Configure(senderManager sender.SenderManager, _ uint
 	return m.instance.Parse(config)
 }
 
-// Run runs the agentmemprof check
-func (m *AgentMemProfCheck) Run() error {
+// Run runs the agentprofiling check
+func (m *AgentProfilingCheck) Run() error {
 	// Don't run again if the profile has already been captured
 	if m.profileCaptured {
 		log.Debugf("Memory profile already captured, skipping further checks.")
@@ -125,7 +125,7 @@ func (m *AgentMemProfCheck) Run() error {
 }
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
-func (m *AgentMemProfCheck) generateFlare() error {
+func (m *AgentProfilingCheck) generateFlare() error {
 	// Prepare flare arguments
 	providerTimeout := time.Duration(0) // Use default timeout
 	flareArgs := types.FlareArgs{
