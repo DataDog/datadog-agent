@@ -40,7 +40,7 @@ type dockerContainerLogInterface interface {
 	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
 }
 
-func newApiLogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
+func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
 	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
 		options := &v1.PodLogOptions{
 			Follow:     true,
@@ -107,15 +107,15 @@ type Tailer struct {
 	mutex     sync.Mutex
 }
 
-// NewApiTailer returns a new Tailer
-func NewApiTailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+// NewAPITailer returns a new Tailer that streams logs by proxying to the kubelet through the API Server
+func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
 		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
-		unsafeLogReader:    newApiLogReader(client, podNamespace, podName, containerName),
+		unsafeLogReader:    newAPILogReader(client, podNamespace, podName, containerName),
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
@@ -125,6 +125,7 @@ func NewApiTailer(client kubelet.KubeUtilInterface, containerID, containerName, 
 	}
 }
 
+// NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
 func NewDockerTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,

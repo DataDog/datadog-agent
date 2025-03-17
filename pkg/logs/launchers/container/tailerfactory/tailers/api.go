@@ -79,7 +79,7 @@ func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName
 // successful.
 func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
 	erroredContainerID := make(chan string)
-	inner := containerTailerPkg.NewApiTailer(
+	inner := containerTailerPkg.NewAPITailer(
 		t.kubeUtil,
 		t.ContainerID,
 		t.ContainerName,
