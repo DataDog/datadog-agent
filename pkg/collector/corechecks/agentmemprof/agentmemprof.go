@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -33,8 +34,9 @@ const (
 
 // AgentMemProfConfig is the configuration for the agentmemprof check
 type AgentMemProfConfig struct {
-	MemoryThreshold int `yaml:"memory_threshold"`
-	TicketID        int `yaml:"ticket_id"`
+	MemoryThreshold int    `yaml:"memory_threshold"`
+	TicketID        string `yaml:"ticket_id"`
+	UserEmail       string `yaml:"user_email"`
 }
 
 // AgentMemProfCheck is the check that captures a memory profile of the core agent
@@ -43,21 +45,23 @@ type AgentMemProfCheck struct {
 	instance        *AgentMemProfConfig
 	profileCaptured bool
 	flareComponent  flare.Component
+	agentConfig     config.Component
 }
 
 // Factory creates a new instance of the agentmemprof check
-func Factory(flareComponent flare.Component) option.Option[func() check.Check] {
+func Factory(flareComponent flare.Component, agentConfig config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(flareComponent)
+		return newCheck(flareComponent, agentConfig)
 	})
 }
 
 // newCheck creates a new instance of the agentmemprof check
-func newCheck(flareComponent flare.Component) check.Check {
+func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
 	return &AgentMemProfCheck{
 		CheckBase:      core.NewCheckBase(CheckName),
 		instance:       &AgentMemProfConfig{},
 		flareComponent: flareComponent,
+		agentConfig:    agentConfig,
 	}
 }
 
@@ -65,7 +69,8 @@ func newCheck(flareComponent flare.Component) check.Check {
 func (c *AgentMemProfConfig) Parse(data []byte) error {
 	// default values
 	c.MemoryThreshold = 0
-	c.TicketID = 0
+	c.TicketID = ""
+	c.UserEmail = ""
 	return yaml.Unmarshal(data, c)
 }
 
@@ -83,14 +88,14 @@ func (m *AgentMemProfCheck) Configure(senderManager sender.SenderManager, _ uint
 func (m *AgentMemProfCheck) Run() error {
 	// Don't run again if the profile has already been captured
 	if m.profileCaptured {
-		log.Infof("Memory profile already captured, skipping further checks.")
+		log.Debugf("Memory profile already captured, skipping further checks.")
 		return nil
 	}
 
 	// Get the memory profile threshold from config
 	thresholdBytes := m.instance.MemoryThreshold
 	if thresholdBytes <= 0 {
-		log.Infof("Memory profile threshold is not set or is <= 0, skipping memory profile capture check.")
+		log.Debugf("Memory profile threshold is not set or is <= 0, skipping memory profile capture check.")
 		return nil
 	}
 
@@ -123,34 +128,26 @@ func (m *AgentMemProfCheck) Run() error {
 func (m *AgentMemProfCheck) generateFlare() error {
 	// Prepare flare arguments
 	providerTimeout := time.Duration(0) // Use default timeout
-
-	// flareArgs := types.FlareArgs{
-	// 	ProfileDuration: time.Second * 60,
-	// }
-
-	// Create an instance of the flare builder
-	// flareBuilder := builder.NewFlareBuilder(flareArgs)
-
-	// Initialize profile data
-	profileData := types.ProfileData{
-		"core-1st-heap.pprof": []byte("heap_profile"), // Replace with actual profile data
-		"core-2nd-heap.pprof": []byte("heap_profile"),
-		"core-block.pprof":    []byte("block"),
-		"core-mutex.pprof":    []byte("mutex"),
+	flareArgs := types.FlareArgs{
+		ProfileDuration:      m.agentConfig.GetDuration("flare.rc_profiling.profile_duration"),
+		ProfileBlockingRate:  m.agentConfig.GetInt("flare.rc_profiling.blocking_rate"),
+		ProfileMutexFraction: m.agentConfig.GetInt("flare.rc_profiling.mutex_fraction"),
 	}
 
 	// Create an instance of the flare struct
-	flarePath, err := m.flareComponent.Create(profileData, providerTimeout, nil)
+	flarePath, err := m.flareComponent.CreateWithArgs(flareArgs, providerTimeout, nil)
 	if err != nil {
 		return fmt.Errorf("Failed to create flare: %w", err)
 	}
 
-	if m.instance.TicketID > 0 {
+	if m.instance.TicketID != "" {
 		// Send the flare to Zendesk
-		caseID := fmt.Sprintf("%d", m.instance.TicketID)
-		userHandle := "support@datadoghq.com"
-		_, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
+		caseID := m.instance.TicketID
+		userHandle := m.instance.UserEmail
+		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
 		if err != nil {
+			// Add debugging logs to capture the response from Zendesk
+			log.Errorf("Zendesk response: %s", response)
 			return fmt.Errorf("Failed to send flare to Zendesk: %w", err)
 		}
 		log.Infof("Flare sent to Zendesk with case ID %d", m.instance.TicketID)

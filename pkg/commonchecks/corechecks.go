@@ -74,7 +74,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(agentmemprof.CheckName, agentmemprof.Factory(flare))
+	corecheckLoader.RegisterCheck(agentmemprof.CheckName, agentmemprof.Factory(flare, cfg))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())

@@ -12,8 +12,14 @@ instances:
     #
     # memory_threshold: 0
 
-    ## @param ticket_id - integer - optional - default: 0
+    ## @param ticket_id - string - optional - default: ""
     ## Set to a valid ticket ID. When a flare is generated, it will be sent to the ticket ID specified here.
     ## If no ticket ID is specified or the flare fails to send to the specified ticket, it will attempt to be stored locally.
     #
-    # ticket_id: 0
+    # ticket_id: ""
+
+    ## @param user_email - string - optional - default: ""
+    ## Set to the email address associated with the ticket associated with parameter ticket_id. 
+    ## If no email address is specified, the Agent will be unable to send the flare to the ticket. 
+    #
+    # user_email: ""

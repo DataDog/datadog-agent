@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type mockFlareComponent struct{}
@@ -23,14 +24,19 @@ func (m *mockFlareComponent) Create(_ types.ProfileData, _ time.Duration, _ erro
 	return "/tmp/mock_flare.zip", nil
 }
 
+func (m *mockFlareComponent) CreateWithArgs(_ types.FlareArgs, _ time.Duration, _ error) (string, error) {
+	return "/tmp/mock_flare.zip", nil
+}
+
 func (m *mockFlareComponent) Send(_, _, _ string, _ helpers.FlareSource) (string, error) {
 	return "Flare sent successfully", nil
 }
 
 func TestRun(t *testing.T) {
-	// Create a new check instance with a mock flare component
+	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
-	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	agentConfig := mock.New(t)
+	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 
 	// Mock memory usage to exceed threshold
@@ -47,9 +53,10 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunProfileAlreadyCaptured(t *testing.T) {
-	// Create a new check instance with a mock flare component
+	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
-	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	agentConfig := mock.New(t)
+	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
 	check.profileCaptured = true
 
@@ -62,9 +69,10 @@ func TestRunProfileAlreadyCaptured(t *testing.T) {
 }
 
 func TestRunThresholdNotSet(t *testing.T) {
-	// Create a new check instance with a mock flare component
+	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
-	check := newCheck(flareComponent).(*AgentMemProfCheck)
+	agentConfig := mock.New(t)
+	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
 	check.instance.MemoryThreshold = 0 // Threshold not set
 
 	// Run the check
@@ -76,15 +84,32 @@ func TestRunThresholdNotSet(t *testing.T) {
 }
 
 func TestGenerateFlareLocal(t *testing.T) {
-	// Create a new check instance with a mock flare component
+	// Create a new check instance with a mock flare component and mock agent config
 	flareComponent := &mockFlareComponent{}
-	check := newCheck(flareComponent).(*AgentMemProfCheck)
-	check.instance.TicketID = 0
+	agentConfig := mock.New(t)
+	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check.instance.TicketID = ""
 
 	// Generate the flare
 	err := check.generateFlare()
 	require.NoError(t, err)
 
 	// Verify that the flare was generated locally
+	assert.True(t, check.profileCaptured)
+}
+
+func TestGenerateFlareZendesk(t *testing.T) {
+	// Create a new check instance with a mock flare component and mock agent config
+	flareComponent := &mockFlareComponent{}
+	agentConfig := mock.New(t)
+	check := newCheck(flareComponent, agentConfig).(*AgentMemProfCheck)
+	check.instance.TicketID = "12345"
+	check.instance.UserEmail = "user@example.com"
+
+	// Generate the flare
+	err := check.generateFlare()
+	require.NoError(t, err)
+
+	// Verify that the flare was sent to Zendesk
 	assert.True(t, check.profileCaptured)
 }
