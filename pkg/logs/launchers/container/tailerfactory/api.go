@@ -87,7 +87,7 @@ func (tf *factory) makeApiTailer(source *sources.LogSource) (Tailer, error) {
 	// apply defaults for source and service directly to the LogSource struct (!!)
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, containersorpods.LogPods)
 
-	return tailers.NewApiTailer(
+	return tailers.NewAPITailer(
 		ku,
 		containerID,
 		container.Name,

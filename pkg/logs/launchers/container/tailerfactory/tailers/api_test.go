@@ -20,7 +20,7 @@ import (
 )
 
 func TestApiTailer_run_normal_stop(t *testing.T) {
-	a := &ApiTailer{}
+	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 
@@ -46,7 +46,7 @@ func TestApiTailer_run_normal_stop(t *testing.T) {
 }
 
 func TestApitTailer_run_erroredContainer(t *testing.T) {
-	a := &ApiTailer{}
+	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 
@@ -84,7 +84,7 @@ func TestApitTailer_run_erroredContainer(t *testing.T) {
 }
 
 func TestApiTailer_run_canStopWithError(t *testing.T) {
-	a := &ApiTailer{}
+	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 
@@ -124,7 +124,7 @@ func TestApiTailer_run_error_starting(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	defer func() { backoffInitialDuration = 1 * time.Second }()
 
-	a := &ApiTailer{}
+	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 
@@ -165,7 +165,7 @@ func TestApiTailer_run_error_starting_expires(t *testing.T) {
 		backoffMaxDuration = 60 * time.Second
 	}()
 
-	a := &ApiTailer{}
+	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 

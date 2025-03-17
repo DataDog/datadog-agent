@@ -23,14 +23,14 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
-// ApiTailer wraps pkg/logs/tailers/docker.Tailer to satisfy
+// APITailer wraps pkg/logs/tailers/docker.Tailer to satisfy
 // the container launcher's `Tailer` interface, and to handle the
 // erroredContainerID channel.
 //
 // NOTE: once the docker launcher is removed, the inner Docker tailer can be
 // modified to suit the Tailer interface directly and to handle connection
 // failures on its own, and this wrapper will no longer be necessary.
-type ApiTailer struct {
+type APITailer struct {
 	// arguments to dockerTailerPkg.NewTailer (except erroredContainerID)
 
 	kubeUtil      kubelet.KubeUtilInterface
@@ -56,9 +56,9 @@ type ApiTailer struct {
 	stopped chan struct{}
 }
 
-// NewApiTailer Creates a new docker socket tailer
-func NewApiTailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *ApiTailer {
-	return &ApiTailer{
+// NewAPITailer Creates a new docker socket tailer
+func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *APITailer {
+	return &APITailer{
 		kubeUtil:      kubeutil,
 		ContainerID:   containerID,
 		ContainerName: containerName,
@@ -77,7 +77,7 @@ func NewApiTailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName
 
 // tryStartTailer tries to start the inner tailer, returning an erroredContainerID channel if
 // successful.
-func (t *ApiTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
+func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
 	erroredContainerID := make(chan string)
 	inner := containerTailerPkg.NewApiTailer(
 		t.kubeUtil,
@@ -106,12 +106,12 @@ func (t *ApiTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 }
 
 // stopTailer stops the inner tailer.
-func (t *ApiTailer) stopTailer(inner *containerTailerPkg.Tailer) {
+func (t *APITailer) stopTailer(inner *containerTailerPkg.Tailer) {
 	inner.Stop()
 }
 
 // Start implements Tailer#Start.
-func (t *ApiTailer) Start() error {
+func (t *APITailer) Start() error {
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	t.stopped = make(chan struct{})
 	go t.run(t.tryStartTailer, t.stopTailer)
@@ -119,7 +119,7 @@ func (t *ApiTailer) Start() error {
 }
 
 // Stop implements Tailer#Stop.
-func (t *ApiTailer) Stop() {
+func (t *APITailer) Stop() {
 	t.cancel()
 	t.cancel = nil
 	<-t.stopped
@@ -127,7 +127,7 @@ func (t *ApiTailer) Stop() {
 
 // run implements a loop to monitor the tailer and re-create it if it fails.  It takes
 // pointers to tryStartTailer and stopTailer to support testing.
-func (t *ApiTailer) run(
+func (t *APITailer) run(
 	tryStartTailer func() (*containerTailerPkg.Tailer, chan string, error),
 	stopTailer func(*containerTailerPkg.Tailer),
 ) {

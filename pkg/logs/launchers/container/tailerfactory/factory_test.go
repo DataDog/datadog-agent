@@ -21,9 +21,9 @@ func TestMakeTailerFile(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return true }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { panic("shouldn't be called") }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 
-	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	require.NoError(t, err)
 	require.NotNil(t, tailer)
 }
@@ -32,10 +32,10 @@ func TestMakeTailerFileFallback(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return true }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 
 	source := &sources.LogSource{Messages: config.NewMessages()}
-	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	messages := source.Messages.GetMessages()
 
 	require.NoError(t, err)
@@ -48,10 +48,10 @@ func TestMakeTailerFileFallbackFailsToo(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return true }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 	source := &sources.LogSource{Messages: config.NewMessages()}
 
-	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	require.ErrorContains(t, err, "uhoh2")
 	require.Nil(t, tailer)
 }
@@ -60,9 +60,9 @@ func TestMakeTailerSocket(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return false }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { panic("shouldn't be called") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 
-	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(&sources.LogSource{}, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	require.NoError(t, err)
 	require.NotNil(t, tailer)
 }
@@ -71,10 +71,10 @@ func TestMakeTailerSocketFallback(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return false }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return &TestTailer{}, nil }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh") }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 
 	source := &sources.LogSource{Messages: config.NewMessages()}
-	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	require.NoError(t, err)
 	require.NotNil(t, tailer)
 	messages := source.Messages.GetMessages()
@@ -88,10 +88,10 @@ func TestMakeTailerSocketFallbackFailsToo(t *testing.T) {
 	useFile := func(*sources.LogSource) bool { return false }
 	makeFileTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh2") }
 	makeSocketTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh1") }
-	makeApiTailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
+	makeAPITailer := func(*sources.LogSource) (Tailer, error) { return nil, errors.New("uhoh3") }
 	source := &sources.LogSource{Messages: config.NewMessages()}
 
-	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeApiTailer)
+	tailer, err := (&factory{}).makeTailer(source, useFile, makeFileTailer, makeSocketTailer, makeAPITailer)
 	require.ErrorContains(t, err, "uhoh2")
 	require.Nil(t, tailer)
 }
