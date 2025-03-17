@@ -6,9 +6,8 @@
 package assertions
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -29,11 +28,13 @@ func (d *RemoteWindowsInstallerAssertions) execute(cmd string, options ...client
 
 // Status provides assertions on the status output of the Datadog Installer.
 func (d *RemoteWindowsInstallerAssertions) Status() *RemoteWindowsInstallerStatusAssertions {
-	output, err := d.execute("status")
+	output, err := d.execute("status --json")
+	d.require.NoError(err)
+	status, err := parseStatusOutput(output)
 	d.require.NoError(err)
 	return &RemoteWindowsInstallerStatusAssertions{
 		RemoteWindowsInstallerAssertions: d,
-		status:                           parseStatusOutput(output),
+		status:                           status,
 	}
 }
 
@@ -46,114 +47,69 @@ type RemoteWindowsInstallerStatusAssertions struct {
 // HasPackage verifies that a package is present in the status output.
 func (d *RemoteWindowsInstallerStatusAssertions) HasPackage(name string) *RemoteWindowsInstallerPackageAssertions {
 	d.suite.T().Helper()
-	d.require.Contains(d.status.Packages, name)
+	d.require.Contains(d.status.Packages.States, name)
 	return &RemoteWindowsInstallerPackageAssertions{
 		RemoteWindowsInstallerStatusAssertions: d,
-		pkg:                                    d.status.Packages[name],
+		name:                                   name,
 	}
 }
 
 // RemoteWindowsInstallerPackageAssertions provides assertions on a package in the status output of the Datadog Installer.
 type RemoteWindowsInstallerPackageAssertions struct {
 	*RemoteWindowsInstallerStatusAssertions
-	pkg packageStatus
+	name string
 }
 
 // WithStableVersionEqual verifies the stable version of a package matches what's expected.
 func (d *RemoteWindowsInstallerPackageAssertions) WithStableVersionEqual(version string) *RemoteWindowsInstallerPackageAssertions {
 	d.suite.T().Helper()
-	d.require.Equal(version, d.pkg.StableVersion, "expected matching stable version for package %s", d.pkg.Name)
+	d.require.Equal(version, d.status.Packages.States[d.name].Stable, "expected matching stable version for package %s", d.name)
 	return d
 }
 
 // WithExperimentVersionEqual verifies the experiment version of a package matches what's expected.
 func (d *RemoteWindowsInstallerPackageAssertions) WithExperimentVersionEqual(version string) *RemoteWindowsInstallerPackageAssertions {
 	d.suite.T().Helper()
-	d.require.Equal(version, d.pkg.ExperimentVersion, "expected matching experiment version for package %s", d.pkg.Name)
+	d.require.Equal(version, d.status.Packages.States[d.name].Experiment, "expected matching experiment version for package %s", d.name)
 	return d
 }
 
 // WithStableVersionMatchPredicate verifies the stable version of a package by using a predicate function.
 func (d *RemoteWindowsInstallerPackageAssertions) WithStableVersionMatchPredicate(predicate func(version string)) *RemoteWindowsInstallerPackageAssertions {
 	d.suite.T().Helper()
-	predicate(d.pkg.StableVersion)
+	predicate(d.status.Packages.States[d.name].Stable)
 	return d
 }
 
 // WithExperimentVersionMatchPredicate verifies the experiment version of a package by using a predicate function.
 func (d *RemoteWindowsInstallerPackageAssertions) WithExperimentVersionMatchPredicate(predicate func(version string)) *RemoteWindowsInstallerPackageAssertions {
 	d.suite.T().Helper()
-	predicate(d.pkg.ExperimentVersion)
+	predicate(d.status.Packages.States[d.name].Experiment)
 	return d
 }
 
 type packageStatus struct {
-	Name              string
-	StableVersion     string
-	ExperimentVersion string
+	States       map[string]stableExperimentStatus `json:"states"`
+	ConfigStates map[string]stableExperimentStatus `json:"config_states"`
+}
+
+type stableExperimentStatus struct {
+	Stable     string `json:"Stable"`
+	Experiment string `json:"Experiment"`
 }
 
 type installerStatus struct {
-	Version  string
-	Packages map[string]packageStatus
+	Version  string        `json:"version"`
+	Packages packageStatus `json:"packages"`
 }
 
-// TODO:
-// Linux tests use curl to hit the unix socket and get JSON output but we can't do the same
-// for the named pipe on Windows. We should consider adding a JSON output option to the status command.
-func parseStatusOutput(output string) installerStatus {
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	var currentPackage packageStatus
-
+// parseStatusOutput parses the json status output of the Datadog Installer.
+func parseStatusOutput(output string) (installerStatus, error) {
 	var status installerStatus
-	status.Packages = make(map[string]packageStatus)
 
-	// Regular expressions for extracting relevant lines
-	versionRegex := regexp.MustCompile(`Datadog Installer v(\S+)`)
-	packageNameRegex := regexp.MustCompile(`^\s*([a-zA-Z0-9\-_]+)$`)
-	stableVersionRegex := regexp.MustCompile(`\s*. stable:\s*(\S+)`)
-	experimentVersionRegex := regexp.MustCompile(`\s*. experiment:\s*(\S+)`)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if match := versionRegex.FindStringSubmatch(line); match != nil {
-			status.Version = match[1]
-			continue
-		}
-
-		// Check for package name
-		if match := packageNameRegex.FindStringSubmatch(line); match != nil {
-			// If we already have a package, store it before starting a new one
-			if currentPackage.Name != "" {
-				status.Packages[currentPackage.Name] = currentPackage
-			}
-			currentPackage = packageStatus{Name: match[1]}
-			continue
-		}
-
-		// Check for stable version
-		if match := stableVersionRegex.FindStringSubmatch(line); match != nil {
-			currentPackage.StableVersion = match[1]
-			continue
-		}
-
-		// Check for experiment version
-		if match := experimentVersionRegex.FindStringSubmatch(line); match != nil {
-			if match[1] == "none" {
-				// handle this case here instead of in tests.
-				// the JSON seems to use an empty string, so it'll save us some work later.
-				continue
-			}
-			currentPackage.ExperimentVersion = match[1]
-			continue
-		}
+	err := json.Unmarshal([]byte(output), &status)
+	if err != nil {
+		return status, err
 	}
-
-	// Append the last parsed package
-	if currentPackage.Name != "" {
-		status.Packages[currentPackage.Name] = currentPackage
-	}
-
-	return status
+	return status, nil
 }

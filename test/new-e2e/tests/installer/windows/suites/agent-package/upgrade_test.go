@@ -237,7 +237,7 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
 	agentVersion := s.StableAgentVersion().Version()
 	s.Require().NoError(s.Installer().Install(
 		// TODO: Update when prod MSI that contains the Installer is available
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58767813")),
+		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
 		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	))
@@ -295,7 +295,7 @@ func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...install
 func (s *testAgentUpgradeSuite) startExperimentPreviousVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
 		// TODO: switch to prod stable entry when available
-		installerwindows.WithPipeline("58767813"),
+		installerwindows.WithPipeline("58948204"),
 		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
 	)
 }
