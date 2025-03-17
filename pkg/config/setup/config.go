@@ -1499,6 +1499,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Tail a container's logs by proxying the kubelet through the API Server
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_api", false)
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.

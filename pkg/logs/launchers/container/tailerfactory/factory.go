@@ -12,7 +12,6 @@ package tailerfactory
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -72,13 +71,13 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 
 // MakeTailer implements Factory#MakeTailer.
 func (tf *factory) MakeTailer(source *sources.LogSource) (Tailer, error) {
-	return tf.makeTailer(source, tf.useFile, tf.makeFileTailer, tf.makeSocketTailer, tf.makeAPITailer)
+	return tf.makeTailer(source, tf.whichTailer, tf.makeFileTailer, tf.makeSocketTailer, tf.makeAPITailer)
 }
 
 // makeTailer makes a new tailer, using function pointers to allow testing.
 func (tf *factory) makeTailer(
 	source *sources.LogSource,
-	useFile func(*sources.LogSource) bool,
+	whichTailer func(*sources.LogSource) whichTailer,
 	makeFileTailer func(*sources.LogSource) (Tailer, error),
 	makeSocketTailer func(*sources.LogSource) (Tailer, error),
 	makeAPITailer func(*sources.LogSource) (Tailer, error),
@@ -87,11 +86,16 @@ func (tf *factory) makeTailer(
 	// depending on the result of useFile, prefer either file logging or socket
 	// logging, but fall back to the opposite.
 
-	switch useFile(source) {
-	case true:
-		if env.IsFeaturePresent(env.EKSFargate) {
-			return makeAPITailer(source)
+	switch whichTailer(source) {
+	case API:
+		t, err := makeAPITailer(source)
+		if err != nil {
+			source.Messages.AddMessage("APITailerError", "The API tailer could not be made")
+			log.Warnf("Could not make API tailer for source %s: %v", source.Name, err)
+			return nil, err
 		}
+		return t, nil
+	case File:
 		t, err := makeFileTailer(source)
 		if err == nil {
 			return t, nil
@@ -100,7 +104,7 @@ func (tf *factory) makeTailer(
 		log.Warnf("Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
 		return makeSocketTailer(source)
 
-	case false:
+	case Socket:
 		t, err := makeSocketTailer(source)
 		if err == nil {
 			return t, nil

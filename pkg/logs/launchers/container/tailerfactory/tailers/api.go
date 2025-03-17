@@ -56,7 +56,7 @@ type APITailer struct {
 	stopped chan struct{}
 }
 
-// NewAPITailer Creates a new docker socket tailer
+// NewAPITailer Creates a new API tailer
 func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *APITailer {
 	return &APITailer{
 		kubeUtil:      kubeutil,
