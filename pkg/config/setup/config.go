@@ -1615,7 +1615,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
 
-	// The following auto_multi_line settings are legacy settings.
+	// Enable the legacy auto multiline detection (v1)
+	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
+
+	// The following auto_multi_line settings are settings for auto multiline detection v1
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", DefaultLogsLegacySampleSize)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", DefaultLogsLegacyMatchTimeout) // Seconds

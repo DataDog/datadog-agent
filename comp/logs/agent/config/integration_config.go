@@ -13,7 +13,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Logs source types
@@ -311,17 +311,25 @@ func (c *LogsConfig) validateTailingMode() error {
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
 // for compatibility reasons.
 func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
+
+	// Handle explicit user initiated fallback to V1
+	if coreConfig.GetBool("logs_config.force_auto_multi_line_detection_v1") {
+		log.Info("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the force_auto_multi_line_detection_v1 is set to true.")
+		return true
+	}
+
+	// Handle transparent fallback if V1 was explicitly configured.
 	if c.AutoMultiLineSampleSize != 0 || coreConfig.GetInt("logs_config.auto_multi_line_default_sample_size") != setup.DefaultLogsLegacySampleSize {
-		log.Warn("Auto multi line detection falling back to legacy mode for log source: ", c.Name, " because the sample size has been set to a non-default value.")
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the sample size has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
 	if c.AutoMultiLineMatchThreshold != 0 || coreConfig.GetFloat64("logs_config.auto_multi_line_default_match_threshold") != setup.DefaultLogsLegacyMatchThreshold {
-		log.Warn("Auto multi line detection falling back to legacy mode for log source: ", c.Name, " because the match threshold has been set to a non-default value.")
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match threshold has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
 
 	if coreConfig.GetDuration("logs_config.auto_multi_line_default_match_timeout") != setup.DefaultLogsLegacyMatchTimeout {
-		log.Warn("Auto multi line detection falling back to legacy mode for log source: ", c.Name, " because the match timeout has been set to a non-default value.")
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match timeout has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
 	return false
@@ -333,6 +341,10 @@ func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
+	}
+	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
+		return true
 	}
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
 }

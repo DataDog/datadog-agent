@@ -130,7 +130,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	}
 	if lineHandler == nil {
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = getLegacyAutoMultilineHanlder(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
+			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo)
 		} else {
@@ -141,8 +141,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	return lineHandler
 }
 
-func getLegacyAutoMultilineHanlder(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
-	log.Infof("Legacy Auto multiline log detection enabled")
+func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
 
 	if multiLinePattern != nil {
 		log.Info("Found a previously detected pattern - using multiline handler")
