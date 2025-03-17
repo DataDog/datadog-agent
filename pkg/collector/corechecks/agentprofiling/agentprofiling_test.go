@@ -8,33 +8,17 @@ package agentprofiling
 import (
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-type mockFlareComponent struct{}
-
-func (m *mockFlareComponent) Create(_ types.ProfileData, _ time.Duration, _ error) (string, error) {
-	return "/tmp/mock_flare.zip", nil
-}
-
-func (m *mockFlareComponent) CreateWithArgs(_ types.FlareArgs, _ time.Duration, _ error) (string, error) {
-	return "/tmp/mock_flare.zip", nil
-}
-
-func (m *mockFlareComponent) Send(_, _, _ string, _ helpers.FlareSource) (string, error) {
-	return "Flare sent successfully", nil
-}
-
 func TestRun(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
-	flareComponent := &mockFlareComponent{}
+	flareComponent := flareimpl.NewMock().Comp
 	agentConfig := mock.New(t)
 	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
@@ -54,7 +38,7 @@ func TestRun(t *testing.T) {
 
 func TestRunProfileAlreadyCaptured(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
-	flareComponent := &mockFlareComponent{}
+	flareComponent := flareimpl.NewMock().Comp
 	agentConfig := mock.New(t)
 	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 1024 * 1024 // 1 MB
@@ -70,7 +54,7 @@ func TestRunProfileAlreadyCaptured(t *testing.T) {
 
 func TestRunThresholdNotSet(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
-	flareComponent := &mockFlareComponent{}
+	flareComponent := flareimpl.NewMock().Comp
 	agentConfig := mock.New(t)
 	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.MemoryThreshold = 0 // Threshold not set
@@ -85,7 +69,7 @@ func TestRunThresholdNotSet(t *testing.T) {
 
 func TestGenerateFlareLocal(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
-	flareComponent := &mockFlareComponent{}
+	flareComponent := flareimpl.NewMock().Comp
 	agentConfig := mock.New(t)
 	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.TicketID = ""
@@ -100,7 +84,7 @@ func TestGenerateFlareLocal(t *testing.T) {
 
 func TestGenerateFlareZendesk(t *testing.T) {
 	// Create a new check instance with a mock flare component and mock agent config
-	flareComponent := &mockFlareComponent{}
+	flareComponent := flareimpl.NewMock().Comp
 	agentConfig := mock.New(t)
 	check := newCheck(flareComponent, agentConfig).(*AgentProfilingCheck)
 	check.instance.TicketID = "12345"

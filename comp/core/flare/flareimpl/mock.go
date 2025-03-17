@@ -54,6 +54,10 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 	return "a string", nil
 }
 
+func (fc *MockFlare) CreateWithArgs(_ flaretypes.FlareArgs, _ time.Duration, _ error) (string, error) {
+	return "a string", nil
+}
+
 // NewMock returns a new flare provider
 func NewMock() MockProvides {
 	m := &MockFlare{}
