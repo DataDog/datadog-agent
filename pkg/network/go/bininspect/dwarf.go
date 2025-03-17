@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 	"github.com/go-delve/delve/pkg/dwarf/loclist"
 )
