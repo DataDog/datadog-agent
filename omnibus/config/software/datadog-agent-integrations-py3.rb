@@ -316,12 +316,6 @@ build do
     end
   end
 
-  block "Remove type annotations files" do
-    # These are files containing Python type annotations which aren't used at runtime
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
-  end
-
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent

@@ -489,11 +489,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 				log.Debugf("map %s is shared between enabled and disabled protocols", m.Name)
 				continue
 			}
-			// Unused maps still need to have a non-zero size
-			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
-				MaxEntries: uint32(1),
-				EditorFlag: manager.EditMaxEntries,
-			}
+			options.ExcludedMaps = append(options.ExcludedMaps, m.Name)
 
 			log.Debugf("disabled map: %v", m.Name)
 		}

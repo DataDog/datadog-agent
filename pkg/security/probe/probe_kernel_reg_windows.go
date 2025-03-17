@@ -197,13 +197,13 @@ func (cka *createKeyArgs) String() string {
 
 	var output strings.Builder
 
-	output.WriteString("  PID: " + strconv.Itoa(int(cka.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(cka.status)) + " Disposition: " + strconv.Itoa(int(cka.disposition)) + "\n")
-	output.WriteString("  baseObject: " + strconv.FormatUint(uint64(cka.baseObject), 16) + "\n")
-	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(cka.keyObject), 16) + "\n")
-	output.WriteString("  basename: " + cka.baseName + "\n")
-	output.WriteString("  relativename: " + cka.relativeName + "\n")
-	output.WriteString("  computedfullpath: " + cka.computedFullPath + "\n")
+	output.WriteString("PID: " + strconv.Itoa(int(cka.ProcessID)) + ", ")
+	output.WriteString("Status: " + strconv.Itoa(int(cka.status)) + " Disposition: " + strconv.Itoa(int(cka.disposition)) + ", ")
+	output.WriteString("BaseObject: " + strconv.FormatUint(uint64(cka.baseObject), 16) + ", ")
+	output.WriteString("KeyObject: " + strconv.FormatUint(uint64(cka.keyObject), 16) + ", ")
+	output.WriteString("Basename: " + cka.baseName + ", ")
+	output.WriteString("Relativename: " + cka.relativeName + ", ")
+	output.WriteString("Computedfullpath: " + cka.computedFullPath)
 	return output.String()
 }
 
@@ -262,10 +262,10 @@ func (wp *WindowsProbe) parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecur
 func (dka *deleteKeyArgs) String() string {
 	var output strings.Builder
 
-	output.WriteString("  PID: " + strconv.Itoa(int(dka.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(dka.status)) + "\n")
-	output.WriteString("  keyName: " + dka.keyName + "\n")
-	output.WriteString("  resolved path: " + dka.computedFullPath + "\n")
+	output.WriteString("PID: " + strconv.Itoa(int(dka.ProcessID)) + ", ")
+	output.WriteString("Status: " + strconv.Itoa(int(dka.status)) + ", ")
+	output.WriteString("KeyName: " + dka.keyName + "\n")
+	output.WriteString("Resolved path: " + dka.computedFullPath)
 
 	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
 	return output.String()
@@ -351,12 +351,12 @@ func (wp *WindowsProbe) parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs
 func (sv *setValueKeyArgs) String() string {
 	var output strings.Builder
 
-	output.WriteString("  PID: " + strconv.Itoa(int(sv.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(sv.status)) + " dataType: " + strconv.Itoa(int(sv.dataType)) + " dataSize " + strconv.Itoa(int(sv.dataSize)) + "\n")
-	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(sv.keyObject), 16) + "\n")
-	output.WriteString("  keyName: " + sv.keyName + "\n")
-	output.WriteString("  valueName: " + sv.valueName + "\n")
-	output.WriteString("  computed path: " + sv.computedFullPath + "\n")
+	output.WriteString("PID: " + strconv.Itoa(int(sv.ProcessID)) + ", ")
+	output.WriteString("Status: " + strconv.Itoa(int(sv.status)) + " dataType: " + strconv.Itoa(int(sv.dataType)) + " dataSize " + strconv.Itoa(int(sv.dataSize)) + ", ")
+	output.WriteString("KeyObject: " + strconv.FormatUint(uint64(sv.keyObject), 16) + ", ")
+	output.WriteString("KeyName: " + sv.keyName + ", ")
+	output.WriteString("CalueName: " + sv.valueName + ", ")
+	output.WriteString("Computed path: " + sv.computedFullPath)
 
 	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
 	return output.String()
