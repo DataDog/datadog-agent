@@ -1,4 +1,3 @@
-# Use the Ubuntu Slim AMD64 base image
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 ARG AGENT_BASE_IMAGE_TAG
@@ -92,7 +91,7 @@ LABEL org.opencontainers.image.title="Otel Agent"
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 # TODO: confirm if this should be copied to otel-config.yaml.example
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
-
+# Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 ENTRYPOINT ["/bin/bash"]

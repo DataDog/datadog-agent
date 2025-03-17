@@ -1,4 +1,3 @@
-# Use the Ubuntu Slim AMD64 base image
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 
