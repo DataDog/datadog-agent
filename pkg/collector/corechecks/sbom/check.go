@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 

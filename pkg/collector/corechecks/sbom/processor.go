@@ -284,9 +284,10 @@ func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
 func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 	log.Debugf("processing procfs scanresult: %v", result)
 	sbom := &model.SBOMEntity{
-		Status:             model.SBOMStatus_SUCCESS,
-		Id:                 result.RequestID,
-		Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
+		Status: model.SBOMStatus_SUCCESS,
+		Id:     result.RequestID,
+		//Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
+		Type:               model.SBOMSourceType_HOST_IMAGE,
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: convertDuration(result.Duration),
