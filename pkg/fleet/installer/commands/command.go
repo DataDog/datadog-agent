@@ -481,7 +481,7 @@ func getStateCommand() *cobra.Command {
 func postinstCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <caller:dpkg|rpm|manual_update>",
+		Use:     "postinst <package> <caller:deb|rpm|oci>",
 		Short:   "Run postinstall scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(2),

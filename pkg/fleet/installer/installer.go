@@ -599,7 +599,7 @@ func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string)
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	if caller != "deb" && caller != "rpm" && caller != "manual_update" {
+	if caller != "deb" && caller != "rpm" && caller != "oci" {
 		return fmt.Errorf("invalid caller: %s", caller)
 	}
 
