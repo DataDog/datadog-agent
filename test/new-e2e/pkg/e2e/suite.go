@@ -225,6 +225,7 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
+		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -558,6 +559,7 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
