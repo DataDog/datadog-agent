@@ -53,7 +53,6 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 
 entryLoop:
 	for {
-
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break

@@ -760,7 +760,7 @@ func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
 	for _, answer := range dnsLayer.Answers {
 		if answer.Type == layers.DNSTypeCNAME {
 			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else {
+		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
 			ip, ok := netip.AddrFromSlice(answer.IP)
 			if ok {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)

@@ -5,7 +5,7 @@
 
 //go:build test
 
-package cloudproviders
+package network
 
 import (
 	"testing"

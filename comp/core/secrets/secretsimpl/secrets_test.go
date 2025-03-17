@@ -7,12 +7,15 @@ package secretsimpl
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -584,8 +587,11 @@ func TestResolveCached(t *testing.T) {
 
 func TestResolveThenRefresh(t *testing.T) {
 	// disable the allowlist for the test, let any secret changes happen
-	allowlistEnabled = false
-	defer func() { allowlistEnabled = true }()
+	originalValue := isAllowlistEnabled()
+	setAllowlistEnabled(false)
+	defer func() {
+		setAllowlistEnabled(originalValue)
+	}()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	resolver := newEnabledSecretResolver(tel)
@@ -798,6 +804,122 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 		return map[string]string{
 			"handle": "fourth_value",
 		}, nil
+	}
+}
+
+func TestStartRefreshRoutineWithScatter(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		scatter                bool
+		expectedSubsequentTick time.Duration
+	}{
+		{
+			name:                   "Without scatter",
+			scatter:                false,
+			expectedSubsequentTick: 10 * time.Second,
+		},
+		{
+			name:                   "With scatter",
+			scatter:                true,
+			expectedSubsequentTick: 10 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			newClock = func() clock.Clock { return clock.NewMock() }
+			t.Cleanup(func() {
+				newClock = clock.New
+			})
+			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+			resolver := newEnabledSecretResolver(tel)
+			mockClock := resolver.clk.(*clock.Mock)
+			originalValue := isAllowlistEnabled()
+			setAllowlistEnabled(false)
+			defer func() {
+				setAllowlistEnabled(originalValue)
+			}()
+
+			resolver.refreshInterval = 10 * time.Second
+			resolver.refreshIntervalScatter = tc.scatter
+
+			if tc.scatter {
+				// Seed the random number generator to make the test deterministic
+				rand.Seed(12345)
+			}
+
+			resolver.cache = map[string]string{
+				"test-handle": "initial-value",
+			}
+			resolver.origin = map[string][]secretContext{
+				"test-handle": {
+					{
+						origin: "test-origin",
+						path:   []string{"test-path"},
+					},
+				},
+			}
+
+			refreshCalls := 0
+			refreshCalledChan := make(chan struct{}, 3)
+
+			resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
+				refreshCalls++
+				refreshCalledChan <- struct{}{}
+
+				return map[string]string{
+					"test-handle": fmt.Sprintf("updated-value-%d", refreshCalls),
+				}, nil
+			}
+
+			changeDetected := make(chan struct{}, 3)
+			resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
+				changeDetected <- struct{}{}
+			})
+			require.NotNil(t, resolver.ticker)
+
+			if tc.scatter {
+				// The set random seed has a the scatterDuration is 5.477027098s
+				mockClock.Add(6 * time.Second)
+
+				select {
+				case <-refreshCalledChan:
+				case <-time.After(1 * time.Second):
+					t.Fatal("First refresh didn't occur even after full interval")
+				}
+			} else {
+				// Without scatter, the first tick should be at the full refresh interval
+				mockClock.Add(resolver.refreshInterval)
+
+				select {
+				case <-refreshCalledChan:
+				case <-time.After(1 * time.Second):
+					t.Fatal("First refresh didn't occur at expected time")
+				}
+			}
+
+			// Now test that subsequent ticks use the full refresh interval regardless of scatter setting
+			mockClock.Add(tc.expectedSubsequentTick)
+
+			select {
+			case <-refreshCalledChan:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Second refresh didn't occur at expected time")
+			}
+
+			mockClock.Add(tc.expectedSubsequentTick)
+
+			select {
+			case <-refreshCalledChan:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Third refresh didn't occur at expected time")
+			}
+
+			if refreshCalls != 3 {
+				t.Errorf("Expected 3 refresh calls, got %d", refreshCalls)
+			}
+		})
 	}
 }
 

@@ -149,7 +149,7 @@ repos:
     - id: protocol-buffer
       name: validate-protocol-buffer-generated-files
       description: Validate that the generated protocol buffer files are up to date
-      entry: 'dda inv protobuf.generate --no-do-mockgen'
+      entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$

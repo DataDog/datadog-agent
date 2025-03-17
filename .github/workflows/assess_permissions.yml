@@ -13,7 +13,7 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
           matrix:
-            value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'omnibus-software', 'agent-release-management']
+            value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'agent-release-management']
           fail-fast: false
         steps:
             - name: Checkout repository
