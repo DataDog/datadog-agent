@@ -236,7 +236,7 @@ func (suite *k8sSuite) TestVersion() {
 				Limit:         1,
 			})
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-				stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
+				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
@@ -986,7 +986,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			suite.Require().NoError(err)
 			suite.Require().Len(agentPod.Items, 1)
 
-			stdout, _, err := suite.podExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
 			suite.Require().NoError(err)
 			suite.Contains(stdout, "Language: python")
 			if suite.T().Failed() {
