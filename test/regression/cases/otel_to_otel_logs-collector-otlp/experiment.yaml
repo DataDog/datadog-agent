@@ -3,15 +3,17 @@ erratic: false
 
 target:
   name: datadog-agent
-  cpu_allotment: 8
-  memory_allotment: 24GiB
+  command: /bin/entrypoint.sh
+  cpu_allotment: 4
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: 123456789
     DD_HOSTNAME: smp-regression
-    DD_OTEL_ENABLED: true
-    DD_SITE: datadoghq.com
-
+    DD_OTEL_ENABLED: false
+    DD_SITE: 127.0.0.1:9092
+    DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
+    
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
