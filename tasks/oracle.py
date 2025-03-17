@@ -11,7 +11,7 @@ def test(ctx, verbose=False) -> None:
     Runs oracle functional tests against a containerized database.
     """
 
-    if not os.environ.get("CI") and not os.environ.get("SKIP_DOCKER"):
+    if not os.environ.get("SKIP_DOCKER"):
         start_docker(ctx, verbose)
 
     try:
