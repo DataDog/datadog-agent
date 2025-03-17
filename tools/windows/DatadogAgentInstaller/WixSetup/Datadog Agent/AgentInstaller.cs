@@ -598,9 +598,11 @@ namespace WixSetup.Datadog_Agent
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {
-                        Name = "Datadog Installer",
-                        StartOn = SvcEvent.Install,
-                        StopOn = SvcEvent.InstallUninstall_Wait,
+                        Name = Constants.InstallerServiceName,
+                        // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
+                        StartOn = null,
+                        // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                        StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
                         Start = SvcStartType.auto,
                         DelayedAutoStart = true,
