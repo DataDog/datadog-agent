@@ -32,7 +32,7 @@ var (
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,
 	activityDumpValidator func(ad *dump.ActivityDump) bool,
-	securityProfileValidator func(sp *profile.SecurityProfile) bool) {
+	securityProfileValidator func(sp *profile.Profile) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
 		ext := fmt.Sprintf(".%s", format)

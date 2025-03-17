@@ -13,7 +13,7 @@
     - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
-    - !reference [.lint_linux_packages]
+    - !reference [.create_signature_and_lint_linux_packages]
   stage: packaging
   artifacts:
     expire_in: 2 weeks
@@ -42,10 +42,6 @@
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
 
-.package_rpm_agent_7:
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_7
-
 .package_suse_rpm_common:
   extends: .package_rpm_common
   script:
@@ -59,32 +55,32 @@
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
 
 agent_rpm-x64-a7:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_rpm_common, .package_rpm_x86]
   tags: ["arch:amd64"]
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
 
 agent_rpm-arm64-a7:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
 
 agent_suse-x64-a7:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
 
 agent_suse-arm64-a7:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_suse_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
 
 installer_rpm-amd64:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_rpm_common, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
@@ -93,7 +89,7 @@ installer_rpm-amd64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 agent_rpm-x64-a7-fips:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_rpm_common, .package_rpm_x86]
   tags: ["arch:amd64"]
   needs: ["datadog-agent-7-x64-fips"]
   variables:
@@ -101,42 +97,42 @@ agent_rpm-x64-a7-fips:
     DD_PROJECT: agent
 
 agent_rpm-arm64-a7-fips:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: agent
 
 agent_suse-x64-a7-fips:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
   needs: ["datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
 
 agent_suse-arm64-a7-fips:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_suse_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
 
 installer_rpm-arm64:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-amd64:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-arm64:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  extends: [.package_suse_rpm_common, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
@@ -154,7 +150,7 @@ installer_suse_rpm-arm64:
     - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
-    - !reference [.lint_linux_packages]
+    - !reference [.create_signature_and_lint_linux_packages]
   stage: packaging
   artifacts:
     expire_in: 2 weeks
@@ -165,7 +161,6 @@ installer_suse_rpm-arm64:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
-    RELEASE_VERSION: $RELEASE_VERSION_7
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
@@ -211,14 +206,14 @@ iot_agent_suse-x64:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 dogstatsd_rpm-x64:
-  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_rpm_common, .package_rpm_x86]
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
 
 dogstatsd_suse-x64:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd

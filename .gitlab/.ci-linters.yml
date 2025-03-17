@@ -67,6 +67,7 @@ job-owners:
     - do-not-merge
     - dogstatsd_x64_size_test
     - generate-flakes-finder-pipeline
+    - generate-fips-e2e-pipeline
     - github_rate_limit_info
     - go_deps
     - go_e2e_deps
@@ -101,6 +102,7 @@ job-owners:
     - trace-agent-v05-2cpus-normal_load-fixed_sps
     - trace-agent-v05-2cpus-stress_load-fixed_sps
     - trigger-flakes-finder
+    - trigger-fips-e2e
     - unit_tests_notify
     - update_rc_build_links
     - validate_modules

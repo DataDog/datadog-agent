@@ -29,6 +29,13 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     // network context
     fill_network_context(&evt->network, skb, pkt);
 
+    struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
+    if (entry == NULL) {
+        evt->container.container_id[0] = 0;
+    } else {
+        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+    }
+
     // should we sample this event for activity dumps ?
     struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
