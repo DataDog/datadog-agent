@@ -6,11 +6,6 @@ oracle:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  services:
-    - alias: "oracle"
-      name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
-      variables:
-        ORACLE_PWD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
     DD_HOSTNAME: "oracle-test"
