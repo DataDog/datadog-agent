@@ -115,6 +115,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
+					// Just need to copy the address for each field
+					targetExpressions = append(targetExpressions,
+						ditypes.CopyLocationExpression(),
+					)
+
 					continue
 				} else if elementParam.Kind == uint(reflect.String) {
 					if len(instrumentationTarget.ParameterPieces) != 2 {
