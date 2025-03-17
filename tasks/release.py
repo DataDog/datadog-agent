@@ -1438,9 +1438,8 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
 
             rj["base_branch"] = release_branch
 
-            for nightly in ["nightly", "nightly-a7"]:
-                for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-                    rj[nightly][field] = f"{release_branch}"
+            for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+                rj["nightly"][field] = f"{release_branch}"
 
             _save_release_json(rj)
 
@@ -1573,15 +1572,14 @@ def check_omnibus_branches(ctx):
                 f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                 hide='stdout',
             )
-            for version in ['nightly', 'nightly-a7']:
-                commit = _get_release_json_value(f'{version}::{release_json_field}')
-                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
-                    raise Exit(
-                        code=1,
-                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
-                    )
-                else:
-                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+            commit = _get_release_json_value(f'nightly::{release_json_field}')
+            if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                raise Exit(
+                    code=1,
+                    message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                )
+            else:
+                print(f'[nightly] Commit {commit} was found in {repo_name} branch {branch}')
 
     _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
 

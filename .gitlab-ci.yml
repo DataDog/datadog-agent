@@ -149,7 +149,7 @@ variables:
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_6: nightly
+  RELEASE_VERSION: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
@@ -253,14 +253,8 @@ variables:
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
 .if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
+  if: $RELEASE_VERSION == ""
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
@@ -971,8 +965,6 @@ workflow:
     allow_failure: true
 
 .on_install_script_release_manual:
-  - <<: *if_not_version_7
-    when: never
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_main_branch
