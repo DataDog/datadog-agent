@@ -32,8 +32,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -265,7 +271,7 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
-		taggerComponent := taggermock.SetupFakeTagger(t)
+		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
 			corecomp.MockModule(),
@@ -573,6 +579,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
+	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
 	noProxy := true
@@ -2360,8 +2367,11 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	}
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
-		fx.Replace(coreConfig),
-		taggermock.Module(),
+		fx.Provide(func() corecomp.Component { return coreConfig }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	c := fxutil.Test[Component](t, fx.Options(

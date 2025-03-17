@@ -4,7 +4,7 @@ go 1.23.0
 
 require github.com/Microsoft/go-winio v0.6.2
 
-require golang.org/x/sys v0.30.0 // indirect
+require golang.org/x/sys v0.31.0 // indirect
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface

@@ -84,7 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.enabled")
 	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
 
 	// Auto exit configuration
@@ -371,6 +370,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_discarders"), false) // will be set to true by sanitize() if enable_kernel_filters is true
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dns_resolution.cache_size"), 1024)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dns_resolution.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
@@ -391,7 +392,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})

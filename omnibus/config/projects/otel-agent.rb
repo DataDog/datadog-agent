@@ -21,7 +21,10 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# We want an higher compression level on deploy pipelines that are not nightly.
+# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -30,10 +33,6 @@ end
 if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.use_git_caching true
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
-end
-
-unless linux_target?
-    raise UnknownPlatform
 end
 
 INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'

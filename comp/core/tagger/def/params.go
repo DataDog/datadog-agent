@@ -22,12 +22,6 @@ type RemoteParams struct {
 	RemoteTokenFetcher func(config.Component) func() (string, error)
 }
 
-// Params provides local tagger parameters
-type Params struct {
-	// UseFakeTagger is a flag to enable the fake tagger. Only use for testing
-	UseFakeTagger bool
-}
-
 // DualParams provides dual tagger parameters
 type DualParams struct {
 	// UseRemote is a function to determine if the remote tagger should be used
