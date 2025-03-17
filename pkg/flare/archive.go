@@ -224,7 +224,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient()
 	bytes, err := apiutil.DoGet(c, procStatusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
@@ -248,7 +248,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 			return
 		}
 
-		c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+		c := apiutil.GetClient()
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return apiutil.DoGet(c, checkURL+checkName, apiutil.LeaveConnectionOpen) })
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
