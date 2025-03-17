@@ -39,7 +39,7 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
-from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.test_core import ModuleTestResult, process_input_args, process_module_results
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
@@ -130,69 +130,71 @@ def test_flavor(
     junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
     args["junit_file_flag"] = junit_file_flag
 
-    def command(test_results, module, module_result):
-        module_path = module.full_path()
-        with ctx.cd(module_path):
-            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.test_targets)
-            with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
-                res = ctx.run(
-                    command=cmd.format(
-                        packages=packages,
-                        cov_test_path=cov_test_path,
-                        **args,
-                    ),
-                    env=env,
-                    out_stream=test_profiler,
-                    warn=True,
-                )
-                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-                if res is not None and res.exited == 130:
-                    raise KeyboardInterrupt()
+    if not modules:
+        return
 
-        module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
+    targets = []
+    for module in modules:
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            target_path = os.path.join(module.path, target)
+            if not target_path.startswith('./'):
+                target_path = f"./{target_path}"
+            targets.append(target_path)
 
-        if res.exited is None or res.exited > 0:
-            module_result.failed = True
-        else:
-            lines = res.stdout.splitlines()
-            if lines is not None and 'DONE 0 tests' in lines[-1]:
-                cov_path = os.path.join(module_path, PROFILE_COV)
-                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
-                try:
-                    os.remove(cov_path)
-                except FileNotFoundError as e:
-                    print(f"Couldn't remove coverage file {cov_path}\n{e}")
-                return
+    module_path = '.'
+    result = ModuleTestResult('.')
+    result.result_json_path = os.path.join('.', GO_TEST_RESULT_TMP_JSON)
 
-        if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
-                json_file.write(module_file.read())
+    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
+        res = ctx.run(
+            command=cmd.format(
+                packages=packages,
+                cov_test_path=cov_test_path,
+                **args,
+            ),
+            env=env,
+            out_stream=test_profiler,
+            warn=True,
+        )
+        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+        if res is not None and res.exited == 130:
+            raise KeyboardInterrupt()
 
-        if junit_tar:
-            module_result.junit_file_path = os.path.join(module_path, junit_file)
-            enrich_junitxml(module_result.junit_file_path, flavor)
+    if res.exited is None or res.exited > 0:
+        result.failed = True
+    else:
+        lines = res.stdout.splitlines()
+        if lines is not None and 'DONE 0 tests' in lines[-1]:
+            cov_path = os.path.join('.', PROFILE_COV)
+            print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+            try:
+                os.remove(cov_path)
+            except FileNotFoundError as e:
+                print(f"Couldn't remove coverage file {cov_path}\n{e}")
+            return
 
-        test_results.append(module_result)
+    if save_result_json:
+        with open(save_result_json, 'ab') as json_file, open(result.result_json_path, 'rb') as module_file:
+            json_file.write(module_file.read())
 
-    return test_core(modules, flavor, ModuleTestResult, "unit tests", command)
+    if junit_tar:
+        result.junit_file_path = os.path.join('.', junit_file)
+        enrich_junitxml(result.junit_file_path, flavor)
+
+    return result
 
 
-def coverage_flavor(
-    ctx,
-    flavor: AgentFlavor,
-    modules: list[GoModule],
-):
+def coverage_flavor(ctx):
     """
     Prints the code coverage of all modules for the given flavor.
     This expects that the coverage files have already been generated by
     dda inv test --coverage.
     """
 
-    def command(_empty_result, module, _module_result):
-        with ctx.cd(module.full_path()):
-            ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
-
-    return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
+    ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
 
 
 def sanitize_env_vars():
@@ -205,17 +207,13 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(test_result, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_files = [
-            module_test_result.junit_file_path
-            for module_test_result in test_results
-            if module_test_result.junit_file_path
-        ]
+        junit_file = test_result.junit_file_path
 
-        produce_junit_tar(junit_files, junit_tar)
+        produce_junit_tar(junit_file, junit_tar)
 
-    success = process_module_results(flavor=flavor, module_results=test_results)
+    success = process_module_results(flavor=flavor, module_results=[test_result])
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -229,7 +227,7 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
-        should_succeed = tw.process_module_results(test_results)
+        should_succeed = tw.process_module_result(test_result)
         if should_succeed:
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
@@ -375,7 +373,7 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     with gitlab_section("Running unit tests", collapsed=True):
-        test_results = test_flavor(
+        test_result = test_flavor(
             ctx,
             flavor=flavor,
             build_tags=unit_tests_tags,
@@ -392,7 +390,7 @@ def test(
     # Output
 
     if coverage and print_coverage:
-        coverage_flavor(ctx, flavor, modules)
+        coverage_flavor(ctx)
 
     # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
     # in the meantime to avoid confusion
@@ -400,7 +398,7 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_test_result(test_results, junit_tar, flavor, test_washer)
+    success = process_test_result(test_result, junit_tar, flavor, test_washer)
     if not success:
         raise Exit(code=1)
 
@@ -503,9 +501,12 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         ):  # With more packages we can reach the limit of the command line length on Windows
             modules_to_test[module].test_targets = default_modules[module].test_targets
 
-    print("Running tests for the following modules:")
-    for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].test_targets}")
+    if not modules_to_test:
+        print("No modules to test")
+    else:
+        print("Running tests for the following modules:")
+        for module in modules_to_test:
+            print(f"- {module}: {modules_to_test[module].test_targets}")
 
     return list(modules_to_test.values())
 

@@ -203,7 +203,7 @@ class TestWasher:
                 main_patterns = [main_patterns]
             self.flaky_log_main_patterns += main_patterns
 
-    def process_module_results(self, module_results: list[ModuleTestResult]):
+    def process_module_result(self, module_result: ModuleTestResult):
         """
         Process the module test results and decide whether we should succeed or not.
         If only known flaky tests are failing, we should succeed.
@@ -213,17 +213,16 @@ class TestWasher:
         should_succeed = True
         failed_tests = []
         failed_command_modules = []
-        for module_result in module_results:
-            non_flaky_failing_tests = self.get_non_flaky_failing_tests(module_result.path)
-            if (
-                not self.get_failing_tests(module_result.path) and module_result.failed
-            ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
-                should_succeed = False
-                failed_command_modules.append(module_result.path)
-            if non_flaky_failing_tests:
-                should_succeed = False
-                for package, tests in non_flaky_failing_tests.items():
-                    failed_tests.extend(f"- {package} {test}" for test in tests)
+        non_flaky_failing_tests = self.get_non_flaky_failing_tests(module_result.path)
+        if (
+            not self.get_failing_tests(module_result.path) and module_result.failed
+        ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
+            should_succeed = False
+            failed_command_modules.append(module_result.path)
+        if non_flaky_failing_tests:
+            should_succeed = False
+            for package, tests in non_flaky_failing_tests.items():
+                failed_tests.extend(f"- {package} {test}" for test in tests)
         if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
             print("\n".join(sorted(failed_tests)))

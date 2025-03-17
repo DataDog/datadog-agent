@@ -237,27 +237,21 @@ def run(
         )
 
     if logs_post_processing:
-        if len(test_res) == 1:
-            post_processed_output = post_process_output(
-                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
-            )
-            os.makedirs(logs_folder, exist_ok=True)
-            write_result_to_log_files(
-                post_processed_output,
-                logs_folder,
-                test_depth=logs_post_processing_test_depth,
-            )
+        post_processed_output = post_process_output(
+            test_res.result_json_path, test_depth=logs_post_processing_test_depth
+        )
+        os.makedirs(logs_folder, exist_ok=True)
+        write_result_to_log_files(
+            post_processed_output,
+            logs_folder,
+            test_depth=logs_post_processing_test_depth,
+        )
 
-            pretty_print_logs(
-                test_res[0].result_json_path,
-                post_processed_output,
-                test_depth=logs_post_processing_test_depth,
-            )
-        else:
-            print(
-                color_message("WARNING", "yellow")
-                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
-            )
+        pretty_print_logs(
+            test_res.result_json_path,
+            post_processed_output,
+            test_depth=logs_post_processing_test_depth,
+        )
 
     if not success:
         raise Exit(code=1)
