@@ -135,7 +135,7 @@ func New(opts ...Opts) *Profile {
 		LoadedInKernel:  atomic.NewBool(false),
 		LoadedNano:      atomic.NewUint64(0),
 		versionContexts: make(map[string]*VersionContext),
-		profileCookie:   utils.NewCookie(),
+		profileCookie:   utils.RandNonZeroUint64(),
 	}
 
 	for _, opt := range opts {
@@ -624,8 +624,8 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 func (p *Profile) Reset() {
 	p.LoadedInKernel.Store(false)
 	p.LoadedNano.Store(0)
-	p.profileCookie = 0
 	p.Instances = nil
+	// keep the profileCookie in case we end up reloading the profile from the cache
 }
 
 // ComputeSyscallsList computes the top level list of syscalls
