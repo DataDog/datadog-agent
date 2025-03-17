@@ -7,8 +7,7 @@
 
 package tailerfactory
 
-// This file handles creating docker tailers which access the container runtime
-// via socket.
+// This file handles creating API tailers which access logs by proxying to the kubelet via the API Server.
 
 import (
 	"errors"
@@ -25,7 +24,7 @@ import (
 
 // makeSocketTailer makes a socket-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
-func (tf *factory) makeApiTailer(source *sources.LogSource) (Tailer, error) {
+func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	containerID := source.Config.Identifier
 
 	wmeta, ok := tf.workloadmetaStore.Get()

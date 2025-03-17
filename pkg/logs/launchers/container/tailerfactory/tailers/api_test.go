@@ -83,7 +83,7 @@ func TestApitTailer_run_erroredContainer(t *testing.T) {
 	require.Equal(t, int32(3), tailerStopped.Load())
 }
 
-func TestApiTailer_run_canStopWithError(t *testing.T) {
+func TestAPITailer_run_canStopWithError(t *testing.T) {
 	a := &APITailer{}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
@@ -120,7 +120,7 @@ func TestApiTailer_run_canStopWithError(t *testing.T) {
 	require.Equal(t, int32(1), tailerStopped.Load())
 }
 
-func TestApiTailer_run_error_starting(t *testing.T) {
+func TestAPITailer_run_error_starting(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	defer func() { backoffInitialDuration = 1 * time.Second }()
 
@@ -157,7 +157,7 @@ func TestApiTailer_run_error_starting(t *testing.T) {
 	require.Equal(t, int32(1), tailerStopped.Load())
 }
 
-func TestApiTailer_run_error_starting_expires(t *testing.T) {
+func TestAPITailer_run_error_starting_expires(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	backoffMaxDuration = 10 * time.Millisecond
 	defer func() {

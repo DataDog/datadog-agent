@@ -72,7 +72,7 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 
 // MakeTailer implements Factory#MakeTailer.
 func (tf *factory) MakeTailer(source *sources.LogSource) (Tailer, error) {
-	return tf.makeTailer(source, tf.useFile, tf.makeFileTailer, tf.makeSocketTailer, tf.makeApiTailer)
+	return tf.makeTailer(source, tf.useFile, tf.makeFileTailer, tf.makeSocketTailer, tf.makeAPITailer)
 }
 
 // makeTailer makes a new tailer, using function pointers to allow testing.
@@ -81,7 +81,7 @@ func (tf *factory) makeTailer(
 	useFile func(*sources.LogSource) bool,
 	makeFileTailer func(*sources.LogSource) (Tailer, error),
 	makeSocketTailer func(*sources.LogSource) (Tailer, error),
-	makeApiTailer func(*sources.LogSource) (Tailer, error),
+	makeAPITailer func(*sources.LogSource) (Tailer, error),
 ) (Tailer, error) {
 
 	// depending on the result of useFile, prefer either file logging or socket
@@ -90,8 +90,7 @@ func (tf *factory) makeTailer(
 	switch useFile(source) {
 	case true:
 		if env.IsFeaturePresent(env.EKSFargate) {
-			log.Infof("BANANA: tailer should be used for %s", source.Config.Identifier)
-			return makeApiTailer(source)
+			return makeAPITailer(source)
 		}
 		t, err := makeFileTailer(source)
 		if err == nil {
