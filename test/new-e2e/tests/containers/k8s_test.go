@@ -31,8 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/remotecommand"
 )
 
 const (
@@ -1476,45 +1474,6 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			// bit higher than 20 min to capture the scale down event.
 		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
-}
-
-type podExecOption func(*corev1.PodExecOptions)
-
-func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, podOptions ...podExecOption) (stdout, stderr string, err error) {
-	req := suite.Env().KubernetesCluster.Client().CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
-	option := &corev1.PodExecOptions{
-		Stdin:     false,
-		Stdout:    true,
-		Stderr:    true,
-		TTY:       false,
-		Container: container,
-		Command:   cmd,
-	}
-
-	for _, podOption := range podOptions {
-		podOption(option)
-	}
-
-	req.VersionedParams(
-		option,
-		scheme.ParameterCodec,
-	)
-
-	exec, err := remotecommand.NewSPDYExecutor(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig, "POST", req.URL())
-	if err != nil {
-		return "", "", err
-	}
-
-	var stdoutSb, stderrSb strings.Builder
-	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
-		Stdout: &stdoutSb,
-		Stderr: &stderrSb,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	return stdoutSb.String(), stderrSb.String(), nil
 }
 
 func (suite *k8sSuite) TestTraceUDS() {
