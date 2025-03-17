@@ -368,7 +368,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	tmpDir, err := i.packages.MkdirTemp()
+	tmpDir, err := i.config.MkdirTemp()
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
