@@ -64,7 +64,6 @@ extensions:
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-validate"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.prod-wait-business-hours"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.prod-deploy"
-            - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.prod-validate"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.publish-image-confirmation"
         - name: "beta-build-staging"
           # This conductor will run on Friday and Saturday, since we should not be deploying to

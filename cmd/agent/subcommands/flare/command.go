@@ -142,7 +142,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
-				localTaggerfx.Module(tagger.Params{}),
+				localTaggerfx.Module(),
 				autodiscoveryimpl.Module(),
 				fx.Supply(option.None[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.15)
 
 project(datadog-agent-rtloader VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 include(GNUInstallDirs)

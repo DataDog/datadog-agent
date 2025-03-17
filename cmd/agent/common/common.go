@@ -8,9 +8,7 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -18,7 +16,6 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
@@ -31,14 +28,6 @@ func GetPythonPaths() []string {
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}
-}
-
-// GetVersion returns the version of the agent in a http response json
-func GetVersion(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.Agent()
-	j, _ := json.Marshal(av)
-	w.Write(j)
 }
 
 // NewSettingsClient returns a configured runtime settings client.

@@ -7,12 +7,14 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -378,7 +380,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":
@@ -682,6 +684,10 @@ def is_windows():
     return sys.platform == 'win32'
 
 
-def is_installed(ctx, binary) -> bool:
-    res = ctx.run(f"which {binary}", hide=True, warn=True)
-    return res.ok
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour == 6 and pipeline_start.minute < 30

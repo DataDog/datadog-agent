@@ -56,6 +56,21 @@ const (
 	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
 )
 
+func (r NotCaptureReason) String() string {
+	switch r {
+	case Unsupported:
+		return "unsupported"
+	case NoFieldLocation:
+		return "no field location"
+	case FieldLimitReached:
+		return "field limit reached"
+	case CaptureDepthReached:
+		return "capture depth reached"
+	default:
+		return fmt.Sprintf("unknown reason (%d)", r)
+	}
+}
+
 // SpecialKind is used for clarity in generated events that certain fields weren't read
 type SpecialKind uint8
 
@@ -71,13 +86,21 @@ func (s SpecialKind) String() string {
 		return "Unsupported"
 	case KindCutFieldLimit:
 		return "CutFieldLimit"
+	case KindCaptureDepthReached:
+		return "CaptureDepthReached"
 	default:
 		return fmt.Sprintf("%d", s)
 	}
 }
 
 func (l LocationExpression) String() string {
-	return fmt.Sprintf("%s (%d, %d, %d)", l.Opcode.String(), l.Arg1, l.Arg2, l.Arg3)
+	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
+		l.Opcode.String(),
+		l.Arg1,
+		l.Arg2,
+		l.Arg3,
+		l.Label,
+		l.CollectionIdentifier)
 }
 
 // LocationExpressionOpcode uniquely identifies each location expression operation
@@ -124,6 +147,11 @@ const (
 	OpSetGlobalLimit
 	// OpJumpIfGreaterThanLimit represents an operation to jump if a value is greater than a limit
 	OpJumpIfGreaterThanLimit
+	// OpPopPointerAddress is a special opcode for a compound operation (combination of location expressions)
+	// that are used for popping the address when reading pointers
+	OpPopPointerAddress
+	// OpSetParameterIndex sets the parameter index in the base event's param_indicies array field
+	OpSetParameterIndex
 )
 
 func (op LocationExpressionOpcode) String() string {
@@ -168,6 +196,8 @@ func (op LocationExpressionOpcode) String() string {
 		return "SetGlobalLimit"
 	case OpJumpIfGreaterThanLimit:
 		return "JumpIfGreaterThanLimit"
+	case OpSetParameterIndex:
+		return "SetParamIndex"
 	default:
 		return fmt.Sprintf("LocationExpressionOpcode(%d)", int(op))
 	}
@@ -177,6 +207,19 @@ func (op LocationExpressionOpcode) String() string {
 // duplicates the u64 element on the top of the BPF parameter stack.
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}
+}
+
+// PopPointerAddressCompoundLocationExpression is a compound location
+// expression, meaning it's a combination of expressions with the
+// specific purpose of popping the address for pointer values
+func PopPointerAddressCompoundLocationExpression() LocationExpression {
+	return LocationExpression{
+		Opcode: OpPopPointerAddress,
+		IncludedExpressions: []LocationExpression{
+			CopyLocationExpression(),
+			PopLocationExpression(1, 8),
+		},
+	}
 }
 
 // DirectReadLocationExpression creates an expression which
@@ -359,6 +402,17 @@ func PrintStatement(format, arguments string) LocationExpression {
 	return LocationExpression{Opcode: OpPrintStatement, Label: format, CollectionIdentifier: arguments}
 }
 
+// SetParameterIndexLocationExpression creates an expression which
+// sets the parameter index in the base event's param_indicies array field.
+// This allows tracking which parameters were successfully collected.
+// Arg1 = index of the parameter
+func SetParameterIndexLocationExpression(index uint16) LocationExpression {
+	return LocationExpression{
+		Opcode: OpSetParameterIndex,
+		Arg1:   uint(index),
+	}
+}
+
 // LocationExpression is an operation which will be executed in bpf with the purpose
 // of capturing parameters from a running Go program
 type LocationExpression struct {
@@ -368,6 +422,7 @@ type LocationExpression struct {
 	Arg3                 uint
 	CollectionIdentifier string
 	Label                string
+	IncludedExpressions  []LocationExpression
 }
 
 // Location represents where a particular datatype is found on probe entry
@@ -400,14 +455,7 @@ type BPFProgram struct {
 //nolint:all
 func PrintLocationExpressions(expressions []LocationExpression) {
 	for i := range expressions {
-		fmt.Printf("%s %d %d %d %s %s\n",
-			expressions[i].Opcode.String(),
-			expressions[i].Arg1,
-			expressions[i].Arg2,
-			expressions[i].Arg3,
-			expressions[i].Label,
-			expressions[i].CollectionIdentifier,
-		)
+		fmt.Println(expressions[i].String())
 	}
 }
 
@@ -418,3 +466,7 @@ type FuncByPCEntry struct {
 	FileNumber int64
 	Line       int64
 }
+
+// RemoteConfigCallback is the name of the function in dd-trace-go which we hook for retrieving
+// probe configurations
+const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"

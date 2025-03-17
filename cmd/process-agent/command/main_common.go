@@ -11,12 +11,13 @@ import (
 	"errors"
 	"fmt"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -57,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -149,9 +151,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide statsd client module
 		compstatsd.Module(),
+		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
+			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+		}),
 
 		// Provide authtoken module
-		fetchonlyimpl.Module(),
+		createandfetchimpl.Module(),
 
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
@@ -182,7 +187,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					// as remote tagger can return more tags than the local tagger.
 					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
 			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		}, tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},

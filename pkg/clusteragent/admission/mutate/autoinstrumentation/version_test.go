@@ -23,11 +23,10 @@ func TestVersion(t *testing.T) {
 		usesInjector   bool
 	}{
 		{
-			name:           "v1 is invalid",
+			name:           "v1 is deprecated, defaults to v2",
 			version:        "v1",
-			expectsVersion: instrumentationVersionInvalid,
-			expectsErr:     true,
-			expectsPanic:   true,
+			expectsVersion: instrumentationV2,
+			usesInjector:   true,
 		},
 		{
 			name:           "v2 uses injector",

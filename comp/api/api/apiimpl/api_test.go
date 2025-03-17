@@ -29,6 +29,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -37,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
@@ -76,7 +76,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Supply(option.None[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),
@@ -85,7 +85,6 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
 			return mock
 		}),
-		fx.Supply(option.None[logsAgent.Component]()),
 		fx.Supply(option.None[collector.Component]()),
 		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints

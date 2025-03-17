@@ -33,11 +33,11 @@ var flakyPatternsConfigMutex = sync.Mutex{}
 // Otherwise test will be marked as known flake through a special message on tests output.
 func Mark(t testing.TB) {
 	t.Helper()
+	t.Log(flakyTestMessage)
 	if shouldSkipFlake() {
 		t.Skip("flakytest: skip known flaky test")
 		return
 	}
-	t.Log(flakyTestMessage)
 }
 
 // Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
@@ -77,9 +77,9 @@ func MarkOnLog(t testing.TB, pattern string) {
 	type configEntries = map[string][]testEntry
 
 	t.Helper()
-	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
+	flakyPatternsConfig := os.Getenv("FLAKY_PATTERNS_CONFIG")
 	if flakyPatternsConfig == "" {
-		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since E2E_FLAKY_PATTERNS_CONFIG is not set")
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since FLAKY_PATTERNS_CONFIG is not set")
 		return
 	}
 

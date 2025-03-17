@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	installerOCILayoutURL  = "file://." // the installer OCI layout is written by the downloader in the current directory
 	commandTimeoutDuration = 10 * time.Second
 )
 
@@ -110,15 +109,10 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	packages := resolvePackages(s.Packages)
+	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
-	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", version.AgentVersion))
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
-	}
-	err = s.installPackage("datadog-installer", installerOCILayoutURL)
-	if err != nil {
-		return fmt.Errorf("failed to install installer: %w", err)
 	}
 	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
 	if err != nil {

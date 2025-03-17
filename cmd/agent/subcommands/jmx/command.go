@@ -50,7 +50,6 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -150,7 +149,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(option.None[rcservice.Component]()),
 			fx.Supply(option.None[rcservicemrf.Component]()),
 			fx.Supply(option.None[collector.Component]()),
-			fx.Supply(option.None[logsAgent.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
@@ -293,7 +291,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some times.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command

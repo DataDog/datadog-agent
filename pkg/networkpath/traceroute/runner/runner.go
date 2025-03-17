@@ -17,6 +17,7 @@ import (
 
 	"github.com/vishvananda/netns"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -26,9 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -60,17 +60,18 @@ var tracerouteRunnerTelemetry = struct {
 
 // Runner executes traceroutes
 type Runner struct {
-	gatewayLookup network.GatewayLookup
-	nsIno         uint32
-	networkID     string
+	gatewayLookup   network.GatewayLookup
+	nsIno           uint32
+	networkID       string
+	hostnameService hostname.Component
 }
 
 // New initializes a new traceroute runner
-func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
+func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Component) (*Runner, error) {
 	var err error
 	var networkID string
 	if ec2.IsRunningOn(context.TODO()) {
-		networkID, err = cloudproviders.GetNetworkID(context.Background())
+		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
 		if err != nil {
 			log.Errorf("failed to get network ID: %s", err.Error())
 		}
@@ -85,9 +86,10 @@ func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	}
 
 	return &Runner{
-		gatewayLookup: gatewayLookup,
-		nsIno:         nsIno,
-		networkID:     networkID,
+		gatewayLookup:   gatewayLookup,
+		nsIno:           nsIno,
+		networkID:       networkID,
+		hostnameService: hostnameService,
 	}, nil
 }
 
@@ -122,7 +124,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		timeout = cfg.Timeout
 	}
 
-	hname, err := hostname.Get(ctx)
+	hname, err := r.hostnameService.Get(ctx)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
@@ -173,7 +175,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname, destPort, target)
+	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -182,7 +184,11 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string) (payload.NetworkPath, error) {
+	if res == nil {
+		return payload.NetworkPath{}, nil
+	}
+
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
 		PathtraceID:  payload.NewPathtraceID(),
@@ -194,8 +200,8 @@ func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, 
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname:  destinationHost,
-			Port:      destinationPort,
-			IPAddress: destinationIP.String(),
+			Port:      res.DstPort,
+			IPAddress: res.Target.String(),
 		},
 	}
 

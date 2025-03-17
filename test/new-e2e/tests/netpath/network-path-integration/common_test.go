@@ -58,12 +58,12 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 }
 
 func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
-	nps, err := s.Env().FakeIntake.Client().GetNetpathEvents()
+	nps, err := s.Env().FakeIntake.Client().GetLatestNetpathEvents()
 	if err != nil {
 		return nil, err
 	}
 	if nps == nil {
-		return nil, fmt.Errorf("GetNetpathEvents() returned nil netpaths")
+		return nil, fmt.Errorf("GetLatestNetpathEvents() returned nil netpaths")
 	}
 
 	var match *aggregator.Netpath

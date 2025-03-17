@@ -19,11 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -35,6 +36,7 @@ func TestLifecycle(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -48,12 +50,11 @@ func TestLifecycle(t *testing.T) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
+		secretsimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -72,6 +73,7 @@ func TestPostAuthentication(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -85,12 +87,11 @@ func TestPostAuthentication(t *testing.T) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
+		secretsimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

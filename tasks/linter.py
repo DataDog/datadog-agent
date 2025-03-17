@@ -162,8 +162,8 @@ def go(
         debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
 
     Example invokation:
-        $ inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
-        $ inv linter.go --module=.
+        $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        $ dda inv linter.go --module=.
     """
 
     check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
@@ -413,7 +413,7 @@ def list_get_parameter_calls(file):
 
 
 @task
-def gitlab_ci(ctx, test="all", custom_context=None):
+def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml"):
     """Lints Gitlab CI files in the datadog-agent repository.
 
     This will lint the main gitlab ci file with different
@@ -424,7 +424,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
         custom_context: A custom context to test the gitlab ci file with.
     """
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
+    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
@@ -579,6 +579,7 @@ def job_change_path(ctx, job_files=None):
     """Verifies that the jobs defined within job_files contain a change path rule."""
 
     tests_without_change_path_allow_list = {
+        'generate-fips-e2e-pipeline',
         'generate-flakes-finder-pipeline',
         'k8s-e2e-cspm-dev',
         'k8s-e2e-cspm-main',
@@ -668,6 +669,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e_windows_powershell_module_test',
         'new-e2e-eks-cleanup-on-failure',
         'trigger-flakes-finder',
+        'trigger-fips-e2e',
     }
 
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
