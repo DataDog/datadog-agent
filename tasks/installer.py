@@ -95,21 +95,22 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
 
 
 @task
-def generate_experiment_units(ctx):
+def generate_experiment_units(ctx, check=False):
     '''
     Generates systemd units for the experiment service.
     '''
 
     files = glob.glob('./pkg/fleet/installer/packages/embedded/*.service')
-    for file in files:
-        if "datadog-installer" in file or "-exp.service" in file:
+    for stable_path in files:
+        if "datadog-installer" in stable_path or "-exp.service" in stable_path:
             continue
+        experiment_path = stable_path.replace(".service", "-exp.service")
 
         experiment_file = ""
-        with open(file) as f:
+        with open(stable_path) as f:
             for line in f:
                 # Special handling for datadog-agent.service, which is the main service
-                if "datadog-agent.service" in file:
+                if "datadog-agent.service" in stable_path:
                     if "After=" in line:
                         line += "OnFailure=datadog-agent.service\n"
                         line += "JobTimeoutSec=3000\n"
@@ -149,5 +150,12 @@ def generate_experiment_units(ctx):
                 line = line.replace("stable", "experiment")
                 experiment_file += line
 
-        with open(file.replace(".service", "-exp.service"), 'w') as f:
-            f.write(experiment_file)
+        if not check:
+            with open(experiment_path, 'w') as f:
+                f.write(experiment_file)
+        else:
+            with open(experiment_path) as f:
+                if f.read() != experiment_file:
+                    raise Exception(
+                        f"File {experiment_path} is not up to date, please run `dda inv -e installer.generate-experiment-units`"
+                    )
