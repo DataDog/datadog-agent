@@ -129,7 +129,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	}
 
 	// Remove the warning about GOCOVERDIR not being set
-	return stdout, strings.ReplaceAll(stderr, "warning: GOCOVERDIR not set, no coverage data emitted", ""), err
+	return stdout, strings.TrimSpace(strings.ReplaceAll(stderr, "warning: GOCOVERDIR not set, no coverage data emitted", "")), err
 }
 
 // ListContainers returns a list of container names.

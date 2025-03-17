@@ -25,7 +25,7 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 	}
 	stdout, err := session.CombinedOutput(command)
 	// Remove the warning about GOCOVERDIR not being set
-	return strings.ReplaceAll(string(stdout), "warning: GOCOVERDIR not set, no coverage data emitted", ""), err
+	return strings.TrimSpace(strings.ReplaceAll(string(stdout), "warning: GOCOVERDIR not set, no coverage data emitted", "")), err
 }
 
 func start(sshClient *ssh.Client, command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
