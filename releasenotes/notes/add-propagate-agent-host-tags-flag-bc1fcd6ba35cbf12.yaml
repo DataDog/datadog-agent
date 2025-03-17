@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add the propagate_agent_tags setting. When set to `true`, the tags from the agent host are added to the check's tag for all instances.
+    Add the `propagate_agent_tags setting`. When set to `true`, the tags from the Agent host are added to the check's tag for all instances.
