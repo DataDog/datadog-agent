@@ -6,6 +6,7 @@
 package cshared
 
 /*
+#cgo CFLAGS: -I../include
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -66,14 +67,9 @@ func _call_check_configure(handle unsafe.Pointer, senderManager *C.sender_manage
 	log.Debug("c-shared check configure")
 	check := *(*checktypes.Check)(handle)
 
-	//TODO create a senderManager on top of the c-shared senderManager
-	_ = senderManager
+	cSharedSenderManager := newCSharedSenderManager(senderManager)
 
-	defer C.free(unsafe.Pointer(config))
-	defer C.free(unsafe.Pointer(initConfig))
-	defer C.free(unsafe.Pointer(source))
-
-	ret := check.Configure(nil, uint64(integrationConfigDigest), integration.Data(C.GoString(config)), integration.Data(C.GoString(initConfig)), C.GoString(source))
+	ret := check.Configure(cSharedSenderManager, uint64(integrationConfigDigest), integration.Data(C.GoString(config)), integration.Data(C.GoString(initConfig)), C.GoString(source))
 	if ret != nil {
 		return C.CString(ret.Error())
 	}

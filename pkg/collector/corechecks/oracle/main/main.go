@@ -6,7 +6,7 @@
 // Package main is the entry point for the Oracle check.
 package main
 
-// #cgo CFLAGS: -I../../../cshared/api
+// #cgo CFLAGS: -I../../../cshared/include
 // #include "check_wrapper.h"
 import "C"
 
@@ -15,9 +15,10 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
+	"github.com/DataDog/datadog-agent/pkg/collector/cshared/pinner"
 )
 
-var pinner runtime.Pinner
+var checkPinner runtime.Pinner
 
 func main() {}
 
@@ -28,11 +29,9 @@ func oracleLoadCheck() *C.c_check_wrapper_t {
 	factory := oracle.Factory()
 	if checkFunc, ok := factory.Get(); ok {
 		c := checkFunc()
+		pinner.Pin(checkPinner, c)
 		ptr := unsafe.Pointer(&c)
-		// I'm not quite sure which needs to to be pinned, so I'm pinning all of them
-		pinner.Pin(c)
-		pinner.Pin(&c)
-		pinner.Pin(ptr)
+		pinner.Pin(checkPinner, ptr)
 		return C.newCheckWrapper(ptr)
 	}
 	return nil
