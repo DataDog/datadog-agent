@@ -6,7 +6,7 @@ COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificat
 COPY --from=prep otelcol-contrib /otelcol-contrib
 COPY --from=prep /etc/otelcol-contrib /etc/otelcol-contrib
 
-COPY otelcontribcol_linux_amd64 /otelcol-contrib
+COPY otelcorecol  /otelcol-contrib
 COPY  otel-config.yaml /etc/datadog-agent/otel-config.yaml
 
 RUN apt-get update && apt-get install -y curl lsof iftop nethogs  net-tools
