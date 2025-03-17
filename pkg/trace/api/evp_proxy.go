@@ -86,7 +86,7 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo), statsd},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo), statsd, conf, endpoints},
 	}
 }
 
@@ -97,10 +97,10 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 // response is discarded.
 type evpProxyTransport struct {
 	transport           http.RoundTripper
-	endpoints           []config.Endpoint
-	conf                *config.AgentConfig
 	containerIDProvider IDProvider
 	statsd              statsd.ClientInterface
+	conf                *config.AgentConfig
+	endpoints           []config.Endpoint
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {

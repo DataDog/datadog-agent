@@ -7,17 +7,17 @@ package v2
 
 // Task represents a task as returned by the ECS metadata API v2.
 type Task struct {
+	Limits                map[string]float64 `json:"Limits"`
+	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"` // undocumented
+	TaskTags              map[string]string  `json:"TaskTags,omitempty"`              // undocumented
 	ClusterName           string             `json:"Cluster"`
-	Containers            []Container        `json:"Containers"`
 	KnownStatus           string             `json:"KnownStatus"`
 	TaskARN               string             `json:"TaskARN"`
 	Family                string             `json:"Family"`
 	Version               string             `json:"Revision"`
-	Limits                map[string]float64 `json:"Limits"`
 	DesiredStatus         string             `json:"DesiredStatus"`
 	AvailabilityZone      string             `json:"AvailabilityZone"`
-	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"` // undocumented
-	TaskTags              map[string]string  `json:"TaskTags,omitempty"`              // undocumented
+	Containers            []Container        `json:"Containers"`
 }
 
 // Container represents a container within a task.
@@ -46,20 +46,20 @@ type Network struct {
 
 // Port represents the ports of a container
 type Port struct {
-	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	Protocol      string `json:"Protocol,omitempty"`
+	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	HostPort      uint16 `json:"HostPort,omitempty"`
 }
 
 // ContainerStats represents the statistics of a container as returned by the
 // ECS metadata API v2.
 type ContainerStats struct {
-	Timestamp string      `json:"read"`
-	CPU       CPUStats    `json:"cpu_stats"`
-	Memory    MemStats    `json:"memory_stats"`
-	IO        IOStats     `json:"blkio_stats"`
-	Networks  NetStatsMap `json:"networks"`
+	Networks NetStatsMap `json:"networks"`
 	// Pids    []int32  `json:"pids_stats"` // seems to be always empty
+	Timestamp string   `json:"read"`
+	IO        IOStats  `json:"blkio_stats"`
+	Memory    MemStats `json:"memory_stats"`
+	CPU       CPUStats `json:"cpu_stats"`
 }
 
 // NetStatsMap represents a map of networks stats
@@ -103,9 +103,9 @@ type IOStats struct {
 
 // OPStat stores a value (amount of op or bytes) for a kind of operation and a specific block device.
 type OPStat struct {
+	Kind  string `json:"op"`
 	Major int64  `json:"major"`
 	Minor int64  `json:"minor"`
-	Kind  string `json:"op"`
 	Value uint64 `json:"value"`
 }
 

@@ -56,8 +56,8 @@ func (l histgramWrapper) Observe(value float64) {
 
 // QueueMetricsProvider is a workqueue.MetricsProvider that provides metrics for workqueues
 type QueueMetricsProvider struct {
-	mutex   sync.Mutex
 	metrics map[string]interface{}
+	mutex   sync.Mutex
 }
 
 // NewQueueMetricsProvider returns a new Queue Metrics Provider

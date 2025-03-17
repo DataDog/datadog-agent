@@ -23,15 +23,15 @@ import (
 // prefixed with a prefix and decorated with tags.
 type measuringTransport struct {
 	rt     http.RoundTripper
+	statsd statsd.ClientInterface
 	prefix string
 	tags   []string
-	statsd statsd.ClientInterface
 }
 
 // newMeasuringTransport creates a measuringTransport wrapping another round
 // tripper emitting metrics.
 func newMeasuringTransport(rt http.RoundTripper, prefix string, tags []string, statsd statsd.ClientInterface) *measuringTransport {
-	return &measuringTransport{rt, prefix, tags, statsd}
+	return &measuringTransport{rt, statsd, prefix, tags}
 }
 
 // RoundTrip makes an HTTP round trip measuring request count and timing.

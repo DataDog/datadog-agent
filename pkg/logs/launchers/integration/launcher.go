@@ -35,26 +35,26 @@ var endOfLine = []byte{'\n'}
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
+	fs                   afero.Fs
 	sources              *sources.LogSources
 	addedConfigs         chan integrations.IntegrationConfig
 	stop                 chan struct{}
-	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]*fileInfo
-	fileSizeMax          int64
-	combinedUsageMax     int64
-	combinedUsageSize    int64
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeLogToFileFunction func(fs afero.Fs, filepath, log string) error
-	fs                     afero.Fs
+	runPath                string
+	fileSizeMax            int64
+	combinedUsageMax       int64
+	combinedUsageSize      int64
 }
 
 // fileInfo stores information about each file that is needed in order to keep
 // track of the combined and overall disk usage by the logs files
 type fileInfo struct {
-	fileWithPath string
 	lastModified time.Time
+	fileWithPath string
 	size         int64
 }
 

@@ -35,16 +35,17 @@ type Writer interface {
 type Concentrator struct {
 	Writer Writer
 
+	statsd statsd.ClientInterface
+
 	spanConcentrator *SpanConcentrator
+	exit             chan struct{}
+	agentEnv         string
+	agentHostname    string
+	agentVersion     string
+	peerTagKeys      []string
+	exitWG           sync.WaitGroup
 	// bucket duration in nanoseconds
-	bsize         int64
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
-	statsd        statsd.ClientInterface
-	peerTagKeys   []string
+	bsize int64
 }
 
 // NewConcentrator initializes a new concentrator ready to be started

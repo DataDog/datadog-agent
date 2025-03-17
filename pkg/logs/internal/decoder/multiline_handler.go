@@ -27,18 +27,18 @@ type MultiLineHandler struct {
 	outputFn          func(*message.Message)
 	newContentRe      *regexp.Regexp
 	buffer            *bytes.Buffer
-	flushTimeout      time.Duration
 	flushTimer        *time.Timer
-	lineLimit         int
-	shouldTruncate    bool
-	isBufferTruncated bool
-	linesLen          int
 	msg               *message.Message
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
-	telemetryEnabled  bool
-	linesCombined     int
 	multiLineTagValue string
+	flushTimeout      time.Duration
+	lineLimit         int
+	linesLen          int
+	linesCombined     int
+	shouldTruncate    bool
+	isBufferTruncated bool
+	telemetryEnabled  bool
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.

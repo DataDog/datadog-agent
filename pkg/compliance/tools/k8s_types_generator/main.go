@@ -193,11 +193,11 @@ import (
 `
 
 type conf struct {
-	versions    []string
 	flagName    string
 	flagType    string
 	flagDefault string
 	goType      string
+	versions    []string
 }
 
 type komponent struct {

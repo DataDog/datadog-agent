@@ -27,15 +27,15 @@ import (
 
 // Options wraps all configurable params for the HTTPServer
 type Options struct {
+	EnableTCPTimestamp *bool
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	SlowResponse       time.Duration
 	// If TLS is enabled, allows to upgrade the connections to http/2.
 	EnableHTTP2         bool
 	EnableTLS           bool
 	EnableKeepAlive     bool
 	EnableLimitListener bool
-	EnableTCPTimestamp  *bool
-	ReadTimeout         time.Duration
-	WriteTimeout        time.Duration
-	SlowResponse        time.Duration
 }
 
 func isNetIPV4TCPTimestampEnabled(t *testing.T) bool {

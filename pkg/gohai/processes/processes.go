@@ -19,8 +19,12 @@ type Info []ProcessGroup
 
 // ProcessGroup represents the information about a single process group
 type ProcessGroup struct {
+	// Name is the name of the group.
+	Name string
 	// Usernames is the sorted list of usernames of running processes in that groups.
 	Usernames []string
+	// Pids is the list of pids in the group.
+	Pids []int32
 	// PctCPU is the percentage of cpu used by the group.
 	PctCPU int
 	// PctMem is the percentage of memory used by the group.
@@ -29,10 +33,6 @@ type ProcessGroup struct {
 	VMS uint64
 	// RSS is the RSS used by the group.
 	RSS uint64
-	// Name is the name of the group.
-	Name string
-	// Pids is the list of pids in the group.
-	Pids []int32
 }
 
 // CollectInfo returns a list of process groups information or an error

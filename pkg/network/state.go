@@ -121,12 +121,12 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
 	Redis    map[redis.Key]*redis.RequestStat
+	Conns    []ConnectionStats
 }
 
 type lastStateTelemetry struct {
@@ -147,10 +147,10 @@ type lastStateTelemetry struct {
 const minClosedCapacity = 1024
 
 type closedConnections struct {
-	// conns are ordered by placing all the empty connections at the end of the slice
-	conns []ConnectionStats
 	// byCookie is used to search for the index of a ConnectionStats in conns
 	byCookie map[StatCookie]int
+	// conns are ordered by placing all the empty connections at the end of the slice
+	conns []ConnectionStats
 	// the index of first empty connection in conns
 	emptyStart int
 }
@@ -263,7 +263,6 @@ func (c *client) Reset() {
 }
 
 type networkState struct {
-	sync.Mutex
 
 	// clients is a map of the connection id string to the client structure
 	clients       map[string]*client
@@ -272,14 +271,16 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry                time.Duration
+	clientExpiry     time.Duration
+	maxClientStats   int
+	maxDNSStats      int
+	maxHTTPStats     int
+	maxKafkaStats    int
+	maxPostgresStats int
+	maxRedisStats    int
+	sync.Mutex
+
 	maxClosedConns              uint32
-	maxClientStats              int
-	maxDNSStats                 int
-	maxHTTPStats                int
-	maxKafkaStats               int
-	maxPostgresStats            int
-	maxRedisStats               int
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
 
@@ -1214,11 +1215,11 @@ type aggregateConnection struct {
 }
 
 type aggregationKey struct {
-	connKey    ConnectionTuple
-	direction  ConnectionDirection
 	containers struct {
 		source, dest *intern.Value
 	}
+	connKey   ConnectionTuple
+	direction ConnectionDirection
 }
 
 type connectionAggregator struct {

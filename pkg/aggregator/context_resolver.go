@@ -20,18 +20,18 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
+	taggerTags *tags.Entry
+	metricTags *tags.Entry
 	Name       string
 	Host       string
 	mtype      metrics.MetricType
-	taggerTags *tags.Entry
-	metricTags *tags.Entry
-	noIndex    bool
 	source     metrics.MetricSource
+	noIndex    bool
 }
 
 type resolverEntry struct {
-	lastSeen int64
 	context  *Context
+	lastSeen int64
 }
 
 const (
@@ -65,17 +65,17 @@ var _ size.HasSizeInBytes = &Context{}
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
-	id               string
+	tagger           tagger.Component
 	contextsByKey    map[ckey.ContextKey]resolverEntry
+	tagsCache        *tags.Store
+	keyGenerator     *ckey.KeyGenerator
+	taggerBuffer     *tagset.HashingTagsAccumulator
+	metricBuffer     *tagset.HashingTagsAccumulator
+	id               string
 	seendByMtype     []bool
 	countsByMtype    []uint64
 	bytesByMtype     []uint64
 	dataBytesByMtype []uint64
-	tagsCache        *tags.Store
-	tagger           tagger.Component
-	keyGenerator     *ckey.KeyGenerator
-	taggerBuffer     *tagset.HashingTagsAccumulator
-	metricBuffer     *tagset.HashingTagsAccumulator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample

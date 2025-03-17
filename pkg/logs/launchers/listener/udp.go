@@ -31,9 +31,9 @@ import (
 type UDPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
-	frameSize        int
 	tailer           *tailer.Tailer
 	Conn             net.UDPConn
+	frameSize        int
 }
 
 // NewUDPListener returns an initialized UDPListener

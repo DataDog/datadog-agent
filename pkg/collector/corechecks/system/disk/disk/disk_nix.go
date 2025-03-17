@@ -29,8 +29,8 @@ var (
 
 // Check stores disk-specific additional fields
 type Check struct {
-	core.CheckBase
 	cfg *diskConfig
+	core.CheckBase
 }
 
 // Run executes the check

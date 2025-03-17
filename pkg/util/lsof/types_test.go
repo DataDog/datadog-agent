@@ -13,8 +13,8 @@ import (
 
 func TestFilesString(t *testing.T) {
 	files := Files{
-		{"3", "REG", "r-", "-rwx------", 0, "/some/file"},
-		{"mem", "REG", "r-xp", "-r--------", 8, "/usr/lib/aarch64-linux-gnu/libutil.so.1"},
+		{"3", "REG", "r-", "-rwx------", "/some/file", 0},
+		{"mem", "REG", "r-xp", "-r--------", "/usr/lib/aarch64-linux-gnu/libutil.so.1", 8},
 	}
 
 	expected := `FD  Type Size OpenPerm FilePerm   Name                                    

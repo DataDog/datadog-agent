@@ -14,8 +14,8 @@ import (
 const stateTTL = 5 * time.Minute
 
 type deltaCalculator struct {
-	mux             sync.Mutex
 	stateByClientID map[string]*clientState
+	mux             sync.Mutex
 }
 
 // GetState returns the state for the given clientID.
@@ -49,9 +49,9 @@ func (d *deltaCalculator) clean() {
 }
 
 type clientState struct {
-	mux        sync.Mutex
-	prevValues map[string]int64
 	lastSeen   time.Time
+	prevValues map[string]int64
+	mux        sync.Mutex
 }
 
 // ValueFor returns the delta between the current value of the metric and the previous one.

@@ -62,21 +62,22 @@ type pullRequest struct {
 //   - the store is full. Subsequent Push operations override the data pointed by head and move both head and tail
 //     to the next position
 type RingStore struct {
-	head   int
-	tail   int
-	buffer []ringNode
+	statsdClient statsd.ClientInterface
 
 	dropHandler EventHandler // applied to an event before it's dropped. Used for test's purposes
 	pushReq     chan *pushRequest
 	pullReq     chan *pullRequest
 
-	wg   sync.WaitGroup
 	exit chan struct{}
 
-	statsdClient  statsd.ClientInterface
-	statsInterval time.Duration
 	expiredInput  *atomic.Int64 // how many events have been dropped due to a full pushReq channel
 	expiredBuffer *atomic.Int64 // how many events have been dropped due to a full buffer
+	buffer        []ringNode
+
+	wg            sync.WaitGroup
+	head          int
+	tail          int
+	statsInterval time.Duration
 }
 
 // readPositiveInt reads a config stored in the given key and asserts that it's a positive value

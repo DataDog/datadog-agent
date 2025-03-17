@@ -21,17 +21,17 @@ var (
 )
 
 type gceMetadata struct {
-	Instance gceInstanceMetadata
 	Project  gceProjectMetadata
+	Instance gceInstanceMetadata
 }
 
 type gceInstanceMetadata struct {
-	ID          int64
-	Tags        []string
+	Attributes  map[string]string
 	Zone        string
 	MachineType string
 	Hostname    string
-	Attributes  map[string]string
+	Tags        []string
+	ID          int64
 }
 
 type gceProjectMetadata struct {

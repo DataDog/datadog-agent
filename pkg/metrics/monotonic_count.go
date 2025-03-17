@@ -15,9 +15,9 @@ package metrics
 type MonotonicCount struct {
 	previousSample        float64
 	currentSample         float64
+	value                 float64
 	sampledSinceLastFlush bool
 	hasPreviousSample     bool
-	value                 float64
 	// With flushFirstValue enabled (passed in MetricSample), these 2 differences apply:
 	// 1. the sampled value will be flushed as-is if it's the first value sampled (and no other
 	//    values are flushed until the flush). The assumption is that the underlying raw counter

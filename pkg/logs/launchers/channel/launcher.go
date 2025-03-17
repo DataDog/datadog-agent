@@ -23,8 +23,8 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *sources.LogSource
-	tailers          []*tailer.Tailer
 	stop             chan struct{}
+	tailers          []*tailer.Tailer
 }
 
 // NewLauncher returns an initialized Launcher

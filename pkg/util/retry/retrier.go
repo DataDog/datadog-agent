@@ -18,12 +18,12 @@ import (
 // in any class providing attempt logic as a `func() error` method.
 // See the unit test for an example.
 type Retrier struct {
-	sync.RWMutex
+	nextTry      time.Time
+	lastTryError error
 	cfg          Config
 	status       Status
-	nextTry      time.Time
 	tryCount     uint
-	lastTryError error
+	sync.RWMutex
 }
 
 // SetupRetrier must be called before calling other methods

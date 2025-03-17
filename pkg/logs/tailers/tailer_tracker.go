@@ -9,8 +9,8 @@ import "sync"
 
 // TailerTracker keeps track of all the active tailers in the agent.
 type TailerTracker struct {
-	sync.RWMutex
 	containers []AnyTailerContainer
+	sync.RWMutex
 }
 
 // NewTailerTracker creates a new TailerTracker instance.
@@ -44,8 +44,8 @@ type AnyTailerContainer interface {
 
 // TailerContainer is a container for a concrete tailer type.
 type TailerContainer[T Tailer] struct {
-	sync.RWMutex
 	tailers map[string]T
+	sync.RWMutex
 }
 
 // NewTailerContainer creates a new TailerContainer instance.

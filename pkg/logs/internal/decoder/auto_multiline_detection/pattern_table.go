@@ -16,11 +16,11 @@ import (
 )
 
 type row struct {
-	tokens          []tokens.Token
-	label           Label
 	labelAssignedBy string
+	tokens          []tokens.Token
 	count           int64
 	lastIndex       int64
+	label           Label
 }
 
 // DiagnosticRow is a struct that represents a diagnostic view of a row in the PatternTable.

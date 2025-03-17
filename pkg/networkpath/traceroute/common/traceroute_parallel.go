@@ -22,12 +22,12 @@ var ErrReceiveProbeNoPkt = errors.New("ReceiveProbe() doesn't have new packets")
 
 // ProbeResponse is the response of a single probe in a traceroute
 type ProbeResponse struct {
-	// TTL is the Time To Live of the probe that was originally sent
-	TTL uint8
 	// IP is the IP address of the responding host
 	IP netip.Addr
 	// RTT is the round-trip time of the probe
 	RTT time.Duration
+	// TTL is the Time To Live of the probe that was originally sent
+	TTL uint8
 	// IsDest is true if the responding host is the destination
 	IsDest bool
 }

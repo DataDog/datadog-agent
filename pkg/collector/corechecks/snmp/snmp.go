@@ -40,14 +40,14 @@ var timeNow = time.Now
 
 // Check aggregates metrics from one Check instance
 type Check struct {
-	core.CheckBase
 	rcClient                   rcclient.Component
+	agentConfig                config.Component
 	config                     *checkconfig.CheckConfig
 	singleDeviceCk             *devicecheck.DeviceCheck
 	discovery                  *discovery.Discovery
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
-	agentConfig                config.Component
+	core.CheckBase
 }
 
 // Run executes the check

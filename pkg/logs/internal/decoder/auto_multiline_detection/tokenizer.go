@@ -25,8 +25,8 @@ const maxRun = 10
 // that can be used to compare log messages structure. A tokenizer instance is not thread safe
 // as bufferes are reused to avoid allocations.
 type Tokenizer struct {
-	maxEvalBytes int
 	strBuf       *bytes.Buffer
+	maxEvalBytes int
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.

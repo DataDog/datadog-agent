@@ -44,11 +44,11 @@ func (c *Config) Parse(data []byte) error {
 
 // Check reports container lifecycle events
 type Check struct {
-	core.CheckBase
 	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
+	core.CheckBase
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check

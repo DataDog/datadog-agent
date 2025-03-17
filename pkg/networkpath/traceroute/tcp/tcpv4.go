@@ -20,16 +20,16 @@ type (
 	// TCPv4 encapsulates the data needed to run
 	// a TCPv4 traceroute
 	TCPv4 struct {
+		buffer   gopacket.SerializeBuffer
 		Target   net.IP
-		srcIP    net.IP // calculated internally
-		srcPort  uint16 // calculated internally
+		srcIP    net.IP        // calculated internally
+		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
+		Timeout  time.Duration // full timeout for all packets
+		srcPort  uint16        // calculated internally
 		DestPort uint16
 		NumPaths uint16
 		MinTTL   uint8
 		MaxTTL   uint8
-		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
-		Timeout  time.Duration // full timeout for all packets
-		buffer   gopacket.SerializeBuffer
 	}
 )
 

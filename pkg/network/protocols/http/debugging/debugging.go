@@ -16,14 +16,14 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client      Address
-	Server      Address
+	ByStatus    map[uint16]Stats
 	DNS         string
 	Path        string
 	Method      string
-	ByStatus    map[uint16]Stats
-	StaticTags  uint64
+	Client      Address
+	Server      Address
 	DynamicTags []string
+	StaticTags  uint64
 }
 
 // Address represents represents a IP:Port

@@ -25,14 +25,15 @@ const largeGroupThreshold = 5
 // Note the usage of this API is entirely optional; I'm only adding this here
 // to keep compatibility with some common patterns I've seen in the codebase.
 type MetricGroup struct {
-	mux        sync.Mutex
-	namespace  string
-	commonTags sets.Set[string]
-	metrics    []metric
+	then time.Time
 
 	// used for the purposes of building the Summary() string
-	deltas deltaCalculator
-	then   time.Time
+	deltas     deltaCalculator
+	commonTags sets.Set[string]
+	namespace  string
+	metrics    []metric
+
+	mux sync.Mutex
 }
 
 // NewMetricGroup returns a new `MetricGroup`

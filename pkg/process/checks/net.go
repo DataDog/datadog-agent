@@ -57,13 +57,16 @@ func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscf
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	syscfg             *sysconfigtypes.Config
 	sysprobeYamlConfig pkgconfigmodel.Reader
 	config             pkgconfigmodel.Reader
 
+	wmeta workloadmeta.Component
+
+	npCollector npcollector.Component
+
+	syscfg *sysconfigtypes.Config
+
 	hostInfo               *HostInfo
-	maxConnsPerMessage     int
-	networkID              string
 	notInitializedLogLimit *log.Limit
 
 	dockerFilter     *parser.DockerProxy
@@ -71,11 +74,10 @@ type ConnectionsCheck struct {
 	processData      *ProcessData
 
 	localresolver *resolver.LocalResolver
-	wmeta         workloadmeta.Component
 
-	npCollector npcollector.Component
-
-	sysprobeClient *http.Client
+	sysprobeClient     *http.Client
+	networkID          string
+	maxConnsPerMessage int
 }
 
 // Init initializes a ConnectionsCheck instance.

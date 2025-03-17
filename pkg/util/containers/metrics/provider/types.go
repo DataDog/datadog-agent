@@ -40,11 +40,10 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU stats.
 type ContainerCPUStats struct {
 	// Common fields
-	Total          *float64
-	System         *float64
-	User           *float64
-	Limit          *float64 // Percentage 0-100*numCPU
-	DefaultedLimit bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
+	Total  *float64
+	System *float64
+	User   *float64
+	Limit  *float64 // Percentage 0-100*numCPU
 
 	// Linux-only fields
 	Shares           *float64 // Available only in cgroups v1
@@ -53,6 +52,8 @@ type ContainerCPUStats struct {
 	ThrottledPeriods *float64
 	ThrottledTime    *float64
 	PartialStallTime *float64 // Correspond to PSI Some total
+	DefaultedLimit   bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
+
 }
 
 // DeviceIOStats stores Device IO stats.

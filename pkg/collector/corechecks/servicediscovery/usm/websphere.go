@@ -25,8 +25,8 @@ type (
 	// websphereTargetMapping holds information about deployment distributions over targets.
 	websphereTargetMapping struct {
 		ID           string `xml:"id,attr"`
-		Enable       bool   `xml:"enable,attr"`
 		ServerTarget string `xml:"target,attr"`
+		Enable       bool   `xml:"enable,attr"`
 	}
 
 	//websphereDeploymentTarget describes a deployment target.

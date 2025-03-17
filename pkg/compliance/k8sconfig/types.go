@@ -35,8 +35,8 @@ type K8sNodeConfig struct {
 }
 
 type K8sManagedEnvConfig struct {
-	Name     string      `json:"name"`
 	Metadata interface{} `json:"metadata"`
+	Name     string      `json:"name"`
 }
 
 type K8sDirMeta struct {
@@ -47,11 +47,11 @@ type K8sDirMeta struct {
 }
 
 type K8sConfigFileMeta struct {
+	Content interface{} `json:"content,omitempty" jsonschema:"type=object"`
 	Path    string      `json:"path"`
 	User    string      `json:"user,omitempty"`
 	Group   string      `json:"group,omitempty"`
 	Mode    uint32      `json:"mode,omitempty"`
-	Content interface{} `json:"content,omitempty" jsonschema:"type=object"`
 }
 
 type K8sTokenFileMeta struct {
@@ -65,32 +65,32 @@ type K8sTokenFileMeta struct {
 type (
 	k8sAdmissionConfigSource struct {
 		Plugins []struct {
+			Configuration interface{} `yaml:"configuration"`
 			Name          string      `yaml:"name"`
 			Path          string      `yaml:"path"`
-			Configuration interface{} `yaml:"configuration"`
 		} `yaml:"plugins"`
 	}
 
 	K8sAdmissionPluginConfigMeta struct {
-		Name          string      `json:"name"`
 		Configuration interface{} `json:"configuration,omitempty"`
+		Name          string      `json:"name"`
 	}
 
 	K8sAdmissionConfigFileMeta struct {
 		Path    string                          `json:"path"`
 		User    string                          `json:"user,omitempty"`
 		Group   string                          `json:"group,omitempty"`
-		Mode    uint32                          `json:"mode,omitempty"`
 		Plugins []*K8sAdmissionPluginConfigMeta `json:"plugins"`
+		Mode    uint32                          `json:"mode,omitempty"`
 	}
 )
 
 type K8sKubeconfigMeta struct {
+	Kubeconfig *K8SKubeconfig `json:"kubeconfig,omitempty"`
 	Path       string         `json:"path"`
 	User       string         `json:"user,omitempty"`
 	Group      string         `json:"group,omitempty"`
 	Mode       uint32         `json:"mode,omitempty"`
-	Kubeconfig *K8SKubeconfig `json:"kubeconfig,omitempty"`
 }
 
 type K8sKeyFileMeta struct {
@@ -101,14 +101,9 @@ type K8sKeyFileMeta struct {
 }
 
 type K8sCertFileMeta struct {
-	Path        string `json:"path"`
-	User        string `json:"user,omitempty"`
-	Group       string `json:"group,omitempty"`
-	Mode        uint32 `json:"mode,omitempty"`
-	DirUser     string `json:"dirUser,omitempty"`
-	DirGroup    string `json:"dirGroup,omitempty"`
-	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
+		NotAfter       *time.Time `json:"notAfter,omitempty"`
+		NotBefore      *time.Time `json:"notBefore,omitempty"`
 		Fingerprint    string     `json:"fingerprint,omitempty"`
 		SerialNumber   string     `json:"serialNumber,omitempty"`
 		SubjectKeyId   string     `json:"subjectKeyId,omitempty"`
@@ -117,9 +112,14 @@ type K8sCertFileMeta struct {
 		Organization   []string   `json:"organization,omitempty"`
 		DNSNames       []string   `json:"dnsNames,omitempty"`
 		IPAddresses    []net.IP   `json:"ipAddresses,omitempty"`
-		NotAfter       *time.Time `json:"notAfter,omitempty"`
-		NotBefore      *time.Time `json:"notBefore,omitempty"`
 	} `json:"certificate"`
+	Path     string `json:"path"`
+	User     string `json:"user,omitempty"`
+	Group    string `json:"group,omitempty"`
+	DirUser  string `json:"dirUser,omitempty"`
+	DirGroup string `json:"dirGroup,omitempty"`
+	Mode     uint32 `json:"mode,omitempty"`
+	DirMode  uint32 `json:"dirMode,omitempty"`
 }
 
 // k8SKubeconfigSource is used to parse the kubeconfig files. It is not
@@ -130,35 +130,40 @@ type (
 		Kind       string `yaml:"kind,omitempty"`
 		APIVersion string `yaml:"apiVersion,omitempty"`
 
+		CurrentContext string `yaml:"current-context"`
+
 		Clusters []struct {
 			Name    string                     `yaml:"name"`
 			Cluster k8sKubeconfigClusterSource `yaml:"cluster"`
 		} `yaml:"clusters"`
 
 		Users []struct {
-			Name string                  `yaml:"name"`
 			User k8sKubeconfigUserSource `yaml:"user"`
+			Name string                  `yaml:"name"`
 		} `yaml:"users"`
 
 		Contexts []struct {
 			Name    string                     `yaml:"name"`
 			Context k8sKubeconfigContextSource `yaml:"context"`
 		} `yaml:"contexts"`
-
-		CurrentContext string `yaml:"current-context"`
 	}
 
 	k8sKubeconfigClusterSource struct {
 		Server                   string `yaml:"server"`
 		TLSServerName            string `yaml:"tls-server-name,omitempty"`
-		InsecureSkipTLSVerify    bool   `yaml:"insecure-skip-tls-verify,omitempty"`
 		CertificateAuthority     string `yaml:"certificate-authority,omitempty"`
 		CertificateAuthorityData string `yaml:"certificate-authority-data,omitempty"`
 		ProxyURL                 string `yaml:"proxy-url,omitempty"`
+		InsecureSkipTLSVerify    bool   `yaml:"insecure-skip-tls-verify,omitempty"`
 		DisableCompression       bool   `yaml:"disable-compression,omitempty"`
 	}
 
 	k8sKubeconfigUserSource struct {
+		Exec *struct {
+			APIVersion string   `yaml:"apiVersion,omitempty"`
+			Command    string   `yaml:"command,omitempty"`
+			Args       []string `yaml:"args,omitempty"`
+		} `yaml:"exec,omitempty"`
 		ClientCertificate     string `yaml:"client-certificate,omitempty"`
 		ClientCertificateData string `yaml:"client-certificate-data,omitempty"`
 		ClientKey             string `yaml:"client-key,omitempty"`
@@ -166,11 +171,6 @@ type (
 		TokenFile             string `yaml:"tokenFile,omitempty"`
 		Username              string `yaml:"username,omitempty"`
 		Password              string `yaml:"password,omitempty"`
-		Exec                  *struct {
-			APIVersion string   `yaml:"apiVersion,omitempty"`
-			Command    string   `yaml:"command,omitempty"`
-			Args       []string `yaml:"args,omitempty"`
-		} `yaml:"exec,omitempty"`
 	}
 
 	k8sKubeconfigContextSource struct {
@@ -187,24 +187,24 @@ type (
 	}
 
 	K8sKubeconfigCluster struct {
+		CertificateAuthority  *K8sCertFileMeta `json:"certificateAuthority,omitempty"`
 		Server                string           `json:"server"`
 		TLSServerName         string           `json:"tlsServerName,omitempty"`
-		InsecureSkipTLSVerify bool             `json:"insecureSkipTlsVerify,omitempty"`
-		CertificateAuthority  *K8sCertFileMeta `json:"certificateAuthority,omitempty"`
 		ProxyURL              string           `json:"proxyUrl,omitempty"`
+		InsecureSkipTLSVerify bool             `json:"insecureSkipTlsVerify,omitempty"`
 		DisableCompression    bool             `json:"disableCompression,omitempty"`
 	}
 
 	K8sKubeconfigUser struct {
-		UseToken    bool `json:"useToken"`
-		UsePassword bool `json:"usePassword"`
-		Exec        struct {
+		ClientCertificate *K8sCertFileMeta `json:"clientCertificate,omitempty"`
+		ClientKey         *K8sKeyFileMeta  `json:"clientKey,omitempty"`
+		Exec              struct {
 			APIVersion string   `json:"apiVersion,omitempty"`
 			Command    string   `json:"command,omitempty"`
 			Args       []string `json:"args,omitempty"`
 		} `json:"exec,omitempty"`
-		ClientCertificate *K8sCertFileMeta `json:"clientCertificate,omitempty"`
-		ClientKey         *K8sKeyFileMeta  `json:"clientKey,omitempty"`
+		UseToken    bool `json:"useToken"`
+		UsePassword bool `json:"usePassword"`
 	}
 
 	K8sKubeconfigContext struct {
@@ -220,7 +220,6 @@ type (
 		Path      string `json:"path,omitempty"`
 		User      string `json:"user,omitempty"`
 		Group     string `json:"group,omitempty"`
-		Mode      uint32 `json:"mode,omitempty"`
 		Resources []struct {
 			Resources []string `yaml:"resources" json:"resources"`
 			Providers []struct {
@@ -231,13 +230,14 @@ type (
 				KMS       *K8sEncryptionProviderKMSSource  `yaml:"kms,omitempty" json:"kms,omitempty"`
 			} `yaml:"providers" json:"providers"`
 		} `yaml:"resources" json:"resources"`
+		Mode uint32 `json:"mode,omitempty"`
 	}
 
 	K8sEncryptionProviderKMSSource struct {
 		Name      string `yaml:"name" json:"name"`
 		Endpoint  string `yaml:"endpoint" json:"endpoint"`
-		CacheSize int    `yaml:"cachesize" json:"cachesize"`
 		Timeout   string `yaml:"timeout" json:"timeout"`
+		CacheSize int    `yaml:"cachesize" json:"cachesize"`
 	}
 
 	K8sEncryptionProviderKeysSource struct {

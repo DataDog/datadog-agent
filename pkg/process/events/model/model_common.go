@@ -54,21 +54,21 @@ func NewEventType(eventType string) EventType {
 
 // ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
 type ProcessEvent struct {
-	EventType      EventType `json:"event_type" msg:"event_type"`
-	EMEventType    uint32    `json:"-" msg:"-" copy:"GetEventType;event:*;cast:uint32"`
 	CollectionTime time.Time `json:"collection_time" msg:"collection_time" copy:"GetTimestamp;event:*"`
-	Pid            uint32    `json:"pid" msg:"pid"`
+	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty" copy_linux:"GetProcessForkTime;event:ForkEventType"`
+	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty" copy:"GetProcessExecTime;event:ExecEventType"`
+	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty" copy:"GetProcessExitTime;event:ExitEventType"`
 	ContainerID    string    `json:"container_id" msg:"container_id" copy:"GetContainerId;event:*"`
-	Ppid           uint32    `json:"ppid" msg:"ppid" copy:"GetProcessPpid;event:*"`
-	UID            uint32    `json:"uid" msg:"uid" copy_linux:"GetProcessUid;event:*"`
-	GID            uint32    `json:"gid" msg:"gid" copy_linux:"GetProcessGid;event:*"`
 	Username       string    `json:"username" msg:"username" copy_linux:"GetProcessUser;event:*"`
 	Group          string    `json:"group" msg:"group" copy_linux:"GetProcessGroup;event:*"`
 	Exe            string    `json:"exe" msg:"exe" copy_linux:"GetExecFilePath;event:*"`
 	Cmdline        []string  `json:"cmdline" msg:"cmdline" copy_linux:"GetExecCmdargv;event:ExecEventType"`
-	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty" copy_linux:"GetProcessForkTime;event:ForkEventType"`
-	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty" copy:"GetProcessExecTime;event:ExecEventType"`
-	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty" copy:"GetProcessExitTime;event:ExitEventType"`
+	EventType      EventType `json:"event_type" msg:"event_type"`
+	EMEventType    uint32    `json:"-" msg:"-" copy:"GetEventType;event:*;cast:uint32"`
+	Pid            uint32    `json:"pid" msg:"pid"`
+	Ppid           uint32    `json:"ppid" msg:"ppid" copy:"GetProcessPpid;event:*"`
+	UID            uint32    `json:"uid" msg:"uid" copy_linux:"GetProcessUid;event:*"`
+	GID            uint32    `json:"gid" msg:"gid" copy_linux:"GetProcessGid;event:*"`
 	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty" copy:"GetExitCode;event:ExitEventType"`
 }
 

@@ -14,21 +14,20 @@ import (
 
 // RunnerConfig implements config for runners that work with CheckWithRealTime
 type RunnerConfig struct {
-	CheckInterval time.Duration
-	RtInterval    time.Duration
-
 	ExitChan       chan struct{}
 	RtIntervalChan chan time.Duration
 	RtEnabled      func() bool
 	RunCheck       func(options RunOptions)
+	CheckInterval  time.Duration
+	RtInterval     time.Duration
 }
 
 type runnerWithRealTime struct {
 	RunnerConfig
-	ratio      int
-	counter    int
 	newTicker  func(d time.Duration) *time.Ticker
 	stopTicker func(t *time.Ticker)
+	ratio      int
+	counter    int
 }
 
 // NewRunnerWithRealTime creates a runner func for CheckWithRealTime

@@ -30,18 +30,19 @@ type StatSpan struct {
 	resource string
 	name     string
 	typ      string
-	error    int32
-	parentID uint64
-	start    int64
-	duration int64
 
 	//Fields below this are derived on creation
 
 	spanKind         string
-	statusCode       uint32
-	isTopLevel       bool
-	matchingPeerTags []string
 	grpcStatusCode   string
+	matchingPeerTags []string
+	parentID         uint64
+	start            int64
+	duration         int64
+
+	error      int32
+	statusCode uint32
+	isTopLevel bool
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -79,7 +80,7 @@ func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagK
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.
 type SpanConcentrator struct {
-	computeStatsBySpanKind bool
+	buckets map[int64]*RawBucket
 	// bucket duration in nanoseconds
 	bsize int64
 	// Timestamp of the oldest time bucket for which we allow data.
@@ -92,8 +93,8 @@ type SpanConcentrator struct {
 	bufferLen int
 
 	// mu protects the buckets field
-	mu      sync.Mutex
-	buckets map[int64]*RawBucket
+	mu                     sync.Mutex
+	computeStatsBySpanKind bool
 }
 
 // NewSpanConcentrator builds a new SpanConcentrator object

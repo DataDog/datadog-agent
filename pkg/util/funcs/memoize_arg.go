@@ -13,9 +13,9 @@ type memoizedArgFuncResult[T any] struct {
 }
 
 type memoizedArgFunc[K comparable, T any] struct {
-	sync.Mutex
 	fn      func(K) (T, error)
 	results map[K]memoizedArgFuncResult[T]
+	sync.Mutex
 }
 
 func (mf *memoizedArgFunc[K, T]) do(arg K) (T, error) {

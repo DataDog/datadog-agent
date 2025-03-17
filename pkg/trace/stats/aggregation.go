@@ -37,11 +37,11 @@ type BucketsAggregationKey struct {
 	Resource       string
 	Type           string
 	SpanKind       string
-	StatusCode     uint32
-	Synthetics     bool
-	PeerTagsHash   uint64
-	IsTraceRoot    pb.Trilean
 	GRPCStatusCode string
+	PeerTagsHash   uint64
+	StatusCode     uint32
+	IsTraceRoot    pb.Trilean
+	Synthetics     bool
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.

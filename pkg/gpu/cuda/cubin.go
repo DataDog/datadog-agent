@@ -26,8 +26,8 @@ type CubinKernelKey struct {
 
 // CubinKernel holds the information of a CUDA kernel
 type CubinKernel struct {
-	Name        string                          // Name of the kernel
 	attributes  map[nvInfoAttr]nvInfoParsedItem // Attributes of the kernel
+	Name        string                          // Name of the kernel
 	SymtabIndex int                             // Index of this kernel in the ELF symbol table
 	KernelSize  uint64                          // Size of the kernel in bytes
 	SharedMem   uint64                          // Size of the shared memory used by the kernel
@@ -133,8 +133,8 @@ type nvInfoItem struct {
 type sectionParserFunc func(*elfSection, []byte) error
 
 type sectionParser struct {
-	prefix []byte
 	parser sectionParserFunc
+	prefix []byte
 }
 
 // cubinParser is a helper struct to parse the cubin ELF sections
@@ -213,8 +213,8 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 
 // nvInfoParsedItem is the parsed representation of an item in the .nv.info section, including the value
 type nvInfoParsedItem struct {
-	nvInfoItem
 	value []byte
+	nvInfoItem
 }
 
 func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName []byte) error {

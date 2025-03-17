@@ -35,8 +35,8 @@ type (
 	// decode TCP packets off the wire into structs
 	parser struct {
 		layer               layers.TCP
-		decoded             []gopacket.LayerType
 		decodingLayerParser *gopacket.DecodingLayerParser
+		decoded             []gopacket.LayerType
 	}
 )
 

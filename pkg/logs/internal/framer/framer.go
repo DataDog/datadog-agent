@@ -48,11 +48,15 @@ const (
 // EndLineMatcher to break those into frames, passing the results to its
 // outputFn.
 type Framer struct {
-	// outputFn is called with each complete "line"
-	outputFn func(input *message.Message, rawDataLen int)
 
 	// the matcher is the
 	matcher FrameMatcher
+
+	// outputFn is called with each complete "line"
+	outputFn func(input *message.Message, rawDataLen int)
+
+	// The number of raw frames decoded from the input before they are processed.
+	frames *atomic.Int64
 
 	// buffer is the buffer containing the bytes given to Process so far
 	buffer bytes.Buffer
@@ -60,9 +64,6 @@ type Framer struct {
 	// bytesFramed is the length, in bytes, of the prefix of buffer that
 	// has already been output as a frame.
 	bytesFramed int
-
-	// The number of raw frames decoded from the input before they are processed.
-	frames *atomic.Int64
 
 	// contentLenLimit is the longest content value the Framer will produce.
 	// Over this size, the framer will break the bytes into individual frames

@@ -22,10 +22,10 @@ const maxCatalogEntries = 5000
 // serviceKeyCatalog reverse-maps service signatures to their generated hashes for
 // easy look up.
 type serviceKeyCatalog struct {
-	mu         sync.Mutex
 	items      map[ServiceSignature]*list.Element
 	ll         *list.List
 	maxEntries int
+	mu         sync.Mutex
 }
 
 type catalogEntry struct {

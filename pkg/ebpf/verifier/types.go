@@ -12,9 +12,9 @@ import "regexp"
 // stats holds the value of a verifier statistics and a regular expression
 // to parse it from the verifier log.
 type stat struct {
+	parse *regexp.Regexp //nolint:unused
 	// `Value` must be exported to be settable
 	Value int
-	parse *regexp.Regexp //nolint:unused
 }
 
 // Statistics represent that statistics exposed via
@@ -36,31 +36,31 @@ type SourceLine struct {
 
 // RegisterState holds the state for a given register
 type RegisterState struct {
-	Register int    `json:"register"`
 	Live     string `json:"live"`
 	Type     string `json:"type"`
 	Value    string `json:"value"`
+	Register int    `json:"register"`
 	Precise  bool   `json:"precise"`
 }
 
 // InstructionInfo holds information about an eBPF instruction extracted from the verifier
 type InstructionInfo struct {
+	Source           *SourceLine            `json:"source"`
+	RegisterState    map[int]*RegisterState `json:"register_state"` // Register state after execution of the instruction
+	Code             string                 `json:"code"`
+	RegisterStateRaw string                 `json:"register_state_raw"`
 	Index            int                    `json:"index"`
 	TimesProcessed   int                    `json:"times_processed"`
-	Source           *SourceLine            `json:"source"`
-	Code             string                 `json:"code"`
-	RegisterState    map[int]*RegisterState `json:"register_state"` // Register state after execution of the instruction
-	RegisterStateRaw string                 `json:"register_state_raw"`
 	IsDoubleWidth    bool                   `json:"is_double_width"`
 }
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line
 type SourceLineStats struct {
+	AssemblyInsns              []int `json:"assembly_insns"`
 	NumInstructions            int   `json:"num_instructions"`
 	MaxPasses                  int   `json:"max_passes"`
 	MinPasses                  int   `json:"min_passes"`
 	TotalInstructionsProcessed int   `json:"total_instructions_processed"`
-	AssemblyInsns              []int `json:"assembly_insns"`
 }
 
 // ComplexityInfo holds the complexity information for a given eBPF program, with assembly
@@ -72,10 +72,10 @@ type ComplexityInfo struct {
 
 // StatsOptions holds the options for the function BuildVerifierStats
 type StatsOptions struct {
+	VerifierLogsDir    string
 	ObjectFiles        []string
 	FilterPrograms     []*regexp.Regexp
 	DetailedComplexity bool
-	VerifierLogsDir    string
 }
 
 // StatsResult holds the result of the verifier stats process

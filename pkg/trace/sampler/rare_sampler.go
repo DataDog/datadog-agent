@@ -44,12 +44,12 @@ type RareSampler struct {
 	hits    *atomic.Int64
 	misses  *atomic.Int64
 	shrinks *atomic.Int64
-	mu      sync.RWMutex
 
 	limiter     *rate.Limiter
+	seen        map[Signature]*seenSpans
 	ttl         time.Duration
 	cardinality int
-	seen        map[Signature]*seenSpans
+	mu          sync.RWMutex
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
@@ -168,15 +168,15 @@ func (e *RareSampler) report(statsd statsd.ClientInterface) {
 
 // seenSpans keeps record of a set of spans.
 type seenSpans struct {
-	mu sync.RWMutex
 	// expires contains expire time of each span seen.
 	expires map[spanHash]time.Time
-	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
-	shrunk bool
 	// totalSamplerShrinks is the reference to the total number of shrinks reported by RareSampler.
 	totalSamplerShrinks *atomic.Int64
 	// cardinality limits the number of spans considered per combination of (env, service).
 	cardinality int
+	mu          sync.RWMutex
+	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
+	shrunk bool
 }
 
 func (ss *seenSpans) add(expire time.Time, s *pb.Span) {

@@ -18,19 +18,19 @@ type Config struct {
 	// TODO: add common configuration
 	// Destination Hostname
 	DestHostname string
-	// Destination Port number
-	DestPort uint16
 	// Destination service name
 	DestinationService string
 	// Source service name
 	SourceService string
 	// Source container ID
 	SourceContainerID string
-	// Max number of hops to try
-	MaxTTL uint8
-	// Timeout for each hop
-	Timeout time.Duration
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
+	// Timeout for each hop
+	Timeout time.Duration
+	// Destination Port number
+	DestPort uint16
+	// Max number of hops to try
+	MaxTTL uint8
 }

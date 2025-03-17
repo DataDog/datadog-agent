@@ -18,7 +18,6 @@ import (
 // troubleshooting, we want to know how many of "large" tagsets we are handling
 // for both timeseries and sketches.
 type tagsetTelemetry struct {
-	size int
 
 	// sizeThresholds are thresholds over which we would like to count tagsets
 	sizeThresholds []uint64
@@ -38,6 +37,7 @@ type tagsetTelemetry struct {
 	// tlmHugeSketches is an array containing counters with the same values as
 	// hugeSketchesCount.
 	tlmHugeSketches []telemetry.Counter
+	size            int
 }
 
 func newTagsetTelemetry(thresholds []uint64) *tagsetTelemetry {

@@ -24,12 +24,6 @@ type timeSamplerWorker struct {
 	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
 	metricSamplePool *metrics.MetricSamplePool
 
-	// flushInterval is the automatic flush interval
-	flushInterval time.Duration
-
-	// parallel serialization configuration
-	parallelSerialization FlushAndSerializeInParallel
-
 	// samplesChan is used to communicate between from the processLoop receiving the
 	// samples and the TimeSampler.
 	samplesChan chan []metrics.MetricSample
@@ -42,6 +36,12 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+
+	// parallel serialization configuration
+	parallelSerialization FlushAndSerializeInParallel
+
+	// flushInterval is the automatic flush interval
+	flushInterval time.Duration
 }
 
 type dumpTrigger struct {

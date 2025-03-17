@@ -70,8 +70,13 @@ func (o *Obfuscator) useSQLLiteralEscapes() bool {
 
 // Config holds the configuration for obfuscating sensitive data for various span types.
 type Config struct {
-	// SQL holds the obfuscation configuration for SQL queries.
-	SQL SQLConfig
+
+	// Statsd specifies the statsd client to use for reporting metrics.
+	Statsd StatsClient
+
+	// Logger specifies the logger to use when outputting messages.
+	// If unset, no logs will be outputted.
+	Logger Logger
 
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES JSONConfig `mapstructure:"elasticsearch"`
@@ -89,6 +94,15 @@ type Config struct {
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
 	SQLExecPlanNormalize JSONConfig `mapstructure:"sql_exec_plan_normalize"`
 
+	// SQL holds the obfuscation configuration for SQL queries.
+	SQL SQLConfig
+
+	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
+	CreditCard CreditCardsConfig `mapstructure:"credit_cards"`
+
+	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
+	Cache CacheConfig `mapstructure:"cache"`
+
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPConfig `mapstructure:"http"`
 
@@ -100,19 +114,6 @@ type Config struct {
 
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig `mapstructure:"memcached"`
-
-	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
-	CreditCard CreditCardsConfig `mapstructure:"credit_cards"`
-
-	// Statsd specifies the statsd client to use for reporting metrics.
-	Statsd StatsClient
-
-	// Logger specifies the logger to use when outputting messages.
-	// If unset, no logs will be outputted.
-	Logger Logger
-
-	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
-	Cache CacheConfig `mapstructure:"cache"`
 }
 
 // StatsClient implementations are able to emit stats.
@@ -136,6 +137,11 @@ type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
 	// Valid values for this can be found at https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#connection-level-attributes
 	DBMS string `json:"dbms"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "normalize_only", "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
 	// in addition to obfuscating.
@@ -162,11 +168,6 @@ type SQLConfig struct {
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
-
-	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
-	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
-	// Valid values are "normalize_only", "obfuscate_only", "obfuscate_and_normalize"
-	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
 	// By default, spaces are inserted between parentheses during normalization.
@@ -207,8 +208,6 @@ type SQLConfig struct {
 // SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
 // collected when enabled via SQLConfig.
 type SQLMetadata struct {
-	// Size holds the byte size of the metadata collected.
-	Size int64
 	// TablesCSV is a comma-separated list of tables that the query addresses.
 	TablesCSV string `json:"tables_csv"`
 	// Commands holds commands executed in an SQL statement.
@@ -218,6 +217,8 @@ type SQLMetadata struct {
 	Comments []string `json:"comments"`
 	// Procedures holds procedure names in an SQL statement.
 	Procedures []string `json:"procedures"`
+	// Size holds the byte size of the metadata collected.
+	Size int64
 }
 
 // HTTPConfig holds the configuration settings for HTTP obfuscation.
@@ -262,8 +263,6 @@ type MemcachedConfig struct {
 // JSONConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONConfig struct {
-	// Enabled will specify whether obfuscation should be enabled.
-	Enabled bool `mapstructure:"enabled"`
 
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
@@ -272,11 +271,17 @@ type JSONConfig struct {
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
 	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
+	// Enabled will specify whether obfuscation should be enabled.
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // CreditCardsConfig holds the configuration for credit card obfuscation in
 // (Meta) tags.
 type CreditCardsConfig struct {
+
+	// KeepValues specifies tag keys that are known to not ever contain credit cards
+	// and therefore their values can be kept.
+	KeepValues []string `mapstructure:"keep_values"`
 	// Enabled specifies whether this feature should be enabled.
 	Enabled bool `mapstructure:"enabled"`
 
@@ -284,10 +289,6 @@ type CreditCardsConfig struct {
 	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 	// It reduces false positives, but increases the CPU time X3.
 	Luhn bool `mapstructure:"luhn"`
-
-	// KeepValues specifies tag keys that are known to not ever contain credit cards
-	// and therefore their values can be kept.
-	KeepValues []string `mapstructure:"keep_values"`
 }
 
 // CacheConfig holds the configuration for caching obfuscated queries.

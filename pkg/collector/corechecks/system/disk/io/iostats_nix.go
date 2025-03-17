@@ -33,11 +33,11 @@ var (
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
+	blacklist *regexp.Regexp
+	stats     map[string]disk.IOCountersStat
 	core.CheckBase
-	blacklist          *regexp.Regexp
-	lowercaseDeviceTag bool // no effect on non-Windows platforms
 	ts                 int64
-	stats              map[string]disk.IOCountersStat
+	lowercaseDeviceTag bool // no effect on non-Windows platforms
 }
 
 // Configure the IOstats check

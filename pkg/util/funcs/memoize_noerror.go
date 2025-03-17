@@ -8,9 +8,9 @@ package funcs
 import "sync"
 
 type memoizedNoErrorFunc[T any] struct {
-	once   sync.Once
-	fn     func() T
 	result T
+	fn     func() T
+	once   sync.Once
 }
 
 func (mf *memoizedNoErrorFunc[T]) do() T {

@@ -27,9 +27,9 @@ const (
 
 // ReqOptions are options when making a request
 type ReqOptions struct {
-	Conn      ShouldCloseConnection
 	Ctx       context.Context
 	Authtoken string
+	Conn      ShouldCloseConnection
 }
 
 // GetClient is a convenience function returning an http client

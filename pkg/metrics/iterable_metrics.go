@@ -23,12 +23,12 @@ import (
 // senderStopped. The receiver calls MoveNext and Current to iterate through
 // the items, and iterationStopped when it is finished.
 type iterableMetrics struct {
+	current            interface{}
 	count              *atomic.Uint64
 	ch                 *buf.BufferedChan
-	bufferedChanClosed bool
 	cancel             context.CancelFunc
 	callback           func(interface{})
-	current            interface{}
+	bufferedChanClosed bool
 }
 
 // newIterableMetric creates a new instance of *iterableMetrics

@@ -29,14 +29,14 @@ type UtilizationMetrics struct {
 
 // StatsKey is the key used to identify a GPUStats object
 type StatsKey struct {
-	// PID is the process ID
-	PID uint32 `json:"pid"`
 
 	// DeviceUUID is the UUID of the device
 	DeviceUUID string `json:"device_uuid"`
 
 	// ContainerID is the ID of the container the process is running on
 	ContainerID string `json:"container_id"`
+	// PID is the process ID
+	PID uint32 `json:"pid"`
 }
 
 // StatsTuple is a single entry in the GPUStats array, as we cannot use a complex key in the map

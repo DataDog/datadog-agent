@@ -10,10 +10,10 @@ type WeightAt func(int) int
 
 // PayloadList is a wrapper for payloads subject to chunking
 type PayloadList[T any] struct {
-	// The items to chunk
-	Items []T
 	// A function which returns the weight of an item at the given index
 	WeightAt WeightAt
+	// The items to chunk
+	Items []T
 }
 
 // Len returns the number of items in the list
@@ -36,14 +36,15 @@ type OnAccept[T any] func(t *T)
 // ChunkAllocator manages operations for chunk allocation. The type T is the type of the chunk, and the type P is the
 // type of the payload.
 type ChunkAllocator[T any, P any] struct {
-	props  []chunkProps
-	idx    int
-	chunks []T
 
 	// A function which adds the group of payloads to the chunk
 	AppendToChunk AppendToChunk[T, P]
 	// An optional callback that allows for manipulation the chunk when a payload is added
 	OnAccept OnAccept[T]
+	props    []chunkProps
+	chunks   []T
+
+	idx int
 }
 
 // TakenSize returns the size allocated to the current chunk

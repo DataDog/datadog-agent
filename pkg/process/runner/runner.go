@@ -45,8 +45,8 @@ func (cr *checkResult) Type() string {
 var _ api.WeightedItem = &checkResult{}
 
 type checkPayload struct {
-	body    []byte
 	headers http.Header
+	body    []byte
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -54,7 +54,11 @@ type Runner interface{}
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
-	config      pkgconfigmodel.Reader
+	config pkgconfigmodel.Reader
+
+	// Submits check payloads to datadog
+	Submitter Submitter
+
 	sysProbeCfg *checks.SysProbeConfig
 	hostInfo    *checks.HostInfo
 
@@ -72,6 +76,9 @@ type CheckRunner struct {
 
 	orchestrator *oconfig.OrchestratorConfig
 
+	// listens for when to enable and disable realtime mode
+	rtNotifierChan <-chan types.RTResponse
+
 	// counters for each type of check
 	runCounters sync.Map
 
@@ -82,12 +89,6 @@ type CheckRunner struct {
 
 	// Enables running realtime checks
 	runRealTime bool
-
-	// Submits check payloads to datadog
-	Submitter Submitter
-
-	// listens for when to enable and disable realtime mode
-	rtNotifierChan <-chan types.RTResponse
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

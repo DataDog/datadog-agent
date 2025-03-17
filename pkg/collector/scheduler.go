@@ -56,10 +56,10 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders        []check.Loader
-	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
+	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
+	collector      option.Option[collector.Component]
+	loaders        []check.Loader
 	m              sync.RWMutex
 }
 

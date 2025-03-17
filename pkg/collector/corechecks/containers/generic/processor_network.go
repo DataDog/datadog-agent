@@ -23,10 +23,10 @@ type containerNetwork struct {
 }
 
 type groupedContainerNetwork struct {
-	count uint
 	owner *workloadmeta.EntityID
 	stats *metrics.ContainerNetworkStats
 	tags  []string
+	count uint
 }
 
 // ProcessorNetwork is a Processor extension taking care of network metrics

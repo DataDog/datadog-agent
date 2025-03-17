@@ -43,20 +43,21 @@ const (
 // DatadogStatsWriter ingests stats buckets, combining them over time and flushing them to the API.
 // This implements the stats.Writer interface.
 type DatadogStatsWriter struct {
-	senders []*sender
-	stop    chan struct{}
-	stats   *info.StatsWriterInfo
-	conf    *config.AgentConfig
+	statsd statsd.ClientInterface
+	timing timing.Reporter
+	stop   chan struct{}
+	stats  *info.StatsWriterInfo
+	conf   *config.AgentConfig
 
-	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
-	easylog *log.ThrottledLogger
-	statsd  statsd.ClientInterface
-	timing  timing.Reporter
-	mu      sync.Mutex
+	easylog  *log.ThrottledLogger
+	senders  []*sender
+	payloads []*pb.StatsPayload // payloads buffered for sync mode
+	mu       sync.Mutex
+
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode bool
 }
 
 // NewStatsWriter returns a new DatadogStatsWriter. It must be started using Run.
@@ -286,10 +287,10 @@ type timeWindow struct{ start, duration uint64 }
 
 type clientStatsPayload struct {
 	*pb.ClientStatsPayload
-	nbEntries int
 	// bucketIndexes maps from a timeWindow to a bucket in the ClientStatsPayload.
 	// it allows quick checking of what bucket to add a payload to.
 	bucketIndexes map[timeWindow]int
+	nbEntries     int
 }
 
 // splitPayload splits a stats payload to ensure that each stats payload has less than maxEntriesPerPayload entries.

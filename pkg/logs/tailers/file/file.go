@@ -14,15 +14,15 @@ import (
 
 // File represents a file to tail
 type File struct {
+
+	// Source is the ReplaceableSource that led to this File.
+	Source *sources.ReplaceableSource
 	// Path contains the path to the file which should be tailed.
 	Path string
 
 	// IsWildcardPath is set to true when the File has been discovered
 	// in a directory with wildcard(s) in the configuration.
 	IsWildcardPath bool
-
-	// Source is the ReplaceableSource that led to this File.
-	Source *sources.ReplaceableSource
 }
 
 // NewFile returns a new File

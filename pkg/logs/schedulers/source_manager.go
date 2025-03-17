@@ -48,14 +48,14 @@ func (sm *sourceManager) RemoveService(service *service.Service) {
 
 // MockAddRemove is an event observed by MockSourceManager
 type MockAddRemove struct {
-	// Added is true if this source was added; otherwise it was removed
-	Add bool
 
 	// Source is the source that was added or removed, or nil.
 	Source *sources.LogSource
 
 	// Service is the service that was added or removed, or nil.
 	Service *service.Service
+	// Added is true if this source was added; otherwise it was removed
+	Add bool
 }
 
 // MockSourceManager is a "spy" that records the AddSource and RemoveSource

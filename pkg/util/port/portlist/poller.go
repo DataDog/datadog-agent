@@ -18,10 +18,6 @@ import (
 // Poller scans the systems for listening ports periodically and sends
 // the results to C.
 type Poller struct {
-	// IncludeLocalhost controls whether services bound to localhost are included.
-	//
-	// This field should only be changed before calling Run.
-	IncludeLocalhost bool
 
 	// os, if non-nil, is an OS-specific implementation of the portlist getting
 	// code. When non-nil, it's responsible for getting the complete list of
@@ -29,14 +25,18 @@ type Poller struct {
 	// addProcesses is not used.
 	// A nil values means we don't have code for getting the list on the current
 	// operating system.
-	os       osImpl
-	initOnce sync.Once // guards init of os
-	initErr  error
+	os      osImpl
+	initErr error
 
 	// scatch is memory for Poller.getList to reuse between calls.
 	scratch []Port
 
-	prev List // most recent data, not aliasing scratch
+	prev     List      // most recent data, not aliasing scratch
+	initOnce sync.Once // guards init of os
+	// IncludeLocalhost controls whether services bound to localhost are included.
+	//
+	// This field should only be changed before calling Run.
+	IncludeLocalhost bool
 }
 
 // osImpl is the OS-specific implementation of getting the open listening ports.

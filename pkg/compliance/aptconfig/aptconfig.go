@@ -107,8 +107,8 @@ const (
 )
 
 type token struct {
-	kind  tokenType
 	value string
+	kind  tokenType
 }
 
 func parseAPTConfiguration(str string) map[string]interface{} {

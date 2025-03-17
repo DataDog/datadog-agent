@@ -34,7 +34,6 @@ func IsRunningOn(ctx context.Context) bool {
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
-	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return nil, fmt.Errorf("cloud provider is disabled by configuration")
@@ -51,6 +50,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		}
 		return []string{res}, nil
 	},
+	Name: "Alibaba Instance ID",
 }
 
 // GetHostAliases returns the VM ID from the Alibaba Metadata api

@@ -12,11 +12,11 @@ import (
 
 // UpdatableProvider is a thread-safe Provider that supports updating the default/user profiles
 type UpdatableProvider struct {
-	lock             sync.RWMutex
+	lastUpdated      time.Time
 	defaultProfiles  ProfileConfigMap
 	userProfiles     ProfileConfigMap
 	resolvedProfiles ProfileConfigMap
-	lastUpdated      time.Time
+	lock             sync.RWMutex
 }
 
 // type assertion

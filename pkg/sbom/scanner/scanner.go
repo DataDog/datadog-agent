@@ -40,19 +40,20 @@ type scannerConfig struct {
 
 // Scanner defines the scanner
 type Scanner struct {
-	cfg scannerConfig
+	disk filesystem.Disk
+	// scanQueue is the workqueue used to process scan requests
+	scanQueue  workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
+	collectors map[string]collectors.Collector
+
+	wmeta option.Option[workloadmeta.Component]
+	cfg   scannerConfig
 
 	startOnce sync.Once
-	running   bool
-	disk      filesystem.Disk
-	// scanQueue is the workqueue used to process scan requests
-	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
 
-	wmeta      option.Option[workloadmeta.Component]
-	collectors map[string]collectors.Collector
+	running bool
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its

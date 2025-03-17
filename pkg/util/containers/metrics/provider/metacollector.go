@@ -13,11 +13,11 @@ import (
 
 // MetaCollector is a special collector that uses all available collectors, by priority order.
 type metaCollector struct {
-	lock                                      sync.RWMutex
 	selfContainerIDcollectors                 []CollectorRef[SelfContainerIDRetriever]
 	containerIDFromPIDcollectors              []CollectorRef[ContainerIDForPIDRetriever]
 	containerIDFromInodeCollectors            []CollectorRef[ContainerIDForInodeRetriever]
 	ContainerIDForPodUIDAndContNameCollectors []CollectorRef[ContainerIDForPodUIDAndContNameRetriever]
+	lock                                      sync.RWMutex
 }
 
 func newMetaCollector() *metaCollector {

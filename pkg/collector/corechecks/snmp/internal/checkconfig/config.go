@@ -83,53 +83,63 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
+	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
 	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
-	UseRCProfiles         bool                              `yaml:"use_remote_config_profiles"`
+	Namespace             string                            `yaml:"namespace"`
 	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize          Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
+	MinCollectionInterval int                               `yaml:"min_collection_interval"`
+	UseRCProfiles         bool                              `yaml:"use_remote_config_profiles"`
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval int                               `yaml:"min_collection_interval"`
-	Namespace             string                            `yaml:"namespace"`
-	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Name                  string                              `yaml:"name"`
-	IPAddress             string                              `yaml:"ip_address"`
-	Port                  Number                              `yaml:"port"`
-	CommunityString       string                              `yaml:"community_string"`
-	SnmpVersion           string                              `yaml:"snmp_version"`
-	Timeout               Number                              `yaml:"timeout"`
-	Retries               Number                              `yaml:"retries"`
-	User                  string                              `yaml:"user"`
-	AuthProtocol          string                              `yaml:"authProtocol"`
-	AuthKey               string                              `yaml:"authKey"`
-	PrivProtocol          string                              `yaml:"privProtocol"`
-	PrivKey               string                              `yaml:"privKey"`
-	ContextName           string                              `yaml:"context_name"`
-	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
-	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
-	Profile               string                              `yaml:"profile"`
-	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
-	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
-	CollectTopology       *Boolean                            `yaml:"collect_topology"`
-	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
+	PingConfig snmpintegration.PackedPingConfig `yaml:"ping"`
+
+	CollectDeviceMetadata *Boolean `yaml:"collect_device_metadata"`
+	CollectTopology       *Boolean `yaml:"collect_topology"`
+	UseDeviceIDAsHostname *Boolean `yaml:"use_device_id_as_hostname"`
+	Name                  string   `yaml:"name"`
+	IPAddress             string   `yaml:"ip_address"`
+	CommunityString       string   `yaml:"community_string"`
+	SnmpVersion           string   `yaml:"snmp_version"`
+	User                  string   `yaml:"user"`
+	AuthProtocol          string   `yaml:"authProtocol"`
+	AuthKey               string   `yaml:"authKey"`
+	PrivProtocol          string   `yaml:"privProtocol"`
+	PrivKey               string   `yaml:"privKey"`
+	ContextName           string   `yaml:"context_name"`
+	Profile               string   `yaml:"profile"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
 	// TODO: deprecated extra tags in favour of using autodiscovery listener Service.GetTags()
 	ExtraTags string `yaml:"extra_tags"` // comma separated tags
 
+	Network   string `yaml:"network_address"`
+	Namespace string `yaml:"namespace"`
+
+	Metrics    []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
+
 	// Tags are just static tags from the instance that is common to all integrations.
 	// Normally, the Agent will enrich metrics with the metrics with those tags.
 	// See https://github.com/DataDog/datadog-agent/blob/1e8321ff089d04ccce3987b84f8b75630d7a18c0/pkg/collector/corechecks/checkbase.go#L131-L139
 	// But we need to deserialize here since we need them for NDM metadata.
 	Tags []string `yaml:"tags"` // used for device metadata
+
+	IgnoredIPAddresses []string `yaml:"ignored_ip_addresses"`
+
+	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
+	// it's only supported for single device instance (`ip_address`)
+	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+	Port             Number           `yaml:"port"`
+	Timeout          Number           `yaml:"timeout"`
+	Retries          Number           `yaml:"retries"`
 
 	// The oid_batch_size indicates how many OIDs are retrieved in a single Get or GetBulk call
 	OidBatchSize Number `yaml:"oid_batch_size"`
@@ -141,63 +151,59 @@ type InstanceConfig struct {
 	// Using extra_min_collection_interval, we can accept both string and integer value.
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	Network                  string   `yaml:"network_address"`
-	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
-	DiscoveryInterval        int      `yaml:"discovery_interval"`
-	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
-	DiscoveryWorkers         int      `yaml:"discovery_workers"`
-	Workers                  int      `yaml:"workers"`
-	Namespace                string   `yaml:"namespace"`
-
-	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
-	// it's only supported for single device instance (`ip_address`)
-	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+	DiscoveryInterval        int  `yaml:"discovery_interval"`
+	DiscoveryAllowedFailures int  `yaml:"discovery_allowed_failures"`
+	DiscoveryWorkers         int  `yaml:"discovery_workers"`
+	Workers                  int  `yaml:"workers"`
+	UseGlobalMetrics         bool `yaml:"use_global_metrics"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
-	Name            string
-	IPAddress       string
-	Port            uint16
-	CommunityString string
-	SnmpVersion     string
-	Timeout         int
-	Retries         int
-	User            string
-	AuthProtocol    string
-	AuthKey         string
-	PrivProtocol    string
-	PrivKey         string
-	ContextName     string
+	ProfileProvider    profile.Provider
+	IgnoredIPAddresses map[string]bool
+	Name               string
+	IPAddress          string
+	CommunityString    string
+	SnmpVersion        string
+	User               string
+	AuthProtocol       string
+	AuthKey            string
+	PrivProtocol       string
+	PrivKey            string
+	ContextName        string
+	ProfileName        string
+	DeviceID           string
+	ResolvedSubnetName string
+	Namespace          string
+
+	Network string
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags   []profiledefinition.MetricTagConfig
+	RequestedMetricTags []profiledefinition.MetricTagConfig
+	ExtraTags           []string
+	InstanceTags        []string
+	DeviceIDTags        []string
+	InterfaceConfigs    []snmpintegration.InterfaceConfig
+
+	PingConfig            pinger.Config
+	Timeout               int
+	Retries               int
 	OidBatchSize          int
-	BulkMaxRepetitions    uint32
-	ProfileProvider       profile.Provider
-	ProfileName           string
-	ExtraTags             []string
-	InstanceTags          []string
-	CollectDeviceMetadata bool
-	CollectTopology       bool
-	UseDeviceIDAsHostname bool
-	DeviceID              string
-	DeviceIDTags          []string
-	ResolvedSubnetName    string
-	Namespace             string
 	MinCollectionInterval time.Duration
 
-	Network                  string
 	DiscoveryWorkers         int
 	Workers                  int
 	DiscoveryInterval        int
-	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
-	InterfaceConfigs         []snmpintegration.InterfaceConfig
+	BulkMaxRepetitions       uint32
+	Port                     uint16
+	CollectDeviceMetadata    bool
+	CollectTopology          bool
+	UseDeviceIDAsHostname    bool
 
 	PingEnabled bool
-	PingConfig  pinger.Config
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags

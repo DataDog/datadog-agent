@@ -15,18 +15,18 @@ import (
 
 // Stat type includes a statted value and its timestamp.
 type Stat struct {
-	Val int64
 	Ts  time.Time
+	Val int64
 }
 
 // Stats type structure enabling statting facilities.
 type Stats struct {
-	size       uint32
-	valExpvar  *expvar.Int
 	last       time.Time
+	valExpvar  *expvar.Int
 	stopped    chan struct{}
 	incoming   chan int64
 	Aggregated chan Stat
+	size       uint32
 }
 
 // NewStats constructor for Stats

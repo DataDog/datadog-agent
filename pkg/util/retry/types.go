@@ -44,13 +44,13 @@ const (
 
 // Config contains all the required parameters for Retrier
 type Config struct {
+	AttemptMethod func() error
+	// now function is used in unit tests only and should be left to nil otherwise
+	now               func() time.Time
 	Name              string
-	AttemptMethod     func() error
 	Strategy          Strategy
 	RetryCount        uint
 	RetryDelay        time.Duration
 	InitialRetryDelay time.Duration
 	MaxRetryDelay     time.Duration
-	// now function is used in unit tests only and should be left to nil otherwise
-	now func() time.Time
 }

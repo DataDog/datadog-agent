@@ -55,9 +55,9 @@ type ScanOptions = types.ScanOptions
 
 // ScanResult defines the scan result
 type ScanResult struct {
+	CreatedAt time.Time
 	Error     error
 	Report    Report
-	CreatedAt time.Time
-	Duration  time.Duration
 	ImgMeta   *workloadmeta.ContainerImageMetadata
+	Duration  time.Duration
 }

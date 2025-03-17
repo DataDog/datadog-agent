@@ -20,8 +20,8 @@ const maxRoutes = math.MaxInt32
 
 // RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
-	Idx   int32
 	Route model.Route
+	Idx   int32
 }
 
 type ipCache map[util.Address]string

@@ -22,24 +22,24 @@ type address struct {
 
 // key represents a (client, server, parameters: table name or runtime parameter) tuple.
 type key struct {
+	Parameters string
 	Client     address
 	Server     address
-	Parameters string
 }
 
 // Stats consolidates request count and latency information for a certain status code
 type Stats struct {
+	latencies          *ddsketch.DDSketch
 	Count              int
 	FirstLatencySample float64
 	LatencyP50         float64
-	latencies          *ddsketch.DDSketch
 }
 
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, table name, operation) tuple
 type RequestSummary struct {
-	key
 	ByOperation map[string]Stats
+	key
 }
 
 // Postgres returns a debug-friendly representation of map[postgres.Key]postgres.RequestStats

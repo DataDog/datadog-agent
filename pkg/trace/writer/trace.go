@@ -53,35 +53,38 @@ type SampledChunks struct {
 
 // TraceWriter implements TraceWriter interface, and buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriter struct {
-	flushTicker *time.Ticker
-
 	prioritySampler samplerTPSReader
 	errorsSampler   samplerTPSReader
 	rareSampler     samplerEnabledReader
 
-	hostname     string
-	env          string
-	senders      []*sender
-	stop         chan struct{}
-	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits flusher + reporter + compressor
-	tick         time.Duration  // flush frequency
-	agentVersion string
-
-	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
-	bufferedSize   int                 // estimated buffer size
-
-	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	flushChan chan chan struct{}
-
 	telemetryCollector telemetry.TelemetryCollector
 
-	easylog    *log.ThrottledLogger
-	statsd     statsd.ClientInterface
-	timing     timing.Reporter
-	mu         sync.Mutex
-	compressor compression.Component
+	statsd      statsd.ClientInterface
+	timing      timing.Reporter
+	compressor  compression.Component
+	flushTicker *time.Ticker
+
+	stop      chan struct{}
+	stats     *info.TraceWriterInfo
+	flushChan chan chan struct{}
+
+	easylog *log.ThrottledLogger
+
+	hostname     string
+	env          string
+	agentVersion string
+
+	senders []*sender
+
+	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
+	wg             sync.WaitGroup      // waits flusher + reporter + compressor
+	tick           time.Duration       // flush frequency
+	bufferedSize   int                 // estimated buffer size
+
+	mu sync.Mutex
+
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode bool
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and

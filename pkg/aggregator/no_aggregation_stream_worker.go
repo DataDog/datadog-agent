@@ -33,9 +33,9 @@ import (
 // of the code (i.e. the serializer should), especially since it may create
 // really small payloads (that could have potentially been filled).
 type noAggregationStreamWorker struct {
-	serializer           serializer.MetricSerializer
-	flushConfig          FlushAndSerializeInParallel
-	maxMetricsPerPayload int
+	logThrottling util.SimpleThrottler
+	serializer    serializer.MetricSerializer
+	tagger        tagger.Component
 
 	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
 	metricSamplePool *metrics.MetricSamplePool
@@ -49,10 +49,9 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
-	hostTagProvider *HostTagProvider
-	tagger          tagger.Component
-
-	logThrottling util.SimpleThrottler
+	hostTagProvider      *HostTagProvider
+	flushConfig          FlushAndSerializeInParallel
+	maxMetricsPerPayload int
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker

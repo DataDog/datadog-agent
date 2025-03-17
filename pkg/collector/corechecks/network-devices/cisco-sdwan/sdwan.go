@@ -31,19 +31,7 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
-	Username                        string `yaml:"username"`
-	Password                        string `yaml:"password"`
-	Namespace                       string `yaml:"namespace"`
-	MaxAttempts                     int    `yaml:"max_attempts"`
-	MaxPages                        int    `yaml:"max_pages"`
-	MaxCount                        int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool   `yaml:"use_http"`
-	Insecure                        bool   `yaml:"insecure"`
-	CAFile                          string `yaml:"ca_file"`
 	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
 	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
 	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
 	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
@@ -54,14 +42,26 @@ type checkCfg struct {
 	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
 	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
+	Username                        string `yaml:"username"`
+	Password                        string `yaml:"password"`
+	Namespace                       string `yaml:"namespace"`
+	CAFile                          string `yaml:"ca_file"`
+	MaxAttempts                     int    `yaml:"max_attempts"`
+	MaxPages                        int    `yaml:"max_pages"`
+	MaxCount                        int    `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
+	MinCollectionInterval           int    `yaml:"min_collection_interval"`
+	UseHTTP                         bool   `yaml:"use_http"`
+	Insecure                        bool   `yaml:"insecure"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
 type CiscoSdwanCheck struct {
-	core.CheckBase
-	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.SDWanSender
+	core.CheckBase
+	interval time.Duration
 }
 
 // Run executes the check

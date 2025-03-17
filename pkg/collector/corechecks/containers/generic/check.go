@@ -38,11 +38,11 @@ func (c *ContainerConfig) Parse(data []byte) error {
 
 // ContainerCheck generates metrics for all containers
 type ContainerCheck struct {
-	core.CheckBase
-	instance  *ContainerConfig
 	processor Processor
 	store     workloadmeta.Component
 	tagger    tagger.Component
+	instance  *ContainerConfig
+	core.CheckBase
 }
 
 // Factory returns a new check factory

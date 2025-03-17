@@ -31,10 +31,10 @@ import (
 )
 
 type memoizedFunc[T any] struct {
-	once   sync.Once
-	fn     func() (T, error)
 	result T
 	err    error
+	fn     func() (T, error)
+	once   sync.Once
 }
 
 func (mf *memoizedFunc[T]) do() (T, error) {

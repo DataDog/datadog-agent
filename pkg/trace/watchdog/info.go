@@ -46,13 +46,13 @@ type Info struct {
 // CurrentInfo is used to query CPU and Mem info, it keeps data from
 // the previous calls to calculate averages. It is not thread safe.
 type CurrentInfo struct {
-	pid        int32
-	mu         sync.Mutex
-	cacheDelay time.Duration
-
 	lastCPUTime time.Time
+	cacheDelay  time.Duration
+
 	lastCPUUser float64
 	lastCPU     CPUInfo
+	mu          sync.Mutex
+	pid         int32
 }
 
 // NewCurrentInfo creates a new CurrentInfo referring to the current running program.

@@ -16,10 +16,10 @@ import (
 
 // ProfilingOpts defines the options used for profiling
 type ProfilingOpts struct {
-	ProfileMutex         bool
 	ProfileMutexFraction int
-	ProfileBlocking      bool
 	ProfileBlockingRate  int
+	ProfileMutex         bool
+	ProfileBlocking      bool
 }
 
 // ExecWithRuntimeProfilingSettings runs the callback func with the given runtime profiling settings

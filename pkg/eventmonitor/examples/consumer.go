@@ -18,19 +18,19 @@ import (
 
 // SimpleEvent defines a simple event
 type SimpleEvent struct {
-	Type         uint32   `copy:"GetEventType;event:*;cast:uint32"`
 	ExecFilePath string   `copy:"GetExecFilePath;event:ExecEventType"`
 	Envp         []string `copy:"GetProcessEnvp;event:ExecEventType"`
+	Type         uint32   `copy:"GetEventType;event:*;cast:uint32"`
 }
 
 // SimpleEventConsumer defines a simple event consumer
 type SimpleEventConsumer struct {
-	sync.RWMutex
-	exec int
-	fork int
-	exit int
-
 	handlers []func(evt *SimpleEvent)
+	exec     int
+	fork     int
+	exit     int
+
+	sync.RWMutex
 }
 
 // NewSimpleEventConsumer returns a new simple event consumer

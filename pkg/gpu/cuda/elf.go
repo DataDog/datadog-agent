@@ -30,9 +30,9 @@ var errorUnsupported = errors.New("unsupported section parsing")
 type lazySectionReader struct {
 	reader              io.ReaderAt
 	err                 error
+	currentSection      *elfSection
 	stringBuffer        []byte
 	sectionHeaderBuffer []byte
-	currentSection      *elfSection
 }
 
 // newLazySectionReader a new lazySectionReader instance.
@@ -355,7 +355,6 @@ func (l *lazySectionReader) getString(reader *io.SectionReader, start int64) ([]
 // elfSection represents an ELF section, with the header and name.
 // Note that the name in the SectionHeader is not filled, one should use the nameBytes field.
 type elfSection struct {
-	elf.SectionHeader
 
 	// fileReader holds a reader for the entire ELF file, used to read the section data
 	// without allocating a reader if it's not needed
@@ -364,8 +363,10 @@ type elfSection struct {
 	// sectReader is the reader for the section data, initialized lazily
 	sectReader *io.SectionReader
 
+	nameBytes []byte
+	elf.SectionHeader
+
 	nameOffset uint32
-	nameBytes  []byte
 }
 
 func (s *elfSection) Reader() *io.SectionReader {

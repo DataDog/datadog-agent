@@ -86,8 +86,8 @@ type Key struct {
 
 // Stats holds statistics corresponding to a particular domain
 type Stats struct {
-	Timeouts          uint32
+	CountByRcode      map[uint32]uint32
 	SuccessLatencySum uint64
 	FailureLatencySum uint64
-	CountByRcode      map[uint32]uint32
+	Timeouts          uint32
 }

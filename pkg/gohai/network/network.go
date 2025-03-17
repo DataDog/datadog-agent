@@ -35,14 +35,14 @@ type Interface struct {
 
 // Info holds network metadata about the host
 type Info struct {
-	// Interfaces is the list of interfaces which are up
-	Interfaces []Interface `json:"interfaces"`
+	// IPAddressV6 is an IPv6 address of the host
+	IPAddressV6 utils.Value[string] `json:"ipaddressv6"`
 	// MacAddress is a mac address of the host
 	MacAddress string `json:"macaddress"`
 	// IPAddress is an IPv4 address of the host
 	IPAddress string `json:"ipaddress"`
-	// IPAddressV6 is an IPv6 address of the host
-	IPAddressV6 utils.Value[string] `json:"ipaddressv6"`
+	// Interfaces is the list of interfaces which are up
+	Interfaces []Interface `json:"interfaces"`
 }
 
 // CollectInfo collects the network information.
