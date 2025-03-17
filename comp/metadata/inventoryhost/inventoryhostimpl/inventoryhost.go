@@ -219,7 +219,7 @@ func (ih *invHost) fillData() {
 		ih.data.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, err := networkGet(ih.hostname)
+	networkInfo, err := networkGet()
 	if err == nil {
 		_, warnings, err = networkInfo.AsJSON()
 	}
@@ -236,6 +236,20 @@ func (ih *invHost) fillData() {
 			ih.log.Errorf("failed to marshal network interfaces: %s", err) //nolint:errcheck
 		} else {
 			ih.data.Interfaces = string(jsonInterfaces)
+		}
+	}
+
+	if ih.conf.GetBool("inventories_network_use_hostname_resolver") {
+		ipv4s, ipv6s, err := network.ResolveFromHostname(ih.hostname)
+		if err != nil {
+			ih.log.Errorf("failed to resolve hostname to IP addresses: %s", err) //nolint:errcheck
+		} else {
+			if len(ipv4s) > 0 {
+				ih.data.IPAddress = ipv4s[0]
+			}
+			if len(ipv6s) > 0 {
+				ih.data.IPv6Address = ipv6s[0]
+			}
 		}
 	}
 

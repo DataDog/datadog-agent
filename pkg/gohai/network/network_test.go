@@ -16,7 +16,7 @@ import (
 )
 
 func TestCollect(t *testing.T) {
-	netInfo, err := CollectInfo("hostname")
+	netInfo, err := CollectInfo()
 	require.NoError(t, err)
 
 	assertIPv4(t, netInfo.IPAddress)
@@ -41,7 +41,7 @@ func TestCollect(t *testing.T) {
 }
 
 func TestAsJSON(t *testing.T) {
-	netInfo, err := CollectInfo("hostname")
+	netInfo, err := CollectInfo()
 	require.NoError(t, err)
 
 	marshallable, _, err := netInfo.AsJSON()
