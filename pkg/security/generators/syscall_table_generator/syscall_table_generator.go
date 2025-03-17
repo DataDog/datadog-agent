@@ -158,7 +158,7 @@ func parseSyscallTable(url string, abis []string) ([]*syscallDefinition, error) 
 		name := parts[2]
 		camelCaseName := snakeToCamelCase(name)
 
-		if containsStringSlice(abis, abi) {
+		if slices.Contains(abis, abi) {
 			return &syscallDefinition{
 				Number:        int(number),
 				Abi:           abi,
@@ -241,8 +241,4 @@ func writeFileAndFormat(outputPath string, content string) error {
 
 func generateStringer(inputPath, outputPath string) error {
 	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-output", outputPath, inputPath).Run()
-}
-
-func containsStringSlice(slice []string, value string) bool {
-	return slices.Contains(slice, value)
 }

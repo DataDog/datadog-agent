@@ -574,11 +574,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 // sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
-	var execFound bool
-	if slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
-		execFound = true
-	}
-	if !execFound {
+	if !slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 
