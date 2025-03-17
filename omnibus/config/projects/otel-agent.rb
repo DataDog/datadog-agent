@@ -35,10 +35,6 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-unless linux_target?
-    raise UnknownPlatform
-end
-
 INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 
 install_dir INSTALL_DIR
