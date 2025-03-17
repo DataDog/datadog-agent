@@ -638,11 +638,6 @@ def parse_test_log(log_file):
 
 @task
 def get_impacted_packages(ctx, build_tags=None):
-    if build_tags is None:
-        build_tags = []
-    dependencies = create_dependencies(ctx, build_tags)
-    files = get_go_modified_files(ctx)
-
     # Safeguard to be sure that the files that should trigger all test are not renamed without being updated
     for file in TRIGGER_ALL_TESTS_PATHS:
         if len(glob.glob(file)) == 0:
@@ -655,6 +650,11 @@ def get_impacted_packages(ctx, build_tags=None):
     if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
         print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
         return get_default_modules().values()
+
+    if build_tags is None:
+        build_tags = []
+    dependencies = create_dependencies(ctx, build_tags)
+    files = get_go_modified_files(ctx)
 
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
@@ -799,9 +799,12 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in module_to_remove:
         del modules_to_test[module]
 
-    print("Running tests for the following modules:")
-    for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].test_targets}")
+    if not modules_to_test:
+        print("No modules to test")
+    else:
+        print("Running tests for the following modules:")
+        for module in modules_to_test:
+            print(f"- {module}: {modules_to_test[module].test_targets}")
 
     return modules_to_test.values()
 
