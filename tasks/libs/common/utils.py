@@ -579,14 +579,12 @@ def load_release_versions(_, target_version):
 ##
 
 
-def nightly_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "nightly"
-    return f"nightly-a{agent_major_version}"
+def nightly_entry_for(_):
+    return "nightly"
 
 
-def release_entry_for(agent_major_version):
-    return f"release-a{agent_major_version}"
+def release_entry_for(_):
+    return "release"
 
 
 def check_clean_branch_state(ctx, github, branch):

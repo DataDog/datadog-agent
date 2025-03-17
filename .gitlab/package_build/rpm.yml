@@ -52,7 +52,6 @@ agent_rpm-x64-a6:
     PACKAGE_ARCH: amd64
   before_script:
     - source /root/.bashrc
-    - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for rpm-arm64
 agent_rpm-arm64-a6:
@@ -76,4 +75,3 @@ agent_rpm-arm64-a6:
     PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
-    - export RELEASE_VERSION=$RELEASE_VERSION_6

@@ -82,8 +82,7 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
 def trigger_agent_pipeline(
     gitlab,
     ref=DEFAULT_BRANCH,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
+    release_version="nightly",
     branch="nightly",
     deploy=False,
     all_builds=False,
@@ -117,11 +116,7 @@ def trigger_agent_pipeline(
     else:
         args["RUN_E2E_TESTS"] = "off"
 
-    if release_version_6 is not None:
-        args["RELEASE_VERSION_6"] = release_version_6
-
-    if release_version_7 is not None:
-        args["RELEASE_VERSION_7"] = release_version_7
+    args["RELEASE_VERSION"] = release_version
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch

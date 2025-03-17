@@ -57,8 +57,6 @@ agent_deb-x64-a6:
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-agent_6_amd64.deb"
     DESTINATION_DBG_DEB: "datadog-agent-dbg_6_amd64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
@@ -81,8 +79,6 @@ agent_deb-arm64-a6:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-agent_6_arm64.deb"
     DESTINATION_DBG_DEB: "datadog-agent-dbg_6_arm64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_heroku_deb-x64-a6:
   extends: agent_deb-x64-a6
