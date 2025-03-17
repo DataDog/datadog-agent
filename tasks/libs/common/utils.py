@@ -697,4 +697,4 @@ def is_installed(binary) -> bool:
 
 def is_conductor_scheduled_pipeline() -> bool:
     pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
-    return pipeline_start.hour == 6 and pipeline_start.minute < 30
+    return pipeline_start.hour in [5, 6] and pipeline_start.minute < 30
