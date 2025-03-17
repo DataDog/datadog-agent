@@ -263,12 +263,13 @@ func installAgentPackage(target string, args []string, logFileName string) error
 	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
 	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
 
-	args = append(args, "FLEET_INSTALL=1", dataDir, projectLocation)
+	args = append(args, dataDir, projectLocation)
 
 	cmd, err := msi.Cmd(
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
 		msi.WithAdditionalArgs(args),
+		msi.WithFleetInstallMarker(),
 		msi.WithLogFile(logFile),
 	)
 	var output []byte
@@ -292,7 +293,7 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct("Datadog Agent")
+		err := msi.RemoveProduct("Datadog Agent", msi.WithFleetInstallMarker())
 		if err != nil {
 			return err
 		}
