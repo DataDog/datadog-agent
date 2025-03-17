@@ -6,11 +6,16 @@
 // Package integrations contains NDM integrations utils
 package integrations
 
+// Integration is an enum listing NDM integrations
 type Integration string
 
 const (
-	SNMP       Integration = "snmp"
+	// SNMP the SNMP integration
+	SNMP Integration = "snmp"
+	// CiscoSDWAN the Cisco SD-WAN integration
 	CiscoSDWAN Integration = "cisco-sdwan"
-	Versa      Integration = "versa"
-	Netflow    Integration = "netflow"
+	// Versa the Versa integration
+	Versa Integration = "versa"
+	// Netflow the Netflow integration
+	Netflow Integration = "netflow"
 )
