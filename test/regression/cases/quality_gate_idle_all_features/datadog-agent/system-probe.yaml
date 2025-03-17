@@ -14,7 +14,7 @@ system_probe_config:
   enable_oom_kill: true
   enable_tcp_queue_length: true
   process_config:
-    enabled: true
+    enabled: false
 
 dynamic_instrumentation:
   enabled: false
