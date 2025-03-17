@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -53,7 +54,7 @@ func TestLifecycle(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		createandfetchimpl.Module(),
+		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
 	))
 
@@ -90,7 +91,7 @@ func TestPostAuthentication(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		createandfetchimpl.Module(),
+		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
 	))
 

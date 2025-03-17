@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -50,7 +51,7 @@ func TestOptionalModule(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fetchonlyimpl.Module(),
+		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
 		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),

@@ -13,9 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -120,11 +120,7 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	conf := configmock.New(t)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	authtokenmock.New(t)
 
 	rr := getResponseToHandlerRequest(t, "")
 
@@ -155,11 +151,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	conf := configmock.New(t)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	authtokenmock.New(t)
 
 	rr := getResponseToHandlerRequest(t, "badtoken")
 

@@ -17,7 +17,6 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0 // indirect
