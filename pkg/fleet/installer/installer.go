@@ -36,6 +36,7 @@ const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
+	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
 
 // Installer is a package manager that installs and uninstalls packages.
@@ -43,10 +44,10 @@ type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
 
 	AvailableDiskSpace() (uint64, error)
-	State(pkg string) (repository.State, error)
-	States() (map[string]repository.State, error)
-	ConfigState(pkg string) (repository.State, error)
-	ConfigStates() (map[string]repository.State, error)
+	State(ctx context.Context, pkg string) (repository.State, error)
+	States(ctx context.Context) (map[string]repository.State, error)
+	ConfigState(ctx context.Context, pkg string) (repository.State, error)
+	ConfigStates(ctx context.Context) (map[string]repository.State, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -118,22 +119,22 @@ func (i *installerImpl) AvailableDiskSpace() (uint64, error) {
 }
 
 // State returns the state of a package.
-func (i *installerImpl) State(pkg string) (repository.State, error) {
+func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, error) {
 	return i.packages.GetState(pkg)
 }
 
 // States returns the states of all packages.
-func (i *installerImpl) States() (map[string]repository.State, error) {
+func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
 	return i.packages.GetStates()
 }
 
 // ConfigState returns the state of a package.
-func (i *installerImpl) ConfigState(pkg string) (repository.State, error) {
+func (i *installerImpl) ConfigState(_ context.Context, pkg string) (repository.State, error) {
 	return i.configs.GetState(pkg)
 }
 
 // ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates() (map[string]repository.State, error) {
+func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
 	return i.configs.GetStates()
 }
 
@@ -604,6 +605,8 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StartInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StartAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -615,6 +618,8 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 		return packages.StopAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StopInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StopAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -626,6 +631,8 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.PromoteInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.PromoteAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -650,6 +657,8 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
 		return packages.SetupAPMInjector(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.SetupAPMLibraryDotnet(ctx, pkg)
 	default:
 		return nil
 	}
@@ -663,6 +672,8 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 		return packages.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
 		return packages.RemoveInstaller(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.RemoveAPMLibraryDotnet(ctx)
 	default:
 		return nil
 	}

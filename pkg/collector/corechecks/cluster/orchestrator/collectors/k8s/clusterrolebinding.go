@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
@@ -50,6 +51,7 @@ func NewClusterRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *Cluste
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 clusterRoleBindingName,
+			Kind:                                 kubernetes.ClusterRoleBindingKind,
 			NodeType:                             orchestrator.K8sClusterRoleBinding,
 			Version:                              clusterRoleBindingVersion,
 			LabelsAsTags:                         labelsAsTags,

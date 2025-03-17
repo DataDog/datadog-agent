@@ -56,7 +56,6 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
-	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
 
@@ -418,6 +417,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

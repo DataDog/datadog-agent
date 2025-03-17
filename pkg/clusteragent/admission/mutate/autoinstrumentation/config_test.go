@@ -199,6 +199,103 @@ func TestNewInstrumentationConfig(t *testing.T) {
 	}
 }
 
+func TestLibVersionsEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected map[string]string
+	}{
+		{
+			name: "valid lib versions",
+			expected: map[string]string{
+				"python": "1",
+				"js":     "2",
+				"java":   "3",
+			},
+		},
+		{
+			name:     "empty",
+			expected: map[string]string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_LIB_VERSIONS", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.LibVersions)
+		})
+	}
+}
+
+func TestEnabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"foo", "bar"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.EnabledNamespaces)
+		})
+	}
+}
+
+func TestDisabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"default", "kube-system"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.DisabledNamespaces)
+		})
+	}
+}
+
 func TestTargetEnvVar(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -286,6 +383,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 			},
 		},
@@ -300,6 +398,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -325,6 +424,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				"js":     "default",
 				"dotnet": "default",
 				"ruby":   "default",
+				"php":    "default",
 			},
 			checkDefaults: true,
 			expected: pinnedLibraries{
@@ -334,6 +434,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -346,6 +447,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
+				"php":    "v1",
 			},
 			checkDefaults: true,
 			expected: pinnedLibraries{
@@ -355,6 +457,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},

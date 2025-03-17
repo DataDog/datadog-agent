@@ -60,6 +60,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
 | `splice` | File | A splice command was executed | 7.36 |
+| `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
@@ -391,6 +392,7 @@ An accept was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`accept.addr.family`](#accept-addr-family-doc) | Address family |
+| [`accept.addr.hostname`](#accept-addr-hostname-doc) | Address hostname (if available) |
 | [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -539,6 +541,7 @@ A connect was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
+| [`connect.addr.hostname`](#connect-addr-hostname-doc) | Address hostname (if available) |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1742,6 +1745,21 @@ A splice command was executed
 | [`splice.pipe_exit_flag`](#splice-pipe_exit_flag-doc) | Exit flag of the "fd_out" pipe passed to the splice syscall |
 | [`splice.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
+### Event `sysctl`
+
+A sysctl parameter was read or modified
+
+| Property | Definition |
+| -------- | ------------- |
+| [`sysctl.action`](#sysctl-action-doc) | Action performed on the system control parameter |
+| [`sysctl.file_position`](#sysctl-file_position-doc) | Position in the sysctl control parameter file at which the action occurred |
+| [`sysctl.name`](#sysctl-name-doc) | Name of the system control parameter |
+| [`sysctl.name_truncated`](#sysctl-name_truncated-doc) | Indicates that the name field is truncated |
+| [`sysctl.old_value`](#sysctl-old_value-doc) | Old value of the system control parameter |
+| [`sysctl.old_value_truncated`](#sysctl-old_value_truncated-doc) | Indicates that the old value field is truncated |
+| [`sysctl.value`](#sysctl-value-doc) | New and/or current value for the system control parameter depending on the action type |
+| [`sysctl.value_truncated`](#sysctl-value_truncated-doc) | Indicates that the value field is truncated |
+
 ### Event `unlink`
 
 A file was deleted
@@ -2574,6 +2592,13 @@ Definition: Address family
 
 
 
+### `accept.addr.hostname` {#accept-addr-hostname-doc}
+Type: string
+
+Definition: Address hostname (if available)
+
+
+
 ### `bind.addr.family` {#bind-addr-family-doc}
 Type: int
 
@@ -2773,6 +2798,13 @@ Definition: UID argument of the syscall
 Type: int
 
 Definition: Address family
+
+
+
+### `connect.addr.hostname` {#connect-addr-hostname-doc}
+Type: string
+
+Definition: Address hostname (if available)
 
 
 
@@ -3402,6 +3434,65 @@ Definition: Exit flag of the "fd_out" pipe passed to the splice syscall
 
 
 Constants: [Pipe buffer flags](#pipe-buffer-flags)
+
+
+
+### `sysctl.action` {#sysctl-action-doc}
+Type: int
+
+Definition: Action performed on the system control parameter
+
+
+Constants: [SysCtl Actions](#sysctl-actions)
+
+
+
+### `sysctl.file_position` {#sysctl-file_position-doc}
+Type: int
+
+Definition: Position in the sysctl control parameter file at which the action occurred
+
+
+
+### `sysctl.name` {#sysctl-name-doc}
+Type: string
+
+Definition: Name of the system control parameter
+
+
+
+### `sysctl.name_truncated` {#sysctl-name_truncated-doc}
+Type: bool
+
+Definition: Indicates that the name field is truncated
+
+
+
+### `sysctl.old_value` {#sysctl-old_value-doc}
+Type: string
+
+Definition: Old value of the system control parameter
+
+
+
+### `sysctl.old_value_truncated` {#sysctl-old_value_truncated-doc}
+Type: bool
+
+Definition: Indicates that the old value field is truncated
+
+
+
+### `sysctl.value` {#sysctl-value-doc}
+Type: string
+
+Definition: New and/or current value for the system control parameter depending on the action type
+
+
+
+### `sysctl.value_truncated` {#sysctl-value_truncated-doc}
+Type: bool
+
+Definition: Indicates that the value field is truncated
 
 
 
@@ -4512,6 +4603,14 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPOLL` | all |
 | `SIGPWR` | all |
 | `SIGSYS` | all |
+
+### `SysCtl Actions` {#sysctl-actions}
+SysCtl Actions are the supported actions for the sysctl event.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SYSCTL_READ` | all |
+| `SYSCTL_WRITE` | all |
 
 ### `Unlink flags` {#unlink-flags}
 Unlink flags are the supported flags for the unlink syscall.

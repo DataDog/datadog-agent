@@ -25,9 +25,11 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -113,14 +115,17 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
-		s.taggerComp.ResetCaptureTagger()
 		s.pidMap.SetPidMap(nil)
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	taggerReplay := s.taggerComp.ReplayTagger()
-	if taggerReplay == nil {
+	mockReq := taggerimpl.MockRequires{
+		Config:    s.configComp,
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	fakeTagger := taggerimpl.NewMock(mockReq).Comp
+	if fakeTagger == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
 	state := make([]taggerTypes.Entity, 0, len(req.State))
@@ -141,11 +146,8 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 			StandardTags:                entity.StandardTags,
 		})
 	}
+	fakeTagger.LoadState(state)
 
-	taggerReplay.LoadState(state)
-
-	log.Debugf("API: setting capture state tagger")
-	s.taggerComp.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

@@ -202,7 +202,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 50 * time.Millisecond
 	expBackoff.MaxInterval = 500 * time.Millisecond
-	expBackoff.MaxElapsedTime = 5 * time.Second
+	expBackoff.MaxElapsedTime = 30 * time.Second
 	err = backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
@@ -247,12 +247,6 @@ func (t *remoteTagger) Stop() error {
 
 	t.log.Info("remote tagger stopped successfully")
 
-	return nil
-}
-
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the remote tagger
-func (t *remoteTagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 
@@ -437,10 +431,6 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
-func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *remoteTagger) ResetCaptureTagger() {}
-
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based
 // on the origin info. Only the core agent or dogstatsd can have origin info,
@@ -503,6 +493,8 @@ func (t *remoteTagger) run() {
 
 			continue
 		}
+
+		t.log.Info("tagger stream successfully initialized")
 
 		t.telemetryStore.Receives.Inc()
 
@@ -599,11 +591,9 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 			Prefixes:    prefixes,
 		})
 		if err != nil {
-			t.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
-
-		t.log.Info("tagger stream established successfully")
 
 		return nil
 	}, expBackoff)

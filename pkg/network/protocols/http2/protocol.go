@@ -58,6 +58,7 @@ const (
 	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
+	netifProbe                = "tracepoint__net__netif_receive_skb_http2"
 
 	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
@@ -121,6 +122,14 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "terminated_http2_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -266,6 +275,12 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          eventStream,
+			EBPFFuncName: netifProbe,
+		},
+	})
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
