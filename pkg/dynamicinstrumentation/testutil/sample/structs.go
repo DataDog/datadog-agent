@@ -9,6 +9,16 @@ type receiver struct {
 	u uint
 }
 
+type hasUnsupportedFields struct {
+	a int
+	b float32
+	c []uint8
+}
+
+//nolint:all
+//go:noinline
+func test_struct_with_unsupported_fields(a hasUnsupportedFields) {}
+
 //nolint:all
 //go:noinline
 func (r *receiver) test_pointer_method_receiver(a int) {}
@@ -163,6 +173,12 @@ func ExecuteStructFuncs() {
 		c: [5]int64{6, 7, 8, 9, 10},
 	}
 	test_struct_with_arrays(sta)
+
+	test_struct_with_unsupported_fields(hasUnsupportedFields{
+		a: 1,
+		b: 2.0,
+		c: []uint8{3, 4, 5},
+	})
 }
 
 type emptyStruct struct{}
