@@ -504,7 +504,7 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 			return networkID, nil
 		}
 		log.Debugf(
-			"failed to get network ID from host or system-probe (attempt %d/%d): %s",
+			"failed to fetch network ID (attempt %d/%d): %s",
 			attempt,
 			maxRetries,
 			err,
