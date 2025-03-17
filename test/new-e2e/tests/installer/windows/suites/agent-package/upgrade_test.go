@@ -15,6 +15,7 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"testing"
 
@@ -237,20 +238,55 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 }
 
+// TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
+func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
+	// Arrange
+	s.setAgentConfig()
+	agentUser := "customuser"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
 	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
 	s.Require().NoError(err)
 }
 
-func (s *testAgentUpgradeSuite) installPreviousAgentVersion() {
+func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
-	s.Require().NoError(s.Installer().Install(
-		// TODO: Update when prod MSI that contains the Installer is available
+	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
 		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
-	))
+	}
+	options = append(options, opts...)
+	s.Require().NoError(s.Installer().Install(options...))
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
