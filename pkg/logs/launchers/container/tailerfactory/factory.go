@@ -87,7 +87,7 @@ func (tf *factory) makeTailer(
 	// logging, but fall back to the opposite.
 
 	switch whichTailer(source) {
-	case API:
+	case api:
 		t, err := makeAPITailer(source)
 		if err != nil {
 			source.Messages.AddMessage("APITailerError", "The API tailer could not be made")
@@ -95,7 +95,7 @@ func (tf *factory) makeTailer(
 			return nil, err
 		}
 		return t, nil
-	case File:
+	case file:
 		t, err := makeFileTailer(source)
 		if err == nil {
 			return t, nil
@@ -104,7 +104,7 @@ func (tf *factory) makeTailer(
 		log.Warnf("Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
 		return makeSocketTailer(source)
 
-	case Socket:
+	case socket:
 		t, err := makeSocketTailer(source)
 		if err == nil {
 			return t, nil

@@ -57,17 +57,17 @@ func TestWhichTailer(t *testing.T) {
 		tailer         whichTailer              // expected result
 	}{
 		// ⚠ below signifies that the result is surprising for users but matches existing behavior
-		{logWhat: ctrs, dcuf: false, dcfuf: false, containerInReg: false, tailer: Socket},
-		{logWhat: ctrs, dcuf: false, dcfuf: false, containerInReg: true, tailer: Socket},
-		{logWhat: ctrs, dcuf: false, dcfuf: true, containerInReg: false, tailer: Socket}, // ⚠
-		{logWhat: ctrs, dcuf: false, dcfuf: true, containerInReg: true, tailer: Socket},  // ⚠
-		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: false, tailer: File},
-		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: true, tailer: Socket},
-		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: false, tailer: File},
-		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: true, tailer: File},
-		{logWhat: pods, kcua: true, kcuf: true, tailer: API}, // k8s_container_use_api supersedes k8s_container_use_file
-		{logWhat: pods, kcuf: false, tailer: Socket},
-		{logWhat: pods, kcuf: true, tailer: File},
+		{logWhat: ctrs, dcuf: false, dcfuf: false, containerInReg: false, tailer: socket},
+		{logWhat: ctrs, dcuf: false, dcfuf: false, containerInReg: true, tailer: socket},
+		{logWhat: ctrs, dcuf: false, dcfuf: true, containerInReg: false, tailer: socket}, // ⚠
+		{logWhat: ctrs, dcuf: false, dcfuf: true, containerInReg: true, tailer: socket},  // ⚠
+		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: false, tailer: file},
+		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: true, tailer: socket},
+		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: false, tailer: file},
+		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: true, tailer: file},
+		{logWhat: pods, kcua: true, kcuf: true, tailer: api}, // k8s_container_use_api supersedes k8s_container_use_file
+		{logWhat: pods, kcuf: false, tailer: socket},
+		{logWhat: pods, kcuf: true, tailer: file},
 	}
 	for _, c := range cases {
 		name := fmt.Sprintf("logWhat=%s/dcuf=%t/dcfuf=%t/kcuf=%t/kcua=%t/containerInReg=%t",

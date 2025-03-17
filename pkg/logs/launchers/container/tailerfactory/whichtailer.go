@@ -20,9 +20,9 @@ import (
 type whichTailer int
 
 const (
-	API whichTailer = iota
-	File
-	Socket
+	api whichTailer = iota
+	file
+	socket
 )
 
 // whichTailer determines whether the user would like to log this source with
@@ -31,7 +31,7 @@ const (
 func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// API Logging config supersedes file/socket configs as it does not depend on pod/container logWhat
 	if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_api") {
-		return API
+		return api
 	}
 
 	// The user configuration consulted is different depending on what we are
@@ -45,12 +45,12 @@ func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 
 		// docker_container_use_file is a suggestion
 		if !pkgconfigsetup.Datadog().GetBool("logs_config.docker_container_use_file") {
-			return Socket
+			return socket
 		}
 
 		// docker_container_force_use_file is a requirement
 		if pkgconfigsetup.Datadog().GetBool("logs_config.docker_container_force_use_file") {
-			return File
+			return file
 		}
 
 		// if file was suggested, but this source has a registry entry with a
@@ -58,24 +58,24 @@ func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 		if source.Config.Identifier != "" {
 			registryID := fmt.Sprintf("%s:%s", source.Config.Type, source.Config.Identifier)
 			if tf.registry.GetOffset(registryID) != "" {
-				return Socket
+				return socket
 			}
 		}
 
-		return File
+		return file
 
 	case containersorpods.LogPods:
 		if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_file") {
-			return File
+			return file
 		}
 
 		// TODO: Do we want to default to API for pod logging?
-		return Socket
+		return socket
 
 	default:
 		// if this occurs, then sources have been arriving before the
 		// container interfaces to them are ready.  Something is wrong.
 		log.Warnf("LogWhat = %s; not ready to log containers", logWhat.String())
-		return Socket
+		return socket
 	}
 }
