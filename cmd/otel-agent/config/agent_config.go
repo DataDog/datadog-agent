@@ -153,6 +153,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 
+	pkgconfig.Set("agent_ipc.port", 0, pkgconfigmodel.SourceFile) // disable config sync
+
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
