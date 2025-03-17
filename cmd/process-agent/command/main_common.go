@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -156,7 +156,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provide authtoken module
-		fetchonlyimpl.Module(), // TODO IPC: replace by createandfetchimpl when the auth-token volume is mounted on processAgent container on Windows
+		createandfetchimpl.Module(),
 
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
@@ -187,7 +187,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 					// as remote tagger can return more tags than the local tagger.
 					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
 			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		}, tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},

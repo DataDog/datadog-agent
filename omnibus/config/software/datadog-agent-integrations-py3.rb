@@ -316,10 +316,19 @@ build do
     end
   end
 
+  # These are files containing Python type annotations which aren't used at runtime
+  libraries = [
+    'krb5',
+    'Cryptodome',
+    'ddtrace',
+    'pyVmomi',
+    'gssapi',
+  ]
   block "Remove type annotations files" do
-    # These are files containing Python type annotations which aren't used at runtime
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
+    libraries.each do |library|
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

@@ -112,3 +112,8 @@ var commentText = `
 var printStatementText = `
 log_debug("{{.Label}}", "{{.CollectionIdentifier}}");
 `
+
+var setParameterIndexText = `
+bpf_printk("Setting param index %d to %d", {{.Arg1}}, context.output_offset);
+event->base.param_indicies[{{.Arg1}}] = context.output_offset;
+`
