@@ -18,9 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type testDaemon struct {
@@ -137,24 +135,23 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]PackageState{
-		"pkg1": {
-			Version: repository.State{
-				Stable:     "1.0.0",
-				Experiment: "2.0.0",
+	remoteConfigState := &pbgo.ClientUpdater{
+		Packages: []*pbgo.PackageState{
+			{
+				Package: "test-package",
+				Task: &pbgo.PackageStateTask{
+					State: pbgo.TaskState_DONE,
+				},
 			},
 		},
 	}
-	api.i.On("GetState", mock.Anything).Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
-	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
+	api.i.On("GetRemoteConfigState").Return(remoteConfigState, nil)
 
 	resp, err := api.c.Status()
 
 	assert.NoError(t, err)
 	assert.Nil(t, resp.Error)
-	assert.Equal(t, version.AgentVersion, resp.Version)
-	assert.Equal(t, installerState, resp.Packages)
+	assert.Equal(t, resp.RemoteConfigState, remoteConfigState.Packages)
 }
 
 func TestAPIInstall(t *testing.T) {

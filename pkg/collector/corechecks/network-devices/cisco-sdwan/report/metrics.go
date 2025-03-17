@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +47,7 @@ func (ms *SDWanSender) SendDeviceMetrics(deviceStats []client.DeviceStatistics) 
 
 	for _, entry := range deviceStats {
 		tags := ms.getDeviceTags(entry.SystemIP)
-		key := ms.getMetricKey("device_metrics", tags)
+		key := ms.getMetricKey("device_metrics", entry.SystemIP)
 
 		if !ms.shouldSendEntry(key, entry.EntryTime) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
@@ -100,7 +101,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			ms.sender.Gauge(ciscoSDWANMetricPrefix+"interface.speed", float64(itf.GetSpeedMbps()*1000), "", tags)
 		}
 
-		key := ms.getMetricKey("interface_metrics", tags)
+		key := ms.getMetricKey("interface_metrics", entry.VmanageSystemIP, entry.Interface)
 
 		if !ms.shouldSendEntry(key, entry.EntryTime) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
@@ -143,7 +144,7 @@ func (ms *SDWanSender) SendAppRouteMetrics(appRouteStats []client.AppRouteStatis
 
 		tags := append(deviceTags, remoteTags...)
 		tags = append(tags, "local_color:"+entry.LocalColor, "remote_color:"+entry.RemoteColor, "state:"+entry.State)
-		key := ms.getMetricKey("tunnel_metrics", tags)
+		key := ms.getMetricKey("tunnel_metrics", entry.VmanageSystemIP, entry.RemoteSystemIP, entry.LocalColor, entry.RemoteColor)
 
 		if !ms.shouldSendEntry(key, entry.EntryTime) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
@@ -266,7 +267,7 @@ func (ms *SDWanSender) SendCloudApplicationMetrics(cloudApplications []client.Cl
 
 		tags = append(tags, gatewayTags...)
 		tags = append(tags, "local_color:"+entry.LocalColor, "remote_color:"+entry.RemoteColor, "interface:"+entry.Interface, "exit_type:"+entry.ExitType, "application_group:"+entry.NbarAppGroupName, "application:"+entry.Application, "best_path:"+entry.BestPath, "vpn_id:"+fmt.Sprintf("%d", int(entry.VpnID)))
-		key := ms.getMetricKey("application_metrics", tags)
+		key := ms.getMetricKey("application_metrics", entry.VmanageSystemIP, entry.GatewaySystemIP, entry.LocalColor, entry.RemoteColor, entry.Application)
 
 		if !ms.shouldSendEntry(key, entry.EntryTime) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
@@ -323,8 +324,8 @@ func (ms *SDWanSender) countWithTimestamp(name string, value float64, tags []str
 	}
 }
 
-func (ms *SDWanSender) getMetricKey(metric string, tags []string) string {
-	return metric + ":" + strings.Join(tags, ",")
+func (ms *SDWanSender) getMetricKey(metric string, keys ...string) string {
+	return metric + ":" + strings.Join(keys, ",")
 }
 
 func (ms *SDWanSender) shouldSendEntry(key string, ts float64) bool {
@@ -369,7 +370,7 @@ func (ms *SDWanSender) getDeviceTags(systemIP string) []string {
 	if !ok {
 		return []string{"system_ip:" + systemIP}
 	}
-	return tags
+	return utils.CopyStrings(tags)
 }
 
 func (ms *SDWanSender) getPrefixedDeviceTags(prefix string, systemIP string) []string {
