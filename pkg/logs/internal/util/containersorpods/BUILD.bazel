@@ -6,6 +6,7 @@ go_library(
         "containers_or_pods.go",
         "docker_docker.go",
         "docker_nodocker.go",
+        "kubernetes_kubelet.go",
         "kubernetes_nokubelet.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods",
@@ -14,6 +15,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/setup",
         "//pkg/util/docker",
+        "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
     ],
 )

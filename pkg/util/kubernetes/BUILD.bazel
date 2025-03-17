@@ -7,7 +7,6 @@ go_library(
         "const.go",
         "doc.go",
         "helpers.go",
-        "hostname.go",
         "hostname_stub.go",
         "resource.go",
         "time.go",
@@ -15,9 +14,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/clustername",
-        "//pkg/util/log",
         "//pkg/util/pointer",
         "@io_k8s_apimachinery//pkg/api/resource",
     ],

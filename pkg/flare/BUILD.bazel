@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "archive.go",
         "archive_docker.go",
+        "archive_k8s.go",
         "archive_linux.go",
         "archive_nix.go",
         "archive_nodocker.go",
@@ -43,6 +44,7 @@ go_library(
         "//pkg/util/filesystem",
         "//pkg/util/grpc",
         "//pkg/util/installinfo",
+        "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_docker_docker//api/types/container",

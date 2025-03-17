@@ -144,11 +144,10 @@ go_library(
 
 go_binary(
     name = "security-agent",
-    embed = [":security-agent_lib"],
-    visibility = ["//visibility:public"],
     data = [
         "//deps/openscap",
     ],
+    embed = [":security-agent_lib"],
     # keep
     gotags = [
         "netcgo",
@@ -159,6 +158,7 @@ go_binary(
         "ec2",
         "no_dynamic_plugins",
     ],
+    visibility = ["//visibility:public"],
 )
 
 go_test(
