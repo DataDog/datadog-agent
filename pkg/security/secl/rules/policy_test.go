@@ -655,6 +655,75 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 }
 
+func TestActionSetVariableInitialValue(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test" && ${var1} == 123`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "var1",
+							DefaultValue: 123,
+							Value:        456,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	intVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intVar)
+	assert.True(t, ok)
+	value, set := intVar.GetValue()
+	assert.NotNil(t, value)
+	assert.Equal(t, 123, value)
+	assert.False(t, set)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = intVar.GetValue()
+	assert.True(t, set)
+	assert.Equal(t, 456, value)
+
+	if rs.Evaluate(event) {
+		t.Errorf("Expected event to not match rule")
+	}
+}
+
 func TestActionSetVariableExpression(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{
@@ -664,22 +733,23 @@ func TestActionSetVariableExpression(t *testing.T) {
 				Actions: []*ActionDefinition{
 					{
 						Set: &SetDefinition{
-							Name:       "var1",
-							Value:      123,
-							Expression: "${var1} + ${var1} + 1",
+							Name:         "var1",
+							DefaultValue: 123,
+							Expression:   "${var1} + ${var1} + 1",
 						},
 					},
 					{
 						Set: &SetDefinition{
-							Name:  "var2",
-							Value: "foo",
+							Name:         "var2",
+							Value:        "foo",
+							DefaultValue: "",
 						},
 					},
 					{
 						Set: &SetDefinition{
-							Name:       "var3",
-							Expression: `"${var2}:${var2}"`,
-							Value:      "",
+							Name:         "var3",
+							Expression:   `"${var2}:${var2}"`,
+							DefaultValue: "",
 						},
 					},
 				},
@@ -702,9 +772,9 @@ func TestActionSetVariableExpression(t *testing.T) {
 					},
 					{
 						Set: &SetDefinition{
-							Name:       "connected_to_check",
-							Expression: "${connected_to} == 192.168.1.1/32",
-							Value:      false,
+							Name:         "connected_to_check",
+							Expression:   "${connected_to} == 192.168.1.1/32",
+							DefaultValue: false,
 						},
 					},
 				},
@@ -784,7 +854,7 @@ func TestActionSetVariableExpression(t *testing.T) {
 
 	value, set = intVar.GetValue()
 	assert.True(t, set)
-	assert.Equal(t, 1, value)
+	assert.Equal(t, 247, value)
 
 	value, set = strVar.GetValue()
 	assert.True(t, set)
@@ -796,7 +866,7 @@ func TestActionSetVariableExpression(t *testing.T) {
 
 	value, set = intVar.GetValue()
 	assert.True(t, set)
-	assert.Equal(t, 3, value)
+	assert.Equal(t, 495, value)
 
 	value, set = strVar.GetValue()
 	assert.True(t, set)

@@ -195,10 +195,13 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				var variableValue interface{} = actionDef.Set.Value
+				var variableValue interface{} = actionDef.Set.DefaultValue
+				if variableValue == nil {
+					variableValue = actionDef.Set.Value
+				}
 
-				if actionDef.Set.Value != nil {
-					switch value := actionDef.Set.Value.(type) {
+				if variableValue != nil {
+					switch value := variableValue.(type) {
 					case int:
 						if actionDef.Set.Append {
 							variableValue = []int{value}
@@ -255,6 +258,11 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						fallthrough
 					default:
 						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s (%s)' for variable '%s'", kind, goType, actionDef.Set.Name))
+						continue
+					}
+
+					if defaultValueKind := reflect.TypeOf(actionDef.Set.DefaultValue); actionDef.Set.DefaultValue != nil && defaultValueKind != nil && defaultValueKind.Kind() != kind {
+						errs = multierror.Append(errs, fmt.Errorf("value and default_value have different types for variable '%s' (%s != %s)", kind, defaultValueKind, actionDef.Set.Name))
 						continue
 					}
 				}
