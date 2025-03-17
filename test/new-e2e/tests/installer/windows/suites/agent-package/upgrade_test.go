@@ -63,6 +63,12 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Assert
 }
 
+// TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
+// an experiment has been run.
+//
+// Since the MSI removes the `packages/datadog-agent` directory, we wanted to be sure
+// that MSIs Source Resiliency wouldn't have the MSI in the stable dir, which may be
+// run during RemoveExistingProducts, locked and unable to be removed.
 func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	// Arrange
 	s.setAgentConfig()
@@ -175,6 +181,8 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 		})
 }
 
+// TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
+// to stable version when the service dies.
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	// Arrange
 	s.setAgentConfig()
@@ -199,6 +207,8 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 }
 
+// TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
+// to stable version when the timeout expires.
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	// Arrange
 	s.setAgentConfig()
