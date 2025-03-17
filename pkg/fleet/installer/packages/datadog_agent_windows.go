@@ -38,7 +38,6 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
-// This will get called within the MSI installer and should no-op
 func SetupAgent(_ context.Context, _ []string) (err error) {
 	return nil
 }
@@ -79,7 +78,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	err = startWatchdog(ctx, time.Now().Add(time.Duration(timeout)*time.Minute))
 	if err != nil {
 		log.Errorf("Watchdog failed: %s", err)
-		// we failed to start the watchdog, the Agent stopped, or we received a stop-experiment signal
+		// we failed to start the watchdog, the Agent stopped, or we received a timeout
 		// we need to restore the stable Agent
 		// to leave the system in a consistent state.
 		// remove the experiment Agent
