@@ -20,12 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -89,7 +87,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle(),
-				compressionfx.Module(),
 			)
 		},
 	}
@@ -227,7 +224,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 		}
 	}
 
-	response, e := flare.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := helpers.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

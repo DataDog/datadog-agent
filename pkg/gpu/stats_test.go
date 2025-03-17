@@ -31,7 +31,7 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -39,7 +39,7 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*Str
 	require.NoError(t, err)
 
 	streamHandlers := make(map[streamKey]*StreamHandler)
-	statsGen := newStatsGenerator(sysCtx, streamHandlers)
+	statsGen := newStatsGenerator(sysCtx, streamHandlers, testutil.GetTelemetryMock(t))
 	statsGen.lastGenerationKTime = ktime
 	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)
@@ -97,8 +97,8 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
-	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
-	require.Equal(t, expectedUtil, metrics.UtilizationPercentage)
+	expectedUtil := 1.0 * 9 / 10
+	require.Equal(t, expectedUtil, metrics.UsedCores)
 }
 
 func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
@@ -149,11 +149,9 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
 
-	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
-	threadSecondsAvailable := float64(testutil.DefaultGpuCores) * checkDuration.Seconds()
-	expectedUtil := threadSecondsUsed / threadSecondsAvailable
-	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
+	expectedCores := threadSecondsUsed / checkDuration.Seconds()
+	require.InDelta(t, expectedCores, metrics.UsedCores, 0.001)
 }
 
 func TestGetStatsWithPastAndCurrentData(t *testing.T) {
@@ -225,13 +223,11 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
 
-	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
-	threadSecondsAvailable := float64(testutil.DefaultGpuCores) * checkDuration.Seconds()
-	expectedUtilKern1 := threadSecondsUsed / threadSecondsAvailable
-	expectedUtilKern2 := 1.0 / testutil.DefaultGpuCores * 0.9
+	expectedUtilKern1 := threadSecondsUsed / checkDuration.Seconds()
+	expectedUtilKern2 := 1.0 * 0.9
 	expectedUtil := expectedUtilKern1 + expectedUtilKern2
-	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, metrics.UsedCores, 0.001)
 }
 
 func TestGetStatsMultiGPU(t *testing.T) {
@@ -271,11 +267,9 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		metrics := getMetricsEntry(metricsKey, stats)
 		require.NotNil(t, metrics, "cannot find metrics for key %+v", metricsKey)
 
-		gpuCores := float64(testutil.GPUCores[i])
 		threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
-		threadSecondsAvailable := gpuCores * checkDuration.Seconds()
-		expectedUtil := threadSecondsUsed / threadSecondsAvailable
+		expectedCores := threadSecondsUsed / checkDuration.Seconds()
 
-		require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
+		require.InDelta(t, expectedCores, metrics.UsedCores, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
 	}
 }

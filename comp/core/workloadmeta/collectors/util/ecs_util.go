@@ -214,9 +214,14 @@ func ParseV4TaskContainers(
 		}
 
 		source := workloadmeta.SourceNodeOrchestrator
-		containerEvent.Runtime = workloadmeta.ContainerRuntimeDocker
+		// Edge Case: Setting the runtime to "docker" causes issues, although
+		// it's correct. This is the same case explained in
+		// comp/core/workloadmeta/collectors/internal/ecs/v1parser.go
+		containerEvent.Runtime = ""
 		if task.LaunchType == "FARGATE" {
 			source = workloadmeta.SourceRuntime
+			// Unlike in the case above, it is OK to set the runtime here, as
+			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
 		}
 

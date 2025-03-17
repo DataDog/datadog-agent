@@ -6,9 +6,11 @@
 package agenttests
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -18,7 +20,7 @@ import (
 )
 
 type testInstallScriptWithAgentUserSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 	agentUser string
 }
 
@@ -39,16 +41,19 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	// Arrange
 
 	// Act
-	out, err := s.Installer().RunInstallScript(map[string]string{
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
 		"DD_AGENT_USER_NAME": s.agentUser,
-	})
+	}))
 	s.T().Log(out)
 
 	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", out)
+	}
 	s.Require().NoErrorf(err, "install script failed")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
-		HasRegistryKey(installerwindows.RegistryKeyPath).
+		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", s.agentUser)
 	identity, err := windowsCommon.GetIdentityForUser(s.Env().RemoteHost, s.agentUser)
 	s.Require().NoError(err)

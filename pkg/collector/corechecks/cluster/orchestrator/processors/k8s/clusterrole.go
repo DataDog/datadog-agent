@@ -33,6 +33,16 @@ func (h *ClusterRoleHandlers) AfterMarshalling(ctx processors.ProcessorContext, 
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *ClusterRoleHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*rbacv1.ClusterRole)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *ClusterRoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -57,7 +67,7 @@ func (h *ClusterRoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.ClusterRole)
-	return k8sTransformers.ExtractClusterRole(r)
+	return k8sTransformers.ExtractClusterRole(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

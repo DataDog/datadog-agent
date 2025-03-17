@@ -20,13 +20,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -152,13 +153,14 @@ func TestGetPayload(t *testing.T) {
 		// Register an error
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
-		fakeTagger := mock.SetupFakeTagger(t)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
 			inventoryagentimpl.MockModule(),
+			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			fx.Provide(func() tagger.Component {
 				return fakeTagger
@@ -247,7 +249,7 @@ func TestGetPayload(t *testing.T) {
 				assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
 				assert.Equal(t, "awesome_cache", actualSource[0]["service"])
 				assert.Equal(t, "redis", actualSource[0]["source"])
-				assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
+				assert.Equal(t, logConfig.StringSliceField{"env:prod"}, actualSource[0]["tags"])
 			} else {
 				assert.Len(t, p.LogsMetadata, 0)
 			}

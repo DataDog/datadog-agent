@@ -10,7 +10,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"slices"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -27,10 +29,12 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
-	containerNameCounter int
+	containerNameCounter     int
+	agentRestartsAtSuiteInit map[string]int
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
@@ -39,11 +43,21 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
+func mandatoryMetricTagRegexes() []*regexp.Regexp {
+	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
+	for _, tag := range mandatoryMetricTags {
+		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+	}
+
+	return regexes
+}
+
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
-	// incident-33572
-	flake.Mark(t)
+	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
+	// we are not able to debug from the logs. We mark the test as flaky in that case only.
+	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing
@@ -78,6 +92,29 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
+// getServiceRestartCount returns the number of restarts for a given service
+func (v *gpuSuite) getServiceRestartCount(service string) int {
+	out, err := v.Env().RemoteHost.Execute(fmt.Sprintf("systemctl show -p NRestarts %s", service))
+	v.Require().NoError(err)
+	v.Require().NotEmpty(out)
+
+	restartCount := strings.TrimPrefix(strings.TrimSpace(out), "NRestarts=")
+	count, err := strconv.Atoi(restartCount)
+	v.Require().NoError(err)
+	return count
+}
+
+func (v *gpuSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+	v.agentRestartsAtSuiteInit = make(map[string]int)
+
+	// Get initial agent service restart counts
+	services := []string{"datadog-agent.service", "datadog-agent-sysprobe.service"}
+	for _, service := range services {
+		v.agentRestartsAtSuiteInit[service] = v.getServiceRestartCount(service)
+	}
+}
+
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
 func (v *gpuSuite) runCudaDockerWorkload() string {
 	// Configure some defaults
@@ -93,6 +130,11 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
 
+	v.T().Cleanup(func() {
+		// Cleanup the container
+		_, _ = v.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	})
+
 	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
 	idOut, err := v.Env().RemoteHost.Execute(containerIDCmd)
 	v.Require().NoError(err)
@@ -102,15 +144,19 @@ func (v *gpuSuite) runCudaDockerWorkload() string {
 }
 
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
-	statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
+	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
-	var status collectorStatus
-	err := json.Unmarshal([]byte(statusOutput.Content), &status)
-	v.Require().NoError(err, "failed to unmarshal agent status")
-	v.Require().Contains(status.RunnerStats.Checks, "gpu")
+		var status collectorStatus
+		err := json.Unmarshal([]byte(statusOutput.Content), &status)
 
-	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
-	v.Require().Equal(gpuCheckStatus.LastError, "")
+		assert.NoError(c, err, "failed to unmarshal agent status")
+		assert.Contains(c, status.RunnerStats.Checks, "gpu")
+
+		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
+		assert.Equal(c, gpuCheckStatus.LastError, "")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
@@ -121,25 +167,41 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
+func (v *gpuSuite) TestLimitMetricsAreReported() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
+		for _, metricName := range metricNames {
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
 
+func (v *gpuSuite) TestVectorAddProgramDetected() {
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
+		metricNames := []string{"gpu.core.usage"}
+
+		var usageMetricTags []string
 		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
-			for _, metric := range metrics {
-				assert.True(c, slices.ContainsFunc(metric.Tags, func(tag string) bool {
-					return strings.HasPrefix(tag, "gpu_uuid:")
-				}), "no gpu_uuid tag found in %v", metric)
+			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+				usageMetricTags = metrics[0].Tags
 			}
+		}
+
+		if len(usageMetricTags) > 0 {
+			// Ensure we get the limit metric with the same tags as the usage one
+			limitMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
+			assert.NoError(c, err)
+			assert.Greater(c, len(limitMetrics), 0, "no 'gpu.core.limit' with tags %v", usageMetricTags)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -148,13 +210,55 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
-		for _, metricName := range metricNames {
+		metrics := []struct {
+			name           string
+			deviceSpecific bool
+		}{
+			{"gpu.temperature", true},
+			{"gpu.pci.throughput.tx", true},
+			{"gpu.power.usage", true},
+			{"gpu.device.total", false},
+		}
+		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
+			var options []client.MatchOpt[*aggregator.MetricSeries]
+			if metric.deviceSpecific {
+				// device-specific metrics should be tagged with device tags
+				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			}
+
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metric.name, options...)
 			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
+
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
 		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+func (v *gpuSuite) TestWorkloadmetaHasGPUs() {
+	var out string
+	// Wait until our collector has ran and we have GPUs in the workloadmeta. We don't have exact control on the timing of execution
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		var err error
+		out, err = v.Env().RemoteHost.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+		assert.NoError(c, err)
+		assert.Contains(c, out, "=== Entity gpu sources(merged):[runtime] id: ")
+	}, 30*time.Second, 1*time.Second)
+
+	if v.T().Failed() {
+		// log the output for debugging in case of failure
+		v.T().Log(out)
+	}
+}
+
+// TestZZAgentDidNotRestart checks that the agent did not restart during the test suite
+// Add zz to name to run this test last, as we want to run it after all other tests have run
+// to ensure that no restarts happened during the test suite, which would be an error that we
+// might not catch with the test themselves (e.g., we send correct metrics and then we panic)
+func (v *gpuSuite) TestZZAgentDidNotRestart() {
+	for service, initialCount := range v.agentRestartsAtSuiteInit {
+		finalCount := v.getServiceRestartCount(service)
+		v.Assert().Equal(initialCount, finalCount, "Service %s restarted during test suite", service)
+	}
 }

@@ -13,5 +13,9 @@ namespace Datadog.CustomActions
 
         // Key under HKLM that contains our options
         public const string DatadogAgentRegistryKey = @"Software\Datadog\Datadog Agent";
+
+        // Flavor names
+        public const string FipsFlavor = "fips";
+        public const string BaseFlavor = "base";
     }
 }

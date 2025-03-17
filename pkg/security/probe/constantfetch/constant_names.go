@@ -101,10 +101,15 @@ const (
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
 	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
+	OffsetNameSockCommonStructSKCNum    = "sock_common_skc_num_offset"
 	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"
 	OffsetNameFlowI6StructSADDR         = "flowi6_saddr_offset"
 	OffsetNameFlowI4StructULI           = "flowi4_uli_offset"
 	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
+
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
+	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"

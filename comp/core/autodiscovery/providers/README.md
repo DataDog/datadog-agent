@@ -75,3 +75,7 @@ The `ZookeeperConfigProvider` reads the check configs from zookeeper.
 ### `RemoteConfigProvider`
 
 The `RemoteConfigProvider` reads the check configs from remote-config.
+
+### `GPUConfigProvider`
+
+The `GPUConfigProvider` generates check configs from visible GPUs on the host.

@@ -1,11 +1,11 @@
 import os
 import random
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from invoke import MockContext, Result
 
-from tasks.libs.releasing.version import get_matching_pattern, query_version
+from tasks.libs.releasing.version import current_version_for_release_branch, get_matching_pattern, query_version
 from tasks.libs.types.version import Version
 
 
@@ -337,3 +337,72 @@ class TestGetMatchingPattern(unittest.TestCase):
         c = MockContext(run={})
         self.assertEqual(get_matching_pattern(c, major_version="42", release=False), r"42\.*")
         c.run.assert_not_called()
+
+
+class TestFromTag(unittest.TestCase):
+    def test_tags_standard(self):
+        tag = "7.62.1"
+        expected = Version(7, 62, 1)
+
+        v = Version.from_tag(tag)
+        self.assertEqual(v, expected)
+
+    def test_tags_prefix(self):
+        tag = "pref-7.62.1"
+        expected = Version(7, 62, 1, prefix='pref-')
+
+        v = Version.from_tag(tag)
+        self.assertEqual(v, expected)
+
+    def test_tags_rc(self):
+        tag = "6.53.0-rc.10"
+        expected = Version(6, 53, 0, rc=10)
+
+        v = Version.from_tag(tag)
+        self.assertEqual(v, expected)
+
+    def test_tags_devel(self):
+        tag = "7.64.0-devel"
+        expected = Version(7, 64, 0, devel=True)
+
+        v = Version.from_tag(tag)
+        self.assertEqual(v, expected)
+
+
+class TestCurrentVersionForReleaseBranch(unittest.TestCase):
+    def test_simple(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.1\n7.63.0"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+
+        self.assertEqual(version, Version(7, 63, 0))
+
+    def test_rc_version(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.1\n7.63.0-rc.2"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 0, rc=2))
+
+    def test_rc_version_sorted(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.2\n7.63.0-rc.1"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 0, rc=2))
+
+    def test_rc_version_sorted_hard(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0-rc.10\n7.63.0-rc.2"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 0, rc=10))
+
+    def test_next_rc_version(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0\n7.63.1-rc.1"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 1, rc=1))
+
+    def test_next_release_version(self):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "7.63.0\n7.63.1-rc.1\n7.63.1"
+        version = current_version_for_release_branch(ctx, '7.63.x')
+        self.assertEqual(version, Version(7, 63, 1))

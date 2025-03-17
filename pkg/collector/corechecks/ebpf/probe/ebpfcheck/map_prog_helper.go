@@ -120,7 +120,7 @@ func (c *mapProgHelperCache) newHelperProgramForFd(fd int) (helperProgData, erro
 	*/
 
 	spec := &ebpf.ProgramSpec{
-		Type: ebpf.SocketFilter,
+		Type: ebpf.XDP, // Use XDP to ensure  maximum compatibility (e.g., socket filter programs cannot deal with maps that contain spin locks)
 		Instructions: asm.Instructions{
 			// entry
 			btf.WithFuncMetadata(

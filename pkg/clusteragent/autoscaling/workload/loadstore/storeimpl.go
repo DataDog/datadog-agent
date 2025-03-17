@@ -94,16 +94,16 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 					size:     0,
 					capacity: maxDataPoints,
 				},
-				lastActiveTs: value.timestamp,
+				lastActiveTs: value.Timestamp,
 			}
 			data.valueQueue.pushBack(value)
 			es.key2ValuesMap[entityHash] = data
 		} else {
-			if data.lastActiveTs < value.timestamp {
-				// Update the last active timestamp
-				data.lastActiveTs = value.timestamp
+			if data.lastActiveTs < value.Timestamp {
+				// Update the last active Timestamp
+				data.lastActiveTs = value.Timestamp
 				data.valueQueue.pushBack(value)
-			} //else if lastActiveTs is greater than value.timestamp, skip the value because it is outdated
+			} //else if lastActiveTs is greater than value.Timestamp, skip the value because it is outdated
 		}
 
 		// Update the key attribute table
@@ -159,7 +159,7 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 				PodName:       podName,
 				PodLevelValue: convertsToEntityValueSlice(entity.valueQueue.data),
 			}
-			result.results = append(result.results, podResult)
+			result.Results = append(result.Results, podResult)
 		} else {
 			podList := PodResult{
 				PodName:         podName,
@@ -173,7 +173,7 @@ func (es *EntityStore) GetMetricsRaw(metricName string,
 				podList.ContainerValues[containerNameKey] = convertsToEntityValueSlice(entity.valueQueue.data)
 			}
 			if len(podList.ContainerValues) > 0 {
-				result.results = append(result.results, podList)
+				result.Results = append(result.Results, podList)
 			}
 		}
 	}

@@ -48,7 +48,7 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.UseRingBuffers())
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
@@ -115,6 +115,12 @@ func (m *EBPFMonitors) SendStats() error {
 		if resolvers.HashResolver != nil {
 			if err := resolvers.HashResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
+			}
+		}
+
+		if m.ebpfProbe.config.Probe.DNSResolutionEnabled {
+			if err := resolvers.DNSResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send process_resolver stats: %w", err)
 			}
 		}
 	}

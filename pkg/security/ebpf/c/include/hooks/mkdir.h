@@ -82,13 +82,14 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
         syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path
     }
 
+    syscall->retval = retval;
+
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
-    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -134,7 +135,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    s64 retval = syscall->resolver.sysretval;
+    s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;

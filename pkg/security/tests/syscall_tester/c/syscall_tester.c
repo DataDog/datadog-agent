@@ -387,17 +387,28 @@ void* connect_thread_ipv4(void *arg) {
 int test_accept_af_inet(int argc, char** argv) {
     pthread_t thread;
 
-    if (argc != 4) {
+    if (argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
         fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
         fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
         return EXIT_FAILURE;
     }
 
     const char* bind_to = argv[1];
     const char* connect_to = argv[2];
     int port = atoi(argv[3]);
+
+    struct sockaddr_in *sockAddrPtr = NULL;
+    struct sockaddr_in sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
 
     int s;
     s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -443,13 +454,13 @@ int test_accept_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    pthread_create(&thread, NULL, connect_thread_ipv4, (void*) &connectAddr);
+    pthread_create(&thread, NULL, connect_thread_ipv4, (void*)&connectAddr);
 
-    if (accept(s, NULL, NULL) < 0) {
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
         perror("Failed to accept");
     }
 
-    close (s);
+    close(s);
     pthread_join(thread, NULL);
     return EXIT_SUCCESS;
 }
@@ -464,17 +475,28 @@ void* connect_thread_ipv6(void *arg) {
 int test_accept_af_inet6(int argc, char** argv) {
     pthread_t thread;
 
-    if (argc != 4) {
+    if (argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: IP address where the socket should bind to\n");
         fprintf(stderr, "Arg2: IP address where the socket should connect to\n");
         fprintf(stderr, "Arg3: Port to bind\n");
+        fprintf(stderr, "Arg4: Pass sockaddr_in <true/false>\n");
         return EXIT_FAILURE;
     }
 
     const char* bind_to = argv[1];
     const char* connect_to = argv[2];
     int port = atoi(argv[3]);
+
+    struct sockaddr_in6 *sockAddrPtr = NULL;
+    struct sockaddr_in6 sockAddr;
+    memset(&sockAddr, 0, sizeof(struct sockaddr_in6));
+
+    socklen_t sockLen = sizeof(struct sockaddr_in6);
+
+    if (strcmp(argv[4], "true") == 0) {
+        sockAddrPtr = &sockAddr;
+    }
 
     int s;
     s = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
@@ -520,7 +542,7 @@ int test_accept_af_inet6(int argc, char** argv) {
 
     pthread_create(&thread, NULL, connect_thread_ipv6, (void*)&connectAddr);
 
-    if (accept(s, NULL, NULL) < 0) {
+    if (accept(s, (struct sockaddr*)sockAddrPtr, &sockLen) < 0) {
         perror("Failed to accept");
     }
 
@@ -1034,6 +1056,49 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+int test_network_flow_send_udp4(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify the remote IP address and port\n");
+        return EXIT_FAILURE;
+    }
+
+    int sockfd;
+    struct sockaddr_in server_addr;
+    const char *message = "DATA";
+
+    // Create a DGRAM socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        fprintf(stderr, "Socket creation failed\n");
+        return EXIT_FAILURE;
+    }
+
+    // Configure server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(atoi(argv[2]));
+    server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+
+    // Send the message
+    if (sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "Failed to send data\n");
+        close(sockfd);
+        return EXIT_FAILURE;
+    }
+
+    printf("Message sent: %s\n", message);
+    pid_t pid;
+
+    // Get the process ID
+    pid = getpid();
+    printf("Process ID: %d\n", pid);
+
+    // Close the socket
+    close(sockfd);
+    printf("Socket closed.\n");
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1115,6 +1180,8 @@ int main(int argc, char **argv) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
+            exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

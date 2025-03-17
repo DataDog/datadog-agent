@@ -7,12 +7,14 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -23,7 +25,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
-from tasks.libs.common.git import get_commit_sha, get_default_branch
+from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
 
@@ -324,11 +326,6 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
-        # Enable lazy binding, which seems to be overridden when loading containerd
-        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
-        extldflags += "-Wl,-z,lazy "
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
@@ -383,7 +380,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":
@@ -504,6 +501,15 @@ def is_pr_context(branch, pr_id, test_name):
         print(f"PR not found, skipping check for {test_name}.")
         return False
     return True
+
+
+def set_gitconfig_in_ci(ctx):
+    """
+    Set username and email when runing git "write" commands in CI
+    """
+    if running_in_ci():
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
 
 
 @contextmanager
@@ -676,3 +682,12 @@ def is_linux():
 
 def is_windows():
     return sys.platform == 'win32'
+
+
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour == 6 and pipeline_start.minute < 30

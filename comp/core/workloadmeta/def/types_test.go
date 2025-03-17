@@ -89,7 +89,10 @@ Namespace:
 Annotations:
 Labels:
 ----------- Containers -----------
-Name: container-1 ID: container-1-id
+Name: container-1
+ID: container-1-id
+Image: datadog/agent
+----------- Resources -----------
 ----------- Task Info -----------
 Tags:
 Container Instance Tags:
@@ -159,9 +162,10 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:     "nvidia",
-		Device:     "",
-		ActivePIDs: []int{123, 456},
+		Vendor:        "nvidia",
+		DriverVersion: "460.32.03",
+		Device:        "",
+		ActivePIDs:    []int{123, 456},
 	}
 	gpu2 := GPU{
 		EntityID: EntityID{
@@ -171,9 +175,10 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:     "nvidia",
-		Device:     "tesla",
-		ActivePIDs: []int{654},
+		Vendor:        "nvidia",
+		DriverVersion: "460.32.03",
+		Device:        "tesla",
+		ActivePIDs:    []int{654},
 	}
 
 	err := gpu1.Merge(&gpu2)

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -27,7 +28,7 @@ import (
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
-type packageTestsWithSkipedFlavors struct {
+type packageTestsWithSkippedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
@@ -35,7 +36,7 @@ type packageTestsWithSkipedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
@@ -44,11 +45,11 @@ var (
 		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
-	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
+	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
@@ -75,6 +76,8 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 }
 
 func TestPackages(t *testing.T) {
+	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
+	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
@@ -162,11 +165,21 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
+	s.updateCurlOnUbuntu()
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+	}
+}
+
+func (s *packageBaseSuite) updateCurlOnUbuntu() {
+	// There is an issue with the default cURL version on Ubuntu that causes sporadic
+	// SSL failures, and the fix is to update it.
+	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
+	if s.os.Flavor == e2eos.Ubuntu {
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 

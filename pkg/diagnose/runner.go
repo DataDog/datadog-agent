@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -381,10 +381,11 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
 	lastDot := false
+	idx := 0
 	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-
+			idx++
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
 				continue
@@ -393,7 +394,7 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), idx, d)
 		}
 	}
 
@@ -528,8 +529,5 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
-	// port-conflict suite available in darwin and linux only for now
-	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
-	}
+	catalog.Register("port-conflict", ports.DiagnosePortSuite)
 }

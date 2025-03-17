@@ -88,16 +88,16 @@ func TestTelemetry_Count(t *testing.T) {
 
 func verifyHitsCount(t *testing.T, telemetry *Telemetry, tx *KafkaTransaction) {
 	if tx.Request_api_key == 0 {
-		if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
+		if tx.Request_api_version < MinSupportedProduceRequestApiVersion || tx.Request_api_version > MaxSupportedProduceRequestApiVersion {
 			assert.Equal(t, telemetry.produceHits.hitsUnsupportedVersion.Get(), int64(tx.Records_count), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
-		assert.Equal(t, telemetry.produceHits.hitsVersions[tx.Request_api_version-1].Get(), int64(tx.Records_count), "produceHits count is incorrect")
+		assert.Equal(t, telemetry.produceHits.hitsVersions[tx.Request_api_version-MinSupportedProduceRequestApiVersion].Get(), int64(tx.Records_count), "produceHits count is incorrect")
 	} else if tx.Request_api_key == 1 {
-		if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
+		if tx.Request_api_version < MinSupportedFetchRequestApiVersion || tx.Request_api_version > MaxSupportedFetchRequestApiVersion {
 			assert.Equal(t, telemetry.fetchHits.hitsUnsupportedVersion.Get(), int64(tx.Records_count), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
-		assert.Equal(t, telemetry.fetchHits.hitsVersions[tx.Request_api_version-1].Get(), int64(tx.Records_count), "fetchHits count is incorrect")
+		assert.Equal(t, telemetry.fetchHits.hitsVersions[tx.Request_api_version-MinSupportedFetchRequestApiVersion].Get(), int64(tx.Records_count), "fetchHits count is incorrect")
 	}
 }
