@@ -57,7 +57,7 @@ namespace Datadog.CustomActions
         private (string Name, string Version) ParseVersion(string library)
         {
             library = library.Trim();
-            var index = library.IndexOf(',');
+            var index = library.IndexOf(':');
             if (index == -1)
             {
                 return (library, string.Empty);
