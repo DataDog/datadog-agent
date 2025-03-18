@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -138,7 +138,7 @@ func getVPCSubnetsForHost() ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	subnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	subnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, err
 	}
