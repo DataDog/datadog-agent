@@ -211,6 +211,15 @@ func NewListenerConfig() (ListenerConfig, error) {
 				},
 			}, config.Authentications...)
 		}
+
+		for authIndex := range config.Authentications {
+			if config.Authentications[authIndex].Timeout == 0 {
+				config.Authentications[authIndex].Timeout = defaultTimeout
+			}
+			if config.Authentications[authIndex].Retries == 0 {
+				config.Authentications[authIndex].Retries = defaultRetries
+			}
+		}
 	}
 	return snmpConfig, nil
 }
