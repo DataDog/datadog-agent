@@ -78,9 +78,6 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	authtokenmock.New(t)
-
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
@@ -248,6 +245,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Create Auth Token for the client
+			authtokenmock.New(t)
 
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,
