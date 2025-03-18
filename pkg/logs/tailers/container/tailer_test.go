@@ -18,6 +18,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -110,8 +111,9 @@ func TestTailerIdentifier(t *testing.T) {
 }
 
 func TestGetLastSince(t *testing.T) {
-	tailer := &Tailer{lastSince: "2008-01-12T01:01:01.000000001Z"}
-	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", tailer.getLastSince())
+	_time := time.Date(2008, 1, 12, 1, 1, 1, 1, time.UTC)
+	tailer := &Tailer{lastSince: _time.Format(config.DateFormat)}
+	assert.Equal(t, _time.Add(time.Nanosecond), tailer.getLastSince())
 }
 
 func TestRead(t *testing.T) {
