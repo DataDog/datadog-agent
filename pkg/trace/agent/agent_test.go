@@ -2549,7 +2549,7 @@ func TestConvertStats(t *testing.T) {
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				ContainerID:   "",
+				ContainerID:   "abc123",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
