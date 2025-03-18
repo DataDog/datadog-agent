@@ -162,6 +162,20 @@ func getPathsReducerPatterns() []PatternReducer {
 		},
 		{
 			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
+			PreCheck: func(path string, _ *model.FileEvent) bool {
+				var count int
+				for _, c := range []byte(path) {
+					if isHexChar(c) {
+						count++
+						if count >= 28 { // 28 is the minimal length of a container ID
+							return true
+						}
+					} else {
+						count = 0
+					}
+				}
+				return false
+			},
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
 				ctx.replaceBy(start, end, "*")
@@ -187,4 +201,11 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 	}
+}
+
+func isHexChar(c byte) bool {
+	return ('0' <= c && c <= '9') ||
+		('a' <= c && c <= 'f') ||
+		('A' <= c && c <= 'F') ||
+		c == '-'
 }
