@@ -28,8 +28,8 @@ namespace Datadog.CustomActions.Rollback
             var installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
 
             var installerEnvVariables = new Dictionary<string, string>();
-            installerEnvVariables["DD_API_KEY"] = session.Property("SITE");
-            installerEnvVariables["DD_SITE"] = session.Property("APIKEY");
+            installerEnvVariables["DD_API_KEY"] = session.Property("APIKEY");
+            installerEnvVariables["DD_SITE"] = session.Property("SITE");
 
             using (var proc = session.RunCommand(installerExecutable, _installerCommand, installerEnvVariables))
             {
