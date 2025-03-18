@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Adds a config option to use hostname DNS resolution as the
-    preferred method to compute the host IP address
+    Adds a `metadata_ip_resolution_from_hostname` config option to use
+    hostname DNS resolution as the preferred method to compute the host IP address

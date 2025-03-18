@@ -239,7 +239,7 @@ func (ih *invHost) fillData() {
 		}
 	}
 
-	if ih.conf.GetBool("inventories_network_use_hostname_resolver") {
+	if ih.conf.GetBool("metadata_ip_resolution_from_hostname") {
 		ipv4s, ipv6s, err := network.ResolveFromHostname(ih.hostname)
 		if err != nil {
 			ih.log.Errorf("failed to resolve hostname to IP addresses: %s", err) //nolint:errcheck
