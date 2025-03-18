@@ -261,7 +261,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 // Returns an error if the input datadog exporter config is invalid
 func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	if ddcfg == nil {
-		return nil, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -269,7 +269,7 @@ func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		return nil, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
