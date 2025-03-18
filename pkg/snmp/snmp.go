@@ -92,6 +92,7 @@ type Config struct {
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
 }
 
+// Authentication holds SNMP authentication data
 type Authentication struct {
 	Version         string `mapstructure:"snmp_version"`
 	Timeout         int    `mapstructure:"timeout"`
