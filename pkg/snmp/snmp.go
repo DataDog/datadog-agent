@@ -194,19 +194,21 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
 
 		if config.Community != "" || config.User != "" {
-			config.Authentications = append(config.Authentications, Authentication{
-				Version:         config.Version,
-				Timeout:         config.Timeout,
-				Retries:         config.Retries,
-				Community:       config.Community,
-				User:            config.User,
-				AuthKey:         config.AuthKey,
-				AuthProtocol:    config.AuthProtocol,
-				PrivKey:         config.PrivKey,
-				PrivProtocol:    config.PrivProtocol,
-				ContextEngineID: config.ContextEngineID,
-				ContextName:     config.ContextName,
-			})
+			config.Authentications = append([]Authentication{
+				{
+					Version:         config.Version,
+					Timeout:         config.Timeout,
+					Retries:         config.Retries,
+					Community:       config.Community,
+					User:            config.User,
+					AuthKey:         config.AuthKey,
+					AuthProtocol:    config.AuthProtocol,
+					PrivKey:         config.PrivKey,
+					PrivProtocol:    config.PrivProtocol,
+					ContextEngineID: config.ContextEngineID,
+					ContextName:     config.ContextName,
+				},
+			}, config.Authentications...)
 		}
 	}
 	return snmpConfig, nil

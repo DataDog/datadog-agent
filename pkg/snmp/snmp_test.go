@@ -369,7 +369,7 @@ func Test_AuthenticationsConfig(t *testing.T) {
 network_devices:
   autodiscovery:
     configs:
-     - network: 127.1.0.0/30
+     - network_address: 127.1.0.0/30
        authentications:
         - community_string: someCommunityString1
         - user: someUser
@@ -393,6 +393,43 @@ network_devices:
 	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
 	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
 	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       user: someUser1
+       authProtocol: someAuthProtocol1
+       authKey: someAuthKey1
+       privProtocol: somePrivProtocol1
+       privKey: somePrivKey1
+       snmp_version: someSnmpVersion
+       authentications:
+        - community_string: someCommunityString
+        - user: someUser2
+          authProtocol: someAuthProtocol2
+          authKey: someAuthKey2
+          privProtocol: somePrivProtocol2
+          privKey: somePrivKey2
+`)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "someUser1", networkConf.Authentications[0].User)
+	assert.Equal(t, "someAuthProtocol1", networkConf.Authentications[0].AuthProtocol)
+	assert.Equal(t, "someAuthKey1", networkConf.Authentications[0].AuthKey)
+	assert.Equal(t, "somePrivProtocol1", networkConf.Authentications[0].PrivProtocol)
+	assert.Equal(t, "somePrivKey1", networkConf.Authentications[0].PrivKey)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[0].Version)
+	assert.Equal(t, "someCommunityString", networkConf.Authentications[1].Community)
+	assert.Equal(t, "someUser2", networkConf.Authentications[2].User)
+	assert.Equal(t, "someAuthProtocol2", networkConf.Authentications[2].AuthProtocol)
+	assert.Equal(t, "someAuthKey2", networkConf.Authentications[2].AuthKey)
+	assert.Equal(t, "somePrivProtocol2", networkConf.Authentications[2].PrivProtocol)
+	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
 }
 
 func Test_LoaderConfig(t *testing.T) {
