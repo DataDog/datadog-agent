@@ -980,6 +980,23 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
+func getFieldHandlersChecks(allFields map[string]*common.StructField, field *common.StructField) []string {
+	checks := getChecks(allFields, field)
+
+	var res []string
+
+	if field.SkipADResolution {
+		res = append(res, "!forADs")
+	}
+
+	for _, check := range checks {
+		check := fmt.Sprintf("ev.%s()", check)
+		res = append(res, check)
+	}
+
+	return res
+}
+
 func getSetHandler(allFields map[string]*common.StructField, field *common.StructField) string {
 	var handler string
 
@@ -1095,6 +1112,7 @@ var funcMap = map[string]interface{}{
 	"GetFieldHandler":          getFieldHandler,
 	"FieldADPrint":             fieldADPrint,
 	"GetChecks":                getChecks,
+	"GetFieldHandlersChecks":   getFieldHandlersChecks,
 	"GetHandlers":              getHandlers,
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,
