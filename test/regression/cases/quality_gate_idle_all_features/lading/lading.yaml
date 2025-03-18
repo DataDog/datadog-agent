@@ -177,3 +177,8 @@ target_metrics:
       tags:
         sub_agent: "trace"
 
+
+  - prometheus: #system-probe telemetry
+      uri: "http://127.0.0.1:7654/telemetry"
+      tags:
+        sub_agent: "system-probe"

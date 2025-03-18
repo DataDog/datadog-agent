@@ -26,7 +26,7 @@ rc_kubernetes_deploy:
     AGENT_IMAGE_TAG: $CI_COMMIT_REF_NAME
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS
       --variable OPTION_PRE_SCRIPT

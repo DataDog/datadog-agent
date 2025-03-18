@@ -603,6 +603,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpCloseTargetFailures
 	ch <- EbpfTracerTelemetry.tcpDoneConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpCloseConnectionFlush
+	ch <- EbpfTracerTelemetry.tcpSynRetransmit
 }
 
 // Collect returns the current state of all metrics of the collector

@@ -64,6 +64,9 @@ func (c *Check) init() error {
 	} else if i.HostName.Valid {
 		c.dbHostname = i.HostName.String
 	}
+	if c.dbHostname == "" {
+		log.Errorf("%s failed to determine hostname, consider setting reported_hostname", c.logPrompt)
+	}
 	if i.HostName.Valid {
 		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
 	}

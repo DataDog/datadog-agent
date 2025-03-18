@@ -549,4 +549,37 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_deinit, void *ssl_session) {
     return 0;
 }
 
+SEC("kprobe/tcp_sendmsg")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+    log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
+    // map connection tuple during SSL_do_handshake(ctx)
+    map_ssl_ctx_to_sock(sk);
+    return 0;
+}
+
+static __always_inline void delete_pid_in_maps() {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
+}
+
+SEC("tracepoint/sched/sched_process_exit")
+int tracepoint__sched__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_exit")
+int raw_tracepoint__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
+    return 0;
+}
+
 #endif

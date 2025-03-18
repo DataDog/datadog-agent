@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -139,7 +138,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -201,7 +200,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -396,7 +395,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -526,7 +525,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -593,7 +592,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -1355,7 +1354,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -1436,7 +1435,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -1510,7 +1509,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
@@ -1893,46 +1892,6 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
 		}
 	}
 	return expected
-}
-
-func startH2CServer(t *testing.T, address string, isTLS bool) func() {
-	srv := &http.Server{
-		Addr: authority,
-		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			statusCode := testutil.StatusFromPath(r.URL.Path)
-			if statusCode == 0 {
-				w.WriteHeader(http.StatusOK)
-			} else {
-				w.WriteHeader(int(statusCode))
-			}
-			defer func() { _ = r.Body.Close() }()
-			_, _ = io.Copy(w, r.Body)
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
-
-	l, err := net.Listen("tcp", address)
-	require.NoError(t, err, "could not listen")
-
-	if isTLS {
-		cert, key, err := testutil.GetCertsPaths()
-		require.NoError(t, err, "could not get certs paths")
-		go func() {
-			if err := srv.ServeTLS(l, cert, key); err != http.ErrServerClosed {
-				require.NoError(t, err, "could not serve TLS")
-			}
-		}()
-	} else {
-		go func() {
-			if err := srv.Serve(l); err != http.ErrServerClosed {
-				require.NoError(t, err, "could not serve")
-			}
-		}()
-	}
-
-	return func() { _ = srv.Shutdown(context.Background()) }
 }
 
 func getClientsIndex(index, totalCount int) int {

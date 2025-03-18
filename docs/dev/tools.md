@@ -68,12 +68,12 @@ file](https://github.com/go-delve/delve/blob/master/Documentation/cli/README.md#
 to search this directory:
 
 ```
-# delve config file is at $HOME/.config/dlv/config.yaml
+# delve config file is at $HOME/.config/dlv/config.yml
 debug-info-directories: ["/usr/lib/debug/.build-id", "/opt/datadog-agent/.debug/" ]
 ```
 
 One last note is if you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`.
-You may want to symlink `/root/.config/dlv/config.yaml` to point to your user
+You may want to symlink `/root/.config/dlv/config.yml` to point to your user
 delve config file.
 
 ## gdb

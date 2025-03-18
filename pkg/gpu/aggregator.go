@@ -40,15 +40,11 @@ type aggregator struct {
 
 	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
 	deviceMaxThreads uint64
-
-	// deviceMemory is the total memory available on the GPU, in bytes
-	deviceMemory uint64
 }
 
-func newAggregator(deviceMaxThreads uint64, deviceMemory uint64) *aggregator {
+func newAggregator(deviceMaxThreads uint64) *aggregator {
 	return &aggregator{
 		deviceMaxThreads: deviceMaxThreads,
-		deviceMemory:     deviceMemory,
 	}
 }
 
@@ -64,7 +60,26 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 	}
 
 	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
-	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, agg.deviceMaxThreads)) // we can't use more threads than the GPU has
+
+	// We can't use more threads than the GPU has. Even if we don't report
+	// utilization directly, we should not count more threads than the GPU can
+	// run in parallel, as the "thread count" we report is just the number of
+	// threads that were enqueued.
+	//
+	// An example of a situation where this distinction is important: say we
+	// have a kernel launch with 100 threads, but the GPU can only run 50
+	// threads, and assume this kernel runs for 1 second and that we want to
+	// report utilization for the last 2 seconds. If we were looking at the
+	// actual GPU utilization in real-time, we'd see 100% utilization for the
+	// second the span lasts, and then 0%, which would give us an average of 50%
+	// utilization over the 2 seconds. However, if we didn't take into account
+	// the number of threads the GPU can run in parallel, we'd report 200%
+	// utilization for the first second instead, which would give us an average
+	// of 100% utilization over the 2 seconds. which is not correct.
+	activeThreads := min(span.avgThreadCount, agg.deviceMaxThreads)
+
+	// weight the active threads by the time they were active
+	agg.totalThreadSecondsUsed += durationSec * float64(activeThreads)
 }
 
 // processPastData takes spans/allocations that have already been closed
@@ -85,15 +100,14 @@ func (agg *aggregator) processCurrentData(data *streamData) {
 	agg.currentAllocs = append(agg.currentAllocs, data.allocations...)
 }
 
-// getGpuUtilization computes the utilization of the GPU as the average of the
-func (agg *aggregator) getGPUUtilization() float64 {
-	intervalSecs := float64(agg.measuredIntervalNs) / float64(time.Second.Nanoseconds())
-	if intervalSecs > 0 {
-		availableThreadSeconds := float64(agg.deviceMaxThreads) * intervalSecs
-		return agg.totalThreadSecondsUsed / availableThreadSeconds
+// getAverageCoreUsage returns the average core usage over the interval, in number of cores used
+func (agg *aggregator) getAverageCoreUsage() float64 {
+	if agg.measuredIntervalNs == 0 {
+		return 0
 	}
 
-	return 0
+	intervalSecs := float64(agg.measuredIntervalNs) / float64(time.Second.Nanoseconds())
+	return agg.totalThreadSecondsUsed / intervalSecs // Compute the average thread usage over the interval
 }
 
 // getStats returns the aggregated stats for the process
@@ -104,9 +118,7 @@ func (agg *aggregator) getGPUUtilization() float64 {
 func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
 
-	if agg.measuredIntervalNs > 0 {
-		stats.UtilizationPercentage = agg.getGPUUtilization() / utilizationNormFactor
-	}
+	stats.UsedCores = agg.getAverageCoreUsage() / utilizationNormFactor
 
 	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
 	for i := memAllocType(0); i < memAllocTypeCount; i++ {
@@ -126,8 +138,6 @@ func (agg *aggregator) getStats(utilizationNormFactor float64) model.Utilization
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
 	}
-
-	stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
 
 	// Flush the data that we used
 	agg.flush()

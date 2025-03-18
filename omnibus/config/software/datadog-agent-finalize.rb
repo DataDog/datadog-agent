@@ -108,6 +108,9 @@ build do
               move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
+            # Create the installer symlink
+            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
@@ -190,7 +193,7 @@ build do
             delete "#{install_dir}/etc/conf.d/docker.d"
 
             # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            command "dda inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

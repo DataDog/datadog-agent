@@ -27,6 +27,9 @@ type statsGenerator struct {
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
 	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
+
+	// coresPerDevice contains the number of cores per device. TODO: move to device manager with the refactor
+	coresPerDevice map[string]uint64
 }
 
 type statsGeneratorTelemetry struct {
@@ -42,6 +45,7 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*Stre
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
 		telemetry:           newStatsGeneratorTelemetry(tm),
+		coresPerDevice:      make(map[string]uint64),
 	}
 }
 
@@ -81,7 +85,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		}
 	}
 
-	normFactor := g.getNormalizationFactor()
+	normFactors := g.getNormalizationFactors()
 
 	stats := &model.GPUStats{
 		Metrics: make([]model.StatsTuple, 0, len(g.aggregators)),
@@ -90,7 +94,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	for aggKey, aggr := range g.aggregators {
 		entry := model.StatsTuple{
 			Key:                aggKey,
-			UtilizationMetrics: aggr.getStats(normFactor),
+			UtilizationMetrics: aggr.getStats(normFactors[aggKey.DeviceUUID]),
 		}
 		stats.Metrics = append(stats.Metrics, entry)
 	}
@@ -102,6 +106,27 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	return stats
 }
 
+// getDeviceCores returns the number of cores for a given device UUID. This is a temporary
+// function, as it should be moved to the device manager with the refactor.
+func (g *statsGenerator) getDeviceCores(deviceUUID string) (uint64, error) {
+	if cores, ok := g.coresPerDevice[deviceUUID]; ok {
+		return cores, nil
+	}
+
+	gpuDevice, err := g.sysCtx.getDeviceByUUID(deviceUUID)
+	if err != nil {
+		return 0, fmt.Errorf("Error getting device by UUID %s: %s", deviceUUID, err)
+	}
+
+	maxThreads, ret := gpuDevice.GetNumGpuCores()
+	if ret != nvml.SUCCESS {
+		return 0, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
+	}
+
+	g.coresPerDevice[deviceUUID] = uint64(maxThreads)
+	return uint64(maxThreads), nil
+}
+
 func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, error) {
 	aggKey := model.StatsKey{
 		PID:         sKey.pid,
@@ -110,22 +135,12 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, err
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {
-		gpuDevice, err := g.sysCtx.getDeviceByUUID(sKey.gpuUUID)
+		deviceCores, err := g.getDeviceCores(sKey.gpuUUID)
 		if err != nil {
-			return nil, fmt.Errorf("Error getting device by UUID %s: %s", sKey.gpuUUID, err)
+			return nil, err
 		}
 
-		maxThreads, ret := gpuDevice.GetNumGpuCores()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
-		}
-
-		memUsage, ret := gpuDevice.GetMemoryInfo()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("Error getting memory info: %s", nvml.ErrorString(ret))
-		}
-
-		g.aggregators[aggKey] = newAggregator(uint64(maxThreads), memUsage.Total)
+		g.aggregators[aggKey] = newAggregator(deviceCores)
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs
@@ -134,17 +149,32 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, err
 	return g.aggregators[aggKey], nil
 }
 
-// getNormalizationFactor returns the factor to use for utilization
-// normalization. Because we compute the utilization based on the number of
-// threads launched by the kernel, we need to normalize the utilization if we
-// get above 100%, as the GPU can enqueue threads.
-func (g *statsGenerator) getNormalizationFactor() float64 {
-	totalGPUUtilization := 0.0
-	for _, aggr := range g.aggregators {
-		totalGPUUtilization += aggr.getGPUUtilization()
+// getNormalizationFactors returns the factor to use for utilization
+// normalization per GPU device. Because we compute the utilization based on the
+// number of threads launched by the kernel, we need to normalize the
+// utilization if we get above 100%, as the GPU can enqueue threads. We need to
+// use factors instead of clamping, as we might have multiple processes on the
+// same GPU adding up to more than 100%, so we need to scale all of them back.
+// It is guaranteed that the normalization factors are always equal to or
+// greater than 1
+func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
+	usages := make(map[string]float64)
+
+	for key, aggr := range g.aggregators {
+		usages[key.DeviceUUID] += aggr.getAverageCoreUsage()
 	}
 
-	return max(1.0, totalGPUUtilization)
+	normFactors := make(map[string]float64)
+	for uuid, maxThreads := range g.coresPerDevice {
+		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
+		if usages[uuid] > float64(maxThreads) {
+			normFactors[uuid] = usages[uuid] / float64(maxThreads)
+		} else {
+			normFactors[uuid] = 1
+		}
+	}
+
+	return normFactors
 }
 
 func (g *statsGenerator) cleanupFinishedAggregators() {

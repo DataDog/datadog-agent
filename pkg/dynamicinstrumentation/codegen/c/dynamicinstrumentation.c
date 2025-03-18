@@ -2,8 +2,8 @@
 #include "bpf_tracing.h"
 #include "kconfig.h"
 #include <asm/ptrace.h>
-#include "base_event.h"
 #include "macros.h"
+#include "base_event.h"
 #include "event.h"
 #include "maps.h"
 #include "expressions.h"
@@ -45,6 +45,10 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     err = bpf_probe_read_kernel(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
     if (err != 0) {
         log_debug("could not write probe id to output");
+    }
+    err = bpf_probe_read_kernel(&event->base.param_indicies, sizeof(event->base.param_indicies), zero_string);
+    if (err != 0) {
+        log_debug("could not zero out param indicies");
     }
 
     // Get tid and tgid

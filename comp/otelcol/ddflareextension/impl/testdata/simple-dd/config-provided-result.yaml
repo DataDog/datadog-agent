@@ -5,13 +5,6 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
-    auth: null
-    compression: ""
-    compression_params:
-      level: 0
-    cookies: null
-    disable_keep_alives: false
-    endpoint: ""
     headers: {}
     host_metadata:
       enabled: false
@@ -19,8 +12,6 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: ""
-    http2_ping_timeout: 0s
-    http2_read_idle_timeout: 0s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
@@ -28,9 +19,7 @@ exporters:
       dump_payloads: false
       endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
-    max_conns_per_host: 0
     max_idle_conns: 100
-    max_idle_conns_per_host: 0
     metrics:
       delta_ttl: 3600
       endpoint: https://api.datadoghq.com
@@ -46,8 +35,6 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
-    proxy_url: ""
-    read_buffer_size: 0
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -62,7 +49,6 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls: {}
     traces:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
@@ -74,7 +60,6 @@ exporters:
       span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
-    write_buffer_size: 0
 extensions: {}
 processors: {}
 receivers:
@@ -98,17 +83,15 @@ receivers:
       scrape_configs:
         - enable_compression: true
           enable_http2: true
-          fallback_scrape_protocol: PrometheusText1.0.0
+          fallback_scrape_protocol: PrometheusText0.0.4
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
+          metric_name_validation_scheme: legacy
           metrics_path: /metrics
           scheme: http
           scrape_interval: 5s
           scrape_protocols:
-            - OpenMetricsText1.0.0
-            - OpenMetricsText0.0.1
-            - PrometheusText1.0.0
             - PrometheusText0.0.4
           scrape_timeout: 5s
           static_configs:
@@ -121,7 +104,6 @@ receivers:
     trim_metric_suffixes: false
     use_start_time_metric: false
 service:
-  extensions: []
   pipelines:
     logs:
       exporters:
@@ -144,24 +126,18 @@ service:
         - otlp
   telemetry:
     logs:
-      development: false
-      disable_caller: false
-      disable_stacktrace: false
       encoding: console
       error_output_paths:
         - stderr
-      initial_fields: {}
       level: info
       output_paths:
         - stderr
-      processors: []
       sampling:
         enabled: true
         initial: 10
         thereafter: 100
         tick: 10s
     metrics:
-      address: ""
       level: Normal
       readers:
         - pull:
@@ -174,8 +150,3 @@ service:
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true
-    resource: {}
-    traces:
-      level: Basic
-      processors: []
-      propagators: []

@@ -15,9 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -295,8 +296,8 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
-			params := exportertest.NewNopSettings()
-			f := NewFactory(testChannel)
+			params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+			f := NewFactory(testChannel, otel.NewDisabledGatewayUsage())
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,
 				LogSourceName: tt.args.logSourceName,
