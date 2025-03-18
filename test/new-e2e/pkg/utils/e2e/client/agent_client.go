@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -88,10 +88,12 @@ func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.Docker
 	return commandRunner, nil
 }
 
-// NewK8sAgentClient creates an Agent client for a Kubernetes install, using the pod reference for the specific agent instance to communicate with
-func NewK8sAgentClient(context common.Context, k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
+// NewK8sAgentClient creates an Agent client for a Kubernetes install, passing the ListOptions
+// to select the pod that runs the agent. There are some helper functions to create common selectors,
+// such as AgentSelectorAnyPod that will select any pod that runs the agent.
+func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
-	ae := newAgentK8sExecutor(k8sAgentPod, clusterClient)
+	ae := newAgentK8sExecutor(podSelector, clusterClient)
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {

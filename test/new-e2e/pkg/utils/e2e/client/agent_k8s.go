@@ -24,12 +24,20 @@ var _ agentCommandExecutor = &agentK8sexecutor{}
 
 const agentNamespace = "datadog"
 
-func newAgentK8sExecutor(k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient) *agentK8sexecutor {
-	// Find this specific pod object in the cluster
-	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("metadata.name", k8sAgentPod.Name).String(),
+// AgentSelectorAnyPod creates a selector for any pod that runs the agent of the given type.
+// For example, you can pass Agent.LinuxNodeAgent to select any pod that runs the node agent.
+func AgentSelectorAnyPod(agentType kubernetes.KubernetesObjRefOutput) metav1.ListOptions {
+	return metav1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", agentType.Name).String(),
 		Limit:         1,
-	})
+	}
+}
+
+// newAgentK8sExecutor creates a new agentK8sexecutor for the given selector and cluster client. Note that
+// the selector must return a single pod, otherwise this function will panic.
+func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesClient) *agentK8sexecutor {
+	// Find this specific pod object in the cluster
+	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), selector)
 	if err != nil {
 		panic(err)
 	}

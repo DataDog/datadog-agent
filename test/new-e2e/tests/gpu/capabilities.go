@@ -136,10 +136,11 @@ func (c *kubernetesCapabilities) FakeIntake() *components.FakeIntake {
 }
 
 // Agent returns the Agent client of the test environment, which communicates with the agent
-// running in a Kubernetes pod. It selects the first pod that runs the node agent.
+// running in a Kubernetes pod. It selects the first pod that runs the node agent, as in our e2e tests
+// we only have one node agent per cluster.
 func (c *kubernetesCapabilities) Agent() agentclient.Agent {
 	linuxAgent := c.suite.Env().Agent.LinuxNodeAgent
-	client, err := client.NewK8sAgentClient(c.suite, &linuxAgent, c.suite.Env().KubernetesCluster.KubernetesClient)
+	client, err := client.NewK8sAgentClient(c.suite, client.AgentSelectorAnyPod(linuxAgent), c.suite.Env().KubernetesCluster.KubernetesClient)
 	if err != nil {
 		panic(err)
 	}
