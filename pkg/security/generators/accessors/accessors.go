@@ -937,13 +937,6 @@ func getFieldHandler(allFields map[string]*common.StructField, field *common.Str
 	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s.%s)", field.Handler, ptr, field.Prefix, field.Ref)
 }
 
-func fieldADPrint(field *common.StructField, handler string) string {
-	if field.SkipADResolution {
-		return fmt.Sprintf("if !forADs { _ = %s }", handler)
-	}
-	return fmt.Sprintf("_ = %s", handler)
-}
-
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
 	idx := strings.LastIndex(field.Name, ".")
 	if idx == -1 {
