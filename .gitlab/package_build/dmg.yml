@@ -109,19 +109,16 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - echo hello world
-    - exit 1
-    # TODOJJ
-    - |
-      if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -d ~/rust/cargo ]; then
-        echo "WARNING: Doing setup again"
-        echo "home: $(ls ~)"
-        rm -rf ~/bin ~/homebrew ~/rust
-        export BUILD_SCRIPT="$PWD/.gitlab/package_build/build_script.sh"
-        ( cd ~ && bash "$BUILD_SCRIPT" SETUP_RUNNER )
-        ls ~
-        ~/bin/git --version
-      fi
+    # - |
+    #   if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -d ~/rust/cargo ]; then
+    #     echo "WARNING: Doing setup again"
+    #     echo "home: $(ls ~)"
+    #     rm -rf ~/bin ~/homebrew ~/rust
+    #     export BUILD_SCRIPT="$PWD/.gitlab/package_build/build_script.sh"
+    #     ( cd ~ && bash "$BUILD_SCRIPT" SETUP_RUNNER )
+    #     ls ~
+    #     ~/bin/git --version
+    #   fi
 
     # Backport to avoid doing the setup again
     # - |
