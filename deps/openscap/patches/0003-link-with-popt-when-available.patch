@@ -1,0 +1,26 @@
+From 0f1df3a60a4a6c2856c7e2732c6eaeb6d4a725bb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 18 Mar 2025 08:22:11 +0100
+Subject: [PATCH 3/3] link with popt when available
+
+---
+ src/CMakeLists.txt | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 5d59bf3f0..4b32292fe 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -118,6 +118,9 @@ endif()
+ if(LIBYAML_FOUND)
+ 	target_link_libraries(openscap ${LIBYAML_LIBRARIES})
+ endif()
++if (POPT_FOUND)
++    target_link_libraries(openscap ${POPT_LIBRARIES})
++endif()
+ 
+ if(WIN32)
+ 	set(OPENSCAP_INSTALL_DESTINATION ".")
+-- 
+2.34.1
+
