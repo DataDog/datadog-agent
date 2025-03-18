@@ -88,7 +88,7 @@ func EnsureInstallerDataDir() error {
 	if errors.Is(err, os.ErrNotExist) {
 		// DatadogDataDir does not exist, so we need to create it
 		// probably means the MSI has yet to run
-		// we'll create the directory with the correct permissions
+		// we'll create the directory with the restricted permissions
 		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
 		if err != nil {
 			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
