@@ -166,6 +166,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 					slicePointer := elementParam.ParameterPieces[0]
 					sliceLength := elementParam.ParameterPieces[1]
+
+					if slicePointer == nil || sliceLength == nil {
+						continue
+					}
+
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 						ditypes.PrintStatement("%s", "Reading the length of slice"),
 					)
@@ -188,6 +193,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
 					sliceElementType := slicePointer.ParameterPieces[0]
+
+					if sliceElementType == nil {
+						continue
+					}
+
 					sliceIdentifier := randomLabel()
 					labelName := randomLabel()
 

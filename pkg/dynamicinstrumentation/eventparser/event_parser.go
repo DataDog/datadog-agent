@@ -44,27 +44,31 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	event.PID = baseEvent.Pid
 	event.UID = baseEvent.Uid
 	event.StackPCs = baseEvent.Program_counters[:]
-	event.Argdata = readParams(record[ditypes.SizeofBaseEvent:])
+	event.ParamIndicies = baseEvent.Param_indicies[:]
+
+	event.Argdata = readParams(event.ParamIndicies, record[ditypes.SizeofBaseEvent:])
 	return &event, nil
 }
 
-func readParams(values []byte) []*ditypes.Param {
+func readParams(indicies []uint64, values []byte) []*ditypes.Param {
 	if len(values) >= 100 {
 		log.Tracef("DI event bytes (0:100): %v", values[0:100])
 	}
 	outputParams := []*ditypes.Param{}
-	for i := 0; i+sizeOfKindAndSize < len(values); {
-		paramTypeDefinition := parseTypeDefinition(values[i:])
+	for i := range indicies {
+		if i != 0 && indicies[i] == 0 {
+			break
+		}
+		if uint64(len(values)) <= indicies[i] {
+			break
+		}
+		data := values[indicies[i]:]
+		paramTypeDefinition := parseTypeDefinition(data)
 		if paramTypeDefinition == nil {
 			break
 		}
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
-		i += sizeOfTypeDefinition
-		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
-		if val == nil {
-			return outputParams
-		}
-		i += numBytesRead
+		val, _ := parseParamValue(paramTypeDefinition, data[sizeOfTypeDefinition:])
 		outputParams = append(outputParams, val)
 	}
 	return outputParams

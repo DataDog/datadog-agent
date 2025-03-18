@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,8 +57,8 @@ type Tracer struct {
 	timerInterval int
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
@@ -117,8 +118,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		closedBuffer:         network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:           reverseDNS,
 		usmMonitor:           newUSMMonitor(config, di.GetHandle()),
-		sourceExcludes:       network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes:       filter.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
 	if config.EnableProcessEventMonitoring {
