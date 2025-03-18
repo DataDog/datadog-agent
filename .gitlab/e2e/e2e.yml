@@ -575,7 +575,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
       # install-script
       # TODO: disabling tests during MSI merge, so we can split PRs
-      - EXTRA_PARAMS: --run "TestInstallScript$"
+      - EXTRA_PARAMS: --run "TestInstallScript/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallScript/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"

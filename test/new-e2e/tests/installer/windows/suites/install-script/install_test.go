@@ -41,6 +41,17 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 	})
 }
 
+// TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
+// shows we can correctly use the script to uninstall the old agent + installer MSIs
+func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
+	s.Run("Install from old installer", func() {
+		s.installOldInstallerAndAgent()
+		s.Run("Install New Version", func() {
+			s.installCurrent()
+		})
+	})
+}
+
 func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
@@ -75,10 +86,45 @@ func (s *testInstallScriptSuite) installPrevious() {
 	)
 }
 
+func (s *testInstallScriptSuite) installCurrent() {
+	s.mustInstallScriptVersion(
+		s.CurrentAgentVersion().GetNumberAndPre(),
+		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
+		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
+	)
+}
+
 func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
 	s.MustStartExperimentCurrentVersion()
 
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+}
+
+func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
+	// Arrange
+	// Act
+	output, err := s.InstallScript().Run(
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": "7.62",
+			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     "7.63.2-1",
+			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
+			// make sure to install the agent
+			"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "true",
+		}),
+	)
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, "7.63.2-1")
+		})
 }
