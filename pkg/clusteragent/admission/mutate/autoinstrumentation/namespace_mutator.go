@@ -216,6 +216,7 @@ func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
+		injectorDebugAnnotationExtractor,
 	} {
 		opt, err := e.extract(pod)
 		if err != nil {
