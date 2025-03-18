@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// This code is deprecated, new code is in comp/core/autodiscovery/listeners/snmp.go
+// This code is deprecated, new code is in: comp/core/autodiscovery/listeners/snmp.go
 
 //nolint:revive // TODO(NDM) Fix revive linter
 package discovery
