@@ -59,10 +59,9 @@ type Check struct {
 }
 
 type checkTelemetry struct {
-	nvmlMetricsSent     telemetry.Counter
-	collectorErrors     telemetry.Counter
-	activeMetrics       telemetry.Gauge
-	sysprobeMetricsSent telemetry.Counter
+	metricsSent     telemetry.Counter
+	collectorErrors telemetry.Counter
+	activeMetrics   telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -86,10 +85,9 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
-		nvmlMetricsSent:     tm.NewCounter(CheckName, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
-		collectorErrors:     tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:       tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
-		sysprobeMetricsSent: tm.NewCounter(CheckName, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
+		metricsSent:     tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		collectorErrors: tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:   tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
 	}
 }
 
@@ -184,7 +182,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 
 	// Always send telemetry metrics
 	defer func() {
-		c.telemetry.sysprobeMetricsSent.Add(float64(sentMetrics))
+		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
 		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 	}()
 
@@ -371,7 +369,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 			}
 		}
 
-		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
+		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	return c.emitGlobalNvmlMetrics(snd)
@@ -386,7 +384,7 @@ func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
 
 	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
 
-	c.telemetry.nvmlMetricsSent.Add(1, "global")
+	c.telemetry.metricsSent.Add(1, "global")
 
 	return nil
 }
