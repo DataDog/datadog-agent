@@ -18,10 +18,10 @@ import (
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	config := Config{
-		Network: "192.168.0.0/24",
-	}
-	_, err := config.BuildSNMPParams("192.168.0.1")
+	//var devicePort uint16 = 0
+
+	auth := Authentication{}
+	_, err := auth.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
 	config = Config{
