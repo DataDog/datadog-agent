@@ -412,3 +412,8 @@ func getenv() *env.Env {
 
 	return env
 }
+
+// PostInstallAgent runs post install scripts for a given package. Noop for Windows
+func PostInstallAgent(_ context.Context, _, _ string) error {
+	return nil
+}

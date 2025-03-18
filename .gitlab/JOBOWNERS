@@ -169,3 +169,6 @@ single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security
+
+# Experiment systemd units
+validate_experiment_systemd_units @DataDog/fleet

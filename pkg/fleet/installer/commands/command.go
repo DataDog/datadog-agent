@@ -152,6 +152,7 @@ func RootCommands() []*cobra.Command {
 		apmCommands(),
 		getStateCommand(),
 		statusCommand(),
+		postinstCommand(),
 	}
 }
 
@@ -493,6 +494,25 @@ func getStateCommand() *cobra.Command {
 
 			fmt.Fprintf(os.Stdout, "%s\n", pStatesRaw)
 			return nil
+		},
+	}
+	return cmd
+}
+
+func postinstCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		Use:     "postinst <package> <caller:deb|rpm|oci>",
+		Short:   "Run postinstall scripts for a package",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("postinst")
+			if err != nil {
+				return err
+			}
+			defer i.stop(err)
+			return i.Postinst(i.ctx, args[0], args[1])
 		},
 	}
 	return cmd
