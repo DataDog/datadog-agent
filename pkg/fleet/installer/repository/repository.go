@@ -224,6 +224,16 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
+	// Because we repair directories on windows, repository.setExperiment will
+	// not fail if called for a version that is already set to experiment or
+	// stable while it does on unix.  These check ensure that we have the same
+	// behavior on both platforms.
+	if filepath.Base(*repository.experiment.packagePath) == name {
+		return fmt.Errorf("cannot set new experiment to the same version as the current experiment")
+	}
+	if filepath.Base(*repository.stable.packagePath) == name {
+		return fmt.Errorf("cannot set new experiment to the same version as stable")
+	}
 	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
