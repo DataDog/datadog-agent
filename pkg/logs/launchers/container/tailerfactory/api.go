@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
+type kubeUtilGetter func() (kubelet.KubeUtilInterface, error)
+
+var kubeUtilGet kubeUtilGetter = kubelet.GetKubeUtil
+
 // makeAPITailer makes an API based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
@@ -48,7 +52,7 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 		return nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
 	}
 
-	ku, err := kubelet.GetKubeUtil()
+	ku, err := kubeUtilGet()
 	if err != nil {
 		return nil, fmt.Errorf("Could not use kubelet client to collect logs for container %s: %w",
 			containerID, err)
