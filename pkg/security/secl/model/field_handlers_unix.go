@@ -38,9 +38,13 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
-	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
+	}
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
-	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
+	}
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	}
@@ -240,9 +244,13 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "accept":
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
+		}
 	case "bind":
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+		}
 	case "bpf":
 	case "capset":
 	case "chdir":
@@ -305,7 +313,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
 		}
 	case "connect":
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		}
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
@@ -605,8 +615,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 	case "packet":
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
+		}
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
