@@ -217,7 +217,7 @@ class KMTTestRunJob(KMTJob):
         The values are True if test passed, False if failed, None if skipped.
         """
         junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
-        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
+        junit_archive = self.artifact_file_binary(f"test/new-e2e/tests/{junit_archive_name}", ignore_not_found=True)
         if junit_archive is None:
             return {}
 

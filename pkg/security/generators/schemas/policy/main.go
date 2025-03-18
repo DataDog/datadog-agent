@@ -33,7 +33,7 @@ func main() {
 		ExpandedStruct: true,
 		Mapper: func(t reflect.Type) *jsonschema.Schema {
 			switch t {
-			case reflect.TypeOf(time.Duration(0)):
+			case reflect.TypeOf(rules.HumanReadableDuration{}), reflect.TypeOf(time.Duration(0)):
 				return &jsonschema.Schema{
 					OneOf: []*jsonschema.Schema{
 						{

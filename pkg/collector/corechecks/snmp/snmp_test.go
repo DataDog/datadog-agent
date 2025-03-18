@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 
 	"github.com/gosnmp/gosnmp"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -52,7 +52,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, compressionmock.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -996,10 +996,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck()
-	check2 := newCheck()
-	check3 := newCheck()
-	checkSubnet := newCheck()
+	check1 := newCheck(agentconfig.NewMock(t), nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1032,10 +1032,10 @@ namespace: nsSubnet
 	err = checkSubnet.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
-	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
-	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
-	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
+	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:7df466323f9d6575"), check1.ID())
+	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:157550abc671c535"), check2.ID())
+	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:efedf649ea1f0875"), check3.ID())
+	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:d5201742549dd380"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
@@ -1504,8 +1504,8 @@ tags:
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.13",
-		//"1.3.6.1.2.1.2.2.1.14",
+		// "1.3.6.1.2.1.2.2.1.13",
+		// "1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
@@ -1950,7 +1950,7 @@ metric_tags:
 	}
 
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
+		// "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
@@ -2165,7 +2165,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
@@ -2358,7 +2358,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer

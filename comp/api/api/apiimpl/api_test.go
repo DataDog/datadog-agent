@@ -10,17 +10,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -31,6 +29,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -39,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
@@ -47,7 +45,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -74,11 +72,11 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-		fetchonlyimpl.MockModule(),
+		fx.Supply(option.None[rcservice.Component]()),
+		fx.Supply(option.None[rcservicemrf.Component]()),
+		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),
@@ -87,8 +85,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
 			return mock
 		}),
-		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-		fx.Supply(optional.NewNoneOption[collector.Component]()),
+		fx.Supply(option.None[collector.Component]()),
 		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -124,21 +121,9 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
-	authToken, err := os.CreateTemp("", "auth_token")
-	require.NoError(t, err)
-	defer os.Remove(authToken.Name())
-
-	authTokenValue := strings.Repeat("a", 64)
-	_, err = io.WriteString(authToken, authTokenValue)
-	require.NoError(t, err)
-
-	err = authToken.Close()
-	require.NoError(t, err)
-
 	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port":             0,
-		"agent_ipc.port":       56789,
-		"auth_token_file_path": authToken.Name(),
+		"cmd_port":       0,
+		"agent_ipc.port": 56789,
 	}}
 
 	deps := getTestAPIServer(t, cfgOverride)
@@ -166,7 +151,6 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authTokenValue))
 			resp, err := util.GetClient(false).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()

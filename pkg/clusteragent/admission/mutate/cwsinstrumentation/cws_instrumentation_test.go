@@ -225,7 +225,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				name:     "my-pod",
 				ns:       "my-namespace",
 				userInfo: &authenticationv1.UserInfo{},
-				include:  []string{"kube_namespae:my-namespace"},
+				include:  []string{"kube_namespace:my-namespace"},
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},

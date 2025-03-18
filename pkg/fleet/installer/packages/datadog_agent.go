@@ -14,32 +14,42 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
-	agentPackage      = "datadog-agent"
-	pathOldAgent      = "/opt/datadog-agent"
-	agentSymlink      = "/usr/bin/datadog-agent"
-	agentUnit         = "datadog-agent.service"
-	traceAgentUnit    = "datadog-agent-trace.service"
-	processAgentUnit  = "datadog-agent-process.service"
-	systemProbeUnit   = "datadog-agent-sysprobe.service"
-	securityAgentUnit = "datadog-agent-security.service"
-	agentExp          = "datadog-agent-exp.service"
-	traceAgentExp     = "datadog-agent-trace-exp.service"
-	processAgentExp   = "datadog-agent-process-exp.service"
-	systemProbeExp    = "datadog-agent-sysprobe-exp.service"
-	securityAgentExp  = "datadog-agent-security-exp.service"
+	agentPackage = "datadog-agent"
+
+	agentSymlink   = "/usr/bin/datadog-agent"
+	stablePath     = "/opt/datadog-packages/datadog-agent/stable"
+	experimentPath = "/opt/datadog-packages/datadog-agent/experiment"
+
+	agentUnit          = "datadog-agent.service"
+	installerAgentUnit = "datadog-agent-installer.service"
+	traceAgentUnit     = "datadog-agent-trace.service"
+	processAgentUnit   = "datadog-agent-process.service"
+	systemProbeUnit    = "datadog-agent-sysprobe.service"
+	securityAgentUnit  = "datadog-agent-security.service"
+	agentExp           = "datadog-agent-exp.service"
+	installerAgentExp  = "datadog-agent-installer-exp.service"
+	traceAgentExp      = "datadog-agent-trace-exp.service"
+	processAgentExp    = "datadog-agent-process-exp.service"
+	systemProbeExp     = "datadog-agent-sysprobe-exp.service"
+	securityAgentExp   = "datadog-agent-security-exp.service"
 )
 
 var (
 	stableUnits = []string{
 		agentUnit,
+		installerAgentUnit,
 		traceAgentUnit,
 		processAgentUnit,
 		systemProbeUnit,
@@ -47,6 +57,7 @@ var (
 	}
 	experimentalUnits = []string{
 		agentExp,
+		installerAgentExp,
 		traceAgentExp,
 		processAgentExp,
 		systemProbeExp,
@@ -55,73 +66,85 @@ var (
 )
 
 var (
-	// matches omnibus/package-scripts/agent-deb/postinst
-	rootOwnedAgentPaths = []string{
-		"embedded/bin/system-probe",
-		"embedded/bin/security-agent",
-		"embedded/share/system-probe/ebpf",
-		"embedded/share/system-probe/java",
+	// agentDirectories are the directories that the agent needs to function
+	agentDirectories = file.Directories{
+		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+	}
+
+	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
+	agentConfigPermissions = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "managed", Owner: "root", Group: "root", Recursive: true},
+		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
+		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
+		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
+		{Path: "system-probe.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "system-probe.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "security-agent.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+	}
+
+	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
+	agentPackagePermissions = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
+		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
+		{Path: "embedded/share/system-probe/java", Owner: "root", Group: "root", Recursive: true},
 	}
 )
 
+// PrepareAgent prepares the machine to install the agent
+func PrepareAgent(ctx context.Context) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "prepare_agent")
+	defer func() { span.Finish(err) }()
+
+	for _, unit := range stableUnits {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to stop %s: %s", unit, err)
+		}
+		if err := systemd.DisableUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to disable %s: %s", unit, err)
+		}
+	}
+	return packagemanager.RemovePackage(ctx, agentPackage)
+}
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
-		span.Finish(tracer.WithError(err))
+		span.Finish(err)
 	}()
 
-	if err = stopOldAgentUnits(ctx); err != nil {
+	err = PostInstallAgent(ctx, stablePath, "installer")
+	if err != nil {
 		return err
 	}
 
+	// Install the agent systemd units
 	for _, unit := range stableUnits {
-		if err = loadUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
 	for _, unit := range experimentalUnits {
-		if err = loadUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
-	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
-		return fmt.Errorf("failed to create /etc/datadog-agent: %v", err)
-	}
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
-	if err != nil {
-		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
-	}
-
-	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
-		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
-	}
-	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
-		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
-	}
-
-	if err = systemdReload(ctx); err != nil {
+	if err = systemd.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd daemon: %v", err)
 	}
-
 	// enabling the agentUnit only is enough as others are triggered by it
-	if err = enableUnit(ctx, agentUnit); err != nil {
+	if err = systemd.EnableUnit(ctx, agentUnit); err != nil {
 		return fmt.Errorf("failed to enable %s: %v", agentUnit, err)
 	}
-	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
-		return fmt.Errorf("failed to create symlink: %v", err)
-	}
-
-	// write installinfo before start, or the agent could write it
-	// TODO: add installer version properly
-	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
-		return fmt.Errorf("failed to write install info: %v", err)
-	}
-
 	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
@@ -129,111 +152,138 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	// this is expected during a fresh install with the install script / asible / chef / etc...
 	// the config is populated afterwards by the install method and the agent is restarted
 	if !os.IsNotExist(err) {
-		if err = startUnit(ctx, agentUnit); err != nil {
+		if err = systemd.StartUnit(ctx, agentUnit); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+// PostInstallAgent performs post-installation steps for the agent
+func PostInstallAgent(ctx context.Context, installPath string, caller string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "post_install_agent")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// 1. Ensure the dd-agent user and group exist
+	userHomePath := installPath
+	if installPath == stablePath || installPath == experimentPath {
+		userHomePath = "/opt/datadog-packages"
+	}
+	if err = user.EnsureAgentUserAndGroup(ctx, userHomePath); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+
+	// 2. Ensure config/log/package directories are created and have the correct permissions
+	if err = agentDirectories.Ensure(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
+	}
+	if err = agentPackagePermissions.Ensure(installPath); err != nil {
+		return fmt.Errorf("failed to set package ownerships: %v", err)
+	}
+	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+
+	// 3. Create symlink to the agent binary
+	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
+		return fmt.Errorf("failed to create symlink: %v", err)
+	}
+
+	// 4. Set up SELinux permissions
+	if err = selinux.SetAgentPermissions("/etc/datadog-agent", installPath); err != nil {
+		log.Warnf("failed to set SELinux permissions: %v", err)
+	}
+
+	// 5. Handle install info
+	if err = installinfo.WriteInstallInfo(caller); err != nil {
+		return fmt.Errorf("failed to write install info: %v", err)
+	}
+
+	// 6. Call post.py for integration persistence. Allowed to fail.
+	// XXX: We should port this to Go
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
+		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("failed to run integration persistence in post.py: %s\n", err.Error())
+		}
+	}
+
 	return nil
 }
 
 // RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) error {
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
-	defer span.Finish()
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent_units")
+	var spanErr error
+	defer func() { span.Finish(spanErr) }()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 
-	if err := disableUnit(ctx, agentUnit); err != nil {
+	if err := systemd.DisableUnit(ctx, agentUnit); err != nil {
 		log.Warnf("Failed to disable %s: %s", agentUnit, err)
+		spanErr = err
 	}
 
 	// remove units from disk
 	for _, unit := range experimentalUnits {
-		if err := removeUnit(ctx, unit); err != nil {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	for _, unit := range stableUnits {
-		if err := removeUnit(ctx, unit); err != nil {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
+			spanErr = err
 		}
 	}
 	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
+		spanErr = err
 	}
-	installinfo.RmInstallInfo()
-	// TODO: Return error to caller?
+	installinfo.RemoveInstallInfo()
 	return nil
-}
-
-func oldAgentInstalled() bool {
-	_, err := os.Stat(pathOldAgent)
-	return err == nil
-}
-
-func stopOldAgentUnits(ctx context.Context) error {
-	if !oldAgentInstalled() {
-		return nil
-	}
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_old_agent_units")
-	defer span.Finish()
-	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to stop %s: %v", unit, err)
-		}
-		if err := disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to disable %s: %v", unit, err)
-		}
-	}
-	return nil
-}
-
-func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
-	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, err := filepath.Rel(path, p)
-		if err != nil {
-			return err
-		}
-		for _, ignore := range ignorePaths {
-			if relPath == ignore || strings.HasPrefix(relPath, ignore+string(os.PathSeparator)) {
-				return nil
-			}
-		}
-		return os.Chown(p, uid, gid)
-	})
 }
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
-	if err != nil {
-		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	if err := PostInstallAgent(ctx, experimentPath, "installer"); err != nil {
+		return err
 	}
-	if err = chownRecursive("/opt/datadog-packages/datadog-agent/experiment/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
-		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/experiment/: %v", err)
-	}
-	return startUnit(ctx, agentExp, "--no-block")
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
+	return systemd.StartUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
-	return startUnit(ctx, agentUnit)
+	if err := PostInstallAgent(ctx, stablePath, "installer"); err != nil {
+		return err
+	}
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
+	return systemd.StartUnit(ctx, agentUnit, "--no-block")
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return StopAgentExperiment(ctx)
 }

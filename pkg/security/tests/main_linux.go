@@ -74,6 +74,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOsOrigin",
 			"~TestSpan",
 			"~TestChdir",
+			"~TestBindEvent",
+			"~TestAccept",
+			"~TestConnect",
 			"TestMountEvent",
 			"TestMount",
 			"TestMountPropagated",
@@ -104,6 +107,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoginUID/login-uid-exec-test",
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
+			"~TestProcessInterpreter",
 		}
 
 		if disableSeccomp {
@@ -127,6 +131,20 @@ func SkipIfNotAvailable(t *testing.T) {
 			t.Skip("test not available for ebpf")
 		}
 	}
+}
+
+// getPIDCGroup returns the path of the first cgroup found for a PID
+func getPIDCGroup(pid uint32) (string, error) {
+	cgroups, err := utils.GetProcControlGroups(pid, pid)
+	if err != nil {
+		return "", err
+	}
+
+	if len(cgroups) == 0 {
+		return "", fmt.Errorf("failed to find cgroup for pid %d", pid)
+	}
+
+	return cgroups[0].Path, nil
 }
 
 func preTestsHook() {

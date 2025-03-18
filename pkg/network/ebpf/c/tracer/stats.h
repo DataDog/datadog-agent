@@ -16,11 +16,61 @@
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
 #include "skb.h"
+#include "pid_tgid.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
 #endif
+
+static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+    if (!wrapper) {
+        return NULL;
+    }
+    wrapper->updated = bpf_ktime_get_ns();
+    return &wrapper->info;
+}
+
+static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
+    tls_info_t *tags = get_tls_enhanced_tags(tuple);
+    if (!tags) {
+        conn_tuple_t normalized_tup = *tuple;
+        normalize_tuple(&normalized_tup);
+        tls_info_wrapper_t empty_tags_wrapper = {};
+        empty_tags_wrapper.updated = bpf_ktime_get_ns();
+
+        bpf_map_update_with_telemetry(tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        if (!wrapper_ptr) {
+            return NULL;
+        }
+        tags = &wrapper_ptr->info;
+    }
+    return tags;
+}
+
+// merge_tls_info modifies `this` by merging it with `that`
+static __always_inline void merge_tls_info(tls_info_t *this, tls_info_t *that) {
+    if (!this || !that) {
+        return;
+    }
+
+    // Merge chosen_version if not already set
+    if (this->chosen_version == 0 && that->chosen_version != 0) {
+        this->chosen_version = that->chosen_version;
+    }
+
+    // Merge cipher_suite if not already set
+    if (this->cipher_suite == 0 && that->cipher_suite != 0) {
+        this->cipher_suite = that->cipher_suite;
+    }
+
+    // Merge offered_versions bitmask
+    this->offered_versions |= that->offered_versions;
+}
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     conn_stats_ts_t *cs = bpf_map_lookup_elem(&conn_stats, t);
@@ -111,6 +161,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
+    tls_info_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    merge_tls_info(&stats->tls_tags, tls_tags);
+
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (!cached_skb_conn_tup_ptr) {
         return;
@@ -123,6 +176,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
+
+    tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    merge_tls_info(&stats->tls_tags, tls_tags);
 }
 
 static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {
@@ -286,7 +342,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     flip_tuple(&t);
 
     log_debug("skb_consume_udp: bytes=%d", data_len);
-    t.pid = pid_tgid >> 32;
+    t.pid = GET_USER_MODE_PID(pid_tgid);
     t.netns = get_netns_from_sock(sk);
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
 }
@@ -304,6 +360,44 @@ static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int r
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
     return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+__maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("tcp_failed_connections_enabled", val);
+    return val > 0;
+}
+
+// handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// returns an integer to the caller indicating if there was a failure or not
+static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+    if (!tcp_failed_connections_enabled()) {
+        return false;
+    }
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
+
+    switch (err) {
+        case 0:
+            return false; // no error
+        case TCP_CONN_FAILED_RESET:
+        case TCP_CONN_FAILED_TIMEOUT:
+        case TCP_CONN_FAILED_REFUSED: {
+            tcp_stats_t stats = { .failure_reason = err };
+            update_tcp_stats(t, stats);
+            return true;
+        }
+    }
+    // initialize if no-exist
+    __u64 one = 1;
+    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
+    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+    if (count == NULL) {
+        return false;
+    }
+    __sync_fetch_and_add(count, one);
+
+    return false;
 }
 
 #endif // __TRACER_STATS_H

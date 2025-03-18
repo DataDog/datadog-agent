@@ -6,8 +6,15 @@
 // Package types defines types used by the Tagger component.
 package types
 
+import (
+	"fmt"
+	"strings"
+)
+
 const separator = "://"
 const separatorLength = len(separator)
+
+var globalEntityID = NewEntityID(InternalID, "global-entity-id")
 
 // GetSeparatorLengh returns the length of the entityID separator
 func GetSeparatorLengh() int {
@@ -64,6 +71,8 @@ const (
 	Process EntityIDPrefix = "process"
 	// InternalID is the prefix `internal`
 	InternalID EntityIDPrefix = "internal"
+	// GPU is the prefix `gpu`
+	GPU EntityIDPrefix = "gpu"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -78,5 +87,21 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		KubernetesPodUID:       {},
 		Process:                {},
 		InternalID:             {},
+		GPU:                    {},
 	}
+}
+
+// GetGlobalEntityID returns the entity ID that holds global tags
+func GetGlobalEntityID() EntityID {
+	return globalEntityID
+}
+
+// ExtractPrefixAndID extracts prefix and id from tagger entity id and returns an error if the received entityID is not valid
+func ExtractPrefixAndID(entityID string) (prefix EntityIDPrefix, id string, err error) {
+	extractedPrefix, extractedID, found := strings.Cut(entityID, "://")
+	if !found {
+		return "", "", fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", entityID)
+	}
+
+	return EntityIDPrefix(extractedPrefix), extractedID, nil
 }

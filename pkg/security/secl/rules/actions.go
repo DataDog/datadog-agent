@@ -67,13 +67,12 @@ func (a *Action) CompileFilter(parsingContext *ast.ParsingContext, model eval.Mo
 
 	expression := *a.Def.Filter
 
-	eval := eval.NewRule("action_rule", expression, evalOpts)
-
-	if err := eval.Parse(parsingContext); err != nil {
+	eval, err := eval.NewRule("action_rule", expression, parsingContext, evalOpts)
+	if err != nil {
 		return &ErrActionFilter{Expression: expression, Err: err}
 	}
 
-	if err := eval.GenEvaluator(model, parsingContext); err != nil {
+	if err := eval.GenEvaluator(model); err != nil {
 		return &ErrActionFilter{Expression: expression, Err: err}
 	}
 

@@ -24,22 +24,22 @@ import (
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 0, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 1234, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	e := config.NewEndpoint("bar", "foo", 0, false)
+	e := config.NewEndpoint("bar", "", "foo", 0, false)
 	e.Version = config.EPIntakeVersion2
 	e.TrackType = "test-track"
 	url := buildURL(e)
@@ -492,5 +492,68 @@ func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Assert that the server automatically falls back to HTTP/1.1
+	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP2WhenUsingProxy(t *testing.T) {
+	c := configmock.New(t)
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// The test server uses TLS, so if we set the http proxy (not https), it still makes
+	// a request to the test server
+	c.SetWithoutSource("proxy.http", "http://foo.bar")
+
+	server := NewTestHTTPSServer(false)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server chose HTTP/2.0 because a proxy was configured
+	assert.Equal(t, "HTTP/2.0", resp.Proto)
+}
+
+func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
+	c := configmock.New(t)
+
+	// Force client to use ALNP
+	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	c.SetWithoutSource("skip_ssl_validation", true)
+
+	// The test server uses TLS, so if we set the http proxy (not https), it still makes
+	// a request to the test server
+	c.SetWithoutSource("proxy.http", "http://foo.bar")
+
+	// Start the test server that only support HTTP/1.1
+	server := NewTestHTTPSServer(true)
+	defer server.Close()
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)()
+
+	req, err := http.NewRequest("POST", server.URL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Assert that the server chose HTTP/1.1 because a proxy was configured
 	assert.Equal(t, "HTTP/1.1", resp.Proto)
 }

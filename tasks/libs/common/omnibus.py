@@ -11,18 +11,8 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
 
 
-def _get_build_images(ctx):
-    # We intentionally include both build images & their test suffixes in the pattern
-    # as a test image and the merged version shouldn't share their cache
-    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
-    return (t.strip() for t in tags.splitlines())
-
-
 def _get_omnibus_commits(field):
-    if 'RELEASE_VERSION' in os.environ:
-        release_version = os.environ['RELEASE_VERSION']
-    else:
-        release_version = os.environ['RELEASE_VERSION_7']
+    release_version = os.environ['RELEASE_VERSION']
     return _get_release_json_value(f'{release_version}::{field}')
 
 
@@ -38,6 +28,7 @@ def _get_environment_for_cache() -> dict:
             'AGENT_',
             'API_KEY_',
             'APP_KEY_',
+            'ATLASSIAN_',
             'AWS_',
             'BAZEL_',
             'BETA_',
@@ -53,13 +44,14 @@ def _get_environment_for_cache() -> dict:
             'DESTINATION_',
             'DOCKER_',
             'DYNAMIC_',
-            'E2E_TESTS_',
+            'E2E_',
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
             'GITHUB_',
             'GITLAB_',
             'GIT_',
+            'INSTALLER_',
             'JIRA_',
             'K8S_',
             'KITCHEN_',
@@ -78,10 +70,12 @@ def _get_environment_for_cache() -> dict:
             'STATS_',
             'SMP_',
             'SSH_',
+            'TAGGER_',
             'TARGET_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
+            'VALIDATE_',
             'XPC_',
             'WINDOWS_',
         ]
@@ -102,7 +96,9 @@ def _get_environment_for_cache() -> dict:
             "CHANNEL",
             "CHART",
             "CI",
-            "CLUSTER",
+            "CLUSTERS",
+            "CODECOV",
+            "CODECOV_TOKEN",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
@@ -118,12 +114,16 @@ def _get_environment_for_cache() -> dict:
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
+            "GONOSUMDB",
+            "GOPROXY",
             "HELM_HOOKS_CI_IMAGE",
+            "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
             "HOME",
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_ORG2",
+            "INSTANCE_TYPE",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -136,9 +136,13 @@ def _get_environment_for_cache() -> dict:
             "MANPATH",
             "MESSAGE",
             "NEW_CLUSTER",
+            "NEW_CLUSTER_PR_SLACK_WORKFLOW_WEBHOOK",
+            "NOTIFICATIONS_SLACK_CHANNEL",
+            "NOTIFIER_IMAGE",
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
+            "PIP_EXTRA_INDEX_URL",
             "PIP_INDEX_URL",
             "PROCESS_S3_BUCKET",
             "PWD",
@@ -148,14 +152,13 @@ def _get_environment_for_cache() -> dict:
             "SIGN",
             "SHELL",
             "SHLVL",
+            "SLACK_AGENT",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
-            "TESTING_CLEANUP",
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
-            "USE_S3_CACHING",
             "USER",
             "USERDOMAIN",
             "USERNAME",
@@ -205,15 +208,12 @@ def omnibus_compute_cache_key(ctx):
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
-    buildimages_hash = _get_build_images(ctx)
-    for img_hash in buildimages_hash:
-        h.update(str.encode(img_hash))
-    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
-    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
+    # Omnibus ruby & software versions can be forced through the environment
+    # so we need to read it from there first, and fallback to release.json
+    omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
-    print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))
-    h.update(str.encode(omnibus_software_commit))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')

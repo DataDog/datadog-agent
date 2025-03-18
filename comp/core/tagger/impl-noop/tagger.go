@@ -17,6 +17,7 @@ import (
 	"context"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -33,10 +34,6 @@ func (n *noopTagger) Stop() error {
 	return nil
 }
 
-func (n *noopTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
@@ -47,6 +44,12 @@ func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error)
 
 func (n *noopTagger) LegacyTag(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
+}
+
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+// This is a no-op for the noop tagger
+func (n *noopTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
+	return "", nil
 }
 
 func (n *noopTagger) AccumulateTagsFor(types.EntityID, types.TagCardinality, tagset.TagsAccumulator) error {
@@ -81,17 +84,9 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (n *noopTagger) ResetCaptureTagger() {}
-
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
 func (n *noopTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
-func (n *noopTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
 

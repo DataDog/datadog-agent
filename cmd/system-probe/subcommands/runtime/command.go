@@ -126,7 +126,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -466,7 +466,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir)
 	if err != nil {
 		return err
 	}
@@ -533,8 +533,13 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, errors.New("unknown event type")
 	}
 
-	m := &model.Model{}
-	event := m.NewDefaultEventWithType(kind)
+	event := &model.Event{
+		BaseEvent: model.BaseEvent{
+			Type:             uint32(kind),
+			FieldHandlers:    &model.FakeFieldHandlers{},
+			ContainerContext: &model.ContainerContext{},
+		},
+	}
 	event.Init()
 
 	for k, v := range eventData.Values {
@@ -583,7 +588,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir)
 	if err != nil {
 		return err
 	}

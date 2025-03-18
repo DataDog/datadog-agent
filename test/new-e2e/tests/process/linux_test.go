@@ -10,13 +10,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxTestSuite struct {
@@ -44,8 +47,69 @@ func (s *linuxTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
+func (s *linuxTestSuite) TestAPIKeyRefresh() {
+	t := s.T()
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(processAgentRefreshStr),
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
+	t := s.T()
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(coreAgentRefreshStr),
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
+	}, 2*time.Minute, 10*time.Second)
+}
+
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
@@ -117,7 +181,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 
 	// Verify that the process agent is not running
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		status := s.Env().RemoteHost.MustExecute("/opt/datadog-agent/embedded/bin/process-agent status")
+		status := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
 		assert.Contains(c, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
 

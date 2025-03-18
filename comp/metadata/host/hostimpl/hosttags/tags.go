@@ -15,15 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 var (
@@ -54,7 +54,7 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	if conf.GetBool("collect_ec2_tags") {
 		// WARNING: if this config is enabled on a non-ec2 host, then its
 		// retries may time out, causing a 3s delay
-		providers["ec2"] = &providerDef{10, ec2.GetTags}
+		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
 	if env.IsFeaturePresent(env.Kubernetes) {
@@ -179,7 +179,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	t := &Tags{
-		System:              util.SortUniqInPlace(hostTags),
+		System:              sort.UniqInPlace(hostTags),
 		GoogleCloudPlatform: gceTags,
 	}
 

@@ -8,6 +8,8 @@
 package createandfetchimpl
 
 import (
+	"crypto/tls"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -38,7 +40,7 @@ type dependencies struct {
 
 func newAuthToken(deps dependencies) (authtoken.Component, error) {
 	if err := util.CreateAndSetAuthToken(deps.Conf); err != nil {
-		deps.Log.Error("could not create auth_token: %s", err)
+		deps.Log.Errorf("could not create auth_token: %s", err)
 		return nil, err
 	}
 
@@ -48,4 +50,14 @@ func newAuthToken(deps dependencies) (authtoken.Component, error) {
 // Get returns the session token
 func (at *authToken) Get() string {
 	return util.GetAuthToken()
+}
+
+// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
+func (at *authToken) GetTLSClientConfig() *tls.Config {
+	return util.GetTLSClientConfig()
+}
+
+// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Client
+func (at *authToken) GetTLSServerConfig() *tls.Config {
+	return util.GetTLSServerConfig()
 }

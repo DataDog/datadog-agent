@@ -91,7 +91,7 @@ Enable pre-commit        OK
 Setup completed successfully.
 ```
 
-If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
+If you want to uninstall `deva`, you can simply run the `./dda self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
 
 ##### Manual Installation
 
@@ -138,8 +138,8 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.22.8` or
-higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
+You must [install Golang](https://golang.org/doc/install) version `1.23.6` or
+later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version

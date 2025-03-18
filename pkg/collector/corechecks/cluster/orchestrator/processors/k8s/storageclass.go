@@ -32,6 +32,16 @@ func (h *StorageClassHandlers) AfterMarshalling(ctx processors.ProcessorContext,
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *StorageClassHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*storagev1.StorageClass)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -57,7 +67,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 //nolint:revive
 func (h *StorageClassHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (StorageClassModel interface{}) {
 	r := resource.(*storagev1.StorageClass)
-	return k8sTransformers.ExtractStorageClass(r)
+	return k8sTransformers.ExtractStorageClass(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

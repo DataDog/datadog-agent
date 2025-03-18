@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -87,17 +87,18 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				if sp.Metadata.Name != dump.Name {
 					t.Errorf("Profile name %s != %s\n", sp.Metadata.Name, dump.Name)
 				}
-				if sp.Metadata.ContainerID != dump.ContainerID {
+				if (sp.Metadata.ContainerID != dump.ContainerID) &&
+					(sp.Metadata.CGroupContext.CGroupID != dump.CGroupID) {
 					t.Errorf("Profile containerID %s != %s\n", sp.Metadata.ContainerID, dump.ContainerID)
 				}
 
@@ -105,7 +106,7 @@ func TestSecurityProfile(t *testing.T) {
 				if ctx == nil {
 					t.Errorf("No profile context found!")
 				} else {
-					if !slices.Contains(ctx.Tags, "container_id:"+dump.ContainerID) {
+					if !slices.Contains(ctx.Tags, "container_id:"+string(dump.ContainerID)) {
 						t.Errorf("Profile did not contains container_id tag: %v\n", ctx.Tags)
 					}
 					if !slices.Contains(ctx.Tags, "image_tag:latest") {
@@ -140,13 +141,13 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					return node.Node.Process.FileEvent.PathnameStr == syscallTester
 				})
@@ -179,13 +180,13 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					return node.Node.Process.Argv0 == "nslookup"
 				})
@@ -267,7 +268,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -299,7 +300,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +310,7 @@ func TestAnomalyDetection(t *testing.T) {
 			// don't do anything
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection.")
+			t.Error("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -332,7 +333,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -368,7 +369,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,7 +379,7 @@ func TestAnomalyDetection(t *testing.T) {
 			// don't do anything
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection.")
+			t.Error("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -443,7 +444,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	cmd.CombinedOutput()
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump(dump.Name, "")
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +462,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -472,7 +473,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -502,7 +503,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -515,7 +516,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -526,7 +527,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -537,7 +538,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -605,7 +606,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -616,7 +617,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -639,7 +640,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -650,7 +651,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -669,7 +670,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -706,7 +707,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -840,7 +841,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		}
 	})
 
-	err = test.StopActivityDump(dump.Name, "")
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -854,7 +855,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -873,7 +874,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")
@@ -981,13 +982,13 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump(dump.Name, "")
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// test profiling part
-	validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil, func(sp *profile.SecurityProfile) bool {
+	validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil, func(sp *profile.Profile) bool {
 		nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 			if node.Node.Process.FileEvent.PathnameStr == "/bin/date" || node.Node.Process.Argv0 == "/bin/date" {
 				if len(node.Node.Process.Argv) == 1 && slices.Contains([]string{"-u", "-R"}, node.Node.Process.Argv[0]) {
@@ -1078,7 +1079,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1091,7 +1092,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1105,7 +1106,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1164,7 +1165,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1175,7 +1176,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1195,7 +1196,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1252,7 +1253,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1265,7 +1266,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1279,7 +1280,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1336,7 +1337,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1347,7 +1348,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1367,7 +1368,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1425,7 +1426,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1438,7 +1439,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1456,7 +1457,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is still learning
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			// we answer false on purpose: we might have 2 or more syscall anomaly events
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
@@ -1474,7 +1475,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1533,7 +1534,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1555,7 +1556,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is unstable
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			// we answer false on purpose: we might have 2 or more syscall anomaly events
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
@@ -1614,7 +1615,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1627,7 +1628,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1641,7 +1642,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1792,7 +1793,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1805,7 +1806,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1819,7 +1820,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1970,7 +1971,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerInstanceV1, err := test.StartADocker()
+	dockerInstanceV1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1983,7 +1984,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1997,7 +1998,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2018,7 +2019,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2041,7 +2042,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2064,7 +2065,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2148,13 +2149,13 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	}
 	defer test.Close()
 
-	dockerInstance1, err := test.StartADocker()
+	dockerInstance1, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer dockerInstance1.stop()
 
-	err = test.StopActivityDump("", dockerInstance1.containerID)
+	err = test.StopActivityDump(dump.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2196,7 +2197,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *model.Event) bool {
-			t.Fatal("Got an event that should have been suppressed")
+			t.Error("Got an event that should have been suppressed")
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
 		if err != nil {
@@ -2235,72 +2236,81 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	})
 }
 
-func generateSyscallTestProfile(add ...model.Syscall) *dumpsv1.SecurityProfile {
-	syscallProfile := &dumpsv1.SecurityProfile{
-		Selector: &dumpsv1.ProfileSelector{
-			ImageName: "fake_ubuntu",
-			ImageTag:  "latest",
-		},
-		ProfileContexts: map[string]*dumpsv1.ProfileContext{
-			"latest": {
-				Syscalls: []uint32{
-					5,   // SysFstat
-					10,  // SysMprotect
-					11,  // SysMunmap
-					12,  // SysBrk
-					13,  // SysRtSigaction
-					14,  // SysRtSigprocmask
-					15,  // SysRtSigreturn
-					17,  // SysPread64
-					24,  // SysSchedYield
-					28,  // SysMadvise
-					35,  // SysNanosleep
-					39,  // SysGetpid
-					56,  // SysClone
-					63,  // SysUname
-					72,  // SysFcntl
-					79,  // SysGetcwd
-					80,  // SysChdir
-					97,  // SysGetrlimit
-					102, // SysGetuid
-					105, // SysSetuid
-					106, // SysSetgid
-					116, // SysSetgroups
-					125, // SysCapget
-					126, // SysCapset
-					131, // SysSigaltstack
-					137, // SysStatfs
-					138, // SysFstatfs
-					157, // SysPrctl
-					158, // SysArchPrctl
-					186, // SysGettid
-					202, // SysFutex
-					204, // SysSchedGetaffinity
-					217, // SysGetdents64
-					218, // SysSetTidAddress
-					233, // SysEpollCtl
-					234, // SysTgkill
-					250, // SysKeyctl
-					257, // SysOpenat
-					262, // SysNewfstatat
-					267, // SysReadlinkat
-					273, // SysSetRobustList
-					281, // SysEpollPwait
-					291, // SysEpollCreate1
-					293, // SysPipe2
-					317, // SysSeccomp
-					334, // SysRseq
-					435, // SysClone3
-					439, // SysFaccessat2
-				},
-			},
-		},
+func generateSyscallTestProfile(timeResolver *ktime.Resolver, add ...model.Syscall) *profile.Profile {
+	syscallProfile := profile.New(
+		profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "fake_ubuntu", Tag: "latest"}),
+	)
+
+	baseSyscalls := []uint32{
+		5,   // SysFstat
+		10,  // SysMprotect
+		11,  // SysMunmap
+		12,  // SysBrk
+		13,  // SysRtSigaction
+		14,  // SysRtSigprocmask
+		15,  // SysRtSigreturn
+		17,  // SysPread64
+		24,  // SysSchedYield
+		28,  // SysMadvise
+		35,  // SysNanosleep
+		39,  // SysGetpid
+		56,  // SysClone
+		63,  // SysUname
+		72,  // SysFcntl
+		79,  // SysGetcwd
+		80,  // SysChdir
+		97,  // SysGetrlimit
+		102, // SysGetuid
+		105, // SysSetuid
+		106, // SysSetgid
+		116, // SysSetgroups
+		125, // SysCapget
+		126, // SysCapset
+		131, // SysSigaltstack
+		137, // SysStatfs
+		138, // SysFstatfs
+		157, // SysPrctl
+		158, // SysArchPrctl
+		186, // SysGettid
+		202, // SysFutex
+		204, // SysSchedGetaffinity
+		217, // SysGetdents64
+		218, // SysSetTidAddress
+		233, // SysEpollCtl
+		234, // SysTgkill
+		250, // SysKeyctl
+		257, // SysOpenat
+		262, // SysNewfstatat
+		267, // SysReadlinkat
+		273, // SysSetRobustList
+		281, // SysEpollPwait
+		290, // SysEventfd2
+		291, // SysEpollCreate1
+		293, // SysPipe2
+		302, // SysPrlimit64
+		317, // SysSeccomp
+		321, // SysBpf
+		334, // SysRseq
+		435, // SysClone3
+		439, // SysFaccessat2
 	}
+
+	syscalls := slices.Clone(baseSyscalls)
 	for _, toAdd := range add {
-		if !slices.Contains(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd)) {
-			syscallProfile.ProfileContexts["latest"].Syscalls = append(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd))
+		if !slices.Contains(syscalls, uint32(toAdd)) {
+			syscalls = append(syscalls, uint32(toAdd))
 		}
 	}
+
+	nowNano := uint64(timeResolver.ComputeMonotonicTimestamp(time.Now()))
+	syscallProfile.AddVersionContext("latest", &profile.VersionContext{
+		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
+		FirstSeenNano:  nowNano,
+		LastSeenNano:   nowNano,
+		Syscalls:       syscalls,
+		Tags:           []string{"image_name:fake_ubuntu", "image_tag:latest"},
+	})
+
 	return syscallProfile
 }
 
@@ -2376,11 +2386,8 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile())
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2501,11 +2508,8 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile(model.SysExecve, model.SysExit, model.SysExitGroup))
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2618,11 +2622,9 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile(
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(
+				test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver,
 				model.SysExecve,
 				model.SysExit,
 				model.SysExitGroup,

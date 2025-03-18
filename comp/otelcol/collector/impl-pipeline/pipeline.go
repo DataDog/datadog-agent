@@ -5,8 +5,8 @@
 
 //go:build otlp
 
-// Package collectorimpl implements the collector component
-package collectorimpl
+// Package pipelineimpl implements the collector component
+package pipelineimpl
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -57,7 +57,7 @@ type Requires struct {
 	Serializer serializer.MetricSerializer
 
 	// LogsAgent specifies a logs agent
-	LogsAgent optional.Option[logsagentpipeline.Component]
+	LogsAgent option.Option[logsagentpipeline.Component]
 
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
@@ -80,7 +80,7 @@ type collectorImpl struct {
 	config         config.Component
 	log            log.Component
 	serializer     serializer.MetricSerializer
-	logsAgent      optional.Option[logsagentpipeline.Component]
+	logsAgent      option.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
 	client         *http.Client

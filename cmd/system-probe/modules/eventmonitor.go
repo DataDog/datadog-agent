@@ -35,6 +35,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	opts := eventmonitor.Opts{}
+	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
 	secmoduleOpts := secmodule.Opts{}
@@ -53,7 +54,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression)
 		if err != nil {
 			return nil, err
 		}
@@ -85,13 +86,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 
 	netconfig := netconfig.New()
 	if netconfig.EnableUSMEventStream {
-		procmonconsumer, err := createProcessMonitorConsumer(evm, netconfig)
-		if err != nil {
+		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
 			return nil, err
-		}
-		if procmonconsumer != nil {
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("USM process monitoring consumer initialized")
 		}
 	}
 

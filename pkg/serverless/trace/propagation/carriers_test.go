@@ -816,7 +816,7 @@ func TestHeadersCarrier(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := headersCarrier(tc.event)
-			t.Logf("rawPayloadCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			t.Logf("headersCarrier returned TextMapReader=%#v error=%#v", tm, err)
 			assert.Equal(t, tc.expErr != nil, err != nil)
 			if tc.expErr != nil && err != nil {
 				assert.Equal(t, tc.expErr.Error(), err.Error())
@@ -826,13 +826,64 @@ func TestHeadersCarrier(t *testing.T) {
 	}
 }
 
+func TestHeadersOrMultiheadersCarrier(t *testing.T) {
+	testcases := []struct {
+		name      string
+		hdrs      map[string]string
+		multiHdrs map[string][]string
+		expMap    map[string]string
+	}{
+		{
+			name:      "nil-map",
+			hdrs:      headersMapNone,
+			multiHdrs: toMultiValueHeaders(headersMapNone),
+			expMap:    headersMapEmpty,
+		},
+		{
+			name:      "empty-map",
+			hdrs:      headersMapEmpty,
+			multiHdrs: toMultiValueHeaders(headersMapEmpty),
+			expMap:    headersMapEmpty,
+		},
+		{
+			name:      "headers-and-multiheaders",
+			hdrs:      headersMapDD,
+			multiHdrs: toMultiValueHeaders(headersMapW3C),
+			expMap:    headersMapDD,
+		},
+		{
+			name:      "just-headers",
+			hdrs:      headersMapDD,
+			multiHdrs: toMultiValueHeaders(headersMapEmpty),
+			expMap:    headersMapDD,
+		},
+		{
+			name:      "just-multiheaders",
+			hdrs:      headersMapEmpty,
+			multiHdrs: toMultiValueHeaders(headersMapW3C),
+			expMap:    headersMapW3C,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm, err := headersOrMultiheadersCarrier(tc.hdrs, tc.multiHdrs)
+			t.Logf("headersOrMultiheadersCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
 func Test_stringToDdSpanId(t *testing.T) {
 	type args struct {
 		execArn          string
+		execRedriveCount uint16
 		stateName        string
 		stateEnteredTime string
+		stateRetryCount  uint16
 	}
-	tests := []struct {
+	testcases := []struct {
 		name string
 		args args
 		want uint64
@@ -840,8 +891,10 @@ func Test_stringToDdSpanId(t *testing.T) {
 		{"first Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				0,
 				"step-one",
 				"2022-12-08T21:08:19.224Z",
+				0,
 			},
 			4340734536022949921,
 		},
@@ -849,15 +902,17 @@ func Test_stringToDdSpanId(t *testing.T) {
 			"second Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				0,
 				"step-one",
 				"2022-12-08T21:08:19.224Y",
+				0,
 			},
 			981693280319792699,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equalf(t, tc.want, stringToDdSpanID(tc.args.execArn, tc.args.stateName, tc.args.stateEnteredTime, tc.args.stateRetryCount, tc.args.execRedriveCount), "stringToDdSpanID(%v, %v, %v)", tc.args.execArn, tc.args.stateName, tc.args.stateEnteredTime)
 		})
 	}
 }
@@ -866,7 +921,7 @@ func Test_stringToDdTraceIds(t *testing.T) {
 	type args struct {
 		toHash string
 	}
-	tests := []struct {
+	testcases := []struct {
 		name               string
 		args               args
 		expectedLower64    uint64
@@ -889,11 +944,47 @@ func Test_stringToDdTraceIds(t *testing.T) {
 			"1914fe7789eb32be",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := stringToDdTraceIDs(tt.args.toHash)
-			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIDs(%v)", tt.args.toHash)
-			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tt.args.toHash)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, got1 := stringToDdTraceIDs(tc.args.toHash)
+			assert.Equalf(t, tc.expectedLower64, got, "stringToDdTraceIDs(%v)", tc.args.toHash)
+			assert.Equalf(t, tc.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tc.args.toHash)
+		})
+	}
+}
+
+func TestParseUpper64Bits(t *testing.T) {
+	testcases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "valid_tid_at_start",
+			input:    "_dd.p.tid=66bcb5eb00000000,_dd.p.dm=-0",
+			expected: "66bcb5eb00000000",
+		},
+		{
+			name:     "valid_tid_at_end",
+			input:    "_dd.p.dm=-0,_dd.p.tid=abcdef1234567890",
+			expected: "abcdef1234567890",
+		},
+		{
+			name:     "no_tid_present",
+			input:    "_dd.p.dm=-0",
+			expected: "",
+		},
+		{
+			name:     "empty_input",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseUpper64Bits(tc.input)
+			assert.Equal(t, tc.expected, result, "For input '%s', expected '%s' but got '%s'", tc.input, tc.expected, result)
 		})
 	}
 }

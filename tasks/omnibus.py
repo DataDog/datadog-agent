@@ -7,6 +7,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -18,9 +19,7 @@ from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 
-def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
-):
+def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
@@ -36,19 +35,13 @@ def omnibus_run_task(
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
 
-        if omnibus_s3_cache:
-            populate_s3_cache = "--populate-s3-cache"
-        else:
-            populate_s3_cache = ""
-
-        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
+        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
             "overrides": overrides_cmd,
-            "populate_s3_cache": populate_s3_cache,
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -102,7 +95,7 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
@@ -136,6 +129,19 @@ def get_omnibus_env(
 
     if fips_mode:
         env['FIPS_MODE'] = 'true'
+        if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
+            # Point omnibus at the msgo root
+            # TODO: idk how to do this in omnibus datadog-agent.rb
+            #       because `File.read` is executed when the script is loaded,
+            #       not when the `command`s are run and the source tree is not
+            #       available at that time.
+            #       Comments from the Linux FIPS PR discussed wanting to centralize
+            #       the msgo root logic, so this can be updated then.
+            go_version = expected_go_repo_v()
+            env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
+            gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
+            if not os.path.exists(gobinpath):
+                raise Exit(f"msgo go.exe not found at {gobinpath}")
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -145,11 +151,15 @@ def get_omnibus_env(
     env_to_forward = [
         # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
         'DEPLOY_AGENT',
+        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
+        'BUCKET_BRANCH',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
         'DD_CC',
         'DD_CXX',
         'DD_CMAKE_TOOLCHAIN',
+        'OMNIBUS_FORCE_PACKAGES',
+        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
     ]
     for key in env_to_forward:
         if key in os.environ:
@@ -175,7 +185,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -271,10 +280,9 @@ def build(
             if use_remote_cache:
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
-                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
-                bundle_path = (
-                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
-                )
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
+                bundle_dir = tempfile.TemporaryDirectory()
+                bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
                 with timed(quiet=True) as durations['Restoring omnibus cache']:
                     # Allow failure in case the cache was evicted
                     if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
@@ -300,7 +308,6 @@ def build(
             target_project=target_project,
             base_dir=base_dir,
             env=env,
-            omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
             host_distribution=host_distribution,
         )
@@ -320,6 +327,7 @@ def build(
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                 ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                bundle_dir.cleanup()
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -383,7 +391,6 @@ def manifest(
         target_project=target_project,
         base_dir=base_dir,
         env=env,
-        omnibus_s3_cache=False,
         log_level=log_level,
     )
 

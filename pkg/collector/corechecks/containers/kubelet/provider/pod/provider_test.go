@@ -24,9 +24,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -116,10 +115,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := mock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 
 	for entity, tags := range commontesting.CommonTags {
-		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		prefix, id, _ := taggertypes.ExtractPrefixAndID(entity)
 		entityID := taggertypes.NewEntityID(prefix, id)
 		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}

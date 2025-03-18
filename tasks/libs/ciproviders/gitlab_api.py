@@ -37,8 +37,8 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
@@ -56,7 +56,8 @@ def get_gitlab_token():
             "or export it from your .bashrc or equivalent."
         )
         raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+
+    return os.environ.get("GITLAB_TOKEN", os.environ.get("DD_GITLAB_TOKEN"))
 
 
 def get_gitlab_bot_token():
@@ -119,6 +120,13 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
+@retry_function('cancel pipeline #{0.id}', retry_delay=5)
+def cancel_pipeline(pipeline: ProjectPipeline):
+    """Cancels a pipeline, retries if there is an error."""
+
+    pipeline.cancel()
+
+
 class GitlabCIDiff:
     def __init__(
         self,
@@ -176,7 +184,7 @@ class GitlabCIDiff:
             added=set(data['added']),
             removed=set(data['removed']),
             modified=set(data['modified']),
-            renamed=set(data['renamed']),
+            renamed=data['renamed'],
             modified_diffs=data['modied_diffs'],
             added_contents=data['added_contents'],
         )
@@ -1034,14 +1042,12 @@ def get_preset_contexts(required_tests):
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -1053,31 +1059,28 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["off"]),
         ("RUN_UNIT_TESTS", ["off"]),
-        ("TESTING_CLEANUP", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION_6", ["nightly"]),
-        ("RELEASE_VERSION_7", ["nightly-a7"]),
+        ("RELEASE_VERSION", ["nightly"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["off"]),
@@ -1251,19 +1254,26 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
     return all_stages
 
 
-def update_test_infra_def(file_path, image_tag):
+def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
     """
-    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
-            if test_infra_def:
-                gl.write(line.replace(test_infra_def.group(1), image_tag))
+    test_infra_def = {}
+    with open(file_path) as test_infra_version_file:
+        try:
+            test_infra_def = yaml.safe_load(test_infra_version_file)
+            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
+            if is_dev_image:
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
             else:
-                gl.write(line)
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
+        except yaml.YAMLError as e:
+            raise Exit(f"Error while loading {file_path}: {e}") from e
+    with open(file_path, "w") as test_infra_version_file:
+        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
+        # Add explicit_start=True to keep the document start marker ---
+        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
+        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
 
 
 def update_gitlab_config(file_path, tag, images="", test=True, update=True):

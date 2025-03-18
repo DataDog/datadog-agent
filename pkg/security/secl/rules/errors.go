@@ -27,9 +27,6 @@ var (
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
-	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
-	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
-
 	// ErrInternalIDConflict is returned when a user defined rule use an internal ID
 	ErrInternalIDConflict = errors.New("internal rule ID conflict")
 
@@ -44,6 +41,9 @@ var (
 
 	// ErrRuleAgentFilter is returned when an agent rule was filtered
 	ErrRuleAgentFilter = errors.New("agent rule filtered")
+
+	// ErrMultipleEventCategories is returned when multile event categories are in the same expansion
+	ErrMultipleEventCategories = errors.New("multiple event categories in the same rule expansion")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type

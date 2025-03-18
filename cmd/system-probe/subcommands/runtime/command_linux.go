@@ -21,7 +21,7 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
-		Short: "runtime Agent utility commands",
+		Short: "Runtime Security Agent (CWS) utility commands",
 	}
 
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
@@ -41,6 +41,9 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
 	if len(msg.GetMetadata().GetContainerID()) > 0 {
 		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
+	}
+	if len(msg.GetMetadata().GetCGroupID()) > 0 {
+		fmt.Printf("%s  cgroup ID: %s\n", prefix, msg.GetMetadata().GetCGroupID())
 	}
 	if len(msg.GetTags()) > 0 {
 		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))

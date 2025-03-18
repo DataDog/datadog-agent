@@ -42,8 +42,18 @@ var (
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
 		defaultpaths.PyChecksPath,                                // Integrations-core checks
+		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
 )
+
+// getFleetPoliciesPath returns the path to the fleet policies directory if it is set in the configuration
+// otherwise it returns an empty string
+func getFleetPoliciesPath() string {
+	if len(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")) > 0 {
+		return filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d")
+	}
+	return ""
+}
 
 // Adds the specific handlers for /checks/ endpoints
 func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
@@ -124,7 +134,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Compo
 		err := ch.Run()
 		warnings := ch.GetWarnings()
 		sStats, _ := ch.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats)
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
@@ -208,6 +218,9 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var file []byte
 	var e error
 	for _, path := range configPaths {
+		if len(path) == 0 {
+			continue
+		}
 		filePath, err := securejoin.SecureJoin(path, fileName)
 		if err != nil {
 			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
@@ -443,7 +456,9 @@ func getConfigsInPath(path string) ([]string, error) {
 func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
-
+		if len(path) == 0 {
+			continue
+		}
 		configs, e := getConfigsInPath(path)
 		if e != nil {
 			log.Errorf("Unable to list configurations from %s: %v", path, e)

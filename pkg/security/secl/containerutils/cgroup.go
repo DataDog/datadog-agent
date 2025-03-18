@@ -22,56 +22,33 @@ const (
 	CGroupManagerPodman                           // podman
 	CGroupManagerCRI                              // containerd
 	CGroupManagerSystemd                          // systemd
+	CGroupManagerECS                              // ecs
 )
 
+// CGroup flags
 const (
-	// ContainerRuntimeDocker is used to specify that a container is managed by Docker
-	ContainerRuntimeDocker = "docker"
-	// ContainerRuntimeCRI is used to specify that a container is managed by containerd
-	ContainerRuntimeCRI = "containerd"
-	// ContainerRuntimeCRIO is used to specify that a container is managed by CRI-O
-	ContainerRuntimeCRIO = "cri-o"
-	// ContainerRuntimePodman is used to specify that a container is managed by Podman
-	ContainerRuntimePodman = "podman"
+	SystemdService CGroupFlags = (0 << 8)
+	SystemdScope   CGroupFlags = (1 << 8)
 )
 
-// RuntimePrefixes holds the cgroup prefixed used by the different runtimes
-var RuntimePrefixes = map[string]CGroupManager{
-	"docker/":         CGroupManagerDocker, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
-	"docker-":         CGroupManagerDocker,
-	"cri-containerd-": CGroupManagerCRI,
-	"crio-":           CGroupManagerCRIO,
-	"libpod-":         CGroupManagerPodman,
+// RuntimeToken holds the cgroup token used by the different runtimes
+var RuntimeToken = []struct {
+	token string
+	flags CGroupManager
+}{
+	{"docker/", CGroupManagerDocker}, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
+	{"docker-", CGroupManagerDocker},
+	{"cri-containerd-", CGroupManagerCRI},
+	{"crio-", CGroupManagerCRIO},
+	{"libpod-", CGroupManagerPodman},
+	{"ecs/", CGroupManagerECS},
 }
 
-// GetCGroupManager extracts the cgroup manager from a cgroup name
-func GetCGroupManager(cgroup string) (string, CGroupFlags) {
-	cgroup = strings.TrimLeft(cgroup, "/")
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(cgroup, runtimePrefix) {
-			return cgroup[:len(runtimePrefix)], CGroupFlags(runtimeFlag)
+func getContainerRuntime(cgroupID CGroupID) CGroupFlags {
+	for _, rt := range RuntimeToken {
+		if strings.Contains(string(cgroupID), rt.token) {
+			return CGroupFlags(rt.flags)
 		}
 	}
-	return cgroup, 0
-}
-
-// GetContainerFromCgroup extracts the container ID from a cgroup name
-func GetContainerFromCgroup(cgroup CGroupID) (ContainerID, CGroupFlags) {
-	cgroupID := strings.TrimLeft(string(cgroup), "/")
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(cgroupID, runtimePrefix) {
-			return ContainerID(cgroupID[len(runtimePrefix):]), CGroupFlags(runtimeFlag)
-		}
-	}
-	return "", 0
-}
-
-// GetCgroupFromContainer infers the container runtime from a cgroup name
-func GetCgroupFromContainer(id ContainerID, flags CGroupFlags) CGroupID {
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if flags&CGroupManagerMask == CGroupFlags(runtimeFlag) {
-			return CGroupID(runtimePrefix + string(id))
-		}
-	}
-	return CGroupID("")
+	return 0
 }

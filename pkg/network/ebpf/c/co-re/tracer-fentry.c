@@ -8,6 +8,7 @@
 #include "ipv6.h"
 #include "sock.h"
 #include "skb.h"
+#include "pid_tgid.h"
 
 #include "tracer/tracer.h"
 #include "tracer/events.h"
@@ -52,7 +53,7 @@ static __always_inline bool event_in_task(char *prog_name) {
 }
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
-    t->pid = pid_tgid >> 32;
+    t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
     if (t->saddr_l == 0) {
@@ -85,7 +86,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
 }
 
 static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, struct flowi6 *fl6, u64 pid_tgid, metadata_mask_t type) {
-    t->pid = pid_tgid >> 32;
+    t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
     struct in6_addr addr = BPF_CORE_READ(fl6, saddr);
@@ -233,7 +234,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Get network namespace id
-    log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_close: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
@@ -410,14 +411,14 @@ SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_retransmit_skb");
     log_debug("fexntry/tcp_retransmit");
-    u64 tid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
     args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
     if (args.retrans_out_pre < 0) {
         return 0;
     }
 
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
 
     return 0;
 }
@@ -426,18 +427,18 @@ SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_retransmit_skb");
     log_debug("fexit/tcp_retransmit");
-    u64 tid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     if (err < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
     if (args == NULL) {
         return 0;
     }
     u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
 
     if (retrans_out < 0) {
         return 0;
@@ -450,7 +451,7 @@ SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
@@ -479,8 +480,8 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
         return 0;
     }
     u64 pid_tgid = pid_tgid_p->pid_tgid;
-    t.pid = pid_tgid >> 32;
-    log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    t.pid = GET_USER_MODE_PID(pid_tgid);
+    log_debug("fentry/tcp_finish_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
@@ -498,7 +499,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/inet_csk_accept: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fexit/inet_csk_accept: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {

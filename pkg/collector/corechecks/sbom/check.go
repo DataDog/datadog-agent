@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -118,8 +119,8 @@ type Check struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
@@ -172,6 +173,11 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	containerFilter, err := collectors.NewSBOMContainerFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create container filter: %w", err)
+	}
+
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
 		AddKind(workloadmeta.KindContainerImageMetadata).
@@ -211,7 +217,7 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processContainerImagesEvents(eventBundle)
+			c.processor.processContainerImagesEvents(eventBundle, containerFilter)
 		case scanResult, ok := <-hostSbomChan:
 			if !ok {
 				return nil

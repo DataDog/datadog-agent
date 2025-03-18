@@ -96,8 +96,6 @@ components_classic_style = [
     'comp/core/configsync/configsyncimpl',
     'comp/core/gui/guiimpl',
     'comp/core/hostname/hostnameimpl',
-    'comp/core/log/logimpl',
-    'comp/core/log/tracelogimpl',
     'comp/core/pid/pidimpl',
     'comp/core/secrets/secretsimpl',
     'comp/core/settings/settingsimpl',
@@ -165,7 +163,6 @@ components_classic_style = [
 # Please do not add a new component to this list.
 components_missing_implementation_folder = [
     "comp/dogstatsd/statsd",
-    "comp/core/tagger",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
 ]
@@ -217,7 +214,7 @@ def check_component_contents_and_file_hiearchy(comp):
     # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
     for mock_definition in mock_definitions:
         if any(line.startswith(mock_definition) for line in def_content):
-            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See docs/components/defining-components.md"
+            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See https://datadoghq.dev/datadog-agent/components/creating-components/"
 
     # Allowlist of components that do not use an implementation folder
     if comp.path in components_missing_implementation_folder:
@@ -226,13 +223,19 @@ def check_component_contents_and_file_hiearchy(comp):
     # Implementation folder or folders must exist
     impl_folders = locate_implementation_folders(comp)
     if len(impl_folders) == 0:
-        return f"** {comp.name} is missing the implementation folder in {comp.path}. See docs/components/defining-components.md"
+        return f"** {comp.name} is missing the implementation folder in {comp.path}. See https://datadoghq.dev/datadog-agent/components/creating-components/"
 
     if comp.version == 2:
         # Implementation source files should use correct package name, and shouldn't import fx (except tests)
         for src_file in locate_nontest_source_files(impl_folders):
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'impl'
+
+            for part in src_file.parts:
+                if "impl-" in part:
+                    parts = part.split("-")
+                    expectname = parts[1] + 'impl'
+
             if pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
             if comp.path in ignore_fx_import:
@@ -323,7 +326,9 @@ def locate_fx_source_files(root_path):
             continue
         if entry.name.startswith('fx'):
             for subentry in entry.iterdir():
-                results.append(subentry)
+                if subentry.is_file() and subentry.suffix == '.go':
+                    results.append(subentry)
+
     return results
 
 
@@ -468,7 +473,7 @@ def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     # codeowners is parsed in a last-match-wins fashion, so put more-specific values (components) after
     # less-specific (bundles).  We include only components with a team different from their bundle, to
     # keep the file short.
-    yield '/comp @DataDog/agent-shared-components'
+    yield '/comp @DataDog/agent-runtimes'
     different_components = []
     for b in bundles:
         if b.team:
@@ -550,7 +555,7 @@ def lint_components(_, fix=False):
 
     if not ok:
         if fixable:
-            print("Run `inv components.lint-components --fix` to fix errors")
+            print("Run `dda inv components.lint-components --fix` to fix errors")
         raise Exit(code=1)
 
 
@@ -573,9 +578,9 @@ def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"
         - You can use the --team flag to set the team name for the new bundle.
 
     Examples:
-        inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
-        inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
-        inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+        dda inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
+        dda inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
+        dda inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
     create_components_framework_files(
@@ -594,9 +599,9 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         - You can use the --team flag to set the team name for the new component/
 
     Examples:
-        inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
-        inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
-        inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+        dda inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
+        dda inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
+        dda inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     component_name = os.path.basename(comp_path)
     template_var_mapping = {

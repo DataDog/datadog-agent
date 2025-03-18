@@ -1,0 +1,59 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "accept.schema.json",
+    "type": "object",
+    "required" : ["accept"],
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "accept": {
+                    "type": "object",
+                    "required": [
+                        "addr"
+                    ],
+                    "properties": {
+                        "addr": {
+                            "type": "object",
+                            "required": [
+                                "family",
+                                "ip",
+                                "port"
+                            ],
+                            "properties": {
+                                "family": {
+                                    "type": "string"
+                                },
+                                "ip": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": "integer"
+                                },
+                                "hostname": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "protocol": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

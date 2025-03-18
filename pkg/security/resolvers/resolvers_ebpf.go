@@ -11,6 +11,7 @@ package resolvers
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"os"
 	"sort"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -37,6 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,6 +64,7 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
+	DNSResolver          *dns.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -90,7 +95,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver()
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +135,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := &container.Resolver{}
+	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -144,6 +149,14 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var envVarsResolver *envvars.Resolver
 	if opts.EnvVarsResolutionEnabled {
 		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
+	}
+
+	var dnsResolver *dns.Resolver
+	if config.Probe.DNSResolutionEnabled {
+		dnsResolver, err = dns.NewDNSResolver(config.Probe, statsdClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
@@ -178,6 +191,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:         hashResolver,
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
+		DNSResolver:          dnsResolver,
 	}
 
 	return resolvers, nil
@@ -212,6 +226,27 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
+}
+
+// ResolveCGroupContext resolves the cgroup context from a cgroup path key
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, bool, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
+		return cgroupContext, true, nil
+	}
+
+	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+	}
+
+	cgroupContext := &model.CGroupContext{
+		CGroupID:      containerutils.CGroupID(cgroup),
+		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:    pathKey,
+		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
+	}
+
+	return cgroupContext, false, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
@@ -290,6 +325,25 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+// nolint: deadcode, unused
+func (r *EBPFResolvers) snapshotBoundSockets() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		bs, err := procfs.GetBoundSockets(proc)
+		if err != nil {
+			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

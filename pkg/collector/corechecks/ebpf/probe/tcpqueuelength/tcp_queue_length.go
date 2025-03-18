@@ -13,7 +13,6 @@ package tcpqueuelength
 
 import (
 	"fmt"
-	"math"
 
 	"golang.org/x/sys/unix"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,10 +73,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 		Maps:   maps,
 	}
 
-	managerOptions.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	managerOptions.RemoveRlimit = true
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -176,7 +171,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"})
 	if err != nil {
 		return nil, err
 	}

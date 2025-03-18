@@ -9,6 +9,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -18,20 +20,26 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -136,9 +144,8 @@ func TestSplitTagRegex(t *testing.T) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
+		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 		assert.Nil(t, err)
-		seelog.ReplaceLogger(logger) //nolint:errcheck
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -247,6 +254,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
+//go:embed testdata/stringcode.go.tmpl
+var stringCodeBody string
+
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -261,7 +271,7 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
-		taggerComponent := taggermock.SetupFakeTagger(t)
+		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
 			corecomp.MockModule(),
@@ -362,11 +372,9 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
-		if err != nil {
-			t.Fatal(err)
+		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
 		}
-
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -374,7 +382,7 @@ func TestConfigHostname(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tmpl, err := template.New("program").Parse(string(body))
+			tmpl, err := template.New("program").Parse(stringCodeBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -557,6 +565,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "mymachine", cfg.Hostname)
 	assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
 	assert.True(t, cfg.SkipSSLValidation)
+	assert.Equal(t, uint16(tls.VersionTLS13), cfg.NewHTTPTransport().TLSClientConfig.MinVersion)
 	assert.Equal(t, 18125, cfg.StatsdPort)
 	assert.False(t, cfg.Enabled)
 	assert.Equal(t, "abc", cfg.LogFilePath)
@@ -570,6 +579,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
+	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
 	noProxy := true
@@ -612,6 +622,12 @@ func TestFullYamlConfig(t *testing.T) {
 			Repl:    "?",
 			Re:      regexp.MustCompile("(?s).*"),
 		},
+		{
+			Name:    "exception.stacktrace",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
 	}, cfg.ReplaceTags)
 
 	assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])
@@ -631,6 +647,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -1654,6 +1671,34 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
+	env = "DD_APM_OBFUSCATION_VALKEY_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
+	})
+
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
@@ -1776,6 +1821,22 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_CACHE_MAX_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "1234567")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualParsed := cfg.Obfuscation.Cache.MaxSize
+		assert.Equal(t, "1234567", actualConfig)
+		assert.Equal(t, int64(1234567), actualParsed)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
@@ -2234,6 +2295,38 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	assert.Contains(t, conf, "apm_config")
 }
 
+func TestSetConfigHandler(t *testing.T) {
+	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
+
+	handler := config.SetHandler().ServeHTTP
+
+	// Refuse non POST query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token return OK
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
 func TestDisableReceiverConfig(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
 		Params: corecomp.Params{ConfFilePath: "./testdata/disable_receiver.yaml"},
@@ -2274,8 +2367,11 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	}
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
-		fx.Replace(coreConfig),
-		taggermock.Module(),
+		fx.Provide(func() corecomp.Component { return coreConfig }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	c := fxutil.Test[Component](t, fx.Options(

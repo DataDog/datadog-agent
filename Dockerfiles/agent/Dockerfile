@@ -39,6 +39,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 FROM baseimage AS extract
 ARG TARGETARCH
 ARG WITH_JMX
+ARG WITH_JMX_FIPS
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
@@ -96,6 +97,7 @@ RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy
 FROM baseimage AS release
 LABEL maintainer="Datadog <package@datadoghq.com>"
 ARG WITH_JMX
+ARG WITH_JMX_FIPS
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
@@ -184,8 +186,6 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
   /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
 fi
-# This is used by MSGO to enable FIPS mode so it won't affect the non-FIPS image
-ENV GOFIPS=1
 
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
@@ -197,6 +197,9 @@ COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncyca
 COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
 COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
 RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
+# Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
+# Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
+ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \

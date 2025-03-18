@@ -176,14 +176,14 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 
 	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Errorf("Template entries don't all have the same length. "+
+		log.Errorf("Template entries in entity with ID %q don't all have the same length. "+
 			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
-			len(checkNames), len(initConfigs), len(instances))
+			adID, len(checkNames), len(initConfigs), len(instances))
 		return templates
 	}
 	for idx := range initConfigs {
 		if len(initConfigs[idx]) != 1 {
-			log.Error("Templates init Configs list is not valid, not using Templates entries")
+			log.Errorf("Templates init Configs list in entity with ID %q is not valid, not using Templates entries", adID)
 			return templates
 		}
 	}

@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -117,7 +116,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		tlsMinVersion = tls.VersionTLS10
 	}
 
-	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 	server := &http.Server{
 		Addr:     fmt.Sprintf(":%d", pkgconfigsetup.Datadog().GetInt("admission_controller.port")),
 		Handler:  s.mux,

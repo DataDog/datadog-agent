@@ -24,13 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type senderWithChans struct {
@@ -57,9 +58,9 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), compressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
+	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressionmock.NewMockCompressor()))
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
 	return demux
 }
 
@@ -180,7 +181,7 @@ func TestDestroySender(t *testing.T) {
 		return aggregatorInstance.checkSamplers[checkID1].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
+	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false, nil))
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 }
 
@@ -359,9 +360,9 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			expectedMetricSource: metrics.MetricSourceCPU,
 		},
 		{
-			name:                 "checkid ntp:1 should have MetricSourceNtp",
+			name:                 "checkid ntp:1 should have MetricSourceNTP",
 			checkID:              "ntp:1",
-			expectedMetricSource: metrics.MetricSourceNtp,
+			expectedMetricSource: metrics.MetricSourceNTP,
 		},
 		{
 			name:                 "checkid memory:1 should have MetricSourceMemory",

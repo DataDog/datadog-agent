@@ -170,6 +170,11 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.LastCollect = time.Now()
 
 	p := i.getPayload()
+	// If the payload is nil, we don't want to send it to the backend.
+	if p == nil {
+		i.log.Debugf("inventory payload is nil, skipping submission")
+		return i.MinInterval
+	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}

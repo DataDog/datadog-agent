@@ -19,57 +19,64 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
 type FakePodAutoscalerInternal struct {
-	Namespace                 string
-	Name                      string
-	Generation                int64
-	Spec                      *datadoghq.DatadogPodAutoscalerSpec
-	SettingsTimestamp         time.Time
-	CreationTimestamp         time.Time
-	ScalingValues             ScalingValues
-	HorizontalLastActions     []datadoghq.DatadogPodAutoscalerHorizontalAction
-	HorizontalLastLimitReason string
-	HorizontalLastActionError error
-	HorizontalEventsRetention time.Duration
-	VerticalLastAction        *datadoghq.DatadogPodAutoscalerVerticalAction
-	VerticalLastActionError   error
-	CurrentReplicas           *int32
-	ScaledReplicas            *int32
-	Error                     error
-	Deleted                   bool
-	TargetGVK                 schema.GroupVersionKind
+	Namespace                      string
+	Name                           string
+	Generation                     int64
+	Spec                           *datadoghq.DatadogPodAutoscalerSpec
+	SettingsTimestamp              time.Time
+	CreationTimestamp              time.Time
+	ScalingValues                  ScalingValues
+	MainScalingValues              ScalingValues
+	FallbackScalingValues          ScalingValues
+	HorizontalLastActions          []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastLimitReason      string
+	HorizontalLastActionError      error
+	HorizontalEventsRetention      time.Duration
+	VerticalLastAction             *datadoghqcommon.DatadogPodAutoscalerVerticalAction
+	VerticalLastActionError        error
+	CurrentReplicas                *int32
+	ScaledReplicas                 *int32
+	Error                          error
+	Deleted                        bool
+	TargetGVK                      schema.GroupVersionKind
+	CustomRecommenderConfiguration *RecommenderConfiguration
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
 func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	return PodAutoscalerInternal{
-		namespace:                 f.Namespace,
-		name:                      f.Name,
-		generation:                f.Generation,
-		spec:                      f.Spec,
-		settingsTimestamp:         f.SettingsTimestamp,
-		creationTimestamp:         f.CreationTimestamp,
-		scalingValues:             f.ScalingValues,
-		horizontalLastActions:     f.HorizontalLastActions,
-		horizontalLastLimitReason: f.HorizontalLastLimitReason,
-		horizontalLastActionError: f.HorizontalLastActionError,
-		horizontalEventsRetention: f.HorizontalEventsRetention,
-		verticalLastAction:        f.VerticalLastAction,
-		verticalLastActionError:   f.VerticalLastActionError,
-		currentReplicas:           f.CurrentReplicas,
-		scaledReplicas:            f.ScaledReplicas,
-		error:                     f.Error,
-		deleted:                   f.Deleted,
-		targetGVK:                 f.TargetGVK,
+		namespace:                      f.Namespace,
+		name:                           f.Name,
+		generation:                     f.Generation,
+		spec:                           f.Spec,
+		settingsTimestamp:              f.SettingsTimestamp,
+		creationTimestamp:              f.CreationTimestamp,
+		scalingValues:                  f.ScalingValues,
+		mainScalingValues:              f.MainScalingValues,
+		fallbackScalingValues:          f.FallbackScalingValues,
+		horizontalLastActions:          f.HorizontalLastActions,
+		horizontalLastLimitReason:      f.HorizontalLastLimitReason,
+		horizontalLastActionError:      f.HorizontalLastActionError,
+		horizontalEventsRetention:      f.HorizontalEventsRetention,
+		verticalLastAction:             f.VerticalLastAction,
+		verticalLastActionError:        f.VerticalLastActionError,
+		currentReplicas:                f.CurrentReplicas,
+		scaledReplicas:                 f.ScaledReplicas,
+		error:                          f.Error,
+		deleted:                        f.Deleted,
+		targetGVK:                      f.TargetGVK,
+		customRecommenderConfiguration: f.CustomRecommenderConfiguration,
 	}
 }
 
 // AddHorizontalAction mimics the behavior of adding an horizontal event.
-func (f *FakePodAutoscalerInternal) AddHorizontalAction(currentTime time.Time, action *datadoghq.DatadogPodAutoscalerHorizontalAction) {
+func (f *FakePodAutoscalerInternal) AddHorizontalAction(currentTime time.Time, action *datadoghqcommon.DatadogPodAutoscalerHorizontalAction) {
 	f.HorizontalLastActions = addHorizontalAction(currentTime, f.HorizontalEventsRetention, f.HorizontalLastActions, action)
 }
 
@@ -110,7 +117,7 @@ func ComparePodAutoscalers(expected any, actual any) string {
 				if fake, ok := x.(FakePodAutoscalerInternal); ok {
 					return fake.Build()
 				}
-				panic("filer failed - unexpected type")
+				panic("filter failed - unexpected type")
 			}),
 		),
 		cmp.FilterValues(

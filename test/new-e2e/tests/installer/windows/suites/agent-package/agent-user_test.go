@@ -8,17 +8,19 @@ package agenttests
 import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testAgentInstallWithAgentUserSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 	agentUser string
 }
 
@@ -49,13 +51,13 @@ func (s *testAgentInstallWithAgentUserSuite) installAgent() {
 	// Arrange
 
 	// Act
-	_, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+	_, err := s.Installer().InstallPackage(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
-		HasRegistryKey(installerwindows.RegistryKeyPath).
+		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", s.agentUser)
 	identity, err := windowsCommon.GetIdentityForUser(s.Env().RemoteHost, s.agentUser)
 	s.Require().NoError(err)

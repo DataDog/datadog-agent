@@ -97,15 +97,27 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
+static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
+    if (is_overlayfs(dentry)) {
+        u32 flags = get_overlayfs_layer(dentry);
+        file->flags |= flags;
+    }
+}
+
 void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
 
-    bpf_probe_read(&file->metadata.nlink, sizeof(file->metadata.nlink), (void *)&d_inode->i_nlink);
+    u64 inode_nlink_offset;
+    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
+    u64 inode_gid_offset;
+    LOAD_CONSTANT("inode_gid_offset", inode_gid_offset);
+
+    bpf_probe_read(&file->metadata.nlink, sizeof(file->metadata.nlink), (void *)d_inode + inode_nlink_offset);
     bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), &d_inode->i_mode);
     bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
-    bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), &d_inode->i_gid);
+    bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), (void *)d_inode + inode_gid_offset);
 
     u64 inode_ctime_sec_offset;
     LOAD_CONSTANT("inode_ctime_sec_offset", inode_ctime_sec_offset);
@@ -118,10 +130,10 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 		bpf_probe_read(&nsec, sizeof(nsec), (void *)d_inode + inode_ctime_nsec_offset);
 		file->metadata.ctime.tv_nsec = nsec;
 	} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
-    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
-    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->__i_ctime);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+    u64 inode_ctime_offset;
+    LOAD_CONSTANT("inode_ctime_offset", inode_ctime_offset);
+    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), (void *)d_inode + inode_ctime_offset);
 #else
     bpf_probe_read(&file->metadata.ctime.tv_sec, sizeof(file->metadata.ctime.tv_sec), &d_inode->i_ctime_sec);
     bpf_probe_read(&file->metadata.ctime.tv_nsec, sizeof(file->metadata.ctime.tv_nsec), &d_inode->i_ctime_nsec);
@@ -139,15 +151,18 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 		bpf_probe_read(&nsec, sizeof(nsec), (void *)d_inode + inode_mtime_nsec_offset);
 		file->metadata.mtime.tv_nsec = nsec;
 	} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
-    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
-    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->__i_mtime);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+    u64 inode_mtime_offset;
+    LOAD_CONSTANT("inode_mtime_offset", inode_mtime_offset);
+    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), (void *)d_inode + inode_mtime_offset);
 #else
     bpf_probe_read(&file->metadata.mtime.tv_sec, sizeof(file->metadata.mtime.tv_sec), &d_inode->i_mtime_sec);
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 	}
+
+    // set again the layer here as after update a file will be moved to the upper layer
+    set_file_layer(dentry, file);
 }
 
 #define get_dentry_key_path(dentry, path)                                  \
@@ -166,7 +181,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     }
 
     if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
+        set_overlayfs_inode(dentry, file);
     }
 }
 

@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	"github.com/cenkalti/backoff"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -290,7 +289,7 @@ func TestWPAController(t *testing.T) {
 	require.NoError(t, err)
 
 	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
-	err = apiserver.UnstructuredIntoWPA(res, wpaDecoded)
+	err = UnstructuredIntoWPA(res, wpaDecoded)
 	require.NoError(t, err)
 	require.Equal(t, wpaName, wpaDecoded.Name)
 
@@ -307,7 +306,7 @@ func TestWPAController(t *testing.T) {
 	require.NoError(t, err)
 
 	storedWPA := &v1alpha1.WatermarkPodAutoscaler{}
-	err = apiserver.UnstructuredIntoWPA(storedWPAObject, storedWPA)
+	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 
 	require.Equal(t, storedWPA, wpaDecoded)
@@ -364,7 +363,7 @@ func TestWPAController(t *testing.T) {
 		require.NoError(t, err)
 
 		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, metav1.UpdateOptions{})
-		err = apiserver.UnstructuredIntoWPA(res, wpaDecoded)
+		err = UnstructuredIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
 
 		return updateErr
@@ -392,7 +391,7 @@ func TestWPAController(t *testing.T) {
 
 	storedWPAObject, err = hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
 	require.NoError(t, err)
-	err = apiserver.UnstructuredIntoWPA(storedWPAObject, storedWPA)
+	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 	require.Equal(t, storedWPA, wpaDecoded)
 	// Checking the local cache holds the correct Data.
@@ -608,7 +607,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			testWPA := &v1alpha1.WatermarkPodAutoscaler{}
-			err := apiserver.UnstructuredIntoWPA(testCase.obj, testWPA)
+			err := UnstructuredIntoWPA(testCase.obj, testWPA)
 			require.Equal(t, testCase.error, err)
 			if err == nil {
 				// because we use the fake client, the GVK is missing from the WPA object.
@@ -654,11 +653,10 @@ func TestWPACRDCheck(t *testing.T) {
 }
 
 func configureLoggerForTest(t *testing.T) func() {
-	logger, err := seelog.LoggerFromWriterWithMinLevel(testWriter{t}, seelog.TraceLvl)
+	logger, err := log.LoggerFromWriterWithMinLevel(testWriter{t}, log.TraceLvl)
 	if err != nil {
 		t.Fatalf("unable to configure logger, err: %v", err)
 	}
-	seelog.ReplaceLogger(logger) //nolint:errcheck
 	log.SetupLogger(logger, "trace")
 	return log.Flush
 }

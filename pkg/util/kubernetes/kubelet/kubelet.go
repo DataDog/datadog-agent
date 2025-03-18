@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	v1 "k8s.io/api/core/v1"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
@@ -53,18 +55,15 @@ type KubeUtil struct {
 	kubeletClient          *kubeletClient
 	rawConnectionInfo      map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration   time.Duration
-	filter                 *containers.Filter
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
+	podResourcesClient     *PodResourcesClient
+
+	useAPIServer bool
 }
 
 func (ku *KubeUtil) init() error {
 	var err error
-	ku.filter, err = containers.GetSharedMetricFilter()
-	if err != nil {
-		return err
-	}
-
 	ku.kubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
 		return err
@@ -82,6 +81,21 @@ func (ku *KubeUtil) init() error {
 		}
 		if ku.kubeletClient.config.token != "" {
 			ku.rawConnectionInfo["token"] = ku.kubeletClient.config.token
+		}
+	}
+
+	if env.IsFeaturePresent(env.PodResources) {
+		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
+		if err != nil {
+			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+		ku.useAPIServer = true
+		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
+		if err != nil {
+			return err
 		}
 	}
 
@@ -177,6 +191,16 @@ func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, conta
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	if ku.useAPIServer {
+		if ku.kubeletClient.config.nodeName != "" {
+			return ku.kubeletClient.config.nodeName, nil
+		}
+		stats, err := ku.GetLocalStatsSummary(ctx)
+		if err == nil && stats.Node.NodeName != "" {
+			return stats.Node.NodeName, nil
+		}
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
+	}
 	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -218,6 +242,11 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}
 
+	err = ku.addContainerResourcesData(ctx, pods.Items)
+	if err != nil {
+		log.Errorf("Error adding container resources data: %s", err)
+	}
+
 	// ensure we dont have nil pods
 	tmpSlice := make([]*Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
@@ -243,6 +272,52 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return &pods, nil
+}
+
+// addContainerResourcesData modifies the given pod list, populating the
+// resources field of each container. If the pod resources API is not available,
+// this is a no-op.
+func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) error {
+	if ku.podResourcesClient == nil {
+		return nil
+	}
+
+	containerToDevicesMap, err := ku.podResourcesClient.GetContainerToDevicesMap(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting container resources data: %w", err)
+	}
+
+	for _, pod := range pods {
+		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.InitContainers)
+		ku.addResourcesToContainerList(containerToDevicesMap, pod, pod.Status.Containers)
+	}
+
+	return nil
+}
+
+func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *Pod, containers []ContainerStatus) {
+	for i := range containers {
+		container := &containers[i] // take the pointer so that we can modify the original
+		key := ContainerKey{
+			Namespace:     pod.Metadata.Namespace,
+			PodName:       pod.Metadata.Name,
+			ContainerName: container.Name,
+		}
+		devices, ok := containerToDevicesMap[key]
+		if !ok {
+			continue
+		}
+
+		for _, device := range devices {
+			name := device.GetResourceName()
+			for _, id := range device.GetDeviceIds() {
+				container.AllocatedResources = append(container.AllocatedResources, ContainerAllocatedResource{
+					Name: name,
+					ID:   id,
+				})
+			}
+		}
+	}
 }
 
 // GetLocalPodList returns the list of pods running on the node.

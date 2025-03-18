@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
@@ -16,13 +17,15 @@ import (
 )
 
 // ExtractNetworkPolicy returns the protobuf model corresponding to a Kubernetes
-func ExtractNetworkPolicy(n *networkingv1.NetworkPolicy) *model.NetworkPolicy {
+func ExtractNetworkPolicy(ctx processors.ProcessorContext, n *networkingv1.NetworkPolicy) *model.NetworkPolicy {
 	networkPolicy := model.NetworkPolicy{
 		Metadata: extractMetadata(&n.ObjectMeta),
 		Spec:     extractNetworkPolicySpec(&n.Spec),
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	networkPolicy.Tags = append(networkPolicy.Tags, transformers.RetrieveUnifiedServiceTags(n.ObjectMeta.Labels)...)
+	networkPolicy.Tags = append(networkPolicy.Tags, transformers.RetrieveMetadataTags(n.ObjectMeta.Labels, n.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &networkPolicy
 }

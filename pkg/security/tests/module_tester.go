@@ -118,7 +118,7 @@ func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
 	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
-	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
+	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir)
 	if err != nil {
 		return err
 	}
@@ -557,7 +557,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, nil)
+	b, err := serializers.MarshalEvent(ev)
 	return string(b), err
 }
 
@@ -811,6 +811,8 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
 		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
 		"EventServerRetention":                       opts.eventServerRetention,
+		"EnableSelfTests":                            opts.enableSelfTests,
+		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}

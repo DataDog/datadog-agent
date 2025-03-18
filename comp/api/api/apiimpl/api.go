@@ -26,11 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -45,14 +44,13 @@ type apiServer struct {
 	cfg                 config.Component
 	pidMap              pidmap.Component
 	secretResolver      secrets.Component
-	rcService           optional.Option[rcservice.Component]
-	rcServiceMRF        optional.Option[rcservicemrf.Component]
+	rcService           option.Option[rcservice.Component]
+	rcServiceMRF        option.Option[rcservicemrf.Component]
 	authToken           authtoken.Component
 	taggerComp          tagger.Component
 	autoConfig          autodiscovery.Component
-	logsAgentComp       optional.Option[logsAgent.Component]
 	wmeta               workloadmeta.Component
-	collector           optional.Option[collector.Component]
+	collector           option.Option[collector.Component]
 	senderManager       diagnosesendermanager.Component
 	remoteAgentRegistry remoteagentregistry.Component
 	cmdListener         net.Listener
@@ -69,15 +67,14 @@ type dependencies struct {
 	Capture               replay.Component
 	PidMap                pidmap.Component
 	SecretResolver        secrets.Component
-	RcService             optional.Option[rcservice.Component]
-	RcServiceMRF          optional.Option[rcservicemrf.Component]
+	RcService             option.Option[rcservice.Component]
+	RcServiceMRF          option.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	Tagger                tagger.Component
 	Cfg                   config.Component
 	AutoConfig            autodiscovery.Component
-	LogsAgentComp         optional.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
-	Collector             optional.Option[collector.Component]
+	Collector             option.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
 	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
@@ -99,7 +96,6 @@ func newAPIServer(deps dependencies) api.Component {
 		taggerComp:          deps.Tagger,
 		cfg:                 deps.Cfg,
 		autoConfig:          deps.AutoConfig,
-		logsAgentComp:       deps.LogsAgentComp,
 		wmeta:               deps.WorkloadMeta,
 		collector:           deps.Collector,
 		senderManager:       deps.DiagnoseSenderManager,

@@ -423,8 +423,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			return 0, nil
 		}
 
-		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-		defer o.Stop()
+		o := c.LazyInitObfuscator()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		sendPlan := true

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
@@ -64,4 +64,8 @@ func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 	}
 
 	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
+}
+
+func (v *windowsStatusSuite) TestDefaultInstallStatus() {
+	v.testDefaultInstallStatus(nil, []string{"Status: Not running or unreachable"})
 }

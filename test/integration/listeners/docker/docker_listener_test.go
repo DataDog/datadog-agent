@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -90,7 +90,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 	))
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
@@ -111,7 +111,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 func (suite *DockerListenerTestSuite) SetupTest() {
 	dl, err := listeners.NewContainerListener(listeners.ServiceListernerDeps{
 		Config:    &pkgconfigsetup.Listeners{},
-		Wmeta:     optional.NewOption(suite.wmeta),
+		Wmeta:     option.New(suite.wmeta),
 		Telemetry: suite.telemetryStore,
 		Tagger:    suite.tagger,
 	})

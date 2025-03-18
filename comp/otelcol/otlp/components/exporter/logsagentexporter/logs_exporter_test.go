@@ -15,9 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -127,6 +128,38 @@ func TestLogsExporter(t *testing.T) {
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
 					"otel.severity_text":   "Info",
+					"otel.severity_number": "9",
+					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
+					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
+					"resource-attr":        "resource-attr-val-1",
+				},
+			},
+			expectedTags: [][]string{{"otel_source:datadog_agent"}},
+		},
+		{
+			name: "status",
+			args: args{
+				ld: func() plog.Logs {
+					l := testutil.GenerateLogsOneLogRecord()
+					rl := l.ResourceLogs().At(0)
+					rl.ScopeLogs().At(0).LogRecords().At(0).SetSeverityText("Fatal")
+					return l
+				}(),
+				otelSource:    otelSource,
+				logSourceName: LogSourceName,
+			},
+
+			want: testutil.JSONLogs{
+				{
+					"message":              "This is a log message",
+					"app":                  "server",
+					"instance_num":         "1",
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
+					"status":               "Fatal",
+					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
+					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
+					"otel.severity_text":   "Fatal",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
@@ -263,8 +296,8 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
-			params := exportertest.NewNopSettings()
-			f := NewFactory(testChannel)
+			params := exportertest.NewNopSettings(component.MustNewType(TypeStr))
+			f := NewFactory(testChannel, otel.NewDisabledGatewayUsage())
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,
 				LogSourceName: tt.args.logSourceName,

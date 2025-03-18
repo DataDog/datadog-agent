@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
+
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 const (
@@ -46,7 +47,7 @@ func (s *packageAgentSuite) TestInstall() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(agentUnit, traceUnit, processUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, false)
@@ -72,7 +73,7 @@ func (s *packageAgentSuite) TestInstall() {
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
@@ -80,7 +81,12 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		pkgManager := s.host.GetPkgManager()
 		switch pkgManager {
 		case "apt":
-			systemdPath = "/lib/systemd/system"
+			if s.os.Flavor == e2eos.Ubuntu {
+				// Ubuntu 24.04 moved to a new systemd path
+				systemdPath = "/usr/lib/systemd/system"
+			} else {
+				systemdPath = "/lib/systemd/system"
+			}
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
@@ -89,7 +95,6 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	}
 
 	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
-
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
@@ -113,7 +118,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 }
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
@@ -145,11 +150,10 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigtermExit0("core-agent").
-		SetStopWithSigtermExit0("process-agent").
 		SetStopWithSigtermExit0("trace-agent")
 
 	// assert timeout is already set
@@ -158,10 +162,10 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	// shorten timeout for tests
 	s.host.Run("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d/")
 	defer s.host.Run("sudo rm -rf /etc/systemd/system/datadog-agent-exp.service.d/")
-	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=5" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=15" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
 	s.host.Run(`sudo systemctl daemon-reload`)
 
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "5s")
+	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "15s")
 
 	timestamp := s.host.LastJournaldTimestamp()
 	s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
@@ -169,8 +173,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		// first stop agent dependency
 		Unordered(host.SystemdEvents().
-			Stopped(traceUnit).
-			Stopped(processUnit),
+			Stopped(traceUnit),
 		).
 		// then agent
 		Stopping(agentUnit).
@@ -179,7 +182,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		// start experiment dependency
 		Unordered(host.SystemdEvents().
 			Starting(agentUnitXP).
-			Started(processUnitXP).
 			Started(traceUnitXP).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
@@ -189,7 +191,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Timed(agentUnitXP).
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 
@@ -197,7 +198,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			Started(processUnit).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
@@ -208,14 +208,13 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigkill("core-agent").
-		SetStopWithSigkill("process-agent").
 		SetStopWithSigkill("trace-agent")
 
-	for _, unit := range []string{traceUnitXP, processUnitXP, agentUnitXP} {
+	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1min 30s")
 		s.host.Run(fmt.Sprintf("sudo mkdir -p /etc/systemd/system/%s.d/", unit))
@@ -236,8 +235,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		// first stop agent dependency
 		Unordered(host.SystemdEvents().
-			Stopped(traceUnit).
-			Stopped(processUnit),
+			Stopped(traceUnit),
 		).
 		// then agent
 		Stopping(agentUnit).
@@ -246,7 +244,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		// start experiment dependency
 		Unordered(host.SystemdEvents().
 			Starting(agentUnitXP).
-			Started(processUnitXP).
 			Started(traceUnitXP).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
@@ -256,13 +253,10 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Timed(agentUnitXP).
 		Unordered(host.SystemdEvents().
 			SigtermTimed(agentUnitXP).
-			SigtermTimed(processUnitXP).
 			SigtermTimed(traceUnitXP).
 			Sigkill(agentUnitXP).
-			Sigkill(processUnitXP).
 			Sigkill(traceUnitXP).
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 
@@ -270,7 +264,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			Started(processUnit).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
@@ -281,7 +274,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	xpAgent := s.host.SetupFakeAgentExp()
 
@@ -299,8 +292,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 			// first stop agent dependency
 			Unordered(host.SystemdEvents().
-				Stopped(traceUnit).
-				Stopped(processUnit),
+				Stopped(traceUnit),
 			).
 			// then agent
 			Stopping(agentUnit).
@@ -309,7 +301,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			// start experiment dependency
 			Unordered(host.SystemdEvents().
 				Starting(agentUnitXP).
-				Started(processUnitXP).
 				Started(traceUnitXP).
 				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnitXP),
@@ -318,7 +309,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			// failed agent XP unit
 			Failed(agentUnitXP).
 			Unordered(host.SystemdEvents().
-				Stopped(processUnitXP).
 				Stopped(traceUnitXP),
 			).
 
@@ -326,7 +316,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				Started(processUnit).
 				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
@@ -338,7 +327,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.SetupFakeAgentExp()
 
@@ -348,12 +337,10 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
 
 		// ensure experiment is running
-		s.host.WaitForUnitActive(
+		s.host.WaitForUnitActive(s.T(),
 			"datadog-agent-trace-exp.service",
-			"datadog-agent-process-exp.service",
 		)
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
-		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(processUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible))
 
@@ -365,7 +352,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			// stop order
 			Unordered(host.SystemdEvents().
 				Stopped(agentUnitXP).
-				Stopped(processUnitXP).
 				Stopped(traceUnitXP),
 			).
 
@@ -373,7 +359,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				Started(processUnit).
 				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
@@ -385,7 +370,7 @@ func (s *packageAgentSuite) TestRunPath() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
 	var rawConfig string
 	var err error
@@ -422,7 +407,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 	state = s.host.State()
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
 
 	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
 }
@@ -430,6 +415,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 	// create /opt/datadog-agent to simulate a disabled agent
 	s.host.Run("sudo mkdir -p /opt/datadog-agent")
+	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
 
 	// install OCI agent
 	s.RunInstallScript(envForceInstall("datadog-agent"))
@@ -451,6 +437,9 @@ func (s *packageAgentSuite) purgeAgentDebInstall() {
 	default:
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}
+	// Make sure everything is cleaned up -- there are tests where the package is
+	// removed but not purged so the directory remains
+	s.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-agent")
 }
 
 func (s *packageAgentSuite) installDebRPMAgent() {

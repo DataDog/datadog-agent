@@ -48,7 +48,7 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.UseRingBuffers())
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
@@ -102,6 +102,10 @@ func (m *EBPFMonitors) SendStats() error {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
 
+		if err := resolvers.CGroupResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver stats: %w", err)
+		}
+
 		if resolvers.SBOMResolver != nil {
 			if err := resolvers.SBOMResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
@@ -111,6 +115,12 @@ func (m *EBPFMonitors) SendStats() error {
 		if resolvers.HashResolver != nil {
 			if err := resolvers.HashResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
+			}
+		}
+
+		if m.ebpfProbe.config.Probe.DNSResolutionEnabled {
+			if err := resolvers.DNSResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send process_resolver stats: %w", err)
 			}
 		}
 	}

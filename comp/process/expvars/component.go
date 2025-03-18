@@ -6,7 +6,7 @@
 // Package expvars initializes the expvar server of the process agent.
 package expvars
 
-// team: processes
+// team: container-intake
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {

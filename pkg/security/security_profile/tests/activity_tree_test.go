@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -685,19 +686,24 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 							}
 
 							if tt == dumpTree {
-								dump := dump.NewEmptyActivityDump(nil)
-								dump.Metadata.ContainerID = contID
-								at = dump.ActivityTree
+								dump := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
+								dump.Profile.Metadata.ContainerID = containerutils.ContainerID(contID)
+								at = dump.Profile.ActivityTree
 							} else /* profileTree */ {
-								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
+								profile := profile.New(
+									profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
+									profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+								)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
-								profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
-									ContainerContext: model.ContainerContext{
-										ContainerID: containerutils.ContainerID(contID),
+								profile.Instances = append(profile.Instances, &tags.Workload{
+									CacheEntry: &cgroupModel.CacheEntry{
+										ContainerContext: model.ContainerContext{
+											ContainerID: containerutils.ContainerID(contID),
+										},
+										CGroupContext: model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
 									},
-									CGroupContext:    model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
-									WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+									Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}
 						} else { // retrieve last saved tree state
@@ -754,11 +760,11 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		adInputTree := dump.NewEmptyActivityDump(nil)
-		adInputTree.Decode(path.Join(sharedTestSuiteDir, test+"_input_tree.json"))
+		adInputTree := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
+		adInputTree.Profile.Decode(path.Join(sharedTestSuiteDir, test+"_input_tree.json"))
 
-		adWantedTree := dump.NewEmptyActivityDump(nil)
-		adWantedTree.Decode(path.Join(sharedTestSuiteDir, test+"_wanted_tree.json"))
+		adWantedTree := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
+		adWantedTree.Profile.Decode(path.Join(sharedTestSuiteDir, test+"_wanted_tree.json"))
 
 		inputEvent, err := serializers.DecodeEvent(path.Join(sharedTestSuiteDir, test+"_input_event.json"))
 		if err != nil {
@@ -768,17 +774,17 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 		}
 
 		t.Run(test, func(t *testing.T) {
-			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
+			_, _, err := adInputTree.Profile.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			var builder strings.Builder
-			adInputTree.ActivityTree.Debug(&builder)
+			adInputTree.Profile.ActivityTree.Debug(&builder)
 			result := strings.TrimSpace(builder.String())
 
 			builder.Reset()
-			adWantedTree.ActivityTree.Debug(&builder)
+			adWantedTree.Profile.ActivityTree.Debug(&builder)
 			wantedResult := strings.TrimSpace(builder.String())
 
 			assert.Equalf(t, wantedResult, result, "the generated tree didn't match the expected output")

@@ -160,6 +160,11 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroup
 	return ""
 }
 
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.CGroupContext) int {
+	return 0
+}
+
 // ResolveCGroupManager resolves the manager of the cgroup
 func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
 	return ""
@@ -387,7 +392,7 @@ func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) [
 
 // ResolveSyscallCtxArgs resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
-	e.Resolved = true
+	e.Resolved = false
 }
 
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx

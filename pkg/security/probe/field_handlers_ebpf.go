@@ -11,7 +11,6 @@ package probe
 import (
 	"encoding/binary"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -121,7 +121,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process 
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
 func (fh *EBPFFieldHandlers) ResolveFileFieldsInUpperLayer(_ *model.Event, f *model.FileFields) bool {
-	return f.GetInUpperLayer()
+	return f.IsInUpperLayer()
 }
 
 // ResolveXAttrName returns the string representation of the extended attribute name
@@ -231,7 +231,7 @@ func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) 
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
 }
 
-// ResolveChownUID resolves the ResolveProcessCacheEntry id of a chown event to a username
+// ResolveChownUID resolves the user id of a chown event to a username
 func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
 		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ContainerContext.ContainerID)
@@ -516,23 +516,9 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 				return string(entry.CGroup.CGroupID)
 			}
 
-			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
-			if err == nil && path != "" {
-				cgroup := filepath.Dir(string(path))
-				if cgroup == "/" {
-					cgroup = path
-				}
-
-				entry.Process.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				entry.CGroup.CGroupID = containerutils.CGroupID(cgroup)
-				containerID, _ := containerutils.GetContainerFromCgroup(entry.CGroup.CGroupID)
-				entry.Process.ContainerID = containerutils.ContainerID(containerID)
-				entry.ContainerID = containerutils.ContainerID(containerID)
-			} else {
-				entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
+			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(e.CGroupFile, e.CGroupFlags); err == nil {
+				ev.CGroupContext = cgroupContext
 			}
-
-			e.CGroupID = entry.CGroup.CGroupID
 		}
 	}
 
@@ -548,6 +534,18 @@ func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGro
 	}
 
 	return ""
+}
+
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
+	if e.CGroupVersion == 0 {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID); filesystem == "cgroup2" {
+			e.CGroupVersion = 2
+		} else {
+			e.CGroupVersion = 1
+		}
+	}
+	return e.CGroupVersion
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -733,4 +731,18 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnD
 // ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
 	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
+}
+
+// ResolveProcessNSID resolves the process namespace ID
+func (fh *EBPFFieldHandlers) ResolveProcessNSID(e *model.Event) (uint64, error) {
+	if e.ProcessCacheEntry.Process.NSID != 0 {
+		return e.ProcessCacheEntry.Process.NSID, nil
+	}
+
+	nsid, err := utils.GetProcessPidNamespace(e.ProcessCacheEntry.Process.Pid)
+	if err != nil {
+		return 0, err
+	}
+	e.ProcessCacheEntry.Process.NSID = nsid
+	return nsid, nil
 }

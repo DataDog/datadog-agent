@@ -9,6 +9,7 @@
 package processresolver
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 )
 
 func newFakeExecEvent(ppid, pid int, pathname string) *model.Event {
@@ -141,7 +141,8 @@ func isProcessOrExecPresent(pl *processlist.ProcessList, pc *ProcessResolver, ev
 
 func TestFork1st(t *testing.T) {
 	pc := NewProcessResolver()
-	processList := processlist.NewProcessList(cgroupModel.WorkloadSelector{Image: "*", Tag: "*"},
+	selector, _ := cgroupModel.NewWorkloadSelector("*", "*")
+	processList := processlist.NewProcessList(selector,
 		[]model.EventType{model.ExecEventType, model.ForkEventType, model.ExitEventType}, pc /* ,nil  */, nil, nil)
 	stats := testStats{}
 

@@ -35,7 +35,7 @@ type SecurityModuleClientWrapper interface {
 	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
-	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
+	StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
 	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
 	GetConfig() (*api.SecurityConfigMessage, error)
@@ -81,10 +81,11 @@ func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpPa
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
 		Name:        name,
-		ContainerID: containerid,
+		ContainerID: container,
+		CGroupID:    cgroup,
 	})
 }
 
@@ -187,7 +188,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	family, _ := config.GetFamilyAddress(socketPath)
+	family := config.GetFamilyAddress(socketPath)
 	if runtime.GOOS == "windows" && family == "unix" {
 		return nil, fmt.Errorf("unix sockets are not supported on Windows")
 	}

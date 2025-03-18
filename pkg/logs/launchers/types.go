@@ -13,7 +13,7 @@ import (
 )
 
 // Launcher implementations launch logs pipelines in response to sources, and
-// mange those pipelines' lifetime.
+// manage those pipelines' lifetime.
 //
 // Launchers are started when the logs-agent starts, or when they are added to
 // the agent, and stopped when it stops.

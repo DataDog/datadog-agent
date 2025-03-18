@@ -27,13 +27,13 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -44,6 +44,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -57,7 +58,7 @@ import (
 )
 
 var (
-	logger seelog.LoggerInterface
+	logger log.LoggerInterface
 )
 
 const (
@@ -77,11 +78,16 @@ event_monitoring_config:
     - "*custom*"
   network:
     enabled: true
+    flow_monitor:
+      enabled: {{ .NetworkFlowMonitorEnabled }}
     ingress:
       enabled: {{ .NetworkIngressEnabled }}
     raw_packet:
       enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
+  event_stream:
+    use_fentry: true
+    use_kprobe_fallback: false
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -173,7 +179,10 @@ runtime_security_config:
 {{end}}
 
   self_test:
-    enabled: false
+    enabled: {{.EnableSelfTests}}
+{{if .EnableSelfTests}}
+    send_report: true
+{{end}}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -342,7 +351,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -461,7 +470,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		eventJSON, err := serializers.MarshalEvent(event)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -516,7 +525,7 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -751,7 +760,8 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		compression := logscompression.NewComponent()
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -999,7 +1009,7 @@ func (tm *testModule) Close() {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := seelog.LogLevelFromString(logLevelStr)
+	logLevel, found := log.LogLevelFromString(logLevelStr)
 	if !found {
 		return fmt.Errorf("invalid log level '%s'", logLevel)
 	}
@@ -1014,20 +1024,20 @@ func initLogger() error {
 	return nil
 }
 
-func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
+func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
 		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1125,19 +1135,18 @@ func checkNetworkCompatibility(tb testing.TB) {
 	})
 }
 
-func (tm *testModule) StopActivityDump(name, containerID string) error {
+func (tm *testModule) StopActivityDump(name string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return errors.New("no manager")
 	}
 	params := &api.ActivityDumpStopParams{
-		Name:        name,
-		ContainerID: containerID,
+		Name: name,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1148,7 +1157,8 @@ func (tm *testModule) StopActivityDump(name, containerID string) error {
 
 type activityDumpIdentifier struct {
 	Name        string
-	ContainerID string
+	ContainerID containerutils.ContainerID
+	CGroupID    containerutils.CGroupID
 	Timeout     string
 	OutputFiles []string
 }
@@ -1159,7 +1169,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 		return nil, errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
@@ -1183,7 +1193,8 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 
 		dumps = append(dumps, &activityDumpIdentifier{
 			Name:        dump.Metadata.Name,
-			ContainerID: dump.Metadata.ContainerID,
+			ContainerID: containerutils.ContainerID(dump.Metadata.ContainerID),
+			CGroupID:    containerutils.CGroupID(dump.Metadata.CGroupID),
 			Timeout:     dump.Metadata.Timeout,
 			OutputFiles: files,
 		})
@@ -1197,22 +1208,24 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 		return nil, errors.New("not supported")
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
-		return nil, errors.New("No monitor")
+		return nil, errors.New("No manager")
 	}
 
-	adm := managers.GetActivityDumpManager()
-	if adm == nil {
-		return nil, errors.New("No activity dump manager")
-	}
-
-	ad := dump.NewActivityDump(adm)
+	ad := dump.NewActivityDump(
+		nil,
+		false,
+		0,
+		nil,
+		func(_ *dump.ActivityDump, _ uint32) {},
+		nil,
+	)
 	if ad == nil {
-		return nil, errors.New("Creation of new activity dump fails")
+		return nil, errors.New("Activity dump creation")
 	}
 
-	if err := ad.Decode(path); err != nil {
+	if err := ad.Profile.Decode(path); err != nil {
 		return nil, err
 	}
 
@@ -1220,23 +1233,15 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 }
 
 // DecodeSecurityProfile decode a security profile
-func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
-	protoProfile, err := profile.LoadProtoFromFile(path)
-	if err != nil {
+func DecodeSecurityProfile(path string) (*profile.Profile, error) {
+	newProfile := profile.New(
+		profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+	)
+
+	if err := newProfile.Decode(path); err != nil {
 		return nil, err
-	} else if protoProfile == nil {
-		return nil, errors.New("Profile parsing error")
 	}
 
-	newProfile := profile.NewSecurityProfile(
-		cgroupModel.WorkloadSelector{},
-		[]model.EventType{model.ExecEventType, model.DNSEventType},
-		nil,
-	)
-	if newProfile == nil {
-		return nil, errors.New("Profile creation")
-	}
-	newProfile.LoadFromProto(protoProfile, profile.LoadOpts{})
 	return newProfile, nil
 }
 
@@ -1253,6 +1258,7 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	}
 
 	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
 	return docker, nil
 }
 
@@ -1261,7 +1267,7 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	if err != nil {
 		return nil, err
 	}
-	dump := findLearningContainerID(dumps, dockerInstance.containerID)
+	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
@@ -1273,8 +1279,18 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if err != nil {
 		return nil, nil, err
 	}
-	dump, err := tm.GetDumpFromDocker(dockerInstance)
-	if err != nil {
+	var dump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		d, err := tm.GetDumpFromDocker(dockerInstance)
+		if err != nil {
+			return err
+		}
+		if d == nil {
+			return fmt.Errorf("no dump found for container %s", dockerInstance.containerID)
+		}
+		dump = d
+		return nil
+	}, retry.Delay(time.Second), retry.Attempts(3)); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
@@ -1282,7 +1298,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 }
 
 //nolint:deadcode,unused
-func findLearningContainerID(dumps []*activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+func findLearningContainerID(dumps []*activityDumpIdentifier, containerID containerutils.ContainerID) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.ContainerID == containerID {
 			return dump
@@ -1352,15 +1368,11 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 		return
 	}
 
-	managers := p.GetProfileManagers()
+	managers := p.GetProfileManager()
 	if managers == nil {
 		return
 	}
-	adm := managers.GetActivityDumpManager()
-	if adm == nil {
-		return
-	}
-	adm.FakeDumpOverweight(id.Name)
+	managers.FakeDumpOverweight(id.Name)
 
 	// wait until the dump learning has stopped
 	for tm.isDumpRunning(id) {
@@ -1403,7 +1415,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 
 //nolint:deadcode,unused
 func searchForOpen(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Files) > 0 {
 			return true
 		}
@@ -1413,7 +1425,7 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForDNS(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
 			return true
 		}
@@ -1423,7 +1435,7 @@ func searchForDNS(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForIMDS(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.IMDSEvents) > 0 {
 			return true
 		}
@@ -1433,7 +1445,7 @@ func searchForIMDS(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForBind(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Sockets) > 0 {
 			return true
 		}
@@ -1443,8 +1455,18 @@ func searchForBind(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForSyscalls(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
+		if len(node.NetworkDevices) > 0 {
 			return true
 		}
 	}
@@ -1483,7 +1505,7 @@ func (tm *testModule) findNumberOfExistingDirectoryFiles(id *activityDumpIdentif
 	lastDir := filepath.Base(testDir)
 
 firstLoop:
-	for _, node := range ad.ActivityTree.ProcessNodes {
+	for _, node := range ad.Profile.ActivityTree.ProcessNodes {
 		current := node.Files
 		for _, part := range tempPathParts {
 			if part == "" {
@@ -1539,7 +1561,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "")
+		_ = tm.StopActivityDump(dump.Name)
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {
@@ -1609,7 +1631,8 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 		return nil, err
 	}
 
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	tags := ad.Profile.GetTags()
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), utils.GetTagValue("image_tag", tags))
 	return &selector, err
 }
 
@@ -1677,16 +1700,12 @@ func (tm *testModule) ListAllProfiles() {
 		return
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return
 	}
 
-	spm := m.GetSecurityProfileManager()
-	if spm == nil {
-		return
-	}
-	spm.ListAllProfileStates()
+	m.ListAllProfileStates()
 }
 
 func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
@@ -1695,22 +1714,17 @@ func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelec
 		return errors.New("no ebpf probe")
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return errors.New("no profile managers")
 	}
 
-	spm := m.GetSecurityProfileManager()
-	if spm == nil {
-		return errors.New("no security profile managers")
-	}
-
-	profile := spm.GetProfile(*selector)
+	profile := m.GetProfile(*selector)
 	if profile == nil {
 		return errors.New("no profile")
 	}
 
-	err := profile.SetVersionState(imageTag, state)
+	err := profile.SetVersionState(imageTag, state, uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 	if err != nil {
 		return err
 	}
@@ -1723,17 +1737,12 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 		return []string{}, errors.New("no ebpf probe")
 	}
 
-	m := p.GetProfileManagers()
+	m := p.GetProfileManager()
 	if m == nil {
 		return []string{}, errors.New("no profile managers")
 	}
 
-	spm := m.GetSecurityProfileManager()
-	if spm == nil {
-		return []string{}, errors.New("no security profile managers")
-	}
-
-	profile := spm.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+	profile := m.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 	if profile == nil {
 		return []string{}, errors.New("no profile")
 	}

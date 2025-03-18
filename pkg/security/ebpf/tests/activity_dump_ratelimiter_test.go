@@ -16,31 +16,7 @@ import (
 
 func TestActivityDumpRateLimiterBasic(t *testing.T) {
 	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter_basic")
-	if err != nil || code != 1 {
-		t.Errorf("unexpected error: %v, %d", err, code)
-	}
-}
-
-func TestActivityDumpRateLimiterBasicHalf(t *testing.T) {
-	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter_basic_half")
-	if err != nil || code != 1 {
-		t.Errorf("unexpected error: %v, %d", err, code)
-	}
-}
-
-func TestActivityDumpRateLimiterDecreasingDroprate(t *testing.T) {
-	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter_decreasing_droprate")
-	if err != nil || code != 1 {
-		t.Errorf("unexpected error: %v, %d", err, code)
-	}
-}
-
-func TestActivityDumpRateLimiterIncreasingDroprate(t *testing.T) {
-	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter_increasing_droprate")
+	code, err := newVM(t).RunProgram(&ctx, "test/ad_ratelimiter")
 	if err != nil || code != 1 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}

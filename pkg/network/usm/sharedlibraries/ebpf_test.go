@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 type EbpfProgramSuite struct {
@@ -27,7 +28,7 @@ type EbpfProgramSuite struct {
 }
 
 func TestEbpfProgram(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		if !IsSupported(ebpf.NewConfig()) {
 			t.Skip("shared-libraries monitoring is not supported on this configuration")
 		}
@@ -43,16 +44,20 @@ func (s *EbpfProgramSuite) TestCanInstantiateMultipleTimes() {
 
 	prog := GetEBPFProgram(cfg)
 	require.NotNil(t, prog)
-	t.Cleanup(prog.Stop)
+	t.Cleanup(func() {
+		if prog != nil {
+			prog.Stop()
+		}
+	})
 
 	require.NoError(t, prog.InitWithLibsets(LibsetCrypto))
 	prog.Stop()
+	prog = nil
 
 	prog2 := GetEBPFProgram(cfg)
 	require.NotNil(t, prog2)
-
-	require.NoError(t, prog.InitWithLibsets(LibsetCrypto))
 	t.Cleanup(prog2.Stop)
+	require.NoError(t, prog2.InitWithLibsets(LibsetCrypto))
 }
 
 func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {

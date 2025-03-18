@@ -10,23 +10,27 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -34,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type grpcServer struct {
@@ -45,12 +50,14 @@ type serverSecure struct {
 	taggerServer        *taggerserver.Server
 	taggerComp          tagger.Component
 	workloadmetaServer  *workloadmetaServer.Server
-	configService       optional.Option[rcservice.Component]
-	configServiceMRF    optional.Option[rcservicemrf.Component]
+	configService       option.Option[rcservice.Component]
+	configServiceMRF    option.Option[rcservicemrf.Component]
 	dogstatsdServer     dogstatsdServer.Component
 	capture             dsdReplay.Component
 	pidMap              pidmap.Component
 	remoteAgentRegistry remoteagentregistry.Component
+	autodiscovery       autodiscovery.Component
+	configComp          config.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -71,6 +78,12 @@ func (s *grpcServer) AuthFuncOverride(ctx context.Context, _ string) (context.Co
 
 func (s *serverSecure) TaggerStreamEntities(req *pb.StreamTagsRequest, srv pb.AgentSecure_TaggerStreamEntitiesServer) error {
 	return s.taggerServer.TaggerStreamEntities(req, srv)
+}
+
+// TaggerGenerateContainerIDFromOriginInfo generates a container ID from the Origin Info.
+// This function takes an Origin Info but only uses the ExternalData part of it, this is done for backward compatibility.
+func (s *serverSecure) TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, req *pb.GenerateContainerIDFromOriginInfoRequest) (*pb.GenerateContainerIDFromOriginInfoResponse, error) {
+	return s.taggerServer.TaggerGenerateContainerIDFromOriginInfo(ctx, req)
 }
 
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
@@ -102,14 +115,17 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
-		s.taggerComp.ResetCaptureTagger()
 		s.pidMap.SetPidMap(nil)
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	taggerReplay := s.taggerComp.ReplayTagger()
-	if taggerReplay == nil {
+	mockReq := taggerimpl.MockRequires{
+		Config:    s.configComp,
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	fakeTagger := taggerimpl.NewMock(mockReq).Comp
+	if fakeTagger == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
 	state := make([]taggerTypes.Entity, 0, len(req.State))
@@ -130,11 +146,8 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 			StandardTags:                entity.StandardTags,
 		})
 	}
+	fakeTagger.LoadState(state)
 
-	taggerReplay.LoadState(state)
-
-	log.Debugf("API: setting capture state tagger")
-	s.taggerComp.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
@@ -200,6 +213,15 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 	return &pb.RegisterRemoteAgentResponse{
 		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
 	}, nil
+}
+
+func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
+	return autodiscoverystream.Config(s.autodiscovery, out)
+}
+
+func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
+	tags := hosttags.Get(ctx, true, s.configComp)
+	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
 }
 
 func init() {

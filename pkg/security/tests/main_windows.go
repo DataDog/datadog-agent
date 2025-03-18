@@ -8,6 +8,13 @@
 // Package tests holds tests related files
 package tests
 
+import "errors"
+
+// getPIDCGroup returns the path of the first cgroup found for a PID
+func getPIDCGroup(pid uint32) (string, error) {
+	return "", errors.New("cgroups are not supported on Windows")
+}
+
 func preTestsHook() {}
 
 func postTestsHook() {}

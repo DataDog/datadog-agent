@@ -13,13 +13,14 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // FileRegistry is responsible for tracking open files and executing callbacks
@@ -49,9 +50,15 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, string]
+	blocklistByID *simplelru.LRU[PathIdentifier, BlockListEntry]
 
 	telemetry registryTelemetry
+}
+
+// BlockListEntry represents an enty in the block list
+type BlockListEntry struct {
+	Path   string
+	Reason string
 }
 
 // FilePath represents the location of a file from the *root* namespace view
@@ -91,7 +98,7 @@ var ErrEnvironment = errors.New("Environment error, path will not be blocked")
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(moduleName, programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, BlockListEntry](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -121,6 +128,22 @@ var (
 	// path is already in the file registry.
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
+
+// getBlockReason creates a string specifying the reason for the block based on
+// the error received. To reduce memory usage of this debugging feature, for
+// very common errors we store a summary instead of the full error string,
+// leaving the latter for more interesting errors.
+func getBlockReason(error error) string {
+	if errors.Is(error, binversion.ErrNotGoExe) {
+		return "not-go"
+	}
+
+	if errors.Is(error, safeelf.ErrNoSymbols) {
+		return "no-symbols"
+	}
+
+	return error.Error()
+}
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
@@ -194,7 +217,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, path.HostPath)
+			r.blocklistByID.Add(pathID, BlockListEntry{Path: path.HostPath, Reason: getBlockReason(err)})
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err
@@ -263,7 +286,7 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
 	}
 }

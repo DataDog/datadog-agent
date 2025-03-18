@@ -10,11 +10,11 @@
 package ditypes
 
 import (
-	"debug/dwarf"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -29,11 +29,10 @@ const ConfigBPFProbeID = "config" // ConfigBPFProbeID is the ID used for the con
 var (
 	CaptureParameters       = true  // CaptureParameters is the default value for if probes should capture parameter values
 	ArgumentsMaxSize        = 10000 // ArgumentsMaxSize is the default size in bytes of the output buffer used for param values
-	StringMaxSize           = 512   // StringMaxSize is the default size in bytes of a single string
+	StringMaxSize           = 512   // StringMaxSize is the length limit
 	MaxReferenceDepth uint8 = 4     // MaxReferenceDepth is the default depth that DI will traverse datatypes for capturing values
 	MaxFieldCount           = 20    // MaxFieldCount is the default limit for how many fields DI will capture in a single data type
-	SliceMaxSize            = 1800  // SliceMaxSize is the default limit in bytes of a slice
-	SliceMaxLength          = 100   // SliceMaxLength is the default limit in number of elements of a slice
+	SliceMaxLength          = 10    // SliceMaxLength is the default limit in number of elements of a slice
 )
 
 // ProbeID is the unique identifier for probes
@@ -134,17 +133,20 @@ type ProcessInfo struct {
 	RuntimeID   string
 	BinaryPath  string
 
-	TypeMap   *TypeMap
-	DwarfData *dwarf.Data
+	TypeMap *TypeMap
 
 	ConfigurationUprobe    *link.Link
 	ProbesByID             ProbesByID
 	InstrumentationUprobes map[ProbeID]*link.Link
 	InstrumentationObjects map[ProbeID]*ebpf.Collection
+	mu                     sync.RWMutex
 }
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	configProbe, ok := pi.ProbesByID[ConfigBPFProbeID]
 	if !ok {
 		return nil, fmt.Errorf("config probe was not set for process %s", pi.ServiceName)
@@ -175,12 +177,16 @@ func (pi *ProcessInfo) CloseConfigUprobe() error {
 // SetUprobeLink associates the uprobe link with the specified probe
 // in the tracked process
 func (pi *ProcessInfo) SetUprobeLink(probeID ProbeID, l *link.Link) {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
 	pi.InstrumentationUprobes[probeID] = l
 }
 
 // CloseUprobeLink closes the probe and deletes the link for the probe
 // in the tracked process
 func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
 	if l, ok := pi.InstrumentationUprobes[probeID]; ok {
 		err := (*l).Close()
 		delete(pi.InstrumentationUprobes, probeID)
@@ -192,6 +198,9 @@ func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
 // CloseAllUprobeLinks closes all probes and deletes their links for all probes
 // in the tracked process
 func (pi *ProcessInfo) CloseAllUprobeLinks() {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	for probeID := range pi.InstrumentationUprobes {
 		if err := pi.CloseUprobeLink(probeID); err != nil {
 			log.Info("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, probeID, err)
@@ -260,7 +269,6 @@ type InstrumentationOptions struct {
 	StringMaxSize     int
 	MaxReferenceDepth int
 	MaxFieldCount     int
-	SliceMaxSize      int
 	SliceMaxLength    int
 }
 

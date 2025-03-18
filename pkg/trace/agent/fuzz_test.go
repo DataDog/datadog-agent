@@ -57,7 +57,7 @@ func FuzzProcessStats(f *testing.F) {
 		if !equal(decPreProcess, pbStats) {
 			t.Fatalf("Inconsistent encoding/decoding before processing: (%v) is different from (%v)", decPreProcess, pbStats)
 		}
-		processedStats := agent.processStats(pbStats, lang, version, containerID)
+		processedStats := agent.processStats(pbStats, lang, version, containerID, "")
 		encPostProcess, err := encode(processedStats)
 		if err != nil {
 			t.Fatalf("processStats returned an invalid stats payload: %v", err)
@@ -88,6 +88,11 @@ func FuzzObfuscateSpan(f *testing.F) {
 			Type:     "redis",
 			Resource: "SET k v\nGET k",
 			Meta:     map[string]string{"redis.raw_command": "SET k v\nGET k"},
+		},
+		{
+			Type:     "valkey",
+			Resource: "SET k v\nGET k",
+			Meta:     map[string]string{"valkey.raw_command": "SET k v\nGET k"},
 		},
 		{
 			Type:     "sql",

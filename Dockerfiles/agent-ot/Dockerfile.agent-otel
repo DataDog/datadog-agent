@@ -1,5 +1,5 @@
-ARG AGENT_VERSION=7.57.0-v1.0-ot-beta-jmx
-ARG AGENT_BRANCH=7.57.x-otel-beta-v1
+ARG AGENT_VERSION=7.59.0-v1.1.0-ot-beta-jmx
+ARG AGENT_BRANCH=7.59.x
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 
@@ -67,16 +67,17 @@ RUN go version && \
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install dda && \
+    dda self dep sync -f legacy-tasks
 
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files
-RUN . venv/bin/activate && invoke collector.generate
+RUN . venv/bin/activate && dda inv collector.generate
 
 # Build the OTel agent
-RUN . venv/bin/activate && invoke otel-agent.build
+RUN . venv/bin/activate && dda inv otel-agent.build
 
 # Use the final Datadog agent image
 FROM datadog/agent:${AGENT_VERSION}

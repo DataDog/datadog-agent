@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"io"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -23,11 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	postgresebpf "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	// KernelTelemetryMap is the map for getting kernel metrics
+	KernelTelemetryMap = "postgres_telemetry"
 	// InFlightMap is the name of the in-flight map.
 	InFlightMap               = "postgres_in_flight"
 	scratchBufferMap          = "postgres_scratch_buffer"
@@ -40,15 +44,20 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
+	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
+	netifProbe414             = "netif_receive_skb_core_postgres_4_14"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
-	cfg            *config.Config
-	telemetry      *Telemetry
-	eventsConsumer *events.Consumer[postgresebpf.EbpfEvent]
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
-	statskeeper    *StatKeeper
+	cfg                   *config.Config
+	telemetry             *Telemetry
+	eventsConsumer        *events.Consumer[postgresebpf.EbpfEvent]
+	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
+	statskeeper           *StatKeeper
+	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
+	kernelTelemetryStopCh chan struct{}
+	mgr                   *manager.Manager
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -72,6 +81,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "postgres_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -127,15 +151,18 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newPostgresProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnablePostgresMonitoring {
 		return nil, nil
 	}
 
 	return &protocol{
-		cfg:         cfg,
-		telemetry:   NewTelemetry(cfg),
-		statskeeper: NewStatkeeper(cfg),
+		cfg:                   cfg,
+		telemetry:             NewTelemetry(cfg),
+		statskeeper:           NewStatkeeper(cfg),
+		kernelTelemetry:       newKernelTelemetry(),
+		kernelTelemetryStopCh: make(chan struct{}),
+		mgr:                   mgr,
 	}, nil
 }
 
@@ -145,21 +172,29 @@ func (p *protocol) Name() string {
 }
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
 // PreStart runs setup required before starting the protocol.
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processPostgres,
 	)
 	if err != nil {
@@ -172,25 +207,31 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupMapCleaner()
+	p.startKernelTelemetry()
 	return nil
 }
 
 // Stop stops all resources associated with the protocol.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
+	if p.kernelTelemetryStopCh != nil {
+		close(p.kernelTelemetryStopCh)
+	}
 }
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == InFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
+	switch mapName {
+	case InFlightMap:
+		// maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
 		var value postgresebpf.EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
@@ -198,17 +239,37 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
+	case KernelTelemetryMap:
+		// postgres_msg_count (BPF_ARRAY_MAP), key 0 and 1, value PostgresKernelMsgCount
+		plainKey := uint32(0)
+		tlsKey := uint32(1)
+
+		var value postgresebpf.PostgresKernelMsgCount
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, plainKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, plainKey, value)
+		}
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, tlsKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, tlsKey, value)
+		}
 	}
 }
 
-// GetStats returns a map of Postgres stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+// GetStats returns a map of Postgres stats and a callback to clean resources.
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
+	p.kernelTelemetry.Log()
 
+	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Postgres,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Postgres,
+			Stats: stats,
+		}, func() {
+			for _, stat := range stats {
+				stat.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
@@ -225,13 +286,13 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 	}
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	postgresInflight, _, err := mgr.GetMap(InFlightMap)
+func (p *protocol) setupMapCleaner() {
+	postgresInflight, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024, InFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -249,4 +310,41 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.mapCleaner = mapCleaner
+}
+
+func (p *protocol) startKernelTelemetry() {
+	telemetryMap, err := protocols.GetMap(p.mgr, KernelTelemetryMap)
+	if err != nil {
+		log.Errorf("couldnt find kernel telemetry map: %s, error: %v", telemetryMap, err)
+		return
+	}
+
+	plainKey := uint32(0)
+	tlsKey := uint32(1)
+	pgKernelMsgCount := &postgresebpf.PostgresKernelMsgCount{}
+	ticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := telemetryMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(pgKernelMsgCount, false)
+
+				if err := telemetryMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(pgKernelMsgCount, true)
+
+			case <-p.kernelTelemetryStopCh:
+				return
+			}
+		}
+	}()
 }

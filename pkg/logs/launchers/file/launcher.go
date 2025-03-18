@@ -10,9 +10,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -27,6 +24,8 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/procfilestats"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -231,7 +230,7 @@ func (s *Launcher) scan() {
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
-	fileStats, err := util.GetProcessFileStats()
+	fileStats, err := procfilestats.GetProcessFileStats()
 	if err == nil {
 		CheckProcessTelemetry(fileStats)
 	}
@@ -407,7 +406,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {
 		log.Errorf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 90%% utilization. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.",

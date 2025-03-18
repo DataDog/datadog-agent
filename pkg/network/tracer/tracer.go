@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -88,8 +89,8 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	gwLookup network.GatewayLookup
 
@@ -107,8 +108,8 @@ type Tracer struct {
 }
 
 // NewTracer creates a Tracer
-func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component) (*Tracer, error) {
-	tr, err := newTracer(config, telemetryComponent)
+func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (*Tracer, error) {
+	tr, err := newTracer(config, telemetryComponent, statsd)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
+func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -183,7 +184,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, statsd)
 
 	// Set up the connection_protocol map cleaner if protocol classification is enabled
 	if cfg.ProtocolClassificationEnabled || usmconfig.IsUSMSupportedAndEnabled(cfg) {
@@ -215,8 +216,8 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		events.RegisterHandler(tr.processCache)
 	}
 
-	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
-	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
+	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
+	tr.destExcludes = filter.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
 		telemetryComponent,
 		cfg.ClientStateExpiry,
@@ -251,46 +252,55 @@ func (t *Tracer) start() error {
 	return nil
 }
 
+func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
+	if !cfg.EnableEbpfConntracker {
+		log.Info("ebpf conntracker disabled")
+		return nil, nil
+	}
+
+	if err := netlink.LoadNfConntrackKernelModule(cfg); err != nil {
+		log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+	}
+
+	return NewEBPFConntracker(cfg, telemetryComponent)
+}
+
 func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
+	var clb netlink.Conntracker
 	var c netlink.Conntracker
 	var err error
-
 	if !cfg.EnableEbpfless {
-		ns, err := cfg.GetRootNetNs()
-		if err != nil {
-			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
-		} else {
-			defer ns.Close()
-			if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-				log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
-			}
-		}
-		if cfg.EnableEbpfConntracker {
-			if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
-				return c, nil
-			}
+		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil {
 			log.Warnf("error initializing ebpf conntracker: %s", err)
-		} else {
-			log.Info("ebpf conntracker disabled")
+			log.Info("falling back to netlink conntracker")
 		}
 
-		log.Info("falling back to netlink conntracker")
+		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil {
+			log.Warnf("cilium lb conntracker is enabled, but failed to load: %s", err)
+		}
 	}
 
-	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
-		return c, nil
+	if c == nil {
+		if c, err = netlink.NewConntracker(cfg, telemetryComponent); err != nil {
+			if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
+				log.Warnf("could not initialize netlink conntracker: %s", err)
+			} else {
+				return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+			}
+		}
 	}
 
-	if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
-		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
-		return netlink.NewNoOpConntracker(), nil
+	c = chainConntrackers(c, clb)
+	if c.GetType() == "" {
+		// no-op conntracker
+		log.Warnf("connection tracking is disabled")
 	}
 
-	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	return c, nil
 }
 
 func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component) dns.ReverseDNS {
@@ -346,7 +356,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
@@ -384,9 +394,6 @@ func (t *Tracer) Resume() error {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
-	if t.gwLookup != nil {
-		t.gwLookup.Close()
-	}
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
 	}
@@ -396,6 +403,9 @@ func (t *Tracer) Stop() {
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
+	}
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
@@ -410,10 +420,10 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
@@ -421,10 +431,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	buffer := network.ClientPool.Get(clientID)
 	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving connections: %s", err)
+		return nil, nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
+	usmStats, cleanup := t.usmMonitor.GetProtocolStats()
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), usmStats)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	var udpConns, tcpConns int
@@ -454,11 +465,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
-	conns.CORETelemetryByAsset = ebpftelemetry.GetCORETelemetryByAsset()
+	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return conns, nil
+	return conns, cleanup, nil
 }
 
 // RegisterClient registers a clientID with the tracer
@@ -611,7 +622,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 
 	t.state.RemoveConnections(toRemove)
 
-	if log.ShouldLog(seelog.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
 }
@@ -842,7 +853,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.ClientInterface) *usm.Monitor {
 	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		return nil
@@ -854,7 +865,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 		log.Warnf("couldn't get %q map: %s", probes.ConnectionProtocolMap, err)
 	}
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, statsd)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil
@@ -888,7 +899,7 @@ const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
 func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name string) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024, name, "npm_tracer")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1, name, "npm_tracer")
 	if err != nil {
 		return nil, err
 	}

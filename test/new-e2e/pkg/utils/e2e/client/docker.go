@@ -40,7 +40,7 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	sshOpts := []string{"-o", "StrictHostKeyChecking no"}
 
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(dockerOutput.Host.CloudProvider+parameters.PrivateKeyPathSuffix), "")
 	if err != nil {
 		return nil, err
 	}

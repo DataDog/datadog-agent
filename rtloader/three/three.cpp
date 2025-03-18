@@ -110,7 +110,10 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    Py_Initialize();
+    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
+    // This only effects the windows builds as linux already has the sigint handler initialized
+    // and thus python will ignore it
+    Py_InitializeEx(1);
 
     if (!Py_IsInitialized()) {
         setError("Python not initialized");
@@ -830,6 +833,34 @@ bool Three::getAttrString(RtLoaderPyObject *obj, const char *attributeName, char
         setError("error attribute " + std::string(attributeName) + " has a different type than unicode");
         PyErr_Clear();
     } else {
+        PyErr_Clear();
+    }
+
+    Py_XDECREF(py_attr);
+    return res;
+}
+
+bool Three::getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const
+{
+    if (obj == NULL) {
+        return false;
+    }
+
+    bool res = false;
+    PyObject *py_attr = NULL;
+    PyObject *py_obj = reinterpret_cast<PyObject *>(obj);
+
+    py_attr = PyObject_GetAttrString(py_obj, attributeName);
+    if (py_attr != NULL) {
+        if (PyBool_Check(py_attr)) {
+            value = (py_attr == Py_True);
+            res = true;
+        } else {
+            setError("error attribute " + std::string(attributeName) + " has a different type than bool");
+            PyErr_Clear();
+        }
+    } else {
+        setError("error fetching attribute " + std::string(attributeName) + " does not exist");
         PyErr_Clear();
     }
 

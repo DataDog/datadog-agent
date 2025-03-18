@@ -14,7 +14,7 @@ import (
 	"path"
 	"regexp"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,6 +46,10 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		} else {
 			log.Errorf("could not get process object in rails detector: got type %T", procEntry)
 		}
+	}
+
+	if proc == nil {
+		return ServiceMetadata{}, false
 	}
 
 	cwd, err := proc.Cwd()

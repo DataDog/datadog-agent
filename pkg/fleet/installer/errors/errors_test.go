@@ -6,40 +6,34 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFromErr(t *testing.T) {
+func TestGetCode(t *testing.T) {
+	// Nil case
+	assert.Equal(t, GetCode(nil), errUnknown)
+
+	// Simple case
 	var err error = &InstallerError{
 		err:  fmt.Errorf("test: test"),
 		code: ErrDownloadFailed,
 	}
-	taskErr := FromErr(err)
-	assert.Equal(t, taskErr, &InstallerError{
-		err:  fmt.Errorf("test: test"),
+	assert.Equal(t, GetCode(err), ErrDownloadFailed)
+
+	// Wrap
+	err = fmt.Errorf("test1: %w", &InstallerError{
+		err:  fmt.Errorf("test2: test3"),
 		code: ErrDownloadFailed,
 	})
+	assert.Equal(t, GetCode(err), ErrDownloadFailed)
 
-	assert.Nil(t, FromErr(nil))
-}
-
-func TestFromErrWithWrap(t *testing.T) {
-	err := fmt.Errorf("test: %w", &InstallerError{
-		err:  fmt.Errorf("test: test"),
-		code: ErrDownloadFailed,
-	})
-	taskErr := FromErr(err)
-	assert.Equal(t, taskErr, &InstallerError{
-		err:  fmt.Errorf("test: test"),
-		code: ErrDownloadFailed,
-	})
-
-	taskErr2 := fmt.Errorf("Wrap 2: %w", fmt.Errorf("Wrap 1: %w", taskErr))
-	assert.Equal(t, FromErr(taskErr2).Code(), ErrDownloadFailed)
-	assert.Nil(t, FromErr(nil))
+	// Multiple wraps
+	err = fmt.Errorf("Wrap 2: %w", fmt.Errorf("Wrap 1: %w", err))
+	assert.Equal(t, GetCode(err), ErrDownloadFailed)
 }
 
 func TestWrap(t *testing.T) {
@@ -59,5 +53,22 @@ func TestWrap(t *testing.T) {
 	})
 
 	taskErr3 := Wrap(ErrFilesystemIssue, fmt.Errorf("Wrap 2: %w", fmt.Errorf("Wrap 1: %w", taskErr2)))
-	assert.Equal(t, FromErr(taskErr3).Code(), ErrDownloadFailed)
+	unwrapped := &InstallerError{}
+	assert.True(t, errors.As(taskErr3, &unwrapped))
+	assert.Equal(t, unwrapped.code, ErrDownloadFailed)
+}
+
+func TestToJSON(t *testing.T) {
+	err := fmt.Errorf("test: %w", &InstallerError{
+		err:  fmt.Errorf("test2: test3"),
+		code: ErrDownloadFailed,
+	})
+	assert.Equal(t, ToJSON(err), `{"error":"test: test2: test3","code":1}`)
+}
+
+func TestFromJSON(t *testing.T) {
+	json := `{"error":"test: test2: test3","code":1}`
+	err := FromJSON(json)
+	assert.Equal(t, err.Error(), "test: test2: test3")
+	assert.Equal(t, GetCode(err), ErrDownloadFailed)
 }

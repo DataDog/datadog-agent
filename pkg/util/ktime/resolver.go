@@ -13,7 +13,7 @@ import (
 
 	_ "unsafe" // unsafe import to call nanotime() which should be 2x quick than time.Now()
 
-	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 // Resolver converts kernel monotonic timestamps to absolute times

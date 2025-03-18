@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -24,9 +25,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/fatih/color"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -382,10 +381,11 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
 	lastDot := false
+	idx := 0
 	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-
+			idx++
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
 				continue
@@ -394,7 +394,7 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), idx, d)
 		}
 	}
 
@@ -407,9 +407,9 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 // SuitesDeps stores the dependencies for the diagnose suites.
 type SuitesDeps struct {
 	SenderManager  sender.DiagnoseSenderManager
-	Collector      optional.Option[collector.Component]
+	Collector      option.Option[collector.Component]
 	SecretResolver secrets.Component
-	WMeta          optional.Option[workloadmeta.Component]
+	WMeta          option.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
 	Tagger         tagger.Component
 }
@@ -418,7 +418,7 @@ type SuitesDeps struct {
 type SuitesDepsInCLIProcess struct {
 	senderManager  sender.DiagnoseSenderManager
 	secretResolver secrets.Component
-	wmeta          optional.Option[workloadmeta.Component]
+	wmeta          option.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
 	logReceiver    integrations.Component
 	tagger         tagger.Component
@@ -428,7 +428,7 @@ type SuitesDepsInCLIProcess struct {
 func NewSuitesDepsInCLIProcess(
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component],
+	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	tagger tagger.Component,
 ) SuitesDepsInCLIProcess {
@@ -454,16 +454,16 @@ func NewSuitesDepsInAgentProcess(collector collector.Component) SuitesDepsInAgen
 }
 
 // GetWMeta returns the workload metadata instance
-func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
+func (s *SuitesDeps) GetWMeta() option.Option[workloadmeta.Component] {
 	return s.WMeta
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
 func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component,
+	wmeta option.Option[workloadmeta.Component], ac autodiscovery.Component,
 	tagger tagger.Component,
 ) SuitesDeps {
 	return SuitesDeps{
@@ -529,8 +529,5 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
-	// port-conflict suite available in darwin and linux only for now
-	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
-	}
+	catalog.Register("port-conflict", ports.DiagnosePortSuite)
 }

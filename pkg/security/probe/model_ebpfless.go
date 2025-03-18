@@ -47,7 +47,10 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "chdir.") &&
 				!strings.HasPrefix(field, "mount.") &&
 				!strings.HasPrefix(field, "umount.") &&
-				!strings.HasPrefix(field, "event.") {
+				!strings.HasPrefix(field, "event.") &&
+				!strings.HasPrefix(field, "accept.") &&
+				!strings.HasPrefix(field, "bind.") &&
+				!strings.HasPrefix(field, "connect.") {
 				return rules.ErrEventTypeNotEnabled
 			}
 			return nil

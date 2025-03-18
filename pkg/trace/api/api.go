@@ -115,9 +115,10 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
-	statsd statsd.ClientInterface
-	timing timing.Reporter
-	info   *watchdog.CurrentInfo
+	statsd   statsd.ClientInterface
+	timing   timing.Reporter
+	info     *watchdog.CurrentInfo
+	Handlers map[string]http.Handler
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -141,7 +142,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
+	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
@@ -169,9 +170,10 @@ func NewHTTPReceiver(
 
 		outOfCPUCounter: atomic.NewUint32(0),
 
-		statsd: statsd,
-		timing: timing,
-		info:   watchdog.NewCurrentInfo(),
+		statsd:   statsd,
+		timing:   timing,
+		info:     watchdog.NewCurrentInfo(),
+		Handlers: make(map[string]http.Handler),
 	}
 }
 
@@ -200,8 +202,11 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r))))
+		h := replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
+		r.Handlers[e.Pattern] = h
+		mux.Handle(e.Pattern, h)
 	}
+	r.Handlers["/info"] = infoHandler
 	mux.HandleFunc("/info", infoHandler)
 
 	return mux
@@ -235,6 +240,8 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	r.telemetryForwarder.start()
+
 	if !r.conf.ReceiverEnabled {
 		log.Debug("HTTP Server is off: HTTPReceiver is disabled.")
 		return
@@ -380,6 +387,11 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
+// BuildHandlers builds the handlers so they are available in the trace component
+func (r *HTTPReceiver) BuildHandlers() {
+	r.buildMux()
+}
+
 // UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
 func (r *HTTPReceiver) UpdateAPIKey() {
 	if r.server == nil {
@@ -522,7 +534,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string)
+	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string)
 }
 
 // handleStats handles incoming stats payloads.
@@ -550,11 +562,12 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	// Resolve ContainerID baased on HTTP headers
+	// Resolve ContainerID based on HTTP headers
 	lang := req.Header.Get(header.Lang)
 	tracerVersion := req.Header.Get(header.TracerVersion)
+	obfuscationVersion := req.Header.Get(header.TracerObfuscationVersion)
 	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
-	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID)
+	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID, obfuscationVersion)
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -568,13 +581,20 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	select {
 	// Wait for the semaphore to become available, allowing the handler to
 	// decode its payload.
-	// Afer the configured timeout, respond without ingesting the payload,
+	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
-		if h := req.Header.Get(header.SendRealHTTPStatus); h != "" {
+		switch v {
+		case v01, v02, v03:
+			// do nothing
+		default:
+			w.Header().Set("Content-Type", "application/json")
+		}
+		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		} else {
 			w.WriteHeader(r.rateLimiterResponse)
@@ -641,11 +661,25 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
-		ClientComputedTopLevel: req.Header.Get(header.ComputedTopLevel) != "",
-		ClientComputedStats:    req.Header.Get(header.ComputedStats) != "",
+		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
+		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 	r.out <- payload
+}
+
+// isHeaderTrue returns true if value is non-empty and not a "false"-like value as defined by strconv.ParseBool
+// e.g. (0, f, F, FALSE, False, false) will be considered false while all other values will be true.
+func isHeaderTrue(key, value string) bool {
+	if len(value) == 0 {
+		return false
+	}
+	bval, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Debug("Non-boolean value %s found in header %s, defaulting to true", value, key)
+		return true
+	}
+	return bval
 }
 
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {

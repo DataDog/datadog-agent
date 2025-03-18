@@ -7,12 +7,14 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -23,7 +25,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
-from tasks.libs.common.git import get_commit_sha, get_default_branch
+from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
 
@@ -59,6 +61,10 @@ class TimedOperationResult:
             return self.name < other.name
         else:
             return True
+
+
+class TestsNotSupportedError(Exception):
+    pass
 
 
 def get_all_allowed_repo_branches():
@@ -320,11 +326,6 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
-        # Enable lazy binding, which seems to be overridden when loading containerd
-        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
-        extldflags += "-Wl,-z,lazy "
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
@@ -379,17 +380,24 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
-        package_version = os.path.basename(install_path)
-        if package_version != "datadog-agent":
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
         if sys.platform == 'win32':
             # On Windows we don't have a version in the install_path
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
+            package_version = get_version(
+                ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+            )
+            # append suffix
+            # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
+            #       it's also hardcoded in Generate-OCIPackage.ps1
+            package_version = f"{package_version}-1"
+        else:
+            package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     return ldflags
 
 
@@ -502,6 +510,15 @@ def is_pr_context(branch, pr_id, test_name):
     return True
 
 
+def set_gitconfig_in_ci(ctx):
+    """
+    Set username and email when runing git "write" commands in CI
+    """
+    if running_in_ci():
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
+
+
 @contextmanager
 def gitlab_section(section_name, collapsed=False, echo=False):
     """
@@ -513,13 +530,16 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+                flush=True,
+            )
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
@@ -657,3 +677,24 @@ def agent_working_directory():
     from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
 
     return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY
+
+
+def is_macos():
+    return sys.platform == 'darwin'
+
+
+def is_linux():
+    return sys.platform.startswith('linux')
+
+
+def is_windows():
+    return sys.platform == 'win32'
+
+
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour in [5, 6] and pipeline_start.minute < 30

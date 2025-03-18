@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"reflect"
@@ -19,6 +21,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kr/pretty"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -26,10 +30,18 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/kr/pretty"
 
 	"github.com/stretchr/testify/require"
 )
+
+type testResult struct {
+	testName          string
+	matches           []bool
+	expectation       ditypes.CapturedValueMap
+	unexpectedResults []ditypes.CapturedValueMap
+}
+
+var results = make(map[string]*testResult)
 
 func TestGoDI(t *testing.T) {
 	flake.Mark(t)
@@ -41,11 +53,12 @@ func TestGoDI(t *testing.T) {
 		t.Skip("ringbuffers not supported on this kernel")
 	}
 
+	serviceName := "go-di-sample-service-" + randomLabel()
 	sampleServicePath := BuildSampleService(t)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
-		"DD_SERVICE=go-di-sample-service",
+		fmt.Sprintf("DD_SERVICE=%s", serviceName),
 		"DD_DYNAMIC_INSTRUMENTATION_OFFLINE=true",
 	}
 
@@ -102,31 +115,53 @@ func TestGoDI(t *testing.T) {
 	b := []byte{}
 	var buf *bytes.Buffer
 	doCapture = false
-	for function, expectedCaptureValue := range expectedCaptures {
-		// Generate config for this function
-		buf = bytes.NewBuffer(b)
-		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
-		t.Log("Instrumenting ", functionWithoutPackagePrefix)
-		err = cfgTemplate.Execute(buf, configDataType{functionWithoutPackagePrefix})
-		require.NoError(t, err)
-		eventOutputWriter.doCompare = false
-		eventOutputWriter.expectedResult = expectedCaptureValue
+	for function, expectedCaptureTuples := range expectedCaptures {
+		for _, expectedCaptureValue := range expectedCaptureTuples {
+			// Generate config for this function
+			buf = bytes.NewBuffer(b)
+			functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
+			t.Log("Instrumenting ", functionWithoutPackagePrefix)
+			results[function] = &testResult{
+				testName:          functionWithoutPackagePrefix,
+				expectation:       expectedCaptureValue.CapturedValueMap,
+				matches:           []bool{},
+				unexpectedResults: []ditypes.CapturedValueMap{},
+			}
+			err = cfgTemplate.Execute(buf, configDataType{
+				ServiceName:  serviceName,
+				FunctionName: functionWithoutPackagePrefix,
+				CaptureDepth: expectedCaptureValue.Options.CaptureDepth,
+			})
+			require.NoError(t, err)
+			eventOutputWriter.expectedResult = expectedCaptureValue.CapturedValueMap
 
-		// Read the configuration via the config manager
-		_, err := cm.ConfigWriter.Write(buf.Bytes())
-		time.Sleep(time.Second * 2)
-		doCapture = true
-		if err != nil {
-			t.Errorf("could not read new configuration: %s", err)
+			// Read the configuration via the config manager
+			_, err := cm.ConfigWriter.Write(buf.Bytes())
+			time.Sleep(time.Second * 2)
+			doCapture = true
+			if err != nil {
+				t.Errorf("could not read new configuration: %s", err)
+			}
+			time.Sleep(time.Second * 2)
+			doCapture = false
 		}
-		time.Sleep(time.Second * 2)
-		doCapture = false
+	}
+
+	for i := range results {
+		for _, ok := range results[i].matches {
+			if !ok {
+				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
+					results[i].testName,
+					pretty.Sprint(results[i].unexpectedResults),
+					pretty.Sprint(results[i].expectation))
+				break
+			}
+		}
 	}
 }
 
 type eventOutputTestWriter struct {
 	t              *testing.T
-	doCompare      bool
 	expectedResult map[string]*ditypes.CapturedValue
 }
 
@@ -141,12 +176,20 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 		e.t.Error("failed to unmarshal snapshot", err)
 	}
 
-	funcName := snapshot.Debugger.ProbeInSnapshot.Type + "." + snapshot.Debugger.ProbeInSnapshot.Method
+	funcName := snapshot.Debugger.ProbeInSnapshot.Method
 	actual := snapshot.Debugger.Captures.Entry.Arguments
 	scrubPointerValues(actual)
+	b, ok := results[funcName]
+	if !ok {
+		e.t.Errorf("received event from unexpected probe: %s", funcName)
+		return
+	}
 	if !reflect.DeepEqual(e.expectedResult, actual) {
-		e.t.Error("Unexpected ", funcName, pretty.Sprint(actual))
-		e.t.Log("Expected: ", pretty.Sprint(e.expectedResult))
+		b.matches = append(b.matches, false)
+		b.unexpectedResults = append(b.unexpectedResults, actual)
+		e.t.Error("received unexpected value")
+	} else {
+		b.matches = append(b.matches, true)
 	}
 
 	return len(p), nil
@@ -159,17 +202,21 @@ func scrubPointerValues(captures ditypes.CapturedValueMap) {
 }
 
 func scrubPointerValue(capture *ditypes.CapturedValue) {
-	if capture.Type == "ptr" {
+	if strings.HasPrefix(capture.Type, "*") {
 		capture.Value = nil
 	}
 	scrubPointerValues(capture.Fields)
 }
 
-type configDataType struct{ FunctionName string }
+type configDataType struct {
+	ServiceName  string
+	FunctionName string
+	CaptureDepth int
+}
 
 var configTemplateText = `
 {
-    "go-di-sample-service": {
+    "{{.ServiceName}}": {
         "e504163d-f367-4522-8905-fe8bc34eb975": {
             "id": "e504163d-f367-4522-8905-fe8bc34eb975",
             "version": 0,
@@ -197,7 +244,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 6
+                "maxReferenceDepth": {{.CaptureDepth}}
             },
             "sampling": {
                 "snapshotsPerSecond": 5000
@@ -207,3 +254,12 @@ var configTemplateText = `
     }
 }
 `
+
+func randomLabel() string {
+	length := 6
+	randomString := make([]byte, length)
+	for i := 0; i < length; i++ {
+		randomString[i] = byte(65 + rand.Intn(25))
+	}
+	return string(randomString)
+}

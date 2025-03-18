@@ -20,12 +20,68 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
 )
 
+var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSource{
+	otlpmetrics.OriginProductDetailUnknown:                   metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	otlpmetrics.OriginProductDetailDockerStatsReceiver:       metrics.MetricSourceOpenTelemetryCollectorDockerstatsReceiver,
+	otlpmetrics.OriginProductDetailElasticsearchReceiver:     metrics.MetricSourceOpenTelemetryCollectorElasticsearchReceiver,
+	otlpmetrics.OriginProductDetailExpVarReceiver:            metrics.MetricSourceOpenTelemetryCollectorExpvarReceiver,
+	otlpmetrics.OriginProductDetailFileStatsReceiver:         metrics.MetricSourceOpenTelemetryCollectorFilestatsReceiver,
+	otlpmetrics.OriginProductDetailFlinkMetricsReceiver:      metrics.MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver,
+	otlpmetrics.OriginProductDetailGitProviderReceiver:       metrics.MetricSourceOpenTelemetryCollectorGitproviderReceiver,
+	otlpmetrics.OriginProductDetailHAProxyReceiver:           metrics.MetricSourceOpenTelemetryCollectorHaproxyReceiver,
+	otlpmetrics.OriginProductDetailHostMetricsReceiver:       metrics.MetricSourceOpenTelemetryCollectorHostmetricsReceiver,
+	otlpmetrics.OriginProductDetailHTTPCheckReceiver:         metrics.MetricSourceOpenTelemetryCollectorHttpcheckReceiver,
+	otlpmetrics.OriginProductDetailIISReceiver:               metrics.MetricSourceOpenTelemetryCollectorIisReceiver,
+	otlpmetrics.OriginProductDetailK8SClusterReceiver:        metrics.MetricSourceOpenTelemetryCollectorK8sclusterReceiver,
+	otlpmetrics.OriginProductDetailKafkaMetricsReceiver:      metrics.MetricSourceOpenTelemetryCollectorKafkametricsReceiver,
+	otlpmetrics.OriginProductDetailKubeletStatsReceiver:      metrics.MetricSourceOpenTelemetryCollectorKubeletstatsReceiver,
+	otlpmetrics.OriginProductDetailMemcachedReceiver:         metrics.MetricSourceOpenTelemetryCollectorMemcachedReceiver,
+	otlpmetrics.OriginProductDetailMongoDBAtlasReceiver:      metrics.MetricSourceOpenTelemetryCollectorMongodbatlasReceiver,
+	otlpmetrics.OriginProductDetailMongoDBReceiver:           metrics.MetricSourceOpenTelemetryCollectorMongodbReceiver,
+	otlpmetrics.OriginProductDetailMySQLReceiver:             metrics.MetricSourceOpenTelemetryCollectorMysqlReceiver,
+	otlpmetrics.OriginProductDetailNginxReceiver:             metrics.MetricSourceOpenTelemetryCollectorNginxReceiver,
+	otlpmetrics.OriginProductDetailNSXTReceiver:              metrics.MetricSourceOpenTelemetryCollectorNsxtReceiver,
+	otlpmetrics.OriginProductDetailOracleDBReceiver:          metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver,
+	otlpmetrics.OriginProductDetailPostgreSQLReceiver:        metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver,
+	otlpmetrics.OriginProductDetailPrometheusReceiver:        metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver,
+	otlpmetrics.OriginProductDetailRabbitMQReceiver:          metrics.MetricSourceOpenTelemetryCollectorRabbitmqReceiver,
+	otlpmetrics.OriginProductDetailRedisReceiver:             metrics.MetricSourceOpenTelemetryCollectorRedisReceiver,
+	otlpmetrics.OriginProductDetailRiakReceiver:              metrics.MetricSourceOpenTelemetryCollectorRiakReceiver,
+	otlpmetrics.OriginProductDetailSAPHANAReceiver:           metrics.MetricSourceOpenTelemetryCollectorSaphanaReceiver,
+	otlpmetrics.OriginProductDetailSNMPReceiver:              metrics.MetricSourceOpenTelemetryCollectorSnmpReceiver,
+	otlpmetrics.OriginProductDetailSnowflakeReceiver:         metrics.MetricSourceOpenTelemetryCollectorSnowflakeReceiver,
+	otlpmetrics.OriginProductDetailSplunkEnterpriseReceiver:  metrics.MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver,
+	otlpmetrics.OriginProductDetailSQLServerReceiver:         metrics.MetricSourceOpenTelemetryCollectorSqlserverReceiver,
+	otlpmetrics.OriginProductDetailSSHCheckReceiver:          metrics.MetricSourceOpenTelemetryCollectorSshcheckReceiver,
+	otlpmetrics.OriginProductDetailStatsDReceiver:            metrics.MetricSourceOpenTelemetryCollectorStatsdReceiver,
+	otlpmetrics.OriginProductDetailVCenterReceiver:           metrics.MetricSourceOpenTelemetryCollectorVcenterReceiver,
+	otlpmetrics.OriginProductDetailZookeeperReceiver:         metrics.MetricSourceOpenTelemetryCollectorZookeeperReceiver,
+	otlpmetrics.OriginProductDetailActiveDirectoryDSReceiver: metrics.MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver,
+	otlpmetrics.OriginProductDetailAerospikeReceiver:         metrics.MetricSourceOpenTelemetryCollectorAerospikeReceiver,
+	otlpmetrics.OriginProductDetailApacheReceiver:            metrics.MetricSourceOpenTelemetryCollectorApacheReceiver,
+	otlpmetrics.OriginProductDetailApacheSparkReceiver:       metrics.MetricSourceOpenTelemetryCollectorApachesparkReceiver,
+	otlpmetrics.OriginProductDetailAzureMonitorReceiver:      metrics.MetricSourceOpenTelemetryCollectorAzuremonitorReceiver,
+	otlpmetrics.OriginProductDetailBigIPReceiver:             metrics.MetricSourceOpenTelemetryCollectorBigipReceiver,
+	otlpmetrics.OriginProductDetailChronyReceiver:            metrics.MetricSourceOpenTelemetryCollectorChronyReceiver,
+	otlpmetrics.OriginProductDetailCouchDBReceiver:           metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver,
+}
+
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
+
+// SerializerConsumer is a consumer that consumes OTLP metrics.
+type SerializerConsumer interface {
+	otlpmetrics.Consumer
+	Send(s serializer.MetricSerializer) error
+	addRuntimeTelemetryMetric(hostname string, languageTags []string)
+	addTelemetryMetric(hostname string)
+	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
+}
 
 type serializerConsumer struct {
 	enricher        tagenricher
@@ -48,6 +104,10 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 }
 
 func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
+	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
+	if !ok {
+		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
+	}
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
@@ -57,6 +117,7 @@ func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlp
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
 		}},
+		Source: msrc,
 	})
 }
 
@@ -71,6 +132,10 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) {
+	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
+	if !ok {
+		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
+	}
 	c.series = append(c.series,
 		&metrics.Serie{
 			Name:     dimensions.Name(),
@@ -79,6 +144,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: 0, // OTLP metrics do not have an interval.
+			Source:   msrc,
 		},
 	)
 }
@@ -102,6 +168,20 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 			Name:           "datadog.agent.otlp.runtime_metrics",
 			Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
 			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language:%v", lang)}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+}
+
+func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage) {
+	value, enabled := gatewayUsage.Gauge()
+	if enabled {
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.otel.gateway",
+			Points:         []metrics.Point{{Value: value, Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{}),
 			Host:           hostname,
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -151,15 +151,12 @@ func TestTargetEnvs(t *testing.T) {
 
 // BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
 func BenchmarkGetEnvs(b *testing.B) {
-	proc, err := customNewProcess(int32(os.Getpid()))
-	if err != nil {
-		return
-	}
+	proc := &process.Process{Pid: int32(os.Getpid())}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getEnvs(proc)
-		if err != nil {
+		if _, err := getEnvs(proc); err != nil {
 			return
 		}
 	}
@@ -167,16 +164,12 @@ func BenchmarkGetEnvs(b *testing.B) {
 
 // BenchmarkGetEnvsTarget benchmarks reading of target environment variables only from /proc/<pid>/environ.
 func BenchmarkGetEnvsTarget(b *testing.B) {
-	proc, err := customNewProcess(int32(os.Getpid()))
-	if err != nil {
-		return
-	}
+	proc := &process.Process{Pid: int32(os.Getpid())}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getTargetEnvs(proc)
-		if err != nil {
+		if _, err := getTargetEnvs(proc); err != nil {
 			return
 		}
 	}

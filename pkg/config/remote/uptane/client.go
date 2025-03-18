@@ -289,6 +289,13 @@ func (c *Client) TargetsCustom() ([]byte, error) {
 	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
+// TimestampExpires returns the expiry time of the current up-to-date timestamp.json
+func (c *Client) TimestampExpires() (time.Time, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.directorLocalStore.GetMetaExpires(metaTimestamp)
+}
+
 // DirectorRoot returns a director root
 func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	c.Lock()
@@ -342,14 +349,38 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 	return c.unsafeTargetFile(path)
 }
 
-// TargetsMeta returns the current raw targets.json meta of this uptane client
-func (c *Client) TargetsMeta() ([]byte, error) {
+// TargetFiles returns the content of various multiple target files if the repository is in a
+// verified state.
+func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
 	c.Lock()
 	defer c.Unlock()
+
 	err := c.verify()
 	if err != nil {
 		return nil, err
 	}
+
+	// Build the storage space
+	destinations := make(map[string]client.Destination)
+	for _, path := range targetFiles {
+		destinations[path] = &bufferDestination{}
+	}
+
+	err = c.directorTUFClient.DownloadBatch(destinations)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the return type
+	files := make(map[string][]byte)
+	for path, contents := range destinations {
+		files[path] = contents.(*bufferDestination).Bytes()
+	}
+
+	return files, nil
+}
+
+func (c *Client) unsafeTargetsMeta() ([]byte, error) {
 	metas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
 		return nil, err
@@ -359,6 +390,24 @@ func (c *Client) TargetsMeta() ([]byte, error) {
 		return nil, fmt.Errorf("empty targets meta in director local store")
 	}
 	return targets, nil
+}
+
+// TargetsMeta verifies and returns the current raw targets.json meta of this uptane client
+func (c *Client) TargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	return c.unsafeTargetsMeta()
+}
+
+// UnsafeTargetsMeta returns the current raw targets.json meta of this uptane client without verifying
+func (c *Client) UnsafeTargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetsMeta()
 }
 
 func (c *Client) pruneTargetFiles() error {
@@ -457,7 +506,10 @@ func (c *Client) verifyOrg() error {
 		}
 		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
 		if checkOrgID && configPathMeta.OrgID != c.orgID {
-			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
+			return fmt.Errorf(
+				"director target '%s' does not have the correct orgID. %d != %d",
+				targetPath, configPathMeta.OrgID, c.orgID,
+			)
 		}
 	}
 	return nil

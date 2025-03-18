@@ -17,6 +17,7 @@
 #include "bpf_builtins.h"
 #include "port_range.h"
 #include "sock.h"
+#include "pid_tgid.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/redis/helpers.h"
@@ -76,6 +77,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     // we're in the context of TLS hookpoints, thus the protocol is TLS.
     set_protocol(stack, PROTOCOL_TLS);
+    set_protocol_flag(stack, FLAG_USM_ENABLED);
 
     const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
@@ -250,7 +252,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 
     // the code path below should be executed only once during the lifecycle of a SSL session
     pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = ssl_sock->fd,
     };
 

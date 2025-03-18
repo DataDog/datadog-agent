@@ -66,15 +66,12 @@ func TestShouldIgnorePid(t *testing.T) {
 				_ = cmd.Process.Kill()
 			})
 
-			discovery := newDiscovery(nil)
+			discovery := newDiscovery(nil, nil)
 			require.NotEmpty(t, discovery)
-
-			proc, err := customNewProcess(int32(cmd.Process.Pid))
-			require.NoError(t, err)
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				// wait until the service name becomes available
-				info, err := discovery.getServiceInfo(proc)
+				info, err := discovery.getServiceInfo(int32(cmd.Process.Pid))
 				assert.NoError(collect, err)
 				assert.Equal(collect, test.service, info.ddServiceName)
 			}, 3*time.Second, 100*time.Millisecond)
@@ -92,7 +89,7 @@ func TestShouldIgnorePid(t *testing.T) {
 			}
 
 			// check saved pid to ignore
-			ignore := discovery.shouldIgnorePid(proc.Pid)
+			ignore := discovery.shouldIgnorePid(int32(cmd.Process.Pid))
 			require.Equal(t, test.ignore, ignore)
 		})
 	}

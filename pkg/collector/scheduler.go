@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -58,13 +58,13 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      optional.Option[collector.Component]
+	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
@@ -73,7 +73,7 @@ func InitCheckScheduler(collector optional.Option[collector.Component], senderMa
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
-		checkScheduler.AddLoader(loader)
+		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
 	return checkScheduler
@@ -143,8 +143,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 // Stop is a stub to satisfy the scheduler interface
 func (s *CheckScheduler) Stop() {}
 
-// AddLoader adds a new Loader that AutoConfig can use to load a check.
-func (s *CheckScheduler) AddLoader(loader check.Loader) {
+// addLoader adds a new Loader that AutoConfig can use to load a check.
+func (s *CheckScheduler) addLoader(loader check.Loader) {
 	for _, l := range s.loaders {
 		if l == loader {
 			log.Warnf("Loader %s was already added, skipping...", loader)

@@ -170,36 +170,6 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for dogstatsd
-    """
-    if sys.platform == 'win32':
-        raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
-
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
-    race_opt = "-race" if race else ""
-    exec_opts = ""
-    timeout_opt = f"-timeout {timeout}" if timeout else ""
-
-    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
-    # to the call, we don't want them because while calling invoke below, invoke
-    # thinks that the parameters are for it to interpret.
-    # we're calling an intermediate script which only pass the binary name to the invoke task.
-    if remote_docker:
-        exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
-    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
-
-    prefixes = [
-        "./test/integration/dogstatsd/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run(f"{go_cmd} {prefix}")
-
-
-@task
 def image_build(ctx, arch='amd64', skip_build=False):
     """
     Build the docker image

@@ -36,6 +36,7 @@ struct syscall_cache_t {
     u8 async;
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
+    s64 retval;
 
     union {
         struct {
@@ -191,6 +192,7 @@ struct syscall_cache_t {
         struct {
             u32 pid;
             u32 type;
+            u32 need_target_resolution;
         } signal;
 
         struct {
@@ -217,6 +219,12 @@ struct syscall_cache_t {
             u16 protocol;
         } connect;
 
+         struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } accept;
+
         struct {
             struct dentry *dentry;
             struct path *path;
@@ -226,6 +234,14 @@ struct syscall_cache_t {
         struct {
             u32 auid;
         } login_uid;
+
+        struct {
+            u8 in_flight;
+        } stat;
+
+        struct {
+            u32 action;
+        } sysctl;
     };
 };
 

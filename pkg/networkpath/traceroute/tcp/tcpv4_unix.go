@@ -16,18 +16,33 @@ import (
 
 	"golang.org/x/net/ipv4"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	sendPacketFunc    = sendPacket    // for testing
+	listenPacketsFunc = listenPackets // for testing
+)
+
+type (
+	rawConnWrapper interface {
+		SetReadDeadline(t time.Time) error
+		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
+		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+	}
 )
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
-func (t *TCPv4) TracerouteSequential() (*Results, error) {
+func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	addr, err := localAddrForHost(t.Target, t.DestPort)
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
+	conn.Close() // we don't need the UDP port here
 	t.srcIP = addr.IP
 
 	// So far I haven't had success trying to simply create a socket
@@ -71,7 +86,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}
 
 	// hops should be of length # of hops
-	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
+	hops := make([]*common.Hop, 0, t.MaxTTL-t.MinTTL)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
@@ -88,7 +103,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		}
 	}
 
-	return &Results{
+	return &common.Results{
 		Source:     t.srcIP,
 		SourcePort: t.srcPort,
 		Target:     t.Target,
@@ -97,36 +112,37 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
+	tcpHeader, tcpPacket, err := t.createRawTCPSyn(seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
 	}
 
-	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
+	err = sendPacketFunc(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
 		log.Errorf("failed to send TCP SYN: %s", err.Error())
 		return nil, err
 	}
 
-	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
-	if err != nil {
-		log.Errorf("failed to listen for packets: %s", err.Error())
-		return nil, err
+	start := time.Now()
+	resp := listenPacketsFunc(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	if resp.Err != nil {
+		log.Errorf("failed to listen for packets: %s", resp.Err.Error())
+		return nil, resp.Err
 	}
 
 	rtt := time.Duration(0)
-	if !hopIP.Equal(net.IP{}) {
-		rtt = end.Sub(start)
+	if !resp.IP.Equal(net.IP{}) {
+		rtt = resp.Time.Sub(start)
 	}
 
-	return &Hop{
-		IP:       hopIP,
-		Port:     hopPort,
-		ICMPType: icmpType,
+	return &common.Hop{
+		IP:       resp.IP,
+		Port:     resp.Port,
+		ICMPType: resp.Type,
+		ICMPCode: resp.Code,
 		RTT:      rtt,
-		IsDest:   hopIP.Equal(t.Target),
+		IsDest:   resp.IP.Equal(t.Target),
 	}, nil
 }

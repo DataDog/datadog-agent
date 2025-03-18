@@ -24,7 +24,7 @@ type mockRCClient struct {
 	subscribers map[string][]rcCallbackFunc
 }
 
-func (m *mockRCClient) Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockRCClient) SubscribeIgnoreExpiration(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	if m.subscribers == nil {
 		m.subscribers = make(map[string][]rcCallbackFunc)
 	}
@@ -39,13 +39,13 @@ func (m *mockRCClient) triggerUpdate(product string, update map[string]state.Raw
 	}
 }
 
-func newMockConfigRetriever(t *testing.T, isLeader bool, clock clock.Clock) (*configRetriever, *mockRCClient) {
+func newMockConfigRetriever(t *testing.T, isLeader bool, clock clock.Clock) (*ConfigRetriever, *mockRCClient) {
 	t.Helper()
 
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	mockRCClient := &mockRCClient{}
 
-	cr, err := newConfigRetriever(store, func() bool { return isLeader }, mockRCClient)
+	cr, err := NewConfigRetriever(store, func() bool { return isLeader }, mockRCClient)
 	cr.clock = clock
 	assert.NoError(t, err)
 

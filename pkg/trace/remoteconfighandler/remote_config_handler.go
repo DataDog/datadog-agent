@@ -7,9 +7,9 @@
 package remoteconfighandler
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -43,12 +42,18 @@ type RemoteConfigHandler struct {
 	rareSampler                   rareSampler
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
+	configHTTPClient              *http.Client
 	configSetEndpointFormatString string
 }
 
 // New creates a new RemoteConfigHandler
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
+		return nil
+	}
+
+	if conf.DebugServerPort == 0 {
+		log.Errorf("debug server(apm_config.debug.port) was disabled, server is required for remote config, RC is disabled.")
 		return nil
 	}
 
@@ -67,8 +72,13 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
+		configHTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //Skipped while IPC cert supply chain is released
+			},
+		},
 		configSetEndpointFormatString: fmt.Sprintf(
-			"http://%s/config/set?log_level=%%s", net.JoinHostPort(conf.ReceiverHost, strconv.Itoa(conf.ReceiverPort)),
+			"https://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
 		),
 	}
 }
@@ -91,14 +101,21 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		return
 	}
 
+	// todo refactor shared code
+
 	if len(mergedConfig.LogLevel) > 0 {
 		// Get the current log level
-		var newFallback seelog.LogLevel
+		var newFallback pkglog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			var req *http.Request
+			req, err = h.buildLogLevelRequest(mergedConfig.LogLevel)
+			if err != nil {
+				return
+			}
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
@@ -106,12 +123,17 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			}
 		}
 	} else {
-		var currentLogLevel seelog.LogLevel
+		var currentLogLevel pkglog.LogLevel
 		currentLogLevel, err = pkglog.GetLogLevel()
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
-			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			var req *http.Request
+			req, err = h.buildLogLevelRequest(h.configState.FallbackLogLevel)
+			if err != nil {
+				return
+			}
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 			}
@@ -133,6 +155,18 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			})
 		}
 	}
+}
+
+func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, newLevel), nil)
+	if err != nil {
+		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
+		return nil, err
+	}
+	if h.agentConfig.GetAgentAuthToken != nil {
+		req.Header.Set("Authorization", "Bearer "+h.agentConfig.GetAgentAuthToken())
+	}
+	return req, nil
 }
 
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {

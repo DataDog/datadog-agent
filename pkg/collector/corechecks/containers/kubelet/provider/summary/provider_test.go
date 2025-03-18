@@ -21,8 +21,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -335,10 +334,10 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := taggerMock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 			for entity, tags := range entityTags {
-				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+				prefix, id, _ := taggertypes.ExtractPrefixAndID(entity)
 				entityID := taggertypes.NewEntityID(prefix, id)
 				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}

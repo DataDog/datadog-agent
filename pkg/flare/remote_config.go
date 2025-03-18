@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
@@ -107,7 +107,7 @@ func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
 
 	// Copies the db so it avoids bbolt from being locked
 	// Also avoid concurrent modifications
-	err = util.CopyFileAll(srcPath, tempPath)
+	err = filesystem.CopyFileAll(srcPath, tempPath)
 	// Delete the db at the end to avoid having target files content
 	defer os.Remove(tempPath)
 	if err != nil {

@@ -80,8 +80,11 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
-		child.CGroup = parent.CGroup
 		child.ContainerID = parent.ContainerID
+	}
+
+	if len(parent.CGroup.CGroupID) > 0 && len(child.CGroup.CGroupID) == 0 {
+		child.CGroup = parent.CGroup
 	}
 
 	// AUIDs should be inherited just like container IDs

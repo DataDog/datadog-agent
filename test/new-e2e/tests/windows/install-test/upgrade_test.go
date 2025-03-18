@@ -29,7 +29,7 @@ func TestUpgrade(t *testing.T) {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackge = previousAgentPackage
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeSuite struct {
@@ -57,7 +57,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -73,9 +73,74 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
+// TestUpgrade tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+func TestUpgradeFromLatest(t *testing.T) {
+	s := &testUpgradeFromLatestSuite{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get last stable agent package from env")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	Run(t, s)
+}
+
+type testUpgradeFromLatestSuite struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// upgrade to test agent
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.upgradeAgentPackge),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	if !t.TestInstallExpectations(s.T()) {
+		s.T().FailNow()
+	}
+
+	// Get Display Version
+	productVersionPost, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// check that version is different post upgrade
+	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
+
+	s.uninstallAgentAndRunUninstallTests(t)
+
+}
+
 func TestUpgradeRollback(t *testing.T) {
 	s := &testUpgradeRollbackSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeRollbackSuite struct {
@@ -94,7 +159,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -121,7 +186,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 // rolls back, that the ddprocmon service is not installed.
 func TestUpgradeRollbackWithoutCWS(t *testing.T) {
 	s := &testUpgradeRollbackWithoutCWSSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeRollbackWithoutCWSSuite struct {
@@ -142,7 +207,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) SetupSuite() {
 		Version: fmt.Sprintf("%s.51.0-1", majorVersion),
 		Arch:    "x86_64",
 	}
-	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch)
+	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch, "")
 	s.Require().NoError(err, "should get stable agent package URL")
 }
 
@@ -157,7 +222,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -194,7 +259,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 
 func TestUpgradeChangeUser(t *testing.T) {
 	s := &testUpgradeChangeUserSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeChangeUserSuite struct {
@@ -215,7 +280,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 			windowsAgent.WithAgentUser(newUserName),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
@@ -282,9 +347,9 @@ func TestUpgradeFromV5(t *testing.T) {
 	s.agent5Package = &windowsAgent.Package{
 		Version: "5.32.8-1",
 	}
-	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64")
+	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64", "")
 	require.NoError(t, err)
-	run(t, s)
+	Run(t, s)
 }
 
 type testUpgradeFromV5Suite struct {
@@ -302,7 +367,7 @@ func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -324,7 +389,7 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 	host := s.Env().RemoteHost
 	agentPackage := s.agent5Package
 
-	logFile := filepath.Join(s.OutputDir, "install-agent5.log")
+	logFile := filepath.Join(s.SessionOutputDir(), "install-agent5.log")
 	_, err := s.InstallAgent(host,
 		windowsAgent.WithPackage(agentPackage),
 		windowsAgent.WithValidAPIKey(),
@@ -375,7 +440,7 @@ func TestUpgradeFromV6(t *testing.T) {
 		Version: "6.53.0-1",
 		Arch:    "x86_64",
 	}
-	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch)
+	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch, "")
 	require.NoError(t, err)
-	run(t, s)
+	Run(t, s)
 }
