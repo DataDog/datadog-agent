@@ -102,3 +102,11 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	}
 	return iexec.NewInstallerExec(env, paths.GetAdminInstallerBinaryPath(adminInstallDir)), nil
 }
+
+func getInstallerOCI(_ context.Context, env *env.Env) string {
+	version := "latest"
+	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[AgentPackage]
+	}
+	return oci.PackageURL(env, AgentPackage, version)
+}

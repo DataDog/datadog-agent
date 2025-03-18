@@ -39,8 +39,34 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
-func SetupAgent(_ context.Context, _ []string) (err error) {
-	return nil
+func SetupAgent(ctx context.Context, args []string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
+	defer func() {
+		// Don't log error here, or it will appear twice in the output
+		// since installerImpl.Install will also print the error.
+		span.Finish(err)
+	}()
+	// must get env before uninstalling the Agent since it may read from the registry
+	env := getenv()
+
+	// remove the installer if it is installed
+	err = removeInstallerIfInstalled(ctx)
+	if err != nil {
+		// failed to remove the installer
+		return fmt.Errorf("Failed to remove installer: %w", err)
+	}
+
+	// remove the Agent if it is installed
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		// failed to remove the Agent
+		return fmt.Errorf("Failed to remove Agent: %w", err)
+	}
+
+	// install the new stable Agent
+	err = installAgentPackage(env, "stable", args, "setup_agent.log")
+	return err
+
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -295,8 +321,8 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	return nil
 }
 
-func removeAgentIfInstalled(ctx context.Context) (err error) {
-	if msi.IsProductInstalled("Datadog Agent") {
+func removeProductIfInstalled(ctx context.Context, product string) (err error) {
+	if msi.IsProductInstalled(product) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
 			if err != nil {
@@ -306,14 +332,23 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct("Datadog Agent")
+		err := msi.RemoveProduct(product)
 		if err != nil {
 			return err
 		}
 	} else {
-		log.Debugf("Agent not installed")
+		log.Debugf("%s not installed", product)
 	}
 	return nil
+
+}
+
+func removeAgentIfInstalled(ctx context.Context) (err error) {
+	return removeProductIfInstalled(ctx, "Datadog Agent")
+}
+
+func removeInstallerIfInstalled(ctx context.Context) (err error) {
+	return removeProductIfInstalled(ctx, "Datadog Installer")
 }
 
 // createEvent returns a new manual reset event that stops the watchdog when set.
