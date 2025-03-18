@@ -260,13 +260,16 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 // setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)
 // Returns an error if the input datadog exporter config is invalid
 func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
+	if ddcfg == nil {
+		return nil, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
 		return nil, errors.New("invalid datadog exporter config")
 	}
 	apicfg, ok := ddcfgMap["api"]
-	if !ok {
-		return nil, errors.New("invalid datadog exporter config")
+	if !ok || apicfg == nil {
+		return nil, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {

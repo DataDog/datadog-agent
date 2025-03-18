@@ -18,6 +18,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -314,8 +315,23 @@ func (suite *ConfigTestSuite) TestMultipleDDExporters() {
 func (suite *ConfigTestSuite) TestNoDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_no_api.yaml"
-	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	assert.EqualError(t, err, "invalid datadog exporter config")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDDAPISection() {
+	t := suite.T()
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
@@ -329,7 +345,7 @@ func (suite *ConfigTestSuite) TestDDAPISiteEmpty() {
 	t := suite.T()
 	fileName := "testdata/config_site_empty.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
@@ -340,7 +356,7 @@ func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
 	t := suite.T()
 	fileName := "testdata/config_site_not_set.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
@@ -351,7 +367,7 @@ func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	t := suite.T()
 	fileName := "testdata/config_site_set.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "us3.datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.us3.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.us3.datadoghq.com", c.Get("logs_config.logs_dd_url"))
