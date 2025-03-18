@@ -39,7 +39,6 @@ build do
             if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
-              move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true
             end
             if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
