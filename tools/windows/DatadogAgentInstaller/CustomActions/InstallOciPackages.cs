@@ -24,7 +24,6 @@ namespace Datadog.CustomActions
             var installDir = session.Property("PROJECTLOCATION");
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
-            session.Log($"installDir: {installDir}");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
