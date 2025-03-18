@@ -256,6 +256,10 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		// Retrieve the tags for all the active processes on this device. This will include pid, container
 		// tags and will enable matching between the usage of an entity and the corresponding limit.
 		activeEntitiesTags := activeEntitiesPerDevice[uuid]
+		if activeEntitiesTags == nil {
+			// Might be nil if there are no active processes on this device
+			activeEntitiesTags = common.NewStringSet()
+		}
 
 		// Also, add the tags for all containers that have this GPU allocated. Add to the set to avoid repetitions.
 		// Adding this ensures we correctly report utilization even if some of the GPUs allocated to the container
