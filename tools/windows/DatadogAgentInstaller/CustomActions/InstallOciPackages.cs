@@ -21,13 +21,11 @@ namespace Datadog.CustomActions
         public InstallOciPackages(ISession session)
         {
             _session = session;
-            var installDir = session.Property("INSTALLDIR");
+            var installDir = session.Property("PROJECTLOCATION");
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
             session.Log($"installDir: {installDir}");
-            // TODO remove me
-            installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
-            _installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
+            _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
 
