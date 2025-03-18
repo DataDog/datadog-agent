@@ -286,7 +286,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     # Create n jobs with the same configuration
     for job in kept_job:
         for i in range(n):
-            new_jobs[f"{job}-{i}"] = updated_jobs[job]
+            new_jobs[f"{job}-{i}"] = copy.deepcopy(updated_jobs[job])
+            new_jobs[f"{job}-{i}"]["stage"] = f"flake-finder-{i}"
 
             if 'E2E_PRE_INITIALIZED' in new_jobs[f"{job}-{i}"]['variables']:
                 del new_jobs[f"{job}-{i}"]['variables']['E2E_PRE_INITIALIZED']
