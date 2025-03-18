@@ -325,6 +325,8 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
+	sysCtx.fatbinParsingEnabled = true
+
 	// Set up the caches in system context so no actual queries are done
 	pid, tid := uint64(1), uint64(1)
 	kernAddress := uint64(42)
