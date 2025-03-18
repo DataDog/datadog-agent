@@ -513,11 +513,12 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         )
 
         # Step 4 - Send a slack message
-        post_message(
-            ctx,
-            "agent-release-sync",
-            f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}",
-        )
+        message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
+        channel = 'agent-release-sync'
+        if major_version == 6:
+            channel = 'agent-ci-on-call'
+            message += "\nCan you please merge this PR and trigger a build pipeline according to <https://datadoghq.atlassian.net/wiki/x/cgEaCgE|this document>?"
+        post_message(ctx, channel, message)
 
 
 @task
