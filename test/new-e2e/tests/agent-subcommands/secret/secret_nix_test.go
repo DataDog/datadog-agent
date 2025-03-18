@@ -50,17 +50,19 @@ func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 }
 
 func (v *linuxSecretSuite) TestAgentSecretCorrectPermissions() {
-	secretScript := `#!/usr/bin/env sh
-printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
-	config := `secret_backend_command: /tmp/bin/secret.sh
+	config := `
 host_aliases:
-  - ENC[alias_secret]`
+  - ENC[/tmp/alias_secret]`
+
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient.SetSecret("alias_secret", "a_super_secret_string")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
 				agentparams.WithAgentConfig(config),
+				secretClient.WithSecretExecutable(),
 			),
 		),
 	)
@@ -68,33 +70,30 @@ host_aliases:
 	output := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: /tmp/bin/secret.sh")
+	assert.Contains(v.T(), output, "Executable path: /tmp/get_secret.py")
 	assert.Contains(v.T(), output, "Executable permissions: OK, the executable has the correct permissions")
 	assert.Contains(v.T(), output, "File mode: 100700")
 	assert.Contains(v.T(), output, "Owner: dd-agent")
 	assert.Contains(v.T(), output, "Group: dd-agent")
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases/0'")
+	assert.Contains(v.T(), output, "- '/tmp/alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases/0'")
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }
 
 func (v *linuxSecretSuite) TestAgentConfigRefresh() {
-	config := `secret_backend_command: /tmp/secret.py
-secret_backend_arguments:
-  - /tmp
-api_key: ENC[api_key]
-`
+	config := "api_key: ENC[/tmp/api_key]\n"
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				secretsutils.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
+				secretClient.WithSecretExecutable(),
 			),
 		),
 	)

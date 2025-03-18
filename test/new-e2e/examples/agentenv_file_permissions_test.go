@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type filePermissionsTestSuite struct {
@@ -86,19 +85,4 @@ func (v *filePermissionsTestSuite) TestUserGroupPermissions() {
 
 	perm = v.Env().RemoteHost.MustExecute("ls -la /tmp/own_by_root_plus_permissions")
 	assert.Contains(v.T(), perm, "-rwxr-x--- 1 root root")
-}
-
-func (v *filePermissionsTestSuite) TestSecretsPermissions() {
-	files := []agentparams.Option{
-		secretsutils.WithUnixSetupScript("/tmp/secrets", false),
-		secretsutils.WithUnixSetupScript("/tmp/secrets_root_group", true),
-	}
-
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(files...)))
-
-	perm := v.Env().RemoteHost.MustExecute("ls -la /tmp/secrets")
-	assert.Contains(v.T(), perm, "-rwx------ 1 dd-agent dd-agent")
-
-	perm = v.Env().RemoteHost.MustExecute("ls -la /tmp/secrets_root_group")
-	assert.Contains(v.T(), perm, "-rwxr-x--- 1 dd-agent root")
 }

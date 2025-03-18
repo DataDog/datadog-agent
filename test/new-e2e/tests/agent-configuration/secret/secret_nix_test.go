@@ -29,17 +29,17 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
-//go:embed fixtures/secret_script.py
-var secretScript string
-
 func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
-	config := `secret_backend_command: /tmp/bin/secret.sh
-hostname: ENC[hostname]`
+	config := "hostname: ENC[/tmp/hostname]"
+
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient.SetSecret("hostname", "e2e.test")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
 			agentparams.WithAgentConfig(config),
+			secretClient.WithSecretExecutable(),
 		),
 	))
 

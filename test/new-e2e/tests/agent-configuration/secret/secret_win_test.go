@@ -7,7 +7,6 @@
 package secret
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -34,27 +33,19 @@ func TestWindowsRuntimeSecretSuite(t *testing.T) {
 }
 
 func (v *windowsRuntimeSecretSuite) testSecretRuntimeHostname(wrapperDirectory string) {
-	config := `secret_backend_command: ` + wrapperDirectory + `\wrapper.bat
-secret_backend_arguments:
-  - '` + wrapperDirectory + `'
-hostname: ENC[hostname]`
-
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(config),
-	}
-	if strings.Contains(wrapperDirectory, "ProgramData") {
-		agentParams = append(agentParams, secretsutils.WithWindowsSetupScriptNoPerms(wrapperDirectory+"/wrapper.bat")...)
-	} else {
-		agentParams = append(agentParams, secretsutils.WithWindowsSetupScript(wrapperDirectory+"/wrapper.bat", false)...)
-	}
+	config := "hostname: ENC[" + wrapperDirectory + "/hostname]"
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, wrapperDirectory)
 	secretClient.SetSecret("hostname", "e2e.test")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(agentParams...),
+			awshost.WithAgentOptions(
+				secretClient.WithSecretExecutable(),
+				agentparams.WithAgentConfig(config),
+			),
 		),
 	)
 
