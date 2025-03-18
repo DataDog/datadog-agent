@@ -26,7 +26,6 @@ import (
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -49,13 +48,14 @@ type processor struct {
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
 	hostSBOM              bool
+	procfsSBOM            bool
 	hostname              string
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, procfsSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -137,7 +137,12 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 				continue
 			}
 			p.registerContainer(container)
-			p.triggerProcfsScan(event.Entity.(*workloadmeta.Container))
+
+			if p.procfsSBOM {
+				if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
+					p.triggerProcfsScan(container)
+				}
+			}
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
@@ -263,16 +268,6 @@ func (p *processor) triggerHostScan() {
 }
 
 func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
-	// Allowed only on Fargate instance for now
-	if !fargate.IsFargateInstance() {
-		log.Warnf("procfs scan supported only on Fargate instances, ignoring : %s", ctr.ID)
-		return
-	}
-
-	if !pkgconfigsetup.Datadog().GetBool("sbom.container.enabled") {
-		return
-	}
-
 	log.Debugf("Triggering procfs SBOM scan : %s", ctr.ID)
 
 	scanRequest := procfs.NewScanRequest(ctr.ID)
