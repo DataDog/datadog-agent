@@ -14,6 +14,7 @@ import (
 
 	"github.com/moby/sys/mountinfo"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
@@ -64,7 +65,7 @@ var BootRoot = funcs.MemoizeNoError(func() string {
 	if v := os.Getenv("HOST_BOOT"); v != "" {
 		return v
 	}
-	if os.Getenv("DOCKER_DD_AGENT") != "" {
+	if env.IsContainerized() {
 		if _, err := os.Stat("/host"); err == nil {
 			return "/host/boot"
 		}

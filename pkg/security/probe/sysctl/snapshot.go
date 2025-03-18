@@ -10,6 +10,7 @@ package sysctl
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -50,11 +51,11 @@ type SnapshotEvent struct {
 }
 
 // NewSnapshotEvent returns a new sysctl snapshot event
-func NewSnapshotEvent(ignoredBaseNames []string, kernelCompilationFLags []string) (*SnapshotEvent, error) {
+func NewSnapshotEvent(ignoredBaseNames []string, kernelCompilationFlags map[string]uint8) (*SnapshotEvent, error) {
 	se := &SnapshotEvent{
 		Sysctl: NewSnapshot(),
 	}
-	if err := se.Sysctl.Snapshot(ignoredBaseNames, kernelCompilationFLags); err != nil {
+	if err := se.Sysctl.Snapshot(ignoredBaseNames, kernelCompilationFlags); err != nil {
 		return nil, err
 	}
 	return se, nil
@@ -89,7 +90,7 @@ func NewSnapshot() Snapshot {
 }
 
 // Snapshot runs the snapshot by going through the filesystem
-func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFLags []string) error {
+func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags map[string]uint8) error {
 	if err := s.snapshotProcSys(ignoredBaseNames); err != nil {
 		return fmt.Errorf("couldn't snapshot /proc/sys: %w", err)
 	}
@@ -106,7 +107,7 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFLags []
 		return fmt.Errorf("couldn't get kernel cmdline: %w", err)
 	}
 
-	if err := s.snapshotKernelCompilationConfiguration(kernelCompilationFLags); err != nil {
+	if err := s.snapshotKernelCompilationConfiguration(kernelCompilationFlags); err != nil {
 		return fmt.Errorf("couldn't get kernel compilation configuration: %w", err)
 	}
 	return nil
@@ -258,7 +259,7 @@ func (s *Snapshot) snapshotKernelCmdline(ignoredBaseNames []string) error {
 }
 
 func (s *Snapshot) getKernelConfigPath() (string, error) {
-	kernelVersion, err := os.ReadFile(kernel.HostProc("/sys/kernel/osrelease"))
+	kernelVersion, err := kernel.Release()
 	if err != nil {
 		return "", err
 	}
@@ -273,22 +274,22 @@ func (s *Snapshot) getKernelConfigPath() (string, error) {
 	return "", fmt.Errorf("kernel config not found")
 }
 
-func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFLags []string) error {
+func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "#") {
 			if strings.HasSuffix(line, "is not set") {
-				key := strings.Fields(line)[1]
-				if slices.Contains(kernelCompilationFLags, key) {
+				key := string(bytes.Fields([]byte(line))[1])
+				if _, ok := kernelCompilationFlags[key]; ok {
 					s.KernelCompilationConfiguration[key] = "not_set"
 				}
 			}
 			continue
 		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 && slices.Contains(kernelCompilationFLags, parts[0]) {
-			s.KernelCompilationConfiguration[parts[0]] = strings.ReplaceAll(parts[1], "\"", "")
+		key, value, ok := strings.Cut(line, "=")
+		if ok && kernelCompilationFlags[key] != 0 {
+			s.KernelCompilationConfiguration[key] = strings.Trim(value, "\"")
 		}
 	}
 
@@ -296,7 +297,7 @@ func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFLags []strin
 }
 
 // snapshotKernelCompilationConfiguration tries to resolve and parse the kernel compilation configuration
-func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFLags []string) error {
+func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFlags map[string]uint8) error {
 	configPath, err := s.getKernelConfigPath()
 	if err != nil {
 		return fmt.Errorf("error finding kernel config: %w", err)
@@ -320,7 +321,7 @@ func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFLags
 		reader = file
 	}
 
-	if err := s.parseKernelConfig(reader, kernelCompilationFLags); err != nil {
+	if err := s.parseKernelConfig(reader, kernelCompilationFlags); err != nil {
 		return fmt.Errorf("error parsing kernel config: %w", err)
 	}
 	return nil
