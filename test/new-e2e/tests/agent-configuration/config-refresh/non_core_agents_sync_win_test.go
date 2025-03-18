@@ -5,7 +5,6 @@
 package configrefresh
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,41 +33,35 @@ func TestConfigRefreshWindowsSuite(t *testing.T) {
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
-	rootDir := "C:/tmp/" + v.T().Name()
-	v.Env().RemoteHost.MkdirAll(rootDir)
-
 	authTokenFilePath := `C:\ProgramData\Datadog\auth_token`
-	secretResolverPath := filepath.Join(rootDir, "wrapper.bat")
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "C:/tmp/")
+	secretClient.ConfigureRefreshInterval(configRefreshIntervalSec)
+	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", apiKey1)
 
 	templateVars := map[string]interface{}{
-		"AuthTokenFilePath":        authTokenFilePath,
-		"SecretDirectory":          rootDir,
-		"SecretResolver":           secretResolverPath,
-		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
-		"ApmCmdPort":               apmCmdPort,
-		"ProcessCmdPort":           processCmdPort,
-		"SecurityCmdPort":          securityCmdPort,
-		"AgentIpcPort":             agentIpcPort,
-		"SecretBackendCommandAllowGroupExecPermOption": "false", // this is not supported on Windows
+		"AuthTokenFilePath": authTokenFilePath,
+		"ApmCmdPort":        apmCmdPort,
+		"ProcessCmdPort":    processCmdPort,
+		"SecurityCmdPort":   securityCmdPort,
+		"AgentIpcPort":      agentIpcPort,
+		"SecretDir":         "C:/tmp/",
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
-
-	agentOptions := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(coreconfig),
-		agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
-	}
-	agentOptions = append(agentOptions, secretsutils.WithWindowsSetupScript(secretResolverPath, true)...)
+	coreconfig += secretClient.GetAgentConfiguration()
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-		awshost.WithAgentOptions(agentOptions...),
+		awshost.WithAgentOptions(
+			agentparams.WithAgentConfig(coreconfig),
+			agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			secretClient.WithSecretExecutable(),
+		),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
 			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -424,34 +423,29 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 	rootDir := "/tmp/" + s.T().Name()
 	s.Env().RemoteHost.MkdirAll(rootDir)
 
-	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
-
 	s.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", apiKey1)
 
 	extraconfig := fmt.Sprintf(`
-api_key: ENC[api_key]
+api_key: ENC[%s/api_key]
 log_level: debug
-
-secret_backend_command: %s
-secret_backend_arguments:
-  - %s
-secret_backend_remove_trailing_line_break: true
-secret_backend_command_allow_group_exec_perm: true
 
 agent_ipc:
   port: 5004
   config_refresh_interval: 5
-`, secretResolverPath, rootDir)
+`, rootDir)
+	extraconfig += secretClient.GetAgentConfiguration()
 
+	s.T().Log("final Agent configuration:", extraconfig)
 	s.UpdateEnv(awshost.Provisioner(
 		vmProvisionerOpts(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSetupScript(secretResolverPath, true),
 				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+				secretClient.WithSecretExecutable(),
 			),
 		)...),
 	)

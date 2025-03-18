@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -523,28 +522,21 @@ func (v *apiSuite) TestSecretsAgentAPIEndpoints() {
 	}
 	want := `used in 'datadog.yaml' configuration in entry 'hostname'`
 
-	config := `secret_backend_command: /tmp/test-secret-api-endpoint/secret-resolver.py
-secret_backend_arguments:
-  - /tmp/test-secret-api-endpoint
-secret_backend_remove_trailing_line_break: true
-secret_backend_command_allow_group_exec_perm: true
-
-log_level: debug
-hostname: ENC[hostname]`
-
 	rootDir := "/tmp/test-secret-api-endpoint"
-	v.Env().RemoteHost.MkdirAll(rootDir)
-	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
+	config := `log_level: debug
+hostname: ENC[` + rootDir + "/hostname]"
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient.AllowExecGroup()
 	secretClient.SetSecret("hostname", "e2e.test")
+	config += secretClient.GetAgentConfiguration()
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(config),
+			secretClient.WithSecretExecutable(),
 		),
 	))
 
