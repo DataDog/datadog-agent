@@ -30,6 +30,7 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
+	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsecs.Provisioner(
 			awsecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
