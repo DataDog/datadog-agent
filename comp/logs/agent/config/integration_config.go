@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -319,16 +318,16 @@ func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader
 	}
 
 	// Handle transparent fallback if V1 was explicitly configured.
-	if c.AutoMultiLineSampleSize != 0 || coreConfig.GetInt("logs_config.auto_multi_line_default_sample_size") != setup.DefaultLogsLegacySampleSize {
+	if c.AutoMultiLineSampleSize != 0 || coreConfig.IsConfigured("logs_config.auto_multi_line_default_sample_size") {
 		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the sample size has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
-	if c.AutoMultiLineMatchThreshold != 0 || coreConfig.GetFloat64("logs_config.auto_multi_line_default_match_threshold") != setup.DefaultLogsLegacyMatchThreshold {
+	if c.AutoMultiLineMatchThreshold != 0 || coreConfig.IsConfigured("logs_config.auto_multi_line_default_match_threshold") {
 		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match threshold has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
 
-	if coreConfig.GetDuration("logs_config.auto_multi_line_default_match_timeout") != setup.DefaultLogsLegacyMatchTimeout {
+	if coreConfig.IsConfigured("logs_config.auto_multi_line_default_match_timeout") {
 		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match timeout has been set to a non-default value.")
 		return c.AutoMultiLineEnabled(coreConfig)
 	}
