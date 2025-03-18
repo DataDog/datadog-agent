@@ -52,6 +52,13 @@ func New(t *testing.T) authtokeninterface.Mock {
 	// setting pkg/api/util globals
 	util.SetAuthTokenInMemory() // TODO IPC: remove this line when the migration to component framework will be fully finished
 
+	// Cleanup the auth token, client TLS config and server TLS config in memory
+	// when the test is done
+	// This avoid difference in behavior between running one test or an entire test suite in some cases
+	t.Cleanup(func() {
+		util.CleanupAuthTokenInMemory()
+	})
+
 	return &inMemoryAuthComponent{
 		t: t,
 	}

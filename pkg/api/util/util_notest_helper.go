@@ -12,3 +12,7 @@ package util
 func SetAuthTokenInMemory() {
 	// No-op implementation
 }
+
+func CleanupAuthTokenInMemory() {
+	// No-op implementation
+}

@@ -51,3 +51,18 @@ func SetAuthTokenInMemory() {
 	}
 	initSource = setAuthTokenInMemory
 }
+
+// CleanupAuthTokenInMemory is only expected to be used for unit-tests
+// It cleans up the auth token, client TLS config and server TLS config in memory
+// and initializes the initSource to uninitialized
+func CleanupAuthTokenInMemory() {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+	if initSource != setAuthTokenInMemory {
+		return
+	}
+	initSource = uninitialized
+	token = ""
+	clientTLSConfig = nil
+	serverTLSConfig = nil
+}
