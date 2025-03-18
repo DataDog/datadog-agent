@@ -211,9 +211,9 @@ func (sc *streamCollection) streamCount() int {
 	return len(sc.nonglobalStreams) + len(sc.globalStreams)
 }
 
-func (sc *streamCollection) markProcessStreamsAsEnded(pid int) {
+func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 	for handler := range sc.allStreams() {
-		if handler.metadata.pid == uint32(pid) {
+		if handler.metadata.pid == pid {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
 			_ = handler.markEnd()
 			sc.telemetry.finalizedProcesses.Inc()

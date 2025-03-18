@@ -220,7 +220,7 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 }
 
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
-	c.streamHandlers.markProcessStreamsAsEnded(int(pid))
+	c.streamHandlers.markProcessStreamsAsEnded(pid)
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
@@ -230,14 +230,9 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 		return nil
 	})
 
-	activePIDs := make(map[uint32]struct{})
 	for handler := range c.streamHandlers.allStreams() {
-		activePIDs[handler.metadata.pid] = struct{}{}
-	}
-
-	for pid := range activePIDs {
-		if _, ok := seenPIDs[pid]; !ok {
-			c.streamHandlers.markProcessStreamsAsEnded(int(pid))
+		if _, ok := seenPIDs[handler.metadata.pid]; !ok {
+			c.streamHandlers.markProcessStreamsAsEnded(handler.metadata.pid)
 		}
 	}
 }
