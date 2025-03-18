@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
@@ -80,11 +80,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
@@ -225,7 +226,7 @@ require (
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
-// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
+// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
@@ -353,6 +354,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
+	github.com/DataDog/datadog-agent/pkg/util/otel => ../../pkg/util/otel
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
