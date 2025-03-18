@@ -9,7 +9,6 @@ package procfs
 
 import (
 	"context"
-	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -18,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
-
-var ErrNotFound = errors.New("not found")
 
 // Collector defines a procfs collector
 type Collector struct {
