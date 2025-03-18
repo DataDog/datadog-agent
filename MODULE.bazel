@@ -13,6 +13,12 @@ bazel_dep(name = "rules_rust", version = "0.59.2")
 #     version = "3.1.0",
 # )
 
+git_override(
+    module_name = "rules_foreign_cc",
+    branch = "main",
+    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
+)
+
 #########################
 ## Native dependencies ##
 #########################
