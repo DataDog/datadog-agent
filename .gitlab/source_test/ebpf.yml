@@ -8,6 +8,7 @@
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  extends: .unit_test_base
   needs: ["go_deps", "go_tools_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -76,6 +77,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
 .prepare_secagent_ebpf_functional_tests:
   stage: source_test
   rules:
+    - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   artifacts:

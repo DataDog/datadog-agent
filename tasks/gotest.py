@@ -205,9 +205,7 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(
-    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
-) -> bool:
+def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -227,10 +225,7 @@ def process_test_result(
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        flakes_configs = ["flakes.yaml"]
-        if extra_flakes_config is not None:
-            flakes_configs.append(extra_flakes_config)
-        tw = TestWasher(flakes_file_paths=flakes_configs)
+        tw = TestWasher()
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -319,6 +314,11 @@ def test(
     build_cpus_opt = f"-p {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
+
+    # Create temporary file for flaky patterns config
+    if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+        with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
+            f.write("{}")
 
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
