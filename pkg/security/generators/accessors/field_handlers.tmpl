@@ -42,26 +42,13 @@ func (ev *Event) resolveFields(forADs bool) {
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
                 {{$Checks := $Field | GetFieldHandlersChecks $.AllFields}}
                 {{if $Checks}}
-                    {{ $CheckStr := "" }}
-                    {{range $Check := $Checks}}
-                        {{if $CheckStr}}
-                            {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
-                        {{else}}
-                            {{$CheckStr = $Check}}
-                        {{end}}
-                    {{end}}
-
-                    if {{$CheckStr}} {
+                    if {{$Checks}} {
 						_ = {{ $resolver }}
-                        {{ $_ := set $uniqueResolvers $resolver "" }}
                     }
                 {{else}}
-                    {{ $resolver := $Field | GetFieldHandler $.AllFields }}
-                    {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
-						_ = {{ $resolver }}
-                        {{ $_ := set $uniqueResolvers $resolver "" }}
-                    {{end}}
+					_ = {{ $resolver }}
                 {{end}}
+				{{ $_ := set $uniqueResolvers $resolver "" }}
             {{end}}
         {{- end -}}
     {{end}}
@@ -88,16 +75,7 @@ func (ev *Event) resolveFields(forADs bool) {
                 {{ if ne $resolver "" }}
                     {{$Checks := $Field | GetFieldHandlersChecks $.AllFields}}
                     {{if $Checks}}
-                        {{ $CheckStr := "" }}
-                        {{range $Check := $Checks}}
-                            {{if $CheckStr}}
-                                {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
-                            {{else}}
-                                {{$CheckStr = $Check}}
-                            {{end}}
-                        {{end}}
-
-                        if {{$CheckStr}} {
+                        if {{$Checks}} {
 							_ = {{ $resolver }}
                         }
                     {{else}}

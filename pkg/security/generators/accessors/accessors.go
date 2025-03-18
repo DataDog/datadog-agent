@@ -980,7 +980,7 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
-func getFieldHandlersChecks(allFields map[string]*common.StructField, field *common.StructField) []string {
+func getFieldHandlersChecks(allFields map[string]*common.StructField, field *common.StructField) string {
 	checks := getChecks(allFields, field)
 
 	var res []string
@@ -994,7 +994,7 @@ func getFieldHandlersChecks(allFields map[string]*common.StructField, field *com
 		res = append(res, check)
 	}
 
-	return res
+	return strings.Join(res, " && ")
 }
 
 func getSetHandler(allFields map[string]*common.StructField, field *common.StructField) string {
