@@ -12,10 +12,8 @@ package tailerfactory
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -62,28 +60,8 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	// entirely) we do not check for the file here. This matches older
 	// kubernetes-launcher behavior.
 
-	//sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogPods)
-	//// New file source that inherits most of its parent's properties
-	//fileSource := sources.NewLogSource(
-	//	fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
-	//	&config.LogsConfig{
-	//		Type:                        config.FileType,
-	//		TailingMode:                 source.Config.TailingMode,
-	//		Identifier:                  containerID,
-	//		Path:                        path,
-	//		Service:                     serviceName,
-	//		Source:                      sourceName,
-	//		Tags:                        source.Config.Tags,
-	//		ProcessingRules:             source.Config.ProcessingRules,
-	//		AutoMultiLine:               source.Config.AutoMultiLine,
-	//		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
-	//		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
-	//	})
-
 	pipeline := tf.pipelineProvider.NextPipelineChan()
-	readTimeout := time.Duration(pkgconfigsetup.Datadog().GetInt("logs_config.docker_client_read_timeout")) * time.Second
 
-	// apply defaults for source and service directly to the LogSource struct (!!)
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, containersorpods.LogPods)
 
 	return tailers.NewAPITailer(
@@ -94,7 +72,6 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 		pod.Namespace,
 		source,
 		pipeline,
-		readTimeout,
 		tf.registry,
 		tf.tagger,
 	), nil

@@ -110,7 +110,7 @@ type Tailer struct {
 }
 
 // NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
-func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -118,7 +118,6 @@ func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, 
 		Source:             source,
 		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
 		unsafeLogReader:    newAPILogReader(client, podNamespace, podName, containerName),
-		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
