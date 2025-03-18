@@ -1110,7 +1110,6 @@ var funcMap = map[string]interface{}{
 	"BuildFirstAccessor":       buildFirstAccessor,
 	"GeneratePrefixNilChecks":  generatePrefixNilChecks,
 	"GetFieldHandler":          getFieldHandler,
-	"FieldADPrint":             fieldADPrint,
 	"GetChecks":                getChecks,
 	"GetFieldHandlersChecks":   getFieldHandlersChecks,
 	"GetHandlers":              getHandlers,
