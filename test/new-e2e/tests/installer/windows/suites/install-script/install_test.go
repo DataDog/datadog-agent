@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 )
 
 type testInstallScriptSuite struct {
@@ -75,10 +76,9 @@ func (s *testInstallScriptSuite) installPrevious() {
 }
 
 func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
-	s.mustInstallScriptVersion(
-		s.CurrentAgentVersion().GetNumberAndPre(),
-		// TODO: switch to prod stable entry when available
-		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
-		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
-	)
+	s.MustStartExperimentCurrentVersion()
+
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 }
