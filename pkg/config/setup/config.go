@@ -262,7 +262,7 @@ func init() {
 	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
-	if envvar == "enable" {
+	if envvar == "enable" || envvar == "" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
 		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
@@ -272,7 +272,7 @@ func init() {
 		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	if envvar == "enable" {
+	if envvar == "enable" || envvar == "" {
 		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
 		viperConfig := viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
