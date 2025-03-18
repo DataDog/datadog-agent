@@ -7,7 +7,7 @@
 
 package tailerfactory
 
-// This file handles creating API tailers which access logs by proxying to the kubelet via the API Server.
+// This file handles creating API tailers which access logs by querying the Kubelet's API
 
 import (
 	"errors"
@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// makeAPITailer makes a tailer that proxies calls to the kubelet through the API Server
-// for the given source, or returns an error if it cannot do so (e.g., due to permission errors)
+// makeAPITailer makes an API based tailer for the given source, or returns
+// an error if it cannot do so (e.g., due to permission errors)
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	containerID := source.Config.Identifier
 

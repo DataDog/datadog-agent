@@ -10,12 +10,14 @@ package container
 import (
 	"context"
 	"fmt"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/docker/docker/api/types/container"
+
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -107,7 +109,7 @@ type Tailer struct {
 	mutex     sync.Mutex
 }
 
-// NewAPITailer returns a new Tailer that streams logs by proxying to the kubelet through the API Server
+// NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
 func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
