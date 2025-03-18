@@ -390,6 +390,7 @@ http_archive(
         "//deps/openscap:patches/systemd-dbus-address.patch",
         "//deps/openscap:patches/0001-add-missing-include-dirs.patch",
         "//deps/openscap:patches/0002-ensure-we-know-where-to-find-ACL-headers.patch",
+        "//deps/openscap:patches/0003-link-with-popt-when-available.patch",
     ],
     sha256 = "0d023ff3fbdec617768ea5977fd3bb6702dfef4ae595da9a5bbc6ecc6ac9e575",
     strip_prefix = "openscap-{0}".format(OPENSCAP_VERSION),

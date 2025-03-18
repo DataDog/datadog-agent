@@ -54,6 +54,9 @@ cmake(
             "libopenscap_sce.so",
         ],
     }),
+    out_binaries = [
+        "oscap",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//deps/dbus",
