@@ -16,3 +16,8 @@ import (
 func (c *Collector) getPath(_ sbom.ScanRequest) (string, error) {
 	return "", errors.New("not supported")
 }
+
+// IsAgentContainer returns whether the container ID is the agent one
+func IsAgentContainer(ctrID string) (bool, error) {
+	return false, errors.New("not supported")
+}

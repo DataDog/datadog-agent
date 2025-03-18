@@ -8,15 +8,36 @@
 package procfs
 
 import (
-	"fmt"
+	"bytes"
 	"os"
+	"strconv"
 
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func cgroupContains(pid uint32, str string) (bool, error) {
+	cgroupPath := kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "cgroup")
+
+	data, err := os.ReadFile(cgroupPath)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Contains(data, []byte(str)), nil
+}
+
+func procRootPath(pid uint32) string {
+	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "root")
+}
+
+// IsAgentContainer returns whether the container ID is the agent one
+func IsAgentContainer(ctrID string) (bool, error) {
+	pid := os.Getpid()
+	return cgroupContains(uint32(pid), ctrID)
+}
 
 func (c *Collector) getPath(request sbom.ScanRequest) (string, error) {
 	pids, err := process.Pids()
@@ -24,22 +45,9 @@ func (c *Collector) getPath(request sbom.ScanRequest) (string, error) {
 		return "", err
 	}
 
-	selfPid := uint32(os.Getpid())
-	selfCid, err := utils.GetProcContainerID(selfPid, selfPid)
-	if err != nil {
-		return "", err
-	}
-
 	for _, pid := range pids {
-		cid, err := utils.GetProcContainerID(uint32(pid), uint32(pid))
-		if err != nil || cid == "" {
-			continue
-		}
-
-		if cid == containerutils.ContainerID(request.ID()) && cid != selfCid {
-			fmt.Printf("%d CID: %s => %v\n", pid, cid, err)
-
-			return utils.ProcRootPath(uint32(pid)), nil
+		if ok, _ := cgroupContains(uint32(pid), request.ID()); ok {
+			return procRootPath(uint32(pid)), nil
 		}
 	}
 
