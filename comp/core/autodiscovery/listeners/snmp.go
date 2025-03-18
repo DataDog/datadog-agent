@@ -169,12 +169,6 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 
-	fmt.Println("============================")
-	fmt.Println("CHECKING DEVICE WITH IP: ", deviceIP)
-	fmt.Println("AUTHENTICATIONS LEN: ", len(job.subnet.config.Authentications))
-	fmt.Println("AUTHENTICATIONS: ", job.subnet.config.Authentications)
-	fmt.Println("============================")
-
 	deviceFound := false
 	for i := range job.subnet.config.Authentications {
 		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)

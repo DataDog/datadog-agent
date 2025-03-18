@@ -211,15 +211,6 @@ func NewListenerConfig() (ListenerConfig, error) {
 				},
 			}, config.Authentications...)
 		}
-
-		fmt.Println("=====================================")
-		fmt.Println("=====================================")
-		fmt.Println("=====================================")
-		fmt.Printf("SNMP CONFIG %d\n", i)
-		fmt.Println(snmpConfig.Configs[i])
-		fmt.Println("=====================================")
-		fmt.Println("=====================================")
-		fmt.Println("=====================================")
 	}
 	return snmpConfig, nil
 }
