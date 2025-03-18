@@ -19,8 +19,7 @@ type captureDepthItem struct {
 	parameter *ditypes.Parameter
 }
 
-func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) []*ditypes.Parameter {
-	setDoNotCapture(params, targetDepth)
+func applyCaptureDepth(params []*ditypes.Parameter) []*ditypes.Parameter {
 	params = pruneDoNotCaptureParams(params)
 	correctStructSizes(params)
 	return params
@@ -49,8 +48,8 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 	return result
 }
 
-// setDoNotCapture sets the DoNotCapture flag on all parameters that are at or beyond the target depth
-func setDoNotCapture(params []*ditypes.Parameter, targetDepth int) {
+// setDoNotCaptureBeyondDepth sets the DoNotCapture flag on all parameters that are at or beyond the target depth
+func setDoNotCaptureBeyondDepth(params []*ditypes.Parameter, targetDepth int) {
 	queue := []*captureDepthItem{}
 	for i := range params {
 		if params[i] == nil {
