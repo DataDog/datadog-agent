@@ -126,6 +126,9 @@ func (c *Check) ensureInitNVML() error {
 // ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
 // It returns an error if the initialization fails.
 func (c *Check) ensureInitCollectors() error {
+	//TODO: in the future we need to support hot-plugging of GPU devices,
+	// as we currently create a collector per GPU device.
+	// also we map the device tags in this function only once, so new hot-lugged devices won't have the tags
 	if c.collectors != nil {
 		return nil
 	}
@@ -210,7 +213,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		// be able to tag the limit metrics (GPU memory capacity, GPU core count) with the
 		// tags of the processes using them.
 		processTags := c.getProcessTagsForKey(key)
-		deviceTags := c.getDeviceTags(key.DeviceUUID)
+		deviceTags := c.deviceTags[key.DeviceUUID]
 
 		// Add the process tags to the active entities for the device, using a set to avoid duplicates
 		if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
@@ -234,7 +237,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// of zero to ensure it's reset and the previous value doesn't linger on for longer than necessary.
 	for key, active := range c.activeMetrics {
 		if !active {
-			tags := append(c.getProcessTagsForKey(key), c.getDeviceTags(key.DeviceUUID)...)
+			tags := append(c.getProcessTagsForKey(key), c.deviceTags[key.DeviceUUID]...)
 			snd.Gauge(metricNameMemoryUsage, 0, "", tags)
 			snd.Gauge(metricNameCoreUsage, 0, "", tags)
 			sentMetrics += 2
@@ -249,7 +252,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// to match the usage metrics reported above
 	for _, dev := range c.wmeta.ListGPUs() {
 		uuid := dev.EntityID.ID
-		deviceTags := c.getDeviceTags(uuid)
+		deviceTags := c.deviceTags[uuid]
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container
 		// tags and will enable matching between the usage of an entity and the corresponding limit.
@@ -299,18 +302,6 @@ func (c *Check) getContainerTags(containerID string) []string {
 	}
 
 	return containerTags
-}
-
-// getDeviceTags returns the device-related tags (GPU UUID) for a given key.
-func (c *Check) getDeviceTags(uuid string) []string {
-	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-	gpuTags, err := c.tagger.Tag(gpuEntityID, c.tagger.ChecksCardinality())
-	if err != nil {
-		log.Errorf("Error collecting GPU tags for uuid %s: %s", uuid, err)
-		return nil
-	}
-
-	return gpuTags
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
