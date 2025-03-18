@@ -95,7 +95,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -109,6 +109,9 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
+    - echo hello world
+    - exit 1
+    # TODOJJ
     - |
       if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -d ~/rust/cargo ]; then
         echo "WARNING: Doing setup again"
