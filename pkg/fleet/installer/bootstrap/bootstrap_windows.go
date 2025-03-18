@@ -51,6 +51,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	var installPath string
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
@@ -75,18 +76,22 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
+	installPath, err = getInstallerFromMSI(tmpDir)
+	if err != nil {
+		installPath, err = getInstallerFromOCI(tmpDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get installer: %w", err)
+		}
+	}
+	return iexec.NewInstallerExec(env, installPath), nil
+}
+
+func getInstallerFromMSI(tmpDir string) (string, error) {
 	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	if len(msis) > 1 {
-		return nil, fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return nil, fmt.Errorf("no MSIs in package")
-	}
-
 	adminInstallDir := path.Join(tmpDir, "datadog-installer")
-
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
@@ -98,9 +103,21 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
+		return "", fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, paths.GetAdminInstallerBinaryPath(adminInstallDir)), nil
+	return paths.GetAdminInstallerBinaryPath(adminInstallDir), nil
+
+}
+
+func getInstallerFromOCI(tmpDir string) (string, error) {
+	installers, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer.exe"))
+	if err != nil {
+		return "", err
+	}
+	if len(installers) == 0 {
+		return "", fmt.Errorf("no installer found in %s", tmpDir)
+	}
+	return installers[0], nil
 }
 
 func getInstallerOCI(_ context.Context, env *env.Env) string {
