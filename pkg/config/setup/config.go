@@ -492,6 +492,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
+	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -1132,7 +1134,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
-	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
@@ -21,7 +22,7 @@ import (
 func TestNewLogsExporter(t *testing.T) {
 	channel := make(chan *message.Message)
 
-	factory := NewFactory(channel)
+	factory := NewFactory(channel, otel.NewDisabledGatewayUsage())
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))

@@ -31,12 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,9 +97,7 @@ func setupProcessAPIServer(t *testing.T, port int) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
@@ -312,7 +310,9 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(handler))
+		srv.TLS = apiutil.GetTLSServerConfig()
+		srv.StartTLS()
 		defer srv.Close()
 
 		setupIPCAddress(t, configmock.New(t), srv.URL)

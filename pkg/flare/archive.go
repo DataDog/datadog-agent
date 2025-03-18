@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -138,7 +138,7 @@ func getVPCSubnetsForHost() ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	subnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	subnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient()
 	bytes, err := apiutil.DoGet(c, procStatusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
@@ -248,7 +248,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 			return
 		}
 
-		c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+		c := apiutil.GetClient()
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return apiutil.DoGet(c, checkURL+checkName, apiutil.LeaveConnectionOpen) })
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
@@ -330,7 +330,7 @@ func getProcessAgentTaggerList() ([]byte, error) {
 
 // GetTaggerList fetches the tagger list from the given URL.
 func GetTaggerList(remoteURL string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -355,12 +355,17 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), false)
 }
 
 // GetWorkloadList fetches the workload list from the given URL.
-func GetWorkloadList(url string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+func GetWorkloadList(url string, withInsecureClient bool) ([]byte, error) {
+	var c *http.Client
+	if withInsecureClient {
+		c = apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	} else {
+		c = apiutil.GetClient()
+	}
 
 	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -412,7 +417,7 @@ func getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	client := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	client := apiutil.GetClient()
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
