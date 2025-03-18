@@ -522,12 +522,21 @@ func TestHostMetrics(s OTelTestSuite) {
 // SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
 func SetupSampleTraces(s OTelTestSuite) {
 	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
 	numTraces := 10
 
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
+	// Wait for telemetrygen traces
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+		require.NoError(s.T(), err)
+		s.T().Log("Starting telemetrygen")
+		createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
+
+		time.Sleep(time.Minute)
+
+		traces, err := s.Env().FakeIntake.Client().GetTraces()
+		assert.NoError(c, err)
+		assert.NotEmpty(c, traces)
+	}, 10*time.Minute, 2*time.Minute)
 }
 
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
