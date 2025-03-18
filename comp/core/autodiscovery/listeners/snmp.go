@@ -168,12 +168,11 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
-	devicePort := job.subnet.config.Port
 
 	deviceFound := false
-
-	for _, auth := range job.subnet.config.Authentications {
-		params, err := auth.BuildSNMPParams(deviceIP, devicePort)
+	for i := range job.subnet.config.Authentications {
+		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
+		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
 		if err != nil {
 			log.Errorf("Error building params for device %s: %v", deviceIP, err)
 			continue
@@ -184,7 +183,6 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			break
 		}
 	}
-
 	entityID := job.subnet.config.Digest(deviceIP)
 	if !deviceFound {
 		l.deleteService(entityID, job.subnet)

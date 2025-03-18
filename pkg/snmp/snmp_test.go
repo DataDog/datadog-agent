@@ -18,74 +18,133 @@ import (
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	//var devicePort uint16 = 0
+	config := Config{
+		Network:         "192.168.0.0/24",
+		Authentications: []Authentication{},
+	}
+	_, err := config.BuildSNMPParams("192.168.0.1", 0)
+	assert.Equal(t, "Authentication index 0 out of range", err.Error())
 
-	auth := Authentication{}
-	_, err := auth.BuildSNMPParams("192.168.0.1", 0)
+	config = Config{
+		Network: "192.168.0.0/24",
+		Authentications: []Authentication{
+			{},
+		},
+	}
+	_, err = config.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
 	config = Config{
 		Network: "192.168.0.0/24",
-		User:    "admin",
-		Version: "4",
+		Authentications: []Authentication{
+			{
+				User:    "admin",
+				Version: "4",
+			},
+		},
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = config.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
 	config = Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
+		Network: "192.168.0.0/24",
+		Authentications: []Authentication{
+			{
+				Community: "public",
+			},
+		},
 	}
-	params, _ := config.BuildSNMPParams("192.168.0.1")
+	params, _ := config.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "192.168.0.1", params.Target)
 
 	config = Config{
 		Network: "192.168.0.0/24",
-		User:    "admin",
+		Authentications: []Authentication{
+			{
+				User: "admin",
+			},
+		},
 	}
-	params, _ = config.BuildSNMPParams("192.168.0.2")
+	params, _ = config.BuildSNMPParams("192.168.0.2", 0)
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 	assert.Equal(t, "192.168.0.2", params.Target)
 
 	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
 		config = Config{
-			Network:      "192.168.0.0/24",
-			User:         "admin",
-			AuthProtocol: authProto,
+			Network: "192.168.0.0/24",
+			Authentications: []Authentication{
+				{
+					User:         "admin",
+					AuthProtocol: authProto,
+				},
+			},
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = config.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, authProto, config.AuthProtocol)
+		assert.Equal(t, authProto, config.Authentications[0].AuthProtocol)
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
 		config = Config{
-			Network:      "192.168.0.0/24",
-			User:         "admin",
-			PrivProtocol: privProto,
+			Network: "192.168.0.0/24",
+			Authentications: []Authentication{
+				{
+					User:         "admin",
+					PrivProtocol: privProto,
+				},
+			},
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = config.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, privProto, config.PrivProtocol)
+		assert.Equal(t, privProto, config.Authentications[0].PrivProtocol)
 	}
 
 	config = Config{
-		Network:      "192.168.0.0/24",
-		User:         "admin",
-		AuthProtocol: "foo",
+		Network: "192.168.0.0/24",
+		Authentications: []Authentication{
+			{
+				User:         "admin",
+				AuthProtocol: "foo",
+			},
+		},
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = config.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
 	config = Config{
-		Network:      "192.168.0.0/24",
-		User:         "admin",
-		PrivProtocol: "bar",
+		Network: "192.168.0.0/24",
+		Authentications: []Authentication{
+			{
+				User:         "admin",
+				PrivProtocol: "bar",
+			},
+		},
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = config.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
+
+	config = Config{
+		Network: "192.168.0.0/24",
+		Authentications: []Authentication{
+			{
+				Community: "myCommunityString1",
+			},
+			{
+				Community: "myCommunityString2",
+			},
+			{
+				Community: "myCommunityString3",
+			},
+		},
+	}
+	for i := range config.Authentications {
+		params, _ = config.BuildSNMPParams("192.168.0.1", i)
+		assert.Equal(t, config.Authentications[i].Community, params.Community)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "192.168.0.1", params.Target)
+	}
 }
 
 func TestNewListenerConfig(t *testing.T) {

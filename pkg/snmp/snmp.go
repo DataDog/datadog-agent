@@ -243,15 +243,13 @@ func (c *Config) Digest(address string) string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
-// IsIPIgnored checks the given IP against IgnoredIPAddresses
-func (c *Config) IsIPIgnored(ip net.IP) bool {
-	ipString := ip.String()
-	_, present := c.IgnoredIPAddresses[ipString]
-	return present
-}
-
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (auth *Authentication) BuildSNMPParams(deviceIP string, devicePort uint16) (*gosnmp.GoSNMP, error) {
+func (c *Config) BuildSNMPParams(deviceIP string, authIndex int) (*gosnmp.GoSNMP, error) {
+	if authIndex < 0 || authIndex >= len(c.Authentications) {
+		return nil, fmt.Errorf("Authentication index %d out of range", authIndex)
+	}
+	auth := c.Authentications[authIndex]
+
 	if auth.Community == "" && auth.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
@@ -286,7 +284,7 @@ func (auth *Authentication) BuildSNMPParams(deviceIP string, devicePort uint16) 
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
-		Port:            devicePort,
+		Port:            c.Port,
 		Community:       auth.Community,
 		Transport:       "udp",
 		Version:         version,
@@ -304,6 +302,13 @@ func (auth *Authentication) BuildSNMPParams(deviceIP string, devicePort uint16) 
 			PrivacyPassphrase:        auth.PrivKey,
 		},
 	}, nil
+}
+
+// IsIPIgnored checks the given IP against IgnoredIPAddresses
+func (c *Config) IsIPIgnored(ip net.IP) bool {
+	ipString := ip.String()
+	_, present := c.IgnoredIPAddresses[ipString]
+	return present
 }
 
 func firstNonEmpty(strings ...string) string {
