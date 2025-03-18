@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -135,7 +134,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		return nil, err
 	}
 
-	return pb.payloads, nil
+	return pb.GetPayloads(), nil
 }
 
 // MarshalSplitCompressMultiple uses the stream compressor to marshal and compress one series into three sets of payloads.
@@ -144,14 +143,14 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 // The third contains only those that pass the provided autoscaling local failover filter function.
 // This function exists because we need a way to build both payloads in a single pass over the input data, which cannot be iterated over twice.
 func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFuncForMRF func(s *metrics.Serie) bool, filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
-	pbs := make([]*PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
+	pbs := make([]PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
 	for i := range pbs {
 		bufferContext := marshaler.NewBufferContext()
 		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		pbs[i] = &pb
+		pbs[i] = pb
 
 		err = pbs[i].startPayload()
 		if err != nil {
@@ -189,15 +188,34 @@ func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Compone
 		}
 	}
 
-	return pbs[0].payloads, pbs[1].payloads, pbs[2].payloads, nil
+	return pbs[0].GetPayloads(), pbs[1].GetPayloads(), pbs[2].GetPayloads(), nil
 }
 
-// NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.
+// NewPayloadsBuilder initializes a new ProtobufPayloadsBuilder to be used for serializing series into a set of output payloads.
 func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (PayloadsBuilder, error) {
+	if true {
+		return &CustomRowPayloadsBuilder{
+			bufferContext: bufferContext,
+			config:        config,
+			strategy:      strategy,
+
+			compressor: nil,
+			buf:        bufferContext.PrecompressionBuf,
+			payloads:   []*transaction.BytesPayload{},
+
+			pointsThisPayload: 0,
+			seriesThisPayload: 0,
+
+			maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
+			maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
+			maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
+		}, nil
+	}
+
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 
-	return PayloadsBuilder{
+	return &ProtobufPayloadsBuilder{
 		bufferContext: bufferContext,
 		config:        config,
 		strategy:      strategy,
@@ -216,284 +234,12 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 	}, nil
 }
 
-// PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
-type PayloadsBuilder struct {
-	bufferContext *marshaler.BufferContext
-	config        config.Component
-	strategy      compression.Component
-
-	compressor *stream.Compressor
-	buf        *bytes.Buffer
-	ps         *molecule.ProtoStream
-	payloads   []*transaction.BytesPayload
-
-	pointsThisPayload int
-	seriesThisPayload int
-
-	maxPayloadSize      int
-	maxUncompressedSize int
-	maxPointsPerPayload int
-}
-
-// Prepare to write the next payload
-func (pb *PayloadsBuilder) startPayload() error {
-	pb.pointsThisPayload = 0
-	pb.seriesThisPayload = 0
-	pb.bufferContext.CompressorInput.Reset()
-	pb.bufferContext.CompressorOutput.Reset()
-
-	compressor, err := stream.NewCompressor(
-		pb.bufferContext.CompressorInput, pb.bufferContext.CompressorOutput,
-		pb.maxPayloadSize, pb.maxUncompressedSize,
-		[]byte{}, []byte{}, []byte{}, pb.strategy)
-	if err != nil {
-		return err
-	}
-	pb.compressor = compressor
-
-	return nil
-}
-
-func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
-	// constants for the protobuf data we will be writing, taken from MetricPayload in
-	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
-	const payloadSeries = 1
-	const seriesResources = 1
-	const seriesMetric = 2
-	const seriesTags = 3
-	const seriesPoints = 4
-	const seriesType = 5
-	const seriesSourceTypeName = 7
-	const seriesInterval = 8
-	const serieMetadata = 9
-	const resourceType = 1
-	const resourceName = 2
-	const pointValue = 1
-	const pointTimestamp = 2
-	const serieMetadataOrigin = 1
-	//         |------| 'Metadata' message
-	//                 |-----| 'origin' field index
-	const serieMetadataOriginMetricType = 3
-	//         |------| 'Metadata' message
-	//                 |----| 'origin' message
-	//                       |--------| 'metric_type' field index
-	const metryTypeNotIndexed = 9
-	//    |-----------------| 'metric_type_agent_hidden' field index
-
-	const serieMetadataOriginOriginProduct = 4
-	//                 |----|  'Origin' message
-	//                       |-----------| 'origin_product' field index
-	const serieMetadataOriginOriginCategory = 5
-	//                 |----|  'Origin' message
-	//                       |-----------| 'origin_category' field index
-	const serieMetadataOriginOriginService = 6
-	//                 |----|  'Origin' message
-	//                       |-----------| 'origin_service' field index
-
-	addToPayload := func() error {
-		err := pb.compressor.AddItem(pb.buf.Bytes())
-		if err != nil {
-			return err
-		}
-		pb.pointsThisPayload += len(serie.Points)
-		pb.seriesThisPayload++
-		return nil
-	}
-
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
-
-	pb.buf.Reset()
-	err := pb.ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
-		var err error
-
-		err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-			err = ps.String(resourceType, "host")
-			if err != nil {
-				return err
-			}
-
-			return ps.String(resourceName, serie.Host)
-		})
-		if err != nil {
-			return err
-		}
-
-		if serie.Device != "" {
-			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-				err = ps.String(resourceType, "device")
-				if err != nil {
-					return err
-				}
-
-				return ps.String(resourceName, serie.Device)
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		if len(serie.Resources) > 0 {
-			for _, r := range serie.Resources {
-				err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-					err = ps.String(resourceType, r.Type)
-					if err != nil {
-						return err
-					}
-
-					return ps.String(resourceName, r.Name)
-				})
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		err = ps.String(seriesMetric, serie.Name)
-		if err != nil {
-			return err
-		}
-
-		err = serie.Tags.ForEachErr(func(tag string) error {
-			return ps.String(seriesTags, tag)
-		})
-		if err != nil {
-			return err
-		}
-
-		err = ps.Int32(seriesType, serie.MType.SeriesAPIV2Enum())
-		if err != nil {
-			return err
-		}
-
-		err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
-		if err != nil {
-			return err
-		}
-
-		err = ps.Int64(seriesInterval, serie.Interval)
-		if err != nil {
-			return err
-		}
-
-		// (Unit is omitted)
-
-		for _, p := range serie.Points {
-			err = ps.Embedded(seriesPoints, func(ps *molecule.ProtoStream) error {
-				err = ps.Int64(pointTimestamp, int64(p.Ts))
-				if err != nil {
-					return err
-				}
-
-				err = ps.Double(pointValue, p.Value)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
-			return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
-				if serie.NoIndex {
-					err = ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
-					if err != nil {
-						return err
-					}
-				}
-				err = ps.Int32(serieMetadataOriginOriginProduct, metricSourceToOriginProduct(serie.Source))
-				if err != nil {
-					return err
-				}
-				err = ps.Int32(serieMetadataOriginOriginCategory, metricSourceToOriginCategory(serie.Source))
-				if err != nil {
-					return err
-				}
-				return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(serie.Source))
-			})
-		})
-	})
-	if err != nil {
-		return err
-	}
-
-	if len(serie.Points) > pb.maxPointsPerPayload {
-		// this series is just too big to fit in a payload (even alone)
-		err = stream.ErrItemTooBig
-	} else if pb.pointsThisPayload+len(serie.Points) > pb.maxPointsPerPayload {
-		// this series won't fit in this payload, but will fit in the next
-		err = stream.ErrPayloadFull
-	} else {
-		// Compress the protobuf metadata and the marshaled series
-		err = addToPayload()
-	}
-
-	switch err {
-	case stream.ErrPayloadFull:
-		expvarsPayloadFull.Add(1)
-		tlmPayloadFull.Inc()
-
-		err = pb.finishPayload()
-		if err != nil {
-			return err
-		}
-
-		err = pb.startPayload()
-		if err != nil {
-			return err
-		}
-
-		// Add it to the new compression buffer
-		err = addToPayload()
-		if err == stream.ErrItemTooBig {
-			// Since it was too big to fit into a empty payload, there is
-			// nothing left to do but track the failure and drop the item.
-			// Returning nil here lets us continue adding any other items to the
-			// payload.
-			expvarsItemTooBig.Add(1)
-			tlmItemTooBig.Inc()
-			return nil
-		}
-		if err != nil {
-			// Unexpected error bail out
-			expvarsUnexpectedItemDrops.Add(1)
-			tlmUnexpectedItemDrops.Inc()
-			return err
-		}
-	case stream.ErrItemTooBig:
-		// Item was too big, drop it
-		expvarsItemTooBig.Add(1)
-		tlmItemTooBig.Add(1)
-	case nil:
-		// Item successfully written to payload
-		return nil
-	default:
-		// Unexpected error bail out
-		expvarsUnexpectedItemDrops.Add(1)
-		tlmUnexpectedItemDrops.Inc()
-		return err
-	}
-
-	return nil
-}
-
-func (pb *PayloadsBuilder) finishPayload() error {
-	var payload []byte
-	// Since the compression buffer is full - flush it and rotate
-	payload, err := pb.compressor.Close()
-	if err != nil {
-		return err
-	}
-
-	if pb.seriesThisPayload > 0 {
-		pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointsThisPayload))
-	}
-
-	return nil
+// PayloadsBuilder represents an interface for building payloads of different formats
+type PayloadsBuilder interface {
+	startPayload() error
+	writeSerie(serie *metrics.Serie) error
+	finishPayload() error
+	GetPayloads() []*transaction.BytesPayload
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
