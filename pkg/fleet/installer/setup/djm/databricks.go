@@ -105,7 +105,7 @@ func SetupDatabricks(s *common.Setup) error {
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
-	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") != "true" {
+	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
 		installMethod = "managed"
 	}
 	s.Span.SetTag("install_method", installMethod)
