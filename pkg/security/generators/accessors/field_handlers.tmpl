@@ -23,6 +23,8 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 
 func (ev *Event) resolveFields(forADs bool) {
+	eventType := ev.GetEventType().String()
+
     {{ $uniqueResolvers := dict }}
     // resolve context fields that are not related to any event type
     {{- range $Key, $Field := .Fields}}
@@ -54,7 +56,7 @@ func (ev *Event) resolveFields(forADs bool) {
     {{end}}
 
     // resolve event specific fields
-    switch ev.GetEventType().String() {
+    switch eventType {
     {{- range $Name, $EventType := .EventTypes}}
         {{- if (ne $Name "") }}
         case "{{$Name}}":

@@ -22,6 +22,7 @@ func (ev *Event) ResolveFieldsForAD() {
 	ev.resolveFields(true)
 }
 func (ev *Event) resolveFields(forADs bool) {
+	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
@@ -38,11 +39,13 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
-	if !forADs {
+	if !forADs && (eventType == "dns" || eventType == "imds") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
 	}
-	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
-	if !forADs {
+	if eventType == "dns" || eventType == "imds" {
+		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
+	}
+	if !forADs && (eventType == "dns" || eventType == "imds") {
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 	}
 	if !forADs {
@@ -232,7 +235,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	// resolve event specific fields
-	switch ev.GetEventType().String() {
+	switch eventType {
 	case "accept":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)

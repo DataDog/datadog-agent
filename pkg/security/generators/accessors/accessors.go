@@ -989,6 +989,19 @@ func getFieldHandlersChecks(allFields map[string]*common.StructField, field *com
 		res = append(res, "!forADs")
 	}
 
+	if len(field.RestrictedTo) != 0 {
+		parts := make([]string, 0)
+		for _, restriction := range field.RestrictedTo {
+			parts = append(parts, fmt.Sprintf("eventType == \"%s\"", restriction))
+		}
+		check := strings.Join(parts, " || ")
+		if len(parts) > 1 {
+			check = fmt.Sprintf("(%s)", check)
+		}
+
+		res = append(res, check)
+	}
+
 	for _, check := range checks {
 		check := fmt.Sprintf("ev.%s()", check)
 		res = append(res, check)
