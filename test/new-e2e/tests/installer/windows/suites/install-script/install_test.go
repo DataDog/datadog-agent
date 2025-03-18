@@ -7,10 +7,11 @@ package agenttests
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
-	"testing"
 )
 
 type testInstallScriptSuite struct {
@@ -29,23 +30,25 @@ func TestInstallScript(t *testing.T) {
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
 func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 	s.Run("Fresh install", func() {
-		s.InstallLastStable()
+		s.installPrevious()
 		s.Run("Install different Agent version", func() {
 			s.UpgradeToLatestExperiment()
 			s.Run("Reinstall last stable", func() {
-				s.InstallLastStable()
+				s.installPrevious()
 			})
 		})
 	})
 }
 
-func (s *testInstallScriptSuite) InstallLastStable() {
+func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
 	// Arrange
+	packageConfig, err := installerwindows.NewPackageConfig(opts...)
+	s.Require().NoError(err)
 
 	// Act
 	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
-		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": s.StableAgentVersion().PackageVersion(),
-		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        "install.datadoghq.com",
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
 	}))
 
 	// Assert
@@ -57,23 +60,25 @@ func (s *testInstallScriptSuite) InstallLastStable() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
+			s.Require().Contains(version, versionPredicate)
 		})
+
+}
+
+func (s *testInstallScriptSuite) installPrevious() {
+	s.mustInstallScriptVersion(
+		s.StableAgentVersion().Version(),
+		// TODO: switch to prod stable entry when available
+		installerwindows.WithPipeline("58948204"),
+		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
+	)
 }
 
 func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
-	// Act
-	output, err := s.Installer().InstallExperiment("datadog-agent")
-
-	// Assert
-	if s.NoError(err) {
-		fmt.Printf("%s\n", output)
-	}
-	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
-	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogInstallerService().
-		HasARunningDatadogAgentService().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
-		})
+	s.mustInstallScriptVersion(
+		s.CurrentAgentVersion().GetNumberAndPre(),
+		// TODO: switch to prod stable entry when available
+		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
+		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
+	)
 }
