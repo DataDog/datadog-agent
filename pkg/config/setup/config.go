@@ -360,6 +360,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -491,6 +492,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
+	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -1131,7 +1134,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
-	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -1705,6 +1708,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
+	config.BindEnvAndSetDefault("kubelet_use_api_server", false)
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
@@ -2276,15 +2280,16 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Command:          config.GetString("secret_backend_command"),
-		Arguments:        config.GetStringSlice("secret_backend_arguments"),
-		Timeout:          config.GetInt("secret_backend_timeout"),
-		MaxSize:          config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:  config.GetInt("secret_refresh_interval"),
-		GroupExecPerm:    config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:          config.GetString("run_path"),
-		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
+		Command:                config.GetString("secret_backend_command"),
+		Arguments:              config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                config.GetInt("secret_backend_timeout"),
+		MaxSize:                config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:        config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter: config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:          config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:        config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                config.GetString("run_path"),
+		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
 	})
 
 	if config.GetString("secret_backend_command") != "" {

@@ -745,22 +745,18 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
-func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.NoCopy)
+var dnsLayer = new(layers.DNS)
 
-	layer := packet.Layer(layers.LayerTypeDNS)
-	if layer == nil {
-		return
-	}
-	dnsLayer, ok := layer.(*layers.DNS)
-	if !ok {
+func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
+		seclog.Errorf("failed to decode DNS response: %s", err)
 		return
 	}
 
 	for _, answer := range dnsLayer.Answers {
 		if answer.Type == layers.DNSTypeCNAME {
 			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else {
+		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
 			ip, ok := netip.AddrFromSlice(answer.IP)
 			if ok {
 				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
