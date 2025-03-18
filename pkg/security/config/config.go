@@ -236,6 +236,8 @@ type RuntimeSecurityConfig struct {
 	SysCtlSnapshotPeriod time.Duration
 	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
 	SysCtlSnapshotIgnoredBaseNames []string
+	// SysCtlSnapshotKernelCompilationFlags defines the list of kernel compilation flags that should be collected by the agent
+	SysCtlSnapshotKernelCompilationFlags []string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -426,10 +428,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
 		// SysCtl config parameter
-		SysCtlEnabled:                  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
-		SysCtlSnapshotEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
-		SysCtlSnapshotPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
-		SysCtlSnapshotIgnoredBaseNames: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
+		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
+		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
+		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
+		SysCtlSnapshotKernelCompilationFlags: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags"),
 
 		// security profiles
 		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),

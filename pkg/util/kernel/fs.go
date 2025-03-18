@@ -59,6 +59,19 @@ var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return "/sys"
 })
 
+// BootRoot retrieves the current boot dir we should use
+var BootRoot = funcs.MemoizeNoError(func() string {
+	if v := os.Getenv("HOST_BOOT"); v != "" {
+		return v
+	}
+	if os.Getenv("DOCKER_DD_AGENT") != "" {
+		if _, err := os.Stat("/host"); err == nil {
+			return "/host/boot"
+		}
+	}
+	return "/boot"
+})
+
 // HostProc returns the location of a host's procfs. This can and will be
 // overridden when running inside a container.
 func HostProc(combineWith ...string) string {
@@ -69,6 +82,12 @@ func HostProc(combineWith ...string) string {
 // overridden when running inside a container.
 func HostSys(combineWith ...string) string {
 	return filepath.Join(SysFSRoot(), filepath.Join(combineWith...))
+}
+
+// HostBoot returns the location of a host's /boot folder. This can and will be
+// overridden when running inside a container.
+func HostBoot(combineWith ...string) string {
+	return filepath.Join(BootRoot(), filepath.Join(combineWith...))
 }
 
 // RootNSPID returns the current PID from the root namespace

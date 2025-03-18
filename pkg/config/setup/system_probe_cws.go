@@ -124,6 +124,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", kernelCompilationFlags)
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
@@ -149,3 +150,106 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }
+
+var (
+	// kernelCompilationFlags are the kernel compilation flags checked by CWS
+	kernelCompilationFlags = []string{
+		// memory management hardening
+		"CONFIG_DEBUG_KERNEL",
+		"CONFIG_DEBUG_RODATA",
+		"CONFIG_STRICT_KERNEL_RWX",
+		"CONFIG_ARCH_OPTIONAL_KERNEL_RWX",
+		"CONFIG_ARCH_HAS_STRICT_KERNEL_RWX",
+		"CONFIG_DEBUG_WX",
+		"CONFIG_CC_STACKPROTECTOR",
+		"CONFIG_CC_STACKPROTECTOR_STRONG",
+		"CONFIG_STACKPROTECTOR",
+		"CONFIG_STACKPROTECTOR_STRONG",
+		"CONFIG_DEVMEM",
+		"CONFIG_STRICT_DEVMEM",
+		"CONFIG_IO_STRICT_DEVMEM",
+		"CONFIG_SCHED_STACK_END_CHECK",
+		"CONFIG_HARDENED_USERCOPY",
+		"CONFIG_HARDENED_USERCOPY_FALLBACK",
+		"CONFIG_HARDENED_USERCOPY_PAGESPAN",
+		"CONFIG_VMAP_STACK",
+		"CONFIG_REFCOUNT_FULL",
+		"CONFIG_FORTIFY_SOURCE",
+		"CONFIG_ACPI_CUSTOM_METHOD",
+		"CONFIG_DEVKMEM",
+		"CONFIG_PROC_KCORE",
+		"CONFIG_COMPAT_VDSO",
+		"CONFIG_SECURITY_DMESG_RESTRICT",
+		"CONFIG_RETPOLINE",
+		"CONFIG_LEGACY_VSYSCALL_NONE",
+		"CONFIG_LEGACY_VSYSCALL_EMULATE",
+		"CONFIG_LEGACY_VSYSCALL_XONLY",
+		"CONFIG_X86_VSYSCALL_EMULATION",
+		// protect kernel data structures
+		"CONFIG_DEBUG_CREDENTIALS",
+		"CONFIG_DEBUG_NOTIFIERS",
+		"CONFIG_DEBUG_LIST",
+		"CONFIG_DEBUG_SG",
+		"CONFIG_BUG_ON_DATA_CORRUPTION",
+		"CONFIG_SLAB_FREELIST_RANDOM",
+		"CONFIG_SLUB",
+		"CONFIG_SLAB_FREELIST_HARDENED",
+		"CONFIG_SLAB_MERGE_DEFAULT",
+		"CONFIG_SLUB_DEBUG",
+		"CONFIG_PAGE_POISONING",
+		"CONFIG_PAGE_POISONING_NO_SANITY",
+		"CONFIG_PAGE_POISONING_ZERO",
+		"CONFIG_COMPAT_BRK",
+		// harden the management of kernel modules
+		"CONFIG_MODULES",
+		"CONFIG_STRICT_MODULE_RWX",
+		"CONFIG_MODULE_SIG",
+		"CONFIG_MODULE_SIG_FORCE",
+		"CONFIG_MODULE_SIG_ALL",
+		"CONFIG_MODULE_SIG_SHA512",
+		"CONFIG_MODULE_SIG_HASH",
+		"CONFIG_MODULE_SIG_KEY",
+		// handle abnormal situations
+		"CONFIG_BUG",
+		"CONFIG_PANIC_ON_OOPS",
+		"CONFIG_PANIC_TIMEOUT",
+		"CONFIG_SECCOMP",
+		"CONFIG_SECCOMP_FILTER",
+		"CONFIG_SECURITY",
+		"CONFIG_SECURITY_YAMA",
+		"CONFIG_SECURITY_WRITABLE_HOOKS",
+		"CONFIG_SECURITY_SELINUX_DISABLE",
+		// configure compiler plugins
+		"CONFIG_GCC_PLUGINS",
+		"CONFIG_GCC_PLUGIN_LATENT_ENTROPY",
+		"CONFIG_GCC_PLUGIN_STACKLEAK",
+		"CONFIG_GCC_PLUGIN_STRUCTLEAK",
+		"CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL",
+		"CONFIG_GCC_PLUGIN_RANDSTRUCT",
+		"CONFIG_GCC_PLUGIN_RANDSTRUCT_PERFORMANCE",
+		// configure the IP stack
+		"CONFIG_KEXEC",
+		"CONFIG_HIBERNATION",
+		"CONFIG_BINFMT_MISC",
+		"CONFIG_LEGACY_PTYS",
+		// options for x86_32 bit architectures
+		"CONFIG_HIGHMEM64G",
+		"CONFIG_X86_PAE",
+		"CONFIG_DEFAULT_MMAP_MIN_ADDR",
+		"CONFIG_RANDOMIZE_BASE",
+		// options for x86_64 bit architectures
+		"CONFIG_X86_64",
+		"CONFIG_RANDOMIZE_MEMORY",
+		"CONFIG_PAGE_TABLE_ISOLATION",
+		"CONFIG_IA32_EMULATION",
+		"CONFIG_MODIFY_LDT_SYSCALL",
+		// options for arm architectures
+		"CONFIG_VMSPLIT_3G",
+		"CONFIG_STRICT_MEMORY_RWX",
+		"CONFIG_CPU_SW_DOMAIN_PAN",
+		"CONFIG_OABI_COMPAT",
+		// options for arm64 architectures
+		"CONFIG_ARM64_SW_TTBR0_PAN",
+		"CONFIG_UNMAP_KERNEL_AT_EL0",
+	}
+)
