@@ -364,6 +364,37 @@ network_devices:
 	assert.Error(t, err)
 }
 
+func Test_AuthenticationsConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+       authentications:
+        - community_string: someCommunityString1
+        - user: someUser
+          authProtocol: someAuthProtocol
+          authKey: someAuthKey
+          privProtocol: somePrivProtocol
+          privKey: somePrivKey
+        - community_string: someCommunityString2
+          snmp_version: someSnmpVersion
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "someCommunityString1", networkConf.Authentications[0].Community)
+	assert.Equal(t, "someUser", networkConf.Authentications[1].User)
+	assert.Equal(t, "someAuthProtocol", networkConf.Authentications[1].AuthProtocol)
+	assert.Equal(t, "someAuthKey", networkConf.Authentications[1].AuthKey)
+	assert.Equal(t, "somePrivProtocol", networkConf.Authentications[1].PrivProtocol)
+	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
+	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+}
+
 func Test_LoaderConfig(t *testing.T) {
 	configmock.NewFromYAML(t, `
 network_devices:
