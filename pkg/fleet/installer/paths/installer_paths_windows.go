@@ -11,6 +11,7 @@ package paths
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"syscall"
@@ -81,6 +82,19 @@ func EnsureInstallerDataDir() error {
 	// and are granted to Administrators by default:
 	//  - SeTakeOwnershipPrivilege - Required to set the owner
 	privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
+
+	// check if DatadogDataDir exists
+	_, err := os.Stat(DatadogDataDir)
+	if errors.Is(err, os.ErrNotExist) {
+		// DatadogDataDir does not exist, so we need to create it
+		// probably means the MSI has yet to run
+		// we'll create the directory with the correct permissions
+		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
+		}
+	}
+
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
 		return secureCreateDirectory(targetDir, sddl)
 	})
