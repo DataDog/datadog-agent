@@ -386,13 +386,19 @@ network_devices:
 
 	networkConf := conf.Configs[0]
 	assert.Equal(t, "someCommunityString1", networkConf.Authentications[0].Community)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[0].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[0].Retries)
 	assert.Equal(t, "someUser", networkConf.Authentications[1].User)
 	assert.Equal(t, "someAuthProtocol", networkConf.Authentications[1].AuthProtocol)
 	assert.Equal(t, "someAuthKey", networkConf.Authentications[1].AuthKey)
 	assert.Equal(t, "somePrivProtocol", networkConf.Authentications[1].PrivProtocol)
 	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[1].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[1].Retries)
 	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
 	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[2].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[2].Retries)
 
 	configmock.NewFromYAML(t, `
 network_devices:
