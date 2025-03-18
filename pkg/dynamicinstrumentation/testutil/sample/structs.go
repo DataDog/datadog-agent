@@ -9,6 +9,16 @@ type receiver struct {
 	u uint
 }
 
+type hasUnsupportedFields struct {
+	a int
+	b float32
+	c []uint8
+}
+
+//nolint:all
+//go:noinline
+func test_struct_with_unsupported_fields(a hasUnsupportedFields) {}
+
 //nolint:all
 //go:noinline
 func (r *receiver) test_pointer_method_receiver(a int) {}
@@ -44,6 +54,10 @@ func test_pointer_to_struct_with_a_string(s *structWithAString) {}
 //nolint:all
 //go:noinline
 func test_struct(x aStruct) {}
+
+//nolint:all
+//go:noinline
+func test_struct_with_arrays(s structWithTwoArrays) {}
 
 //nolint:all
 //go:noinline
@@ -153,6 +167,18 @@ func ExecuteStructFuncs() {
 	ptrRcvr := &receiver{3}
 	ptrRcvr.test_pointer_method_receiver(4)
 
+	sta := structWithTwoArrays{
+		a: [3]uint64{1, 2, 3},
+		b: 4,
+		c: [5]int64{6, 7, 8, 9, 10},
+	}
+	test_struct_with_arrays(sta)
+
+	test_struct_with_unsupported_fields(hasUnsupportedFields{
+		a: 1,
+		b: 2.0,
+		c: []uint8{3, 4, 5},
+	})
 }
 
 type emptyStruct struct{}
@@ -197,6 +223,12 @@ type aStruct struct {
 	aString string
 	aNumber int
 	nested  nestedStruct
+}
+
+type structWithTwoArrays struct {
+	a [3]uint64
+	b byte
+	c [5]int64
 }
 
 type bStruct struct {
