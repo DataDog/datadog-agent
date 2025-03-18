@@ -155,7 +155,7 @@ func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil || sh.sysCtx.fatbinParsingEnabled == false || sh.smVersion == noSmVersion {
+	if sh.sysCtx == nil || !sh.sysCtx.fatbinParsingEnabled || sh.smVersion == noSmVersion {
 		// Fatbin parsing is disabled or we don't have SM version, so we can't attach kernel data
 		return nil
 	}
