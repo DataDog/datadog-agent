@@ -138,18 +138,6 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		for _, t := range traces {
-			s.T().Log("Got tracepayload", s.T().Name(), t.String())
-			for _, tp := range t.TracerPayloads {
-				s.T().Log("Got tracer payload", s.T().Name(), tp.String())
-				for _, chunk := range tp.Chunks {
-					s.T().Log("Got chunk", s.T().Name(), chunk.String())
-					for _, sp := range chunk.Spans {
-						s.T().Log("Got span", s.T().Name(), sp.String(), "service", sp.Service)
-					}
-				}
-			}
-		}
 		trace := traces[0]
 		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
 			return
@@ -227,18 +215,6 @@ func TestTracesWithOperationAndResourceName(
 		if !assert.NotEmpty(c, traces) {
 			s.T().Log("Traces empty", s.T().Name())
 			return
-		}
-		for _, t := range traces {
-			s.T().Log("Got tracepayload", s.T().Name(), t.String())
-			for _, tp := range t.TracerPayloads {
-				s.T().Log("Got tracer payload", s.T().Name(), tp.String())
-				for _, chunk := range tp.Chunks {
-					s.T().Log("Got chunk", s.T().Name(), chunk.String())
-					for _, sp := range chunk.Spans {
-						s.T().Log("Got span", s.T().Name(), sp.String(), "service", sp.Service)
-					}
-				}
-			}
 		}
 		trace := traces[0]
 		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
@@ -416,23 +392,8 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
+	var err error
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		traces, err := s.Env().FakeIntake.Client().GetTraces()
-		if err != nil && len(traces) > 0 {
-			for _, t := range traces {
-				s.T().Log("Got tracepayload", s.T().Name(), t.String())
-				for _, tp := range t.TracerPayloads {
-					s.T().Log("Got tracer payload", s.T().Name(), tp.String())
-					for _, chunk := range tp.Chunks {
-						s.T().Log("Got chunk", s.T().Name(), chunk.String())
-						for _, sp := range chunk.Spans {
-							s.T().Log("Got span", s.T().Name(), sp.String(), "service", sp.Service)
-						}
-					}
-				}
-			}
-		}
-
 		stats, err = s.Env().FakeIntake.Client().GetAPMStats()
 		assert.NoError(c, err)
 		assert.NotEmpty(c, stats)
@@ -531,6 +492,7 @@ func SetupSampleTraces(s OTelTestSuite) {
 		s.T().Log("Starting telemetrygen")
 		createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
+		// Wait for telemetrygen to start up
 		time.Sleep(time.Minute)
 
 		traces, err := s.Env().FakeIntake.Client().GetTraces()
@@ -540,6 +502,7 @@ func SetupSampleTraces(s OTelTestSuite) {
 }
 
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
+	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
 
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
@@ -549,6 +512,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 			Namespace: "datadog",
 		},
 		Spec: batchv1.JobSpec{
+			TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
