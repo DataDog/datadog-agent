@@ -218,16 +218,18 @@ func enableEmrLogs(s *common.Setup) {
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	emrLogs := []common.IntegrationConfigLogs{
 		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stdout",
-			Source:  "hadoop-yarn",
-			Service: "emr-logs",
+			Type:      "file",
+			Path:      hadoopLogFolder + "*/*/stdout",
+			Source:    "hadoop-yarn",
+			Service:   "emr-logs",
+			MultiLine: true,
 		},
 		{
-			Type:    "file",
-			Path:    hadoopLogFolder + "*/*/stderr",
-			Source:  "hadoop-yarn",
-			Service: "emr-logs",
+			Type:      "file",
+			Path:      hadoopLogFolder + "*/*/stderr",
+			Source:    "hadoop-yarn",
+			Service:   "emr-logs",
+			MultiLine: true,
 		},
 	}
 	sparkIntegration.Logs = emrLogs
