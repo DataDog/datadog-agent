@@ -81,7 +81,7 @@ func (s *testInstallScriptSuite) installPrevious() {
 	s.mustInstallScriptVersion(
 		s.StableAgentVersion().Version(),
 		// TODO: switch to prod stable entry when available
-		installerwindows.WithPipeline("58948204"),
+		installerwindows.WithPipeline("59254108"),
 		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
 	)
 }
