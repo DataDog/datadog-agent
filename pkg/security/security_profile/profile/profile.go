@@ -9,39 +9,38 @@
 package profile
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
 
-	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
-
-// EventTypeState defines an event type state
-type EventTypeState struct {
-	lastAnomalyNano uint64
-	state           model.EventFilteringProfileState
-}
 
 // VersionContext holds the context of one version (defined by its image tag)
 type VersionContext struct {
-	firstSeenNano uint64
-	lastSeenNano  uint64
+	FirstSeenNano uint64
+	LastSeenNano  uint64
 
-	eventTypeState map[model.EventType]*EventTypeState
+	EventTypeState map[model.EventType]*EventTypeState
 
 	// Syscalls is the syscalls profile
 	Syscalls []uint32
@@ -50,111 +49,374 @@ type VersionContext struct {
 	Tags []string
 }
 
-// LoadOpts defines options applied when loading a profile
-type LoadOpts struct {
-	DNSMatchMaxDepth  int
-	DifferentiateArgs bool
+// EventTypeState defines an event type state
+type EventTypeState struct {
+	LastAnomalyNano uint64
+	State           model.EventFilteringProfileState
 }
 
-// SecurityProfile defines a security profile
-type SecurityProfile struct {
-	sync.Mutex
-	timeResolver        *timeresolver.Resolver
-	loadedInKernel      bool
-	loadedNano          uint64
-	selector            cgroupModel.WorkloadSelector
-	profileCookie       uint64
-	eventTypes          []model.EventType
-	versionContextsLock sync.Mutex
-	versionContexts     map[string]*VersionContext
-	pathsReducer        *activity_tree.PathsReducer
+type activityTreeOpts struct {
+	pathsReducer      *activity_tree.PathsReducer
+	differentiateArgs bool
+	dnsMatchMaxDepth  int
+}
 
-	// Instances is the list of workload instances to which the profile should apply
-	Instances []*tags.Workload
-
-	// Metadata contains metadata for the current profile
-	Metadata mtdt.Metadata
-
-	// ActivityTree contains the activity tree of the Security Profile
+// Profile represents a security profile
+type Profile struct {
+	// common to ActivityDump and SecurityProfile
+	m            sync.Mutex
 	ActivityTree *activity_tree.ActivityTree
+	treeOpts     activityTreeOpts
+
+	Header   ActivityDumpHeader
+	Metadata mtdt.Metadata
+	selector cgroupModel.WorkloadSelector
+	tags     []string
+
+	versionContexts map[string]*VersionContext
+
+	eventTypes []model.EventType
+
+	// fields from SecurityProfile
+	// TODO: move the following fields to a dedicated "WorkloadProfileGroup" struct responsible for managing the profile instances
+	profileCookie  uint64
+	LoadedInKernel *atomic.Bool
+	LoadedNano     *atomic.Uint64
+	// Instances is the list of workload instances to witch the profile should apply
+	InstancesLock sync.Mutex
+	Instances     []*tags.Workload
 }
 
-// NewSecurityProfile creates a new instance of Security Profile
-func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []model.EventType, pathsReducer *activity_tree.PathsReducer) *SecurityProfile {
-	// TODO: we need to keep track of which event types / fields can be used in profiles (for anomaly detection, hardening
-	// or suppression). This is missing for now, and it will be necessary to smoothly handle the transition between
-	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
-	// generate anomaly detections in the input of this function will need to be merged with the event types defined in
-	// the configuration.
-	tr, err := timeresolver.NewResolver()
-	if err != nil {
-		return nil
+// Opts defines the options to create a new profile
+type Opts func(*Profile)
+
+// WithWorkloadSelector sets the workload selector of a new profile
+func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
+	return func(p *Profile) {
+		p.selector = selector
 	}
-	sp := &SecurityProfile{
-		selector:        selector,
-		eventTypes:      eventTypes,
+}
+
+// WithEventTypes sets the event types of a new profile
+func WithEventTypes(eventTypes []model.EventType) Opts {
+	return func(p *Profile) {
+		p.eventTypes = eventTypes
+	}
+}
+
+// WithPathsReducer sets the path reducer of a new profile
+func WithPathsReducer(pathsReducer *activity_tree.PathsReducer) Opts {
+	return func(p *Profile) {
+		p.treeOpts.pathsReducer = pathsReducer
+	}
+}
+
+// WithDifferentiateArgs sets whether arguments should be used to differentiate processes in the new profile
+func WithDifferentiateArgs(differentiateArgs bool) Opts {
+	return func(p *Profile) {
+		p.treeOpts.differentiateArgs = differentiateArgs
+	}
+}
+
+// WithDNSMatchMaxDepth sets the maximum depth used to compare domain names in the new profile
+func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
+	return func(p *Profile) {
+		p.treeOpts.dnsMatchMaxDepth = dnsMatchMaxDepth
+	}
+}
+
+// New returns a new profile
+func New(opts ...Opts) *Profile {
+	p := &Profile{
+		Header: ActivityDumpHeader{
+			DNSNames: utils.NewStringKeys(nil),
+		},
+		LoadedInKernel:  atomic.NewBool(false),
+		LoadedNano:      atomic.NewUint64(0),
 		versionContexts: make(map[string]*VersionContext),
-		timeResolver:    tr,
-		pathsReducer:    pathsReducer,
+		profileCookie:   utils.RandNonZeroUint64(),
 	}
-	if selector.Tag != "" && selector.Tag != "*" {
-		sp.versionContexts[selector.Tag] = &VersionContext{
-			eventTypeState: make(map[model.EventType]*EventTypeState),
-		}
+
+	for _, opt := range opts {
+		opt(p)
 	}
-	return sp
-}
 
-// LoadFromProtoFile populates the security-profile from the protobuf file
-func (p *SecurityProfile) LoadFromProtoFile(path string, opts LoadOpts) error {
-	sp, err := LoadProtoFromFile(path)
-	if err != nil {
-		return err
-	}
-	p.LoadFromProto(sp, opts)
-
-	return nil
-}
-
-// LoadFromProto populates the security-profile from the protobuf version
-func (p *SecurityProfile) LoadFromProto(input *proto.SecurityProfile, opts LoadOpts) {
-	// decode the content of the profile
-	ProtoToSecurityProfile(p, p.pathsReducer, input)
-
-	p.ActivityTree.DNSMatchMaxDepth = opts.DNSMatchMaxDepth
-
-	if opts.DifferentiateArgs && input.Metadata.DifferentiateArgs {
+	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
+	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
 
-	p.loadedInKernel = false
-	// compute activity tree initial stats
-	p.ActivityTree.ComputeActivityTreeStats()
-	// generate cookies for the profile
-	p.generateCookies()
-	// if the input is an activity dump then change the selector to a profile selector
-	if input.Selector.GetImageTag() != "*" {
-		p.selector.Tag = "*"
+	if p.selector.Tag != "" && p.selector.Tag != "*" {
+		p.versionContexts[p.selector.Tag] = &VersionContext{
+			EventTypeState: make(map[model.EventType]*EventTypeState),
+		}
+	}
+
+	return p
+}
+
+// SetTreeType updates the type and owner of the ActivityTree of this profile
+func (p *Profile) SetTreeType(validator activity_tree.Owner, treeType string) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.ActivityTree.SetType(treeType, validator)
+}
+
+// GetSelectorStr returns the string representation of the profile selector
+func (p *Profile) GetSelectorStr() string {
+	p.m.Lock()
+	defer p.m.Unlock()
+	return p.getSelectorStr()
+}
+
+// getSelectorStr internal, thread-unsafe version of GetSelectorStr
+func (p *Profile) getSelectorStr() string {
+	if p.selector.IsReady() {
+		return p.selector.String()
+	}
+	return "empty_selector"
+}
+
+// Encode encodes an activity dump in the provided format
+func (p *Profile) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
+	switch format {
+	case config.JSON:
+		return p.EncodeJSON("")
+	case config.Protobuf:
+		return p.EncodeSecDumpProtobuf()
+	case config.Dot:
+		return p.EncodeDOT()
+	case config.Profile:
+		return p.EncodeSecurityProfileProtobuf()
+	default:
+		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", p.GetSelectorStr(), format)
 	}
 }
 
-// reset empties all internal fields so that this profile can be used again in the future
-func (p *SecurityProfile) reset() {
-	p.loadedInKernel = false
-	p.loadedNano = 0
-	p.profileCookie = 0
-	p.versionContexts = make(map[string]*VersionContext)
-	p.Instances = nil
+// Decode decodes an activity dump from a file
+func (p *Profile) Decode(inputFile string) error {
+	var err error
+	ext := filepath.Ext(inputFile)
+
+	if ext == ".gz" {
+		inputFile, err = unzip(inputFile, ext)
+		if err != nil {
+			return err
+		}
+		ext = filepath.Ext(inputFile)
+	}
+
+	format, err := config.ParseStorageFormat(ext)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(inputFile)
+	if err != nil {
+		return fmt.Errorf("couldn't open activity dump file: %w", err)
+	}
+	defer f.Close()
+
+	return p.DecodeFromReader(f, format)
 }
 
-// generateCookies computes random cookies for all the entries in the profile that require one
-func (p *SecurityProfile) generateCookies() {
-	p.profileCookie = utils.RandNonZeroUint64()
-
-	// TODO: generate cookies for all the nodes in the activity tree
+// DecodeFromReader decodes an activity dump from a reader with the provided format
+func (p *Profile) DecodeFromReader(reader io.Reader, format config.StorageFormat) error {
+	switch format {
+	case config.Protobuf:
+		return p.DecodeSecDumpProtobuf(reader)
+	case config.Profile:
+		return p.DecodeSecurityProfileProtobuf(reader)
+	case config.JSON:
+		return p.DecodeJSON(reader)
+	default:
+		return fmt.Errorf("unsupported input format: %s", format)
+	}
 }
 
-func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
+// IsEmpty return true if the dump did not contain any nodes
+func (p *Profile) IsEmpty() bool {
+	p.m.Lock()
+	defer p.m.Unlock()
+	return p.ActivityTree.IsEmpty()
+}
+
+// InsertAndGetSize inserts an event in the profile and returns the new size of the profile if the event was inserted
+func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, int64, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	ok, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+	if !ok || err != nil {
+		return ok, 0, err
+	}
+
+	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
+}
+
+// Insert inserts an event in the profile
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// ComputeInMemorySize returns the size of a dump in memory
+func (p *Profile) ComputeInMemorySize() int64 {
+	p.m.Lock()
+	defer p.m.Unlock()
+	return p.ActivityTree.Stats.ApproximateSize()
+}
+
+// FakeOverweight fakes an overweight profile
+func (p *Profile) FakeOverweight() {
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.ActivityTree.Stats.ProcessNodes = 99999
+}
+
+// AddTags adds tags to the profile
+func (p *Profile) AddTags(tags []string) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	existingTagNames := make([]string, 0, len(p.tags))
+	for _, tag := range p.tags {
+		existingTagNames = append(existingTagNames, utils.GetTagName(tag))
+	}
+
+	for _, tag := range tags {
+		tagName := utils.GetTagName(tag)
+		if !slices.Contains(existingTagNames, tagName) {
+			p.tags = append(p.tags, tag)
+		}
+	}
+}
+
+// GetTagValue returns the value of the given tag name
+func (p *Profile) GetTagValue(tagName string) string {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return utils.GetTagValue(tagName, p.tags)
+}
+
+// HasTag returns true if the profile has the given tag
+func (p *Profile) HasTag(tag string) bool {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return slices.Contains(p.tags, tag)
+}
+
+// GetTags returns a copy of the profile tags
+func (p *Profile) GetTags() []string {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	tags := make([]string, len(p.tags))
+	copy(tags, p.tags)
+	return tags
+}
+
+// ScrubProcessArgsEnvs scrubs the process arguments and environment variables
+func (p *Profile) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	p.ActivityTree.ScrubProcessArgsEnvs(resolver)
+}
+
+// Snapshot collects procfs data for all the processes in the activity tree
+func (p *Profile) Snapshot(newEvent func() *model.Event) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	p.ActivityTree.Snapshot(newEvent)
+}
+
+// GetWorkloadSelector returns the workload selector
+func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	if p.selector.IsReady() {
+		return &p.selector
+	}
+
+	var selector cgroupModel.WorkloadSelector
+	var err error
+	if p.Metadata.ContainerID != "" {
+		imageTag := utils.GetTagValue("image_tag", p.tags)
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", p.tags), imageTag)
+		if err != nil {
+			return nil
+		}
+	} else if p.Metadata.CGroupContext.CGroupID != "" {
+		selector, err = cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", p.tags), utils.GetTagValue("version", p.tags))
+		if err != nil {
+			return nil
+		}
+	}
+
+	p.selector = selector
+	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
+	p.ActivityTree.TagAllNodes(selector.Tag)
+
+	return &p.selector
+}
+
+// SendStats sends stats for this profile's activity tree
+func (p *Profile) SendStats(statsdClient statsd.ClientInterface) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.ActivityTree.SendStats(statsdClient)
+}
+
+// AddSnapshotAncestors adds the given process branch to the profile, calling the callback for each process cache entry which resulted in a new node insertion
+func (p *Profile) AddSnapshotAncestors(ancestors []*model.ProcessCacheEntry, resolvers *resolvers.EBPFResolvers, callback func(*model.ProcessCacheEntry)) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	imageTag := utils.GetTagValue("image_tag", p.tags)
+
+	for _, process := range ancestors {
+		node, _, err := p.ActivityTree.CreateProcessNode(process, imageTag, activity_tree.Snapshot, false, resolvers)
+		if err != nil {
+			continue
+		}
+		if node != nil && callback != nil {
+			callback(process)
+		}
+	}
+}
+
+// Contains checks if the profile contains the given event
+func (p *Profile) Contains(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.ActivityTree.Contains(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// SecurityProfile funcs
+
+// GetProfileCookie returns the profile cookie
+func (p *Profile) GetProfileCookie() uint64 {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.profileCookie
+}
+
+// GenerateSyscallsFilters generates the syscall filters for the profile
+func (p *Profile) GenerateSyscallsFilters() [64]byte {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	var output [64]byte
 	for _, pCtxt := range p.versionContexts {
 		for _, syscall := range pCtxt.Syscalls {
@@ -166,142 +428,34 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 	return output
 }
 
-// MatchesSelector is used to control how an event should be added to a profile
-func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
-	for _, workload := range p.Instances {
-		if entry.ContainerID == workload.ContainerID {
-			return true
-		}
-	}
-	return false
-}
-
-// IsEventTypeValid is used to control which event types should trigger anomaly detection alerts
-func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
-	return slices.Contains(p.eventTypes, evtType)
-}
-
-// NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
-func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
-	// TODO: debounce and regenerate profile filters & programs
-}
-
-// LoadProtoFromFile loads proto profile from file
-func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
-	raw, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read profile: %w", err)
-	}
-
-	pp := &proto.SecurityProfile{}
-	if err = pp.UnmarshalVT(raw); err != nil {
-		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
-	}
-	return pp, nil
-}
-
-// SendStats sends profile stats
-func (p *SecurityProfile) SendStats(client statsd.ClientInterface) error {
-	p.Lock()
-	defer p.Unlock()
-	return p.ActivityTree.SendStats(client)
-}
-
-// ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
-func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
-
-	// construct the list of image tags for this profile
-	imageTags := ""
-	for key := range p.versionContexts {
-		if imageTags != "" {
-			imageTags = imageTags + ","
-		}
-		imageTags = imageTags + key
-	}
-
-	msg := &api.SecurityProfileMessage{
-		LoadedInKernel:          p.loadedInKernel,
-		LoadedInKernelTimestamp: p.timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
-		Selector: &api.WorkloadSelectorMessage{
-			Name: p.selector.Image,
-			Tag:  imageTags,
-		},
-		ProfileCookie: p.profileCookie,
-		Metadata: &api.MetadataMessage{
-			Name: p.Metadata.Name,
-		},
-		ProfileGlobalState: p.getGlobalState().String(),
-		ProfileContexts:    make(map[string]*api.ProfileContextMessage),
-	}
-	for imageTag, ctx := range p.versionContexts {
-		msgCtx := &api.ProfileContextMessage{
-			FirstSeen:      ctx.firstSeenNano,
-			LastSeen:       ctx.lastSeenNano,
-			EventTypeState: make(map[string]*api.EventTypeState),
-			Tags:           ctx.Tags,
-		}
-		for et, state := range ctx.eventTypeState {
-			msgCtx.EventTypeState[et.String()] = &api.EventTypeState{
-				LastAnomalyNano:   state.lastAnomalyNano,
-				EventProfileState: state.state.String(),
-			}
-		}
-		msg.ProfileContexts[imageTag] = msgCtx
-	}
-
-	if p.ActivityTree != nil {
-		msg.Stats = &api.ActivityTreeStatsMessage{
-			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
-			FileNodesCount:    p.ActivityTree.Stats.FileNodes,
-			DNSNodesCount:     p.ActivityTree.Stats.DNSNodes,
-			SocketNodesCount:  p.ActivityTree.Stats.SocketNodes,
-			ApproximateSize:   p.ActivityTree.Stats.ApproximateSize(),
-		}
-	}
-
-	for _, evt := range p.eventTypes {
-		msg.EventTypes = append(msg.EventTypes, evt.String())
-	}
-
-	for _, inst := range p.Instances {
-		msg.Instances = append(msg.Instances, &api.InstanceMessage{
-			ContainerID: string(inst.ContainerID),
-			Tags:        inst.Tags,
-		})
-	}
-	return msg
-}
-
 // GetState returns the state of a profile for a given imageTag
-func (p *SecurityProfile) GetState(imageTag string) model.EventFilteringProfileState {
+func (p *Profile) getState(imageTag string) model.EventFilteringProfileState {
 	pCtx, ok := p.versionContexts[imageTag]
 	if !ok {
 		return model.NoProfile
 	}
-	if len(pCtx.eventTypeState) == 0 {
+	if len(pCtx.EventTypeState) == 0 {
 		return model.AutoLearning
 	}
 	state := model.StableEventType
 	for _, et := range p.eventTypes {
-		s, ok := pCtx.eventTypeState[et]
+		s, ok := pCtx.EventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == model.UnstableEventType {
+		if s.State == model.UnstableEventType {
 			return model.UnstableEventType
-		} else if s.state != model.StableEventType {
+		} else if s.State != model.StableEventType {
 			state = model.AutoLearning
 		}
 	}
 	return state
 }
 
-func (p *SecurityProfile) getGlobalState() model.EventFilteringProfileState {
+func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 	globalState := model.AutoLearning
 	for imageTag := range p.versionContexts {
-		state := p.GetState(imageTag)
+		state := p.getState(imageTag)
 		if state == model.UnstableEventType {
 			return model.UnstableEventType
 		} else if state == model.StableEventType {
@@ -311,55 +465,101 @@ func (p *SecurityProfile) getGlobalState() model.EventFilteringProfileState {
 	return globalState // AutoLearning or StableEventType
 }
 
-// GetGlobalState returns the global state of a profile: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalState() model.EventFilteringProfileState {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
-	return p.getGlobalState()
+// GetVersionContext returns the context of the givent version if any
+func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	return ctx, ok
+}
+
+// GetVersions returns the number of versions stored in the profile (debug purpose only)
+func (p *Profile) GetVersions() []string {
+	p.m.Lock()
+	defer p.m.Unlock()
+	versions := []string{}
+	for version := range p.versionContexts {
+		versions = append(versions, version)
+	}
+	return versions
+}
+
+// SetVersionState force a state for a given version (debug purpose only)
+func (p *Profile) SetVersionState(imageTag string, state model.EventFilteringProfileState, lastAnomalyNano uint64) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	ctx, found := p.versionContexts[imageTag]
+	if !found {
+		return errors.New("profile version not found")
+	}
+	for _, et := range p.eventTypes {
+		if eventState, ok := ctx.EventTypeState[et]; ok {
+			eventState.State = state
+		} else {
+			ctx.EventTypeState[et] = &EventTypeState{
+				LastAnomalyNano: lastAnomalyNano,
+				State:           state,
+			}
+		}
+	}
+	return nil
+}
+
+// IsEventTypeValid returns true if the event type is valid for the profile
+func (p *Profile) IsEventTypeValid(evtType model.EventType) bool {
+	return slices.Contains(p.eventTypes, evtType)
 }
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
+func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	globalState := model.AutoLearning
 	for _, ctx := range p.versionContexts {
-		s, ok := ctx.eventTypeState[et]
+		s, ok := ctx.EventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == model.UnstableEventType {
+		if s.State == model.UnstableEventType {
 			return model.UnstableEventType
-		} else if s.state == model.StableEventType {
+		} else if s.State == model.StableEventType {
 			globalState = model.StableEventType
 		}
 	}
 	return globalState // AutoLearning or StableEventType
 }
 
-func (p *SecurityProfile) evictProfileVersion() string {
-	if len(p.versionContexts) <= 0 {
-		return "" // should not happen
+// PrepareNewVersion prepares a new version of the profile
+func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	// prepare new profile context to be inserted
+	newProfileCtx := &VersionContext{
+		EventTypeState: make(map[model.EventType]*EventTypeState),
+		FirstSeenNano:  nowTimestamp,
+		LastSeenNano:   nowTimestamp,
+		Tags:           tags,
 	}
 
-	oldest := uint64(math.MaxUint64)
-	oldestImageTag := ""
-
-	// select the oldest image tag
-	// TODO: not 100% sure to select the first or the lastSeenNano
-	for imageTag, profileCtx := range p.versionContexts {
-		if profileCtx.lastSeenNano < oldest {
-			oldest = profileCtx.lastSeenNano
-			oldestImageTag = imageTag
-		}
-	}
-	// delete image context
-	delete(p.versionContexts, oldestImageTag)
-
-	// then, remove every trace of this version from the tree
-	p.ActivityTree.EvictImageTag(oldestImageTag)
-	return oldestImageTag
+	// add the new profile context to the list
+	evictedVersions := p.makeRoomForNewVersion(maxImageTags)
+	p.versionContexts[newImageTag] = newProfileCtx
+	return evictedVersions
 }
 
-func (p *SecurityProfile) makeRoomForNewVersion(maxImageTags int) []string {
+// AddVersionContext adds a new version context to the profile
+func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	p.versionContexts[version] = ctx
+}
+
+func (p *Profile) makeRoomForNewVersion(maxImageTags int) []string {
 	evictedVersions := []string{}
 	// if we reached the max number of versions, we should evict the surplus
 	surplus := len(p.versionContexts) - maxImageTags + 1
@@ -373,33 +573,104 @@ func (p *SecurityProfile) makeRoomForNewVersion(maxImageTags int) []string {
 	return evictedVersions
 }
 
-func (p *SecurityProfile) prepareNewVersion(newImageTag string, tags []string, maxImageTags int) []string {
-	// prepare new profile context to be inserted
-	now := uint64(p.timeResolver.ComputeMonotonicTimestamp(time.Now()))
-	newProfileCtx := &VersionContext{
-		eventTypeState: make(map[model.EventType]*EventTypeState),
-		firstSeenNano:  now,
-		lastSeenNano:   now,
-		Tags:           tags,
+func (p *Profile) evictProfileVersion() string {
+	if len(p.versionContexts) <= 0 {
+		return "" // should not happen
 	}
 
-	// add the new profile context to the list
-	// (versionContextsLock already locked here)
-	evictedVersions := p.makeRoomForNewVersion(maxImageTags)
-	p.versionContexts[newImageTag] = newProfileCtx
-	return evictedVersions
+	oldest := uint64(math.MaxUint64)
+	oldestImageTag := ""
+
+	// select the oldest image tag
+	// TODO: not 100% sure to select the first or the lastSeenNano
+	for imageTag, profileCtx := range p.versionContexts {
+		if profileCtx.LastSeenNano < oldest {
+			oldest = profileCtx.LastSeenNano
+			oldestImageTag = imageTag
+		}
+	}
+	// delete image context
+	delete(p.versionContexts, oldestImageTag)
+
+	// then, remove every trace of this version from the tree
+	p.ActivityTree.EvictImageTag(oldestImageTag)
+	return oldestImageTag
 }
 
-func (p *SecurityProfile) getTimeOrderedVersionContexts() []*VersionContext {
+// GetEventTypes returns the event types of the profile
+func (p *Profile) GetEventTypes() []model.EventType {
+	return p.eventTypes
+}
+
+// LoadFromNewProfile loads a new profile into the current profile
+func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	p.Metadata = newProfile.Metadata
+	p.selector = newProfile.selector
+	p.ActivityTree = newProfile.ActivityTree
+	p.ActivityTree.SetType("security_profile", p)
+	p.Header = newProfile.Header
+	p.tags = newProfile.tags
+	p.versionContexts = newProfile.versionContexts
+
+	p.LoadedInKernel.Store(false)
+	p.ActivityTree.ComputeActivityTreeStats()
+
+	// if the input is an activity dump then change the selector to a profile selector
+	if newProfile.selector.Tag != "*" {
+		p.selector.Tag = "*"
+	}
+}
+
+// Reset empties all internal fields so that this profile can be used again in the future
+func (p *Profile) Reset() {
+	p.LoadedInKernel.Store(false)
+	p.LoadedNano.Store(0)
+	p.Instances = nil
+	// keep the profileCookie in case we end up reloading the profile from the cache
+}
+
+// ComputeSyscallsList computes the top level list of syscalls
+func (p *Profile) ComputeSyscallsList() []uint32 {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.ActivityTree.ComputeSyscallsList()
+}
+
+// MatchesSelector is used to control how an event should be added to a profile
+func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	for _, workload := range p.Instances {
+		if entry.ContainerID == workload.ContainerID {
+			return true
+		}
+	}
+	return false
+}
+
+// NewProcessNodeCallback is called when a new process node is created
+func (p *Profile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {}
+
+// GetImageNameTag returns the image name and tag for the profiled container
+func (p *Profile) GetImageNameTag() (string, string) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.selector.Image, p.selector.Tag
+}
+
+func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 	var orderedVersions []*VersionContext
 
 	for _, version := range p.versionContexts {
 		orderedVersions = append(orderedVersions, version)
 	}
 	slices.SortFunc(orderedVersions, func(a, b *VersionContext) int {
-		if a.firstSeenNano == b.firstSeenNano {
+		if a.FirstSeenNano == b.FirstSeenNano {
 			return 0
-		} else if a.firstSeenNano < b.firstSeenNano {
+		} else if a.FirstSeenNano < b.FirstSeenNano {
 			return -1
 		}
 		return 1
@@ -408,10 +679,10 @@ func (p *SecurityProfile) getTimeOrderedVersionContexts() []*VersionContext {
 }
 
 // GetVersionContextIndex returns the context of the givent version if any
-func (p *SecurityProfile) GetVersionContextIndex(index int) *VersionContext {
-	p.versionContextsLock.Lock()
+func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
+	p.m.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()
-	p.versionContextsLock.Unlock()
+	p.m.Unlock()
 
 	if index >= len(orderedVersions) {
 		return nil
@@ -419,65 +690,36 @@ func (p *SecurityProfile) GetVersionContextIndex(index int) *VersionContext {
 	return orderedVersions[index]
 }
 
-// ListAllVersionStates is a debug function to list all version and their states
-func (p *SecurityProfile) ListAllVersionStates() {
-	p.versionContextsLock.Lock()
-	orderedVersions := p.getTimeOrderedVersionContexts()
-	p.versionContextsLock.Unlock()
+// ListAllVersionStates prints the state of all versions of the profile
+func (p *Profile) ListAllVersionStates() {
+	p.m.Lock()
+	defer p.m.Unlock()
 
-	versions := ""
-	for version := range p.versionContexts {
-		versions += version + " "
-	}
-	fmt.Printf("Versions: %s\n", versions)
+	if len(p.versionContexts) > 0 {
+		fmt.Printf("### Profile: %+v\n", p.GetSelectorStr())
+		orderedVersions := p.getTimeOrderedVersionContexts()
 
-	fmt.Printf("Global state: %s\n", p.GetGlobalState().String())
-	for i, version := range orderedVersions {
-		fmt.Printf("Version %d:\n", i)
-		fmt.Printf("  - Tags: %+v\n", version.Tags)
-		fmt.Printf("  - First seen: %v\n", time.Unix(0, int64(version.firstSeenNano)))
-		fmt.Printf("  - Last seen: %v\n", time.Unix(0, int64(version.lastSeenNano)))
-		fmt.Printf("  - Event types:\n")
-		for et, ets := range version.eventTypeState {
-			fmt.Printf("    . %s: %+v\n", et, ets.state.String())
+		versions := ""
+		for version := range p.versionContexts {
+			versions += version + " "
 		}
-	}
-	fmt.Printf("Instances:\n")
-	for _, instance := range p.Instances {
-		fmt.Printf("  - %+v\n", instance.ContainerID)
-	}
-}
+		fmt.Printf("Versions: %s\n", versions)
 
-// SetVersionState force a state for a given version (debug purpose only)
-func (p *SecurityProfile) SetVersionState(imageTag string, state model.EventFilteringProfileState) error {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
-
-	ctx, found := p.versionContexts[imageTag]
-	if !found {
-		return errors.New("profile version not found")
-	}
-	now := uint64(p.timeResolver.ComputeMonotonicTimestamp(time.Now()))
-	for _, et := range p.eventTypes {
-		if eventState, ok := ctx.eventTypeState[et]; ok {
-			eventState.state = state
-		} else {
-			ctx.eventTypeState[et] = &EventTypeState{
-				lastAnomalyNano: now,
-				state:           state,
+		fmt.Printf("Global state: %s\n", p.getGlobalState().String())
+		for i, version := range orderedVersions {
+			fmt.Printf("Version %d:\n", i)
+			fmt.Printf("  - Tags: %+v\n", version.Tags)
+			fmt.Printf("  - First seen: %v\n", time.Unix(0, int64(version.FirstSeenNano)))
+			fmt.Printf("  - Last seen: %v\n", time.Unix(0, int64(version.LastSeenNano)))
+			fmt.Printf("  - Event types:\n")
+			for et, ets := range version.EventTypeState {
+				fmt.Printf("    . %s: %+v\n", et, ets.State.String())
 			}
 		}
-	}
-	return nil
-}
+		fmt.Printf("Instances:\n")
+		for _, instance := range p.Instances {
+			fmt.Printf("  - %+v\n", instance.ContainerID)
+		}
 
-// GetVersions returns the number of versions stored in the profile (debug purpose only)
-func (p *SecurityProfile) GetVersions() []string {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
-	versions := []string{}
-	for version := range p.versionContexts {
-		versions = append(versions, version)
 	}
-	return versions
 }

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -22,11 +23,15 @@ import (
 // MinimumKernelVersion indicates the minimum kernel version required for HTTP monitoring
 var MinimumKernelVersion kernel.Version
 
+// NetifReceiveSKBCoreKprobeMaximumKernelVersion indicates the maximum kernel version to use with the __netif_receive_skb_core kprobe
+var NetifReceiveSKBCoreKprobeMaximumKernelVersion kernel.Version
+
 // ErrNotSupported is the error returned if USM is not supported on this platform
 var ErrNotSupported = errors.New("Universal Service Monitoring (USM) is not supported")
 
 func init() {
 	MinimumKernelVersion = kernel.VersionCode(4, 14, 0)
+	NetifReceiveSKBCoreKprobeMaximumKernelVersion = kernel.VersionCode(4, 15, 0)
 }
 
 func runningOnARM() bool {
@@ -49,6 +54,27 @@ func TLSSupported(c *config.Config) bool {
 	return kversion >= MinimumKernelVersion
 }
 
+var (
+	mu                    sync.Mutex
+	isKernelVersionCached bool
+	cachedKernelVersion   kernel.Version
+)
+
+// GetCachedKernelVersion returns the cached kernel version
+func GetCachedKernelVersion() kernel.Version {
+	mu.Lock()
+	defer mu.Unlock()
+	return cachedKernelVersion
+}
+
+// SetCachedKernelVersion sets the cached kernel version
+func SetCachedKernelVersion(version kernel.Version) {
+	mu.Lock()
+	defer mu.Unlock()
+	isKernelVersionCached = true
+	cachedKernelVersion = version
+}
+
 // CheckUSMSupported returns an error if USM is not supported
 // on this platform. Callers can check `errors.Is(err, ErrNotSupported)`
 // to verify if USM is supported
@@ -67,6 +93,7 @@ func CheckUSMSupported(cfg *config.Config) error {
 		return fmt.Errorf("%w: a Linux kernel version of %s or higher is required; we detected %s", ErrNotSupported, MinimumKernelVersion, kversion)
 	}
 
+	SetCachedKernelVersion(kversion)
 	return nil
 }
 
@@ -79,4 +106,20 @@ func IsUSMSupportedAndEnabled(config *config.Config) bool {
 // NeedProcessMonitor returns true if the process monitor is needed for the given configuration
 func NeedProcessMonitor(config *config.Config) bool {
 	return config.EnableNativeTLSMonitoring || config.EnableGoTLSSupport || config.EnableIstioMonitoring || config.EnableNodeJSMonitoring
+}
+
+// ShouldUseNetifReceiveSKBCoreKprobe returns true if the __netif_receive_skb_core kprobe should be used.
+func ShouldUseNetifReceiveSKBCoreKprobe() bool {
+	mu.Lock()
+	isCached := isKernelVersionCached
+	mu.Unlock()
+	if !isCached {
+		kversion, err := kernel.HostVersion()
+		if err != nil {
+			log.Warnf("could not determine the current kernel version: %s", err)
+			return false
+		}
+		SetCachedKernelVersion(kversion)
+	}
+	return GetCachedKernelVersion() < NetifReceiveSKBCoreKprobeMaximumKernelVersion
 }
