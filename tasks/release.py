@@ -1295,7 +1295,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
 
     gh = GithubAPI()
 
-    current = current_version(ctx, str(major_version))
+    current = current_version(ctx, major_version)
     next = current.next_version(bump_minor=True)
     next.devel = False
 
