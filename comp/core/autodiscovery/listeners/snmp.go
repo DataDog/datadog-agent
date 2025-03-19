@@ -190,6 +190,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			job.subnet.config.AuthProtocol = authentication.AuthProtocol
 			job.subnet.config.PrivKey = authentication.PrivKey
 			job.subnet.config.PrivProtocol = authentication.PrivProtocol
+			job.subnet.config.ContextEngineID = authentication.ContextEngineID
 			job.subnet.config.ContextName = authentication.ContextName
 
 			break

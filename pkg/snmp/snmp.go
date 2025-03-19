@@ -94,16 +94,17 @@ type Config struct {
 
 // Authentication holds SNMP authentication data
 type Authentication struct {
-	Version      string `mapstructure:"snmp_version"`
-	Timeout      int    `mapstructure:"timeout"`
-	Retries      int    `mapstructure:"retries"`
-	Community    string `mapstructure:"community_string"`
-	User         string `mapstructure:"user"`
-	AuthKey      string `mapstructure:"authKey"`
-	AuthProtocol string `mapstructure:"authProtocol"`
-	PrivKey      string `mapstructure:"privKey"`
-	PrivProtocol string `mapstructure:"privProtocol"`
-	ContextName  string `mapstructure:"context_name"`
+	Version         string `mapstructure:"snmp_version"`
+	Timeout         int    `mapstructure:"timeout"`
+	Retries         int    `mapstructure:"retries"`
+	Community       string `mapstructure:"community_string"`
+	User            string `mapstructure:"user"`
+	AuthKey         string `mapstructure:"authKey"`
+	AuthProtocol    string `mapstructure:"authProtocol"`
+	PrivKey         string `mapstructure:"privKey"`
+	PrivProtocol    string `mapstructure:"privProtocol"`
+	ContextEngineID string `mapstructure:"context_engine_id"`
+	ContextName     string `mapstructure:"context_name"`
 }
 
 type intOrBoolPtr interface {
@@ -258,58 +259,58 @@ func (c *Config) BuildSNMPParams(deviceIP string, authIndex int) (*gosnmp.GoSNMP
 	if authIndex < 0 || authIndex >= len(c.Authentications) {
 		return nil, fmt.Errorf("Authentication index %d out of range", authIndex)
 	}
-	auth := c.Authentications[authIndex]
+	authentication := c.Authentications[authIndex]
 
-	if auth.Community == "" && auth.User == "" {
+	if authentication.Community == "" && authentication.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if auth.Version == "1" {
+	if authentication.Version == "1" {
 		version = gosnmp.Version1
-	} else if auth.Version == "2" || (auth.Version == "" && auth.Community != "") {
+	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
 		version = gosnmp.Version2c
-	} else if auth.Version == "3" || (auth.Version == "" && auth.User != "") {
+	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", auth.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(auth.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(auth.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if auth.PrivKey != "" {
+	if authentication.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if auth.AuthKey != "" {
+	} else if authentication.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            c.Port,
-		Community:       auth.Community,
+		Community:       authentication.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(auth.Timeout) * time.Second,
-		Retries:         auth.Retries,
+		Timeout:         time.Duration(authentication.Timeout) * time.Second,
+		Retries:         authentication.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: c.ContextEngineID,
-		ContextName:     auth.ContextName,
+		ContextEngineID: authentication.ContextEngineID,
+		ContextName:     authentication.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 auth.User,
+			UserName:                 authentication.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: auth.AuthKey,
+			AuthenticationPassphrase: authentication.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        auth.PrivKey,
+			PrivacyPassphrase:        authentication.PrivKey,
 		},
 	}, nil
 }
