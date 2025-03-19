@@ -79,7 +79,7 @@ func (sc *streamCollection) getStream(header *gpuebpf.CudaEventHeader) (*StreamH
 		return sc.getGlobalStream(header)
 	}
 
-	return sc.getNonglobalStream(header)
+	return sc.getNonGlobalStream(header)
 }
 
 func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
@@ -110,7 +110,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	return stream, nil
 }
 
-func (sc *streamCollection) getNonglobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
+func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, _ := getPidTidFromHeader(header)
 
 	key := streamKey{
