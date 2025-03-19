@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/gopacket/pcap"
 	"golang.org/x/net/ipv4"
 )
 
@@ -83,4 +85,44 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	}
 
 	return localUDPAddr, conn, nil
+}
+
+// InterfaceFromAddr takes in a UDPAddr and returns the name of the network interface
+func InterfaceFromAddr(localAddr *net.UDPAddr) (string, error) {
+	// // Get the interface associated with the local address
+	// interfaces, err := net.Interfaces()
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// // Match the local IP to an interface
+	// for _, iface := range interfaces {
+	// 	addrs, err := iface.Addrs()
+	// 	if err != nil {
+	// 		continue
+	// 	}
+	// 	for _, addr := range addrs {
+	// 		if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.Equal(localAddr.IP) {
+	// 			// TODO: remove this log
+	// 			log.Debugf("Found interface for addr %s: %+v", localAddr.IP.String(), iface)
+	// 			return iface.Name, nil
+	// 		}
+	// 	}
+	// }
+
+	interfaces, err := pcap.FindAllDevs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, iface := range interfaces {
+		for _, addr := range iface.Addresses {
+			if addr.IP.Equal(localAddr.IP) {
+				log.Debugf("Found interface for addr %s: %+v", localAddr.IP.String(), iface)
+				return iface.Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("could not find an interface for IP: %s", localAddr.IP.String())
 }
