@@ -573,7 +573,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	tr := setupTracer(t, config)
 
 	// Connect to local DNS
-	cn, err := dialUDP("udp", "localhost:53")
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -598,7 +598,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to local DNS
-	cn, err := dialUDP("udp", "localhost:53")
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
