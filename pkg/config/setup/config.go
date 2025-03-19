@@ -925,6 +925,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 	// Seconds to wait to sent metadata payload to the backend after startup
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
+	config.BindEnvAndSetDefault("metadata_ip_resolution_from_hostname", false) // resolve the hostname to get the IP address
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
