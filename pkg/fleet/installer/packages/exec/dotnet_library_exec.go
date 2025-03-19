@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -81,7 +82,9 @@ func (d *DotnetLibraryExec) RemoveIISInstrumentation(ctx context.Context) (exitC
 
 func (d *dotnetLibraryExecCmd) Run() (int, error) {
 	var errBuf bytes.Buffer
-	d.Stderr = &errBuf
+	mw := io.MultiWriter(&errBuf, os.Stderr)
+	d.Stderr = mw
+
 	err := d.Cmd.Run()
 	if err == nil {
 		return d.Cmd.ProcessState.ExitCode(), nil
