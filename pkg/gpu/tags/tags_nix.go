@@ -21,8 +21,6 @@ func GetTags() []string {
 			log.Warnf("Failed to get gpu host tags, failed to initialize NVML: %v", nvml.ErrorString(ret))
 			return nil
 		}
-		// We don't call nvml.Shutdown() because the host tags will be queried multiple times
-		// during the agent's lifetime. We'll let the process cleanup handle the shutdown.
 	}
 
 	count, ret := nvmlLibrary.DeviceGetCount()

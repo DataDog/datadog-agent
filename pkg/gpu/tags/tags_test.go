@@ -17,16 +17,11 @@ import (
 type mockNVML struct {
 	nvml.Interface
 	deviceCount int
-	initError   nvml.Return
 	countError  nvml.Return
 }
 
 func (m *mockNVML) DeviceGetCount() (int, nvml.Return) {
 	return m.deviceCount, m.countError
-}
-
-func (m *mockNVML) Init() nvml.Return {
-	return m.initError
 }
 
 func TestGetTags(t *testing.T) {
@@ -39,7 +34,6 @@ func TestGetTags(t *testing.T) {
 			name: "no GPUs",
 			nvml: mockNVML{
 				deviceCount: 0,
-				initError:   nvml.SUCCESS,
 				countError:  nvml.SUCCESS,
 			},
 			wantTags: nil,
@@ -48,22 +42,13 @@ func TestGetTags(t *testing.T) {
 			name: "has GPUs",
 			nvml: mockNVML{
 				deviceCount: 2,
-				initError:   nvml.SUCCESS,
 				countError:  nvml.SUCCESS,
 			},
 			wantTags: []string{"gpu_host:true"},
 		},
 		{
-			name: "NVML init error",
-			nvml: mockNVML{
-				initError: nvml.ERROR_UNKNOWN,
-			},
-			wantTags: nil,
-		},
-		{
 			name: "device count error",
 			nvml: mockNVML{
-				initError:  nvml.SUCCESS,
 				countError: nvml.ERROR_UNKNOWN,
 			},
 			wantTags: nil,
