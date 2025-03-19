@@ -68,7 +68,7 @@ func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelem
 		missingContainers:  tm.NewCounter(subsystem, "missing_containers", []string{"reason"}, "Number of missing containers"),
 		missingDevices:     tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
-		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", []string{"device"}, "Number of active stream handlers"),
+		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
 		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
 	}
 }
@@ -225,14 +225,14 @@ func (sc *streamCollection) clean() {
 	for key, handler := range sc.streams {
 		if handler.processEnded {
 			delete(sc.streams, key)
-			sc.telemetry.removedHandlers.Inc()
+			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
 	for key, handler := range sc.globalStreams {
 		if handler.processEnded {
 			delete(sc.globalStreams, key)
-			sc.telemetry.removedHandlers.Inc()
+			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
