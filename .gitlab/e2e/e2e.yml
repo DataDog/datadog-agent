@@ -124,7 +124,7 @@
     - windows_msi_and_bosh_zip_x64-a7-fips
 =======
     - datadog-agent-7-x64
-    - windows_msi_and_bosh_zip_x64
+    - windows_msi_and_bosh_zip_x64-a7
   variables:
     LOCAL_PACKAGE_FLAG: "--local-package OMNIBUS_PACKAGE_DIR"
 >>>>>>> 35d314bdc46 (Try with local-packages for some test)
