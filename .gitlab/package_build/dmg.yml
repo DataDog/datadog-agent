@@ -112,6 +112,7 @@ new-agent_dmg-x64-a7:
     - if ! [ -d /tmp/gettext-copy ]; then sudo cp -r /usr/local/opt/gettext /tmp/gettext-copy; fi
     - sudo mv /usr/local/opt/gettext /tmp/gettext-old
   after_script:
+    - ls /usr/local/opt/gettext || true
     - if ! [ -d /usr/local/opt/gettext ]; then sudo mv /tmp/gettext-old /usr/local/opt/gettext; fi
   script:
     # If 1, will isolate the build environment
