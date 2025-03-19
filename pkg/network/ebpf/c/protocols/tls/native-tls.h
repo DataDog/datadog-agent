@@ -220,7 +220,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read_ex) {
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
 
     // Trigger mapping of SSL context to connection tuple in case it is missing.
     tup_from_ssl_ctx(args.ctx, pid_tgid);
@@ -294,7 +294,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write_ex) {
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
