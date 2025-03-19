@@ -88,6 +88,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
+		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
