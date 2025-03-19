@@ -141,8 +141,8 @@ func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, 
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
 func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.SecurityProfileMessage {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	// construct the list of image tags for this profile
 	imageTags := ""
