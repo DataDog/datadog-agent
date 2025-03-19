@@ -519,9 +519,9 @@ api_key:
 # inventories_configuration_enabled: true
 
 ## @env DD_METADATA_IP_RESOLUTION_FROM_HOSTNAME - boolean - optional - default: false
-## By default the Agent uses the first interface in the list of network interfaces to determine the IP address of the host.
-## If you set this option to true, the Agent will try to resolve the host name to determine the host's IP address.
-## If this is unsuccessful, the Agent will fall back to the default behavior.
+## By default, the Agent uses the first interface in the list of network interfaces to determine the IP address of the host.
+## If you set this option to true, the Agent tries to resolve the host name to determine the host's IP address.
+## If this is unsuccessful, the Agent falls back to the default behavior.
 ## This option is useful when the first interface is not the one you want to use to determine the host's IP address, or when
 ## you define the hostname in the /etc/hosts configuration file.
 #
