@@ -7,13 +7,15 @@ package installer
 
 import (
 	"fmt"
+	"strings"
+
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"strings"
 )
 
 // DatadogInstallScript represents an interface to the Datadog Install script on the remote host.
@@ -49,6 +51,10 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 		params.installerURL = artifactURL
 	}
 
+	if params.installerScript == "" {
+		params.installerScript = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", d.env.Environment.PipelineID())
+	}
+
 	// Set the environment variables for the install script
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
 	for k, v := range params.extraEnvVars {
@@ -59,6 +65,6 @@ func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
 
 	cmd := fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1'))`, d.env.Environment.PipelineID())
+		iex ((New-Object System.Net.WebClient).DownloadString('%s'))`, params.installerScript)
 	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
 }

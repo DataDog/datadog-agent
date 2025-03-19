@@ -19,6 +19,13 @@ type testInstallScriptSuite struct {
 	installerwindows.BaseSuite
 }
 
+const (
+	oldInstallerURL     = "http://install.datadoghq.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
+	oldInstallerScript  = "http://install.datadoghq.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
+	oldInstallerVersion = "7.62"
+	oldAgentVersion     = "7.63.2-1"
+)
+
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
 	e2e.Run(t, &testInstallScriptSuite{},
@@ -107,14 +114,16 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Act
 	output, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": "7.62",
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     "7.63.2-1",
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     oldAgentVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
 			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "install.datadoghq.com",
 			// make sure to install the agent
 			"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "true",
 		}),
+		installerwindows.WithInstallerURL(oldInstallerURL),
+		installerwindows.WithInstallerScript(oldInstallerScript),
 	)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)
