@@ -31,6 +31,7 @@ import (
 const (
 	datadogAgent          = "datadog-agent"
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
+	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
 // PrepareAgent prepares the machine to install the agent
@@ -353,7 +354,18 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 }
 
 func removeInstallerIfInstalled(ctx context.Context) (err error) {
-	return removeProductIfInstalled(ctx, "Datadog Installer")
+	if msi.IsProductInstalled("Datadog Installer") {
+		err := removeProductIfInstalled(ctx, "Datadog Installer")
+		if err != nil {
+			return err
+		}
+		// remove the old installer directory
+		err = os.RemoveAll(oldInstallerDir)
+		if err != nil {
+			return fmt.Errorf("could not remove old installer directory: %w", err)
+		}
+	}
+	return nil
 }
 
 // createEvent returns a new manual reset event that stops the watchdog when set.
