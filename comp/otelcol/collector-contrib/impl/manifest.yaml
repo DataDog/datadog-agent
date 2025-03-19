@@ -6,7 +6,7 @@ dist:
   module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
   name: otelcol-contrib
   output_path: ./comp/otelcol/collector-contrib/impl
-  version: 0.122.1
+  version: 0.122.0
 exporters:
 - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.122.1
 - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.122.1
