@@ -6,13 +6,20 @@
 package agenttests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	"testing"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+
+	"testing"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 type testAgentUpgradeSuite struct {
@@ -23,150 +30,450 @@ type testAgentUpgradeSuite struct {
 func TestAgentUpgrades(t *testing.T) {
 	e2e.Run(t, &testAgentUpgradeSuite{},
 		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
 }
 
-// TestUpgradeAgentPackage tests that it's possible to upgrade the Datadog Agent using the Datadog installer.
+// TestUpgradeMSI tests manual upgrade using the Datadog Agent MSI package.
+//
+// The expectation is that the MSI becomes the new stable package
+func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
+	s.setAgentConfig()
+
+	s.installPreviousAgentVersion()
+	s.assertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+
+	s.installCurrentAgentVersion()
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+}
+
+// TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
+// through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
-	s.Run("Install stable", func() {
-		s.installStableAgent()
-		s.Run("Upgrade to latest using an experiment", func() {
-			s.startLatestExperiment()
-			s.Run("Stop experiment", s.stopExperiment)
-		})
-	})
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
 }
 
-// TestDowngradeAgentPackage tests that it's possible to downgrade the Datadog Agent using the Datadog installer.
+// TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
+// an experiment has been run.
+//
+// Since the MSI removes the `packages/datadog-agent` directory, we wanted to be sure
+// that MSIs Source Resiliency wouldn't have the MSI in the stable dir, which may be
+// run during RemoveExistingProducts, locked and unable to be removed.
+func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.mustStartExperimentPreviousVersion()
+	s.assertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
+
+	// Act
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSILogFile("install-current-version-again.log"),
+	)
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+}
+
+// TestUpgradeAgentPackage tests that the daemon can downgrade the Agent
+// through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Arrange
-	_, err := s.Installer().InstallPackage(consts.AgentPackage)
-	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package")
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
 
 	// Act
-	_, err = s.Installer().InstallExperiment(consts.AgentPackage,
-		installer.WithRegistry("install.datadoghq.com"),
-		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
-		installer.WithAuthentication(""),
-	)
+	s.mustStartExperimentPreviousVersion()
+	s.assertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
 
 	// Assert
-	s.Require().NoErrorf(err, "failed to downgrade to stable Datadog Agent package")
-	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
-		}).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage))
 }
 
-func (s *testAgentUpgradeSuite) TestExperimentFailure() {
+// TestStopExperiment tests that the daemon can stop the experiment
+// and that it reverts to the stable version.
+func (s *testAgentUpgradeSuite) TestStopExperiment() {
 	// Arrange
-	s.Run("Install stable", func() {
-		s.installStableAgent()
-	})
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
 
 	// Act
-	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
-		installer.WithRegistry("install.datadoghq.com"),
-		installer.WithVersion("unknown-version"),
-		installer.WithAuthentication(""),
-	)
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
 
 	// Assert
-	s.Require().Error(err, "expected an error when trying to start an experiment with an unknown version")
-	s.stopExperiment()
-	// TODO: is this the same test as TestStopWithoutExperiment?
-}
-
-func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
-	// Arrange
-	s.Run("Install stable", func() {
-		s.installStableAgent()
-	})
-
-	// Act
-	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
-		installer.WithRegistry("install.datadoghq.com"),
-		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
-		installer.WithAuthentication(""),
-	)
-
-	// Assert
-	s.Require().Error(err, "expected an error when trying to start an experiment with the same version as the current one")
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
+		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
-		}).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage))
+		})
+}
+
+// TestExperimentForNonExistingPackageFails tests that starting an experiment
+// with a non-existing package version fails and can be stopped.
+func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Act
+	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
+	s.Require().ErrorContains(err, "could not get package")
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+		})
+}
+
+// TestExperimentCurrentVersionFails tests that starting an experiment
+// with the same version as the current one fails and can be stopped.
+func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Act
+	_, err := s.startExperimentCurrentVersion()
+	s.Require().ErrorContains(err, "target package already exists")
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+		})
 }
 
 func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	// Arrange
-	s.Run("Install stable", func() {
-		s.installStableAgent()
-	})
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
 
 	// Act
+	s.Installer().StopExperiment(consts.AgentPackage)
 
 	// Assert
-	s.stopExperiment()
-	// TODO: Currently uninstalls stable then reinstalls stable. functional but a waste.
-}
-
-func (s *testAgentUpgradeSuite) installStableAgent() {
-	// Arrange
-
-	// Act
-	output, err := s.Installer().InstallPackage(consts.AgentPackage,
-		installer.WithRegistry("install.datadoghq.com"),
-		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
-		installer.WithAuthentication(""),
-	)
-
-	// Assert
-	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package: %s", output)
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
-		}).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage))
-}
-
-func (s *testAgentUpgradeSuite) startLatestExperiment() {
-	// Arrange
-
-	// Act
-	output, err := s.Installer().InstallExperiment(consts.AgentPackage)
-
-	// Assert
-	s.Require().NoErrorf(err, "failed to upgrade to the latest Datadog Agent package: %s", output)
-	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
+		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
+		})
+}
+
+// TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
+// to stable version when the service dies.
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+
+	// Assert
+	err := s.waitForInstallerService("Running")
+	s.Require().NoError(err)
+	// original version should now be running
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+	// backend will send stop experiment now
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+}
+
+// TestRevertsExperimentWhenServiceDies tests that the watchdog will revert
+// to stable version when the timeout expires.
+func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	// lower timeout to 2 minute
+	s.setWatchdogTimeout(2)
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
+	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
+	// wait till the services start
+	err = s.waitForInstallerService("Running")
+	s.Require().NoError(err)
+	// verify stable version contraints
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+	// backend will send stop experiment now
+	s.Installer().StopExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+}
+
+// TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
+func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
+	// Arrange
+	s.setAgentConfig()
+	agentUser := "customuser"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Act
+	s.mustStartExperimentCurrentVersion()
+	s.assertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.assertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
+func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
+	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
+	s.Require().NoError(err)
+}
+
+func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
+	agentVersion := s.StableAgentVersion().Version()
+	options := []installerwindows.MsiOption{
+		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
+		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
+		installerwindows.WithMSILogFile("install-previous-version.log"),
+	}
+	options = append(options, opts...)
+	s.Require().NoError(s.Installer().Install(options...))
+
+	// sanity check: make sure we did indeed install the stable version
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		// Don't check the binary signature because it could have been updated since the last stable was built
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, agentVersion)
+		})
+}
+
+func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
+	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+
+	options := []installerwindows.MsiOption{
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+		installerwindows.WithMSILogFile("install-current-version.log"),
+	}
+	options = append(options, opts...)
+	s.Require().NoError(s.Installer().Install(
+		options...,
+	))
+
+	// sanity check: make sure we did indeed install the stable version
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		// Don't check the binary signature because it could have been updated since the last stable was built
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, agentVersion)
+		})
+}
+
+func (s *testAgentUpgradeSuite) startExperimentWithCustomPackage(opts ...installerwindows.PackageOption) (string, error) {
+	packageConfig, err := installerwindows.NewPackageConfig(opts...)
+	s.Require().NoError(err)
+	packageConfig, err = installerwindows.CreatePackageSourceIfLocal(s.Env().RemoteHost, packageConfig)
+	s.Require().NoError(err)
+
+	// Set catalog so daemon can find the package
+	_, err = s.Installer().SetCatalog(installerwindows.Catalog{
+		Packages: []installerwindows.PackageEntry{
+			{
+				Package: packageConfig.Name,
+				Version: packageConfig.Version,
+				URL:     packageConfig.URL(),
+			},
+		},
+	})
+	s.Require().NoError(err)
+	return s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
+}
+
+func (s *testAgentUpgradeSuite) startExperimentPreviousVersion() (string, error) {
+	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
+		// TODO: switch to prod stable entry when available
+		installerwindows.WithPipeline("58948204"),
+		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
+	)
+}
+
+func (s *testAgentUpgradeSuite) mustStartExperimentPreviousVersion() {
+	// Arrange
+	agentVersion := s.StableAgentVersion().Version()
+
+	// Act
+	_, _ = s.startExperimentPreviousVersion()
+	// can't check error here because the process will be killed by the MSI "files in use"
+	// and experiment started in the background
+	// s.Require().NoError(err)
+
+	// Assert
+	// have to wait for experiment to finish installing
+	err := s.waitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(consts.BinaryPath).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, agentVersion)
 		}).
 		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
 }
 
-func (s *testAgentUpgradeSuite) stopExperiment() {
+func (s *testAgentUpgradeSuite) startExperimentCurrentVersion() (string, error) {
+	return s.startExperimentWithCustomPackage(installerwindows.WithName(consts.AgentPackage),
+		// Default to using OCI package from current pipeline
+		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
+		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
+	)
+}
+
+func (s *testAgentUpgradeSuite) mustStartExperimentCurrentVersion() {
 	// Arrange
+	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
 
 	// Act
-	output, err := s.Installer().RemoveExperiment(consts.AgentPackage)
+	_, _ = s.startExperimentCurrentVersion()
+	// can't check error here because the process will be killed by the MSI "files in use"
+	// and experiment started in the background
+	// s.Require().NoError(err)
 
 	// Assert
-	s.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
+	// have to wait for experiment to finish installing
+	err := s.waitForInstallerService("Running")
+	s.Require().NoError(err)
 
-	// Remove experiment uninstalls the experimental version but also re-installs the stable version
+	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogAgentService().
+		HasBinary(consts.BinaryPath).
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
+			s.Require().Contains(version, agentVersion)
 		}).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage))
+		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
+}
+
+func (s *testAgentUpgradeSuite) setAgentConfig() {
+	s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
+	s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
+api_key: aaaaaaaaa
+remote_updates: true
+`))
+}
+
+func (s *testAgentUpgradeSuite) assertSuccessfulAgentStartExperiment(version string) {
+	err := s.waitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithExperimentVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		})
+}
+
+func (s *testAgentUpgradeSuite) assertSuccessfulAgentPromoteExperiment(version string) {
+	err := s.waitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-agent").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		}).
+		WithExperimentVersionEqual("")
+}
+
+func (s *testAgentUpgradeSuite) assertSuccessfulAgentStopExperiment(version string) {
+	// conditions are same as promote, except the stable version should be unchanged.
+	// since version is an input we can reuse.
+	s.assertSuccessfulAgentPromoteExperiment(version)
+}
+
+func (s *testAgentUpgradeSuite) waitForInstallerService(state string) error {
+	return s.waitForInstallerServiceWithBackoff(state,
+		// usually waiting after MSI runs so we have to wait awhile
+		// max wait is 30*30 -> 900 seconds (15 minutes)
+		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+}
+
+func (s *testAgentUpgradeSuite) waitForInstallerServiceWithBackoff(state string, b backoff.BackOff) error {
+	return backoff.Retry(func() error {
+		out, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(out, state) {
+			return fmt.Errorf("expected state %s, got %s", state, out)
+		}
+		return nil
+	}, b)
+}
+
+func (s *testAgentUpgradeSuite) waitForInstallerVersion(version string) error {
+	return s.waitForInstallerVersionWithBackoff(version,
+		// usually waiting after MSI runs so we have to wait awhile
+		// max wait is 30*30 -> 900 seconds (15 minutes)
+		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+}
+
+func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version string, b backoff.BackOff) error {
+	return backoff.Retry(func() error {
+		actual, err := s.Installer().Version()
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(actual, version) {
+			return fmt.Errorf("expected version %s, got %s", version, actual)
+		}
+		return nil
+	}, b)
 }
