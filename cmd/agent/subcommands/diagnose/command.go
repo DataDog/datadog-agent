@@ -426,7 +426,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
-	c := util.GetClient(false)
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
