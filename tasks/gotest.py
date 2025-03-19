@@ -46,9 +46,8 @@ from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
-OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
-)
+# TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
+OTEL_UPSTREAM_GO_MOD_PATH = "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.122.0/go.mod"
 
 
 class TestProfiler:
