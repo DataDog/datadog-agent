@@ -185,12 +185,10 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 
 	// Wait to ensure the server has fully started
-	var stopwg sync.WaitGroup
-	stopwg.Add(1)
+	stop := make(chan struct{}, 1)
 
 	// Wait to ensure the server has finished stopping
-	var stoppedwg sync.WaitGroup
-	stoppedwg.Add(1)
+	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
 
@@ -199,9 +197,9 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 
 	go func() {
 		w.Start()
-		stopwg.Wait()
+		<-stop
 		w.Stop(false)
-		stoppedwg.Done()
+		stopped <- struct{}{}
 	}()
 
 	var processedwg sync.WaitGroup
@@ -221,9 +219,10 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	highPrio <- mockTransaction
 
 	processedwg.Wait()
-	stopwg.Done()
+	stop <- struct{}{}
 
-	stoppedwg.Wait()
+	// Wait for the server to fully stop
+	<-stopped
 
 	select {
 	case requeued := <-requeue:
@@ -238,7 +237,10 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction, 10)
 	requeue := make(chan transaction.Transaction, 10)
 
+	// Wait to ensure the server has fully started
 	stop := make(chan struct{}, 1)
+
+	// Wait to ensure the server has finished stopping
 	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
