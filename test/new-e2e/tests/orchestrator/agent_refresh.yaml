@@ -1,0 +1,29 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  orchestratorExplorer:
+    customResources:
+      - datadoghq.com/v1alpha1/datadogmetrics
+agents:
+  useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  env:
+    - name: DD_SECRET_BACKEND_COMMAND
+      value: /tmp/test-secret/secret-resolver.py
+    - name: DD_SECRET_BACKEND_ARGUMENTS
+      value: /tmp/test-secret
+    - name: DD_API_KEY
+      value: "ENC[api_key]"
+  confd:
+    orchestrator.yaml: |-
+      init_config:
+      instances:
+        - collectors:
+          - pods
+          - nodes
+          - deployments
+          - customresourcedefinitions
+          crd_collectors:
+          - datadoghq.com/v1alpha1/datadogmetrics

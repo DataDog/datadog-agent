@@ -12,12 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 )
 
@@ -102,4 +106,39 @@ func (suite *k8sSuite) TestCRManif() {
 		message: "find a DatadogMetric manifest CR instance",
 		timeout: defaultTimeout,
 	}.Assert(suite)
+}
+
+//go:embed agent_values.yaml
+var agentAPIKeyRefreshValues string
+
+func (suite *k8sSuite) TestAPIKeyRefreshClusterAgent() {
+	t := suite.T()
+
+	// ToDo: how to generate secretsutils.NewClient in K8s test suite
+	secretClient := secretsutils.NewClient(t, suite.Env().RemoteHost, "/tmp/test-secret")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	suite.UpdateEnv(
+		awskubernetes.KindProvisioner(
+			awskubernetes.WithAgentOptions(
+				// ToDo: How to insert secret-resolver.py into the container where the cluster agent is running
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				kubernetesagentparams.WithHelmValues(agentAPIKeyRefreshValues),
+			),
+		),
+	)
+
+	acutalKey, err := suite.Env().FakeIntake.Client().GetLastOrchestratorResourcesPayloadAPIKey()
+	require.NoError(t, err)
+	require.Equal(t, "abcdefghijklmnopqrstuvwxyz123456", acutalKey)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	// ToDo: How to trigger the cluster agent to refresh the API key
+	secretRefreshOutput := suite.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	acutalKey, err = suite.Env().FakeIntake.Client().GetLastOrchestratorResourcesPayloadAPIKey()
+	require.NoError(t, err)
+	require.Equal(t, "123456abcdefghijklmnopqrstuvwxyz", acutalKey)
 }
