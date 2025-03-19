@@ -15,12 +15,18 @@ func getCommonStateScopes() map[Scope]VariableProviderFactory {
 	return map[Scope]VariableProviderFactory{
 		"process": func() VariableProvider {
 			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
-				return ctx.Event.(*model.Event).ProcessCacheEntry
+				if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
+					return pce
+				}
+				return nil
 			})
 		},
 		"container": func() VariableProvider {
 			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
-				return ctx.Event.(*model.Event).ContainerContext
+				if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
+					return cc
+				}
+				return nil
 			})
 		},
 	}

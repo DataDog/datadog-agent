@@ -381,7 +381,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 		return nil
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err

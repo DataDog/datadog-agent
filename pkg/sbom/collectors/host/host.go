@@ -34,12 +34,16 @@ func (c *Collector) CleanCache() error {
 
 // Init initialize the host collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
+	return c.initWithOpts(cfg, wmeta, sbom.ScanOptionsFromConfigForHosts(cfg))
+}
+
+func (c *Collector) initWithOpts(cfg config.Component, wmeta option.Option[workloadmeta.Component], opts sbom.ScanOptions) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfigForHosts(cfg)
+	c.opts = opts
 	return nil
 }
 
@@ -48,9 +52,27 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	path := request.ID() // for host request, ID == path
 	log.Infof("host scan request [%v]", path)
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, path, c.opts)
+	report, err := c.DirectScan(ctx, path)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,
 	}
+}
+
+// DirectScan performs a scan on a specific path
+func (c *Collector) DirectScan(ctx context.Context, path string) (sbom.Report, error) {
+	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
+}
+
+// NewCollectorForCWS creates a new host collector, specifically for CWS
+func NewCollectorForCWS(cfg config.Component, opts sbom.ScanOptions) (*Collector, error) {
+	c := &Collector{
+		resChan: make(chan sbom.ScanResult, channelSize),
+	}
+
+	if err := c.initWithOpts(cfg, option.None[workloadmeta.Component](), opts); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }

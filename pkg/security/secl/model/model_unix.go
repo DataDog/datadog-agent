@@ -124,6 +124,7 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -771,17 +772,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`          // Connection address
+	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`      // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`          // Connection address
+	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
@@ -951,4 +954,16 @@ func (it *FlowsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *
 // Len returns the len
 func (it *FlowsIterator) Len(ctx *eval.Context) int {
 	return len(ctx.Event.(*Event).NetworkFlowMonitor.Flows)
+}
+
+// SysCtlEvent is used to represent a system control parameter event
+type SysCtlEvent struct {
+	Action            uint32 `field:"action"`              // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`
+	FilePosition      uint32 `field:"file_position"`       // SECLDoc[file_position] Definition:`Position in the sysctl control parameter file at which the action occurred`
+	Name              string `field:"name"`                // SECLDoc[name] Definition:`Name of the system control parameter`
+	NameTruncated     bool   `field:"name_truncated"`      // SECLDoc[name_truncated] Definition:`Indicates that the name field is truncated`
+	OldValue          string `field:"old_value"`           // SECLDoc[old_value] Definition:`Old value of the system control parameter`
+	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
+	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
+	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }
