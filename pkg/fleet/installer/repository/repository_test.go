@@ -330,18 +330,14 @@ func TestRepairDirectoryEmptyTarget(t *testing.T) {
 
 func TestRepairDirectoryMissingFiles(t *testing.T) {
 	sourceFiles := map[string]string{
-		"file1.txt":         "content1",
-		"file2.txt":         "content2",
-		"subdir/file3.txt":  "content3",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
+		"file1.txt":        "content1",
+		"file2.txt":        "content2",
+		"subdir/file3.txt": "content3",
+		"subdir/file4.txt": "content4",
 	}
 	targetFiles := map[string]string{
-		"file2.txt":         "content2",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
+		"file2.txt":        "content2",
+		"subdir/file4.txt": "content4",
 	}
 
 	sourceDir := createTestDirectory(t, sourceFiles)
@@ -355,20 +351,16 @@ func TestRepairDirectoryMissingFiles(t *testing.T) {
 
 func TestRepairDirectoryDifferentContent(t *testing.T) {
 	sourceFiles := map[string]string{
-		"file1.txt":         "content1",
-		"file2.txt":         "content2",
-		"subdir/file3.txt":  "content3",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
+		"file1.txt":        "content1",
+		"file2.txt":        "content2",
+		"subdir/file3.txt": "content3",
+		"subdir/file4.txt": "content4",
 	}
 	targetFiles := map[string]string{
-		"file1.txt":         "wrong_content",
-		"file2.txt":         "content2",
-		"subdir/file3.txt":  "wrong_content",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
+		"file1.txt":        "wrong_content",
+		"file2.txt":        "content2",
+		"subdir/file3.txt": "wrong_content",
+		"subdir/file4.txt": "content4",
 	}
 
 	sourceDir := createTestDirectory(t, sourceFiles)
@@ -380,21 +372,30 @@ func TestRepairDirectoryDifferentContent(t *testing.T) {
 
 func TestRepairDirectoryExtraFiles(t *testing.T) {
 	sourceFiles := map[string]string{
-		"file1.txt":         "content1",
-		"file2.txt":         "content2",
-		"subdir/file3.txt":  "content3",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
+		"file1.txt":        "content1",
+		"file2.txt":        "content2",
+		"subdir/file3.txt": "content3",
 	}
 	targetFiles := map[string]string{
-		"file1.txt":         "content1",
-		"file2.txt":         "content2",
-		"subdir/file3.txt":  "content3",
-		"subdir/file4.txt":  "content4",
-		"subdir2/file5.txt": "content5",
-		"subdir2/file6.txt": "content6",
-		"extra.txt":         "extra content",
+		"file1.txt":        "content1",
+		"file2.txt":        "content2",
+		"subdir/file3.txt": "content3",
+		"extra.txt":        "extra content",
+	}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.Error(t, err)
+}
+
+func TestRepairDirectoryDifferentCasing(t *testing.T) {
+	sourceFiles := map[string]string{
+		"file1.txt": "content1",
+	}
+	targetFiles := map[string]string{
+		"FILE1.txt": "content1",
 	}
 
 	sourceDir := createTestDirectory(t, sourceFiles)
