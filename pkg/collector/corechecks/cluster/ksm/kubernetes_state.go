@@ -919,7 +919,7 @@ func (k *KSMCheck) getClusterID() {
 
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
-// Sets the orch_cluster_is tag for all metrics.
+// Sets the orch_cluster_id tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.clusterNameTagValue != "" {
