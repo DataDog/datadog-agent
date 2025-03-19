@@ -1011,6 +1011,11 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
 	require.Contains(t, startEvent.ContainerServiceNameSource, "app")
+	require.ElementsMatch(t, startEvent.ContainerTags, []string{
+		"sometag:somevalue",
+		"kube_service:kube_foo",
+		"app:foo_from_app_tag",
+	})
 	require.Contains(t, startEvent.Type, "web_service")
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }

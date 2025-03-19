@@ -26,7 +26,7 @@ import (
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := paths.CreateInstallerDataDir()
+	err := paths.EnsureInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
 	}
@@ -56,8 +56,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
 	}
-	if downloadedPackage.Name != InstallerPackage {
-		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, InstallerPackage)
+	if downloadedPackage.Name != AgentPackage {
+		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, AgentPackage)
 	}
 
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
@@ -75,7 +75,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer-*-1-x86_64.msi"))
+	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
 	if err != nil {
 		return nil, err
 	}
@@ -100,5 +100,5 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, path.Join(adminInstallDir, "ProgramFiles64Folder", "Datadog", "Datadog Installer", "datadog-installer.exe")), nil
+	return iexec.NewInstallerExec(env, paths.GetAdminInstallerBinaryPath(adminInstallDir)), nil
 }

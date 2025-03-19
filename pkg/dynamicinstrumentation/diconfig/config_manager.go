@@ -12,6 +12,7 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/google/uuid"
@@ -225,6 +226,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			StringMaxSize:     ditypes.StringMaxSize,
 			MaxReferenceDepth: conf.Capture.MaxReferenceDepth,
 			MaxFieldCount:     conf.Capture.MaxFieldCount,
+			NumCPUs:           runtime.NumCPU(),
 		}
 
 		probe, probeExists := procInfo.ProbesByID[configPath.ProbeUUID.String()]
@@ -300,6 +302,7 @@ func newConfigProbe() *ditypes.Probe {
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
 				MaxReferenceDepth: 8,
 				CaptureParameters: true,
+				NumCPUs:           runtime.NumCPU(),
 			},
 		},
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),

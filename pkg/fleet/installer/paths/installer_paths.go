@@ -27,6 +27,12 @@ const (
 	RunPath = "/opt/datadog-packages/run"
 )
 
+// EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func EnsureInstallerDataDir() error {
+	return nil
+}
+
 // SetRepositoryPermissions sets the permissions on the repository directory
 func SetRepositoryPermissions(path string) error {
 	return os.Chmod(path, 0755)

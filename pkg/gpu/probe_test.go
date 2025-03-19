@@ -46,6 +46,9 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Avoid waiting for the initial sync to finish in tests, we don't need it
 	cfg.InitialProcessSync = false
 
+	// Enable fatbin parsing in tests so we can validate it runs
+	cfg.EnableFatbinParsing = true
+
 	deps := ProbeDependencies{
 		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
