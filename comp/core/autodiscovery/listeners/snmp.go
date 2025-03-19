@@ -180,7 +180,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 		if deviceFound {
-			// Update the authentication config with the one that worked to create a correct CheckConfig
+			// Update the Config to create a correct CheckConfig
 			job.subnet.config.Version = authentication.Version
 			job.subnet.config.Timeout = authentication.Timeout
 			job.subnet.config.Retries = authentication.Retries
