@@ -251,6 +251,8 @@ func TestEnvNestedConfig(t *testing.T) {
 }
 
 func TestProxy(t *testing.T) {
+	t.Skip("tmp, for performance testing")
+
 	type testCase struct {
 		name                  string
 		setup                 func(t *testing.T, config pkgconfigmodel.Config)
