@@ -197,16 +197,17 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Community != "" || config.User != "" {
 			config.Authentications = append([]Authentication{
 				{
-					Version:      config.Version,
-					Timeout:      config.Timeout,
-					Retries:      config.Retries,
-					Community:    config.Community,
-					User:         config.User,
-					AuthKey:      config.AuthKey,
-					AuthProtocol: config.AuthProtocol,
-					PrivKey:      config.PrivKey,
-					PrivProtocol: config.PrivProtocol,
-					ContextName:  config.ContextName,
+					Version:         config.Version,
+					Timeout:         config.Timeout,
+					Retries:         config.Retries,
+					Community:       config.Community,
+					User:            config.User,
+					AuthKey:         config.AuthKey,
+					AuthProtocol:    config.AuthProtocol,
+					PrivKey:         config.PrivKey,
+					PrivProtocol:    config.PrivProtocol,
+					ContextEngineID: config.ContextEngineID,
+					ContextName:     config.ContextName,
 				},
 			}, config.Authentications...)
 		}
