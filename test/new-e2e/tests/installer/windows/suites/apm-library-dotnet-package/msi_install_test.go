@@ -237,6 +237,35 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 	s.Require().Contains(newLibraryPath, newVersion.Version())
 }
 
+// TestUninstallKeepsLibrary tests that the dotnet library is not removed when the Agent MSI is uninstalled
+func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallKeepsLibrary() {
+	s.setAgentConfig()
+	version := s.currentDotnetLibraryVersion
+
+	// Install the dotnet library with the Agent MSI
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("SITE=datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+
+	// Uninstall the Agent
+	err := s.Installer().Uninstall(
+		installerwindows.WithMSILogFile("uninstall.log"),
+	)
+	s.Require().NoError(err)
+
+	// Start the IIS app to load the library
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+
+	// Check that the expected version of the library is loaded
+	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(oldLibraryPath, version.Version())
+}
+
 func (s *testAgentMSIInstallsDotnetLibrary) setAgentConfig() {
 	s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
 	s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
