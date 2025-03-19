@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// nonglobalStreamKey is a unique identifier for a CUDA stream that is not global.
+// streamKey is a unique identifier for a CUDA stream that is not global.
 // The streams are created with a specific GPU UUID, which means that pid+stream uniquely
 // identify the GPU.
-type nonglobalStreamKey struct {
+type streamKey struct {
 	pid    uint32
 	stream uint64
 }
@@ -38,10 +38,10 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	nonglobalStreams map[nonglobalStreamKey]*StreamHandler
-	globalStreams    map[globalStreamKey]*StreamHandler
-	sysCtx           *systemContext
-	telemetry        *streamCollectionTelemetry
+	streams       map[streamKey]*StreamHandler
+	globalStreams map[globalStreamKey]*StreamHandler
+	sysCtx        *systemContext
+	telemetry     *streamCollectionTelemetry
 }
 
 type streamCollectionTelemetry struct {
@@ -54,10 +54,10 @@ type streamCollectionTelemetry struct {
 
 func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component) *streamCollection {
 	return &streamCollection{
-		nonglobalStreams: make(map[nonglobalStreamKey]*StreamHandler),
-		globalStreams:    make(map[globalStreamKey]*StreamHandler),
-		sysCtx:           sysCtx,
-		telemetry:        newStreamCollectionTelemetry(telemetry),
+		streams:       make(map[streamKey]*StreamHandler),
+		globalStreams: make(map[globalStreamKey]*StreamHandler),
+		sysCtx:        sysCtx,
+		telemetry:     newStreamCollectionTelemetry(telemetry),
 	}
 }
 
@@ -68,8 +68,8 @@ func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelem
 		missingContainers:  tm.NewCounter(subsystem, "missing_containers", []string{"reason"}, "Number of missing containers"),
 		missingDevices:     tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
-		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
-		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", nil, "Number of removed stream handlers"),
+		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", []string{"device"}, "Number of active stream handlers"),
+		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
 	}
 }
 
@@ -102,7 +102,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 
 	stream, ok := sc.globalStreams[key]
 	if !ok {
-		stream = sc.createStream(header, &gpuUUID, memoizedContainerID)
+		stream = sc.createStreamHandler(header, &gpuUUID, memoizedContainerID)
 		sc.globalStreams[key] = stream
 		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
@@ -113,24 +113,24 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 func (sc *streamCollection) getNonglobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, _ := getPidTidFromHeader(header)
 
-	key := nonglobalStreamKey{
+	key := streamKey{
 		pid:    pid,
 		stream: header.Stream_id,
 	}
 
-	stream, ok := sc.nonglobalStreams[key]
+	stream, ok := sc.streams[key]
 	if !ok {
-		stream = sc.createStream(header, nil, sc.memoizedContainerID(header))
-		sc.nonglobalStreams[key] = stream
+		stream = sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
+		sc.streams[key] = stream
 		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
 	return stream, nil
 }
 
-// createStream creates a new StreamHandler for a given CUDA stream.
+// createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the GPU UUID is not provided (it's nil), it will be retrieved from the system context.
-func (sc *streamCollection) createStream(header *gpuebpf.CudaEventHeader, gpuUUID *string, containerIDFunc func() string) *StreamHandler {
+func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, gpuUUID *string, containerIDFunc func() string) *StreamHandler {
 	pid, tid := getPidTidFromHeader(header)
 	metadata := streamMetadata{
 		pid:         pid,
@@ -193,7 +193,7 @@ func (sc *streamCollection) getActiveDevice(pid int, tid int, containerIDFunc fu
 
 func (sc *streamCollection) allStreams() iter.Seq[*StreamHandler] {
 	return func(yield func(*StreamHandler) bool) {
-		for _, stream := range sc.nonglobalStreams {
+		for _, stream := range sc.streams {
 			if !yield(stream) {
 				return
 			}
@@ -208,7 +208,7 @@ func (sc *streamCollection) allStreams() iter.Seq[*StreamHandler] {
 }
 
 func (sc *streamCollection) streamCount() int {
-	return len(sc.nonglobalStreams) + len(sc.globalStreams)
+	return len(sc.streams) + len(sc.globalStreams)
 }
 
 func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
@@ -221,10 +221,10 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 	}
 }
 
-func (sc *streamCollection) cleanupFinishedHandlers() {
-	for key, handler := range sc.nonglobalStreams {
+func (sc *streamCollection) clean() {
+	for key, handler := range sc.streams {
 		if handler.processEnded {
-			delete(sc.nonglobalStreams, key)
+			delete(sc.streams, key)
 			sc.telemetry.removedHandlers.Inc()
 		}
 	}

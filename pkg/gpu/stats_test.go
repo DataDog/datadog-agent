@@ -47,8 +47,8 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection,
 	return statsGen, streamHandlers, ktime
 }
 
-func addNonglobalStream(streamHandlers *streamCollection, pid uint32, streamID uint64, gpuUUID string, containerID string) *StreamHandler {
-	key := nonglobalStreamKey{pid: pid, stream: streamID}
+func addStream(streamHandlers *streamCollection, pid uint32, streamID uint64, gpuUUID string, containerID string) *StreamHandler {
+	key := streamKey{pid: pid, stream: streamID}
 	metadata := streamMetadata{
 		pid:         pid,
 		streamID:    streamID,
@@ -57,7 +57,7 @@ func addNonglobalStream(streamHandlers *streamCollection, pid uint32, streamID u
 	}
 
 	stream := newStreamHandler(metadata, streamHandlers.sysCtx)
-	streamHandlers.nonglobalStreams[key] = stream
+	streamHandlers.streams[key] = stream
 
 	return stream
 }
@@ -86,7 +86,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	shmemSize := uint64(10)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
@@ -137,7 +137,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	numThreads := uint64(5)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelSpans = []*kernelSpan{
 		{
@@ -188,7 +188,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
-	stream := addNonglobalStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.processEnded = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
@@ -263,7 +263,7 @@ func TestGetStatsMultiGPU(t *testing.T) {
 	// Add kernels for all devices
 	for i, uuid := range testutil.GPUUUIDs {
 		streamID := uint64(i)
-		stream := addNonglobalStream(streamHandlers, pid, streamID, uuid, "")
+		stream := addStream(streamHandlers, pid, streamID, uuid, "")
 		stream.processEnded = false
 		stream.kernelSpans = []*kernelSpan{
 			{

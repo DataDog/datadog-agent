@@ -236,7 +236,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 func (p *Probe) cleanupFinished() {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.cleanupFinishedHandlers()
+	p.streamHandlers.clean()
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
