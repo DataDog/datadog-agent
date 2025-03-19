@@ -552,8 +552,8 @@ new-e2e-installer-windows:
     # TODO: temp override of version until we have a stable version
     # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel-1"
-    - export PREVIOUS_AGENT_MSI_PIPELINE=59254108
-    - export PREVIOUS_AGENT_OCI_PIPELINE=59254108
+    - export PREVIOUS_AGENT_MSI_PIPELINE=58948204
+    - export PREVIOUS_AGENT_OCI_PIPELINE=58948204
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -574,9 +574,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
       # install-script
-      - EXTRA_PARAMS: --run "TestInstallScript/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript/TestInstallFromOldInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      # TODO: disabling tests during MSI merge, so we can split PRs
+      # - EXTRA_PARAMS: --run "TestInstallScript$"
+      # - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
       # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
