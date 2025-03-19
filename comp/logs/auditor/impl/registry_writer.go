@@ -47,11 +47,12 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 // nonAtomicRegistryWriter implements direct registry writing without atomic operations
 type nonAtomicRegistryWriter struct{}
 
+// NewNonAtomicRegistryWriter returns a new non-atomic registry writer
 func NewNonAtomicRegistryWriter() auditor.RegistryWriter {
 	return &nonAtomicRegistryWriter{}
 }
 
-func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, registryTmpFile string, data []byte) error {
+func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, _ string, _ string, data []byte) error {
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
 		return err
