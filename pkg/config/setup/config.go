@@ -1698,7 +1698,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.registry_filename", DefaultRegistryFilename)
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", 23)
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
-	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", true)
+	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
 }
 
 func vector(config pkgconfigmodel.Setup) {
