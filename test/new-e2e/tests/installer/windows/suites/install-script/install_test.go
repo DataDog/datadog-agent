@@ -111,6 +111,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     "7.63.2-1",
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "install.datadoghq.com",
 			// make sure to install the agent
 			"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "true",
 		}),

@@ -94,7 +94,7 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	s.MustStartExperimentCurrentVersion()
+	s.MustStartExperimentPreviousVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().Version())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().Version())
