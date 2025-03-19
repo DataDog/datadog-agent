@@ -119,6 +119,7 @@ new-agent_dmg-x64-a7:
 
     - brew list | grep gettext
     - brew uses gettext --installed
+    - ls /usr/local/opt/gettext || true
 
     # - |
     #   if [ -n "$CUSTOM_HOMEBREW" ]; then

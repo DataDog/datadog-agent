@@ -347,6 +347,9 @@ fi
 
 echo
 echo "--- CC ---"
+echo "=> ls /usr/local/opt/gettext"
+ls /usr/local/opt/gettext || true
+echo "=> END ls /usr/local/opt/gettext"
 # TODO: Remove, do it inside a build dir
 rm -rf /tmp/celian
 mkdir -p /tmp/celian/bin /tmp/celian/config
