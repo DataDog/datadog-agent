@@ -51,7 +51,7 @@ func NewNonAtomicRegistryWriter() auditor.RegistryWriter {
 	return &nonAtomicRegistryWriter{}
 }
 
-func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error {
+func (w *nonAtomicRegistryWriter) WriteRegistry(registryPath string, registryTmpFile string, data []byte) error {
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
 		return err
