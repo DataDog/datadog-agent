@@ -16,6 +16,7 @@ namespace Datadog.CustomActions
         private readonly string _installerExecutable;
         private readonly string _site;
         private readonly string _apiKey;
+        private readonly string _overrideRegistryUrl;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -24,6 +25,7 @@ namespace Datadog.CustomActions
             var installDir = session.Property("PROJECTLOCATION");
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
+            _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
@@ -66,8 +68,18 @@ namespace Datadog.CustomActions
         private Dictionary<string, string> InstallerEnvironmentVariables()
         {
             var env = new Dictionary<string, string>();
-            env["DD_API_KEY"] = _apiKey;
-            env["DD_SITE"] = _site;
+            if (!string.IsNullOrEmpty(_apiKey))
+            {
+                env["DD_API_KEY"] = _apiKey;
+            }
+            if (!string.IsNullOrEmpty(_site))
+            {
+                env["DD_SITE"] = _site;
+            }
+            if (!string.IsNullOrEmpty(_overrideRegistryUrl))
+            {
+                env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
+            }
             return env;
         }
 
