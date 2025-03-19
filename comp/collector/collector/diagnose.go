@@ -41,7 +41,7 @@ func GetInstanceDiagnoses(instance check.Check) []diagnose.Diagnosis {
 				Status:    diagnose.DiagnosisUnexpectedError,
 				Name:      string(instance.ID()),
 				Category:  instance.String(),
-				Diagnosis: "Check Dianose failes with unexpected errors",
+				Diagnosis: "Check Diagnose fails with unexpected errors",
 				RawError:  err.Error(),
 			},
 		}
