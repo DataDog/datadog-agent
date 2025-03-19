@@ -234,10 +234,10 @@ func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
-		installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
+	options = append(options, installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"))
 	s.Require().NoError(s.Installer().Install(options...))
 
 	// sanity check: make sure we did indeed install the stable version
@@ -253,10 +253,10 @@ func (s *testAgentMSIInstallsDotnetLibrary) installCurrentAgentVersion(opts ...i
 	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
 
 	options := []installerwindows.MsiOption{
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
+	options = append(options, installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"))
 	s.Require().NoError(s.Installer().Install(
 		options...,
 	))
