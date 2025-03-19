@@ -530,6 +530,9 @@ func buildFileMap(rootPath string) (map[string]struct{}, error) {
 // repairDirectory compares files between source and target directories,
 // copying any missing files or files with mismatched content from source to target.
 // It preserves the directory structure and file permissions.
+// For simplicity, on Windows it is case sensitive although the file system is
+// case insensitive but it's not an issue since the filesystem preserves casing
+// and the OCI casing will not change.
 func repairDirectory(sourcePath, targetPath string) error {
 	// Build maps of source and target files
 	sourceFiles, err := buildFileMap(sourcePath)
