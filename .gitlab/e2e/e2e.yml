@@ -97,7 +97,7 @@
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - datadog-agent-7-x64
+    - agent_deb-x64-a7
   variables:
     LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
 
@@ -105,7 +105,7 @@
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - datadog-agent-7-x64
+    - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
