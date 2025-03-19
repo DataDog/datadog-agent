@@ -6,11 +6,11 @@
 package clusteragent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Cluster Agent availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Cluster Agent availability", diagnose)
 }
 
 func diagnose() error {
