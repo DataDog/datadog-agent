@@ -15,6 +15,7 @@ import (
 // atomicRegistryWriter implements atomic registry writing using a temporary file and rename
 type atomicRegistryWriter struct{}
 
+// NewAtomicRegistryWriter returns a new atomic registry writer
 func NewAtomicRegistryWriter() auditor.RegistryWriter {
 	return &atomicRegistryWriter{}
 }
