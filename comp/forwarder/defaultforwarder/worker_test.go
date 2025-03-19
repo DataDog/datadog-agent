@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	tmock "github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -182,7 +184,13 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
 
-	stop := make(chan struct{}, 1)
+	// Wait to ensure the server has fully started
+	var stopwg sync.WaitGroup
+	stopwg.Add(1)
+
+	// Wait to ensure the server has finished stopping
+	var stoppedwg sync.WaitGroup
+	stoppedwg.Add(1)
 
 	mockConfig := mock.New(t)
 
@@ -191,19 +199,31 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 
 	go func() {
 		w.Start()
-		<-stop
+		stopwg.Wait()
 		w.Stop(false)
+		stoppedwg.Done()
 	}()
+
+	var processedwg sync.WaitGroup
+	processedwg.Add(1)
 
 	mockTransaction := newTestTransaction()
 	mockTransaction.shouldBlock = true
-	mockTransaction.On("Process", w.Client.GetClient()).Return(fmt.Errorf("Cancelled")).Times(1)
+	mockTransaction.
+		On("Process", w.Client.GetClient()).
+		Run(func(args tmock.Arguments) {
+			processedwg.Done()
+		}).
+		Return(fmt.Errorf("Cancelled")).Times(1)
+
 	mockTransaction.On("GetTarget").Return("").Times(1)
 
 	highPrio <- mockTransaction
-	time.Sleep(time.Millisecond)
-	stop <- struct{}{}
-	time.Sleep(time.Millisecond)
+
+	processedwg.Wait()
+	stopwg.Done()
+
+	stoppedwg.Wait()
 
 	select {
 	case requeued := <-requeue:
@@ -238,6 +258,9 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 		stopped <- struct{}{}
 	}()
 
+	var processedwg sync.WaitGroup
+	processedwg.Add(requests)
+
 	// Create enough transactions that some will be waiting on the semaphore when we cancel.
 	transactions := []*testTransaction{}
 	for i := 0; i < 5; i++ {
@@ -248,7 +271,12 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 		// exit with an error.
 		if i <= 3 {
 			mockTransaction.shouldBlock = true
-			mockTransaction.On("Process", w.Client.GetClient()).Return(fmt.Errorf("Cancelled")).Times(1)
+			mockTransaction.
+				On("Process", w.Client.GetClient()).
+				Run(func(args tmock.Arguments) {
+					processedwg.Done()
+				}).
+				Return(fmt.Errorf("Cancelled")).Times(1)
 		} else {
 			// The other transactions succeed.
 			mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)
@@ -262,10 +290,11 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 		highPrio <- mockTransaction
 	}
 
-	time.Sleep(time.Millisecond * 10)
+	// Wait for three (the number of concurrent requests allowed) process calls to be made.
+	processedwg.Wait()
 	stop <- struct{}{}
-	time.Sleep(time.Millisecond * 10)
 
+	// Wait for the server to fully stop
 	<-stopped
 
 	// The first three transactions get through the semaphore and are processed.
