@@ -215,6 +215,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 // SetWithoutSource assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
+	if value == nil {
+		c.UnsetForSource(key, model.SourceUnknown)
+		return
+	}
 	c.Set(key, value, model.SourceUnknown)
 }
 
@@ -282,16 +286,20 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Find what the previous value used to be, based upon the previous source
-	prevNode, err := c.findPreviousSourceNode(key, source)
-	if err != nil {
-		return
-	}
+	prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
 
 	// Get the parent node of the leaf we're unsetting
 	parentNode, childName, err = c.parentOfNode(c.root, key)
 	if err != nil {
 		return
 	}
+
+	// If there was no previous source with a node of this name, simply remove it from the parent
+	if findPreviousSourceError != nil {
+		parentNode.RemoveChild(childName)
+		return
+	}
+
 	// Replace the child with the node from the previous layer
 	parentNode.InsertChildNode(childName, prevNode.Clone())
 }
