@@ -94,17 +94,16 @@ type Config struct {
 
 // Authentication holds SNMP authentication data
 type Authentication struct {
-	Version         string `mapstructure:"snmp_version"`
-	Timeout         int    `mapstructure:"timeout"`
-	Retries         int    `mapstructure:"retries"`
-	Community       string `mapstructure:"community_string"`
-	User            string `mapstructure:"user"`
-	AuthKey         string `mapstructure:"authKey"`
-	AuthProtocol    string `mapstructure:"authProtocol"`
-	PrivKey         string `mapstructure:"privKey"`
-	PrivProtocol    string `mapstructure:"privProtocol"`
-	ContextEngineID string `mapstructure:"context_engine_id"`
-	ContextName     string `mapstructure:"context_name"`
+	Version      string `mapstructure:"snmp_version"`
+	Timeout      int    `mapstructure:"timeout"`
+	Retries      int    `mapstructure:"retries"`
+	Community    string `mapstructure:"community_string"`
+	User         string `mapstructure:"user"`
+	AuthKey      string `mapstructure:"authKey"`
+	AuthProtocol string `mapstructure:"authProtocol"`
+	PrivKey      string `mapstructure:"privKey"`
+	PrivProtocol string `mapstructure:"privProtocol"`
+	ContextName  string `mapstructure:"context_name"`
 }
 
 type intOrBoolPtr interface {
@@ -197,17 +196,16 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Community != "" || config.User != "" {
 			config.Authentications = append([]Authentication{
 				{
-					Version:         config.Version,
-					Timeout:         config.Timeout,
-					Retries:         config.Retries,
-					Community:       config.Community,
-					User:            config.User,
-					AuthKey:         config.AuthKey,
-					AuthProtocol:    config.AuthProtocol,
-					PrivKey:         config.PrivKey,
-					PrivProtocol:    config.PrivProtocol,
-					ContextEngineID: config.ContextEngineID,
-					ContextName:     config.ContextName,
+					Version:      config.Version,
+					Timeout:      config.Timeout,
+					Retries:      config.Retries,
+					Community:    config.Community,
+					User:         config.User,
+					AuthKey:      config.AuthKey,
+					AuthProtocol: config.AuthProtocol,
+					PrivKey:      config.PrivKey,
+					PrivProtocol: config.PrivProtocol,
+					ContextName:  config.ContextName,
 				},
 			}, config.Authentications...)
 		}
@@ -304,7 +302,7 @@ func (c *Config) BuildSNMPParams(deviceIP string, authIndex int) (*gosnmp.GoSNMP
 		Retries:         auth.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: auth.ContextEngineID,
+		ContextEngineID: c.ContextEngineID,
 		ContextName:     auth.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
 			UserName:                 auth.User,

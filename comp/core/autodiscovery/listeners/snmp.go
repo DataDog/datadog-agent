@@ -170,7 +170,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 
 	deviceFound := false
-	for i := range job.subnet.config.Authentications {
+	for i, authentication := range job.subnet.config.Authentications {
 		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
 		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
 		if err != nil {
@@ -180,6 +180,17 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 		if deviceFound {
+			// Update the authentication config with the one that worked to create a correct CheckConfig
+			job.subnet.config.Version = authentication.Version
+			job.subnet.config.Timeout = authentication.Timeout
+			job.subnet.config.Retries = authentication.Retries
+			job.subnet.config.Community = authentication.Community
+			job.subnet.config.User = authentication.User
+			job.subnet.config.AuthKey = authentication.AuthKey
+			job.subnet.config.AuthProtocol = authentication.AuthProtocol
+			job.subnet.config.PrivKey = authentication.PrivKey
+			job.subnet.config.PrivProtocol = authentication.PrivProtocol
+			job.subnet.config.ContextName = authentication.ContextName
 			break
 		}
 	}
