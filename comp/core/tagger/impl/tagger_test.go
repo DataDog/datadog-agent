@@ -409,7 +409,7 @@ func TestDefaultCardinality(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
-			tagger, err := NewTaggerClient(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent())
+			tagger, err := newLocalTagger(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent(), nil)
 			assert.NoError(t, err)
 
 			assert.Equal(t, tt.wantChecksCardinality, tagger.ChecksCardinality())

@@ -31,7 +31,7 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 
 	// TODO: remove override once image is published in prod
 	_, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("3.12.0-pipeline.56978102.beta.sha-91fb55b4-1"),
+		installer.WithVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"),
 		installer.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().Error(err, "Installing the dotnet library package without IIS should fail")

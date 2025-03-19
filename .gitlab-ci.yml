@@ -1179,6 +1179,16 @@ workflow:
         - pkg/config/autodiscovery/autodiscovery.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
+.on_installer_systemd_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/embedded/*.service
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true
+
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
 # Use in jobs that need to run on Windows Server 2022 runners.
 .windows_docker_2022:

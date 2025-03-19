@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -73,6 +74,7 @@ type dependencies struct {
 	SettingsComponent settings.Component
 	Config            configcomp.Component
 	SysprobeConfig    option.Option[sysprobeconfig.Component]
+	At                authtoken.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -100,6 +102,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+		deps.At.GetTLSClientConfig,
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -112,6 +115,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 			ipcAddress,
 			pkgconfigsetup.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+			deps.At.GetTLSClientConfig,
 			optsWithDefault...,
 		)
 		if err != nil {
