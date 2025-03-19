@@ -47,7 +47,7 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
 	log.Infof("fargate scan request [%v]", request.ID())
 
-	scanPath, err := c.getPath(request)
+	scanPath, err := getPath(request)
 	if err != nil {
 		return sbom.ScanResult{
 			Error: err,

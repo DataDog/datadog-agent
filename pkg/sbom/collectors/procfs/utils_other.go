@@ -3,16 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy && !linux
+//go:build !linux
 
 package procfs
 
-import (
-	"errors"
+import "errors"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-)
-
-func getPath(_ sbom.ScanRequest) (string, error) {
-	return "", errors.New("not supported")
+// IsAgentContainer returns whether the container ID is the agent one
+func IsAgentContainer(_ string) (bool, error) {
+	return false, errors.New("not supported")
 }
