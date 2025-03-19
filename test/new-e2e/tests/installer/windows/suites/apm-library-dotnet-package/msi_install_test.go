@@ -295,7 +295,8 @@ func (s *testAgentMSIInstallsDotnetLibrary) startExperimentWithCustomPackage(opt
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("58948204")),
+		// TODO: switch to prod stable entry when available
+		installerwindows.WithOption(installerwindows.WithURLFromPipeline("59253404")),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
