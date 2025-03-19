@@ -594,7 +594,7 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 		kind = uint(reflect.UnsafePointer)
 	}
 	return &ditypes.Parameter{
-		Type:             fmt.Sprintf("%s", reflect.Kind(kind).String()),
+		Type:             reflect.Kind(kind).String(),
 		Kind:             kind,
 		NotCaptureReason: ditypes.Unsupported,
 		DoNotCapture:     true,
