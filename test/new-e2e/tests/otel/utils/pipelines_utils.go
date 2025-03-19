@@ -498,7 +498,6 @@ func SetupSampleTraces(s OTelTestSuite) {
 }
 
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
-	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
 
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
@@ -508,7 +507,6 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 			Namespace: "datadog",
 		},
 		Spec: batchv1.JobSpec{
-			TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
