@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type haAgentMetadataTestSuite struct {
@@ -41,9 +41,8 @@ log_level: debug
 func (s *haAgentMetadataTestSuite) TestHaAgentMetadata() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert ha_agent metadata")
-		output, err := s.Env().RemoteHost.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "ha-agent"}))
 
-		require.NoError(c, err)
 		assert.Contains(c, output, `"enabled": true`)
 		assert.Contains(c, output, `"state": "active"`)
 	}, 5*time.Minute, 30*time.Second)
