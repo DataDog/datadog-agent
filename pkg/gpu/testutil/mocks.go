@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && nvml
+//go:build nvml
 
 // Package testutil holds different utilities and stubs for testing
 package testutil
