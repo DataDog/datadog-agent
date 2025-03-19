@@ -104,17 +104,30 @@
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
+<<<<<<< HEAD
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
+=======
+    - datadog-agent-7-x64
+  variables:
+    LOCAL_PACKAGE_FLAG: "--local-package OMNIBUS_PACKAGE_DIR"
+>>>>>>> 35d314bdc46 (Try with local-packages for some test)
 
 .new_e2e_template_needs_deb_windows_x64:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
+<<<<<<< HEAD
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
     - agent_deb-x64-a7-fips
     - windows_msi_and_bosh_zip_x64-a7-fips
+=======
+    - datadog-agent-7-x64
+    - windows_msi_and_bosh_zip_x64
+  variables:
+    LOCAL_PACKAGE_FLAG: "--local-package OMNIBUS_PACKAGE_DIR"
+>>>>>>> 35d314bdc46 (Try with local-packages for some test)
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
