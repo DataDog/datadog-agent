@@ -24,16 +24,11 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/create-github-app-token@21cfef2b496dd8ef5b904c159339626a10ad380e # v1.11.6
-        id: app-token
-        with:
-          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
-          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
       - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
         with:
           label_pattern: "^backport/(?<base>([^ ]+))$"
           labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           body_template: |
             Backport <%- mergeCommitSha %> from #<%- number %>.
 
