@@ -62,6 +62,7 @@ const (
 	MetricSourceSnmp
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
+	MetricSourceGPU
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -549,6 +550,8 @@ func (ms MetricSource) String() string {
 		return "glusterfs"
 	case MetricSourceGoExpvar:
 		return "go_expvar"
+	case MetricSourceGPU:
+		return "gpu"
 	case MetricSourceGunicorn:
 		return "gunicorn"
 	case MetricSourceHaproxy:
@@ -1177,6 +1180,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
+	case "gpu":
+		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
 	case "haproxy":
