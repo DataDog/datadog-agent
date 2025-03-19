@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -25,10 +27,11 @@ import (
 )
 
 type cmd struct {
-	t    *telemetry.Telemetry
-	span *telemetry.Span
-	ctx  context.Context
-	env  *env.Env
+	t              *telemetry.Telemetry
+	span           *telemetry.Span
+	ctx            context.Context
+	env            *env.Env
+	stopSigHandler context.CancelFunc
 }
 
 // newCmd creates a new command
@@ -36,12 +39,14 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	setInstallerUmask(span)
 	return &cmd{
-		t:    t,
-		ctx:  ctx,
-		span: span,
-		env:  env,
+		t:              t,
+		ctx:            ctx,
+		span:           span,
+		env:            env,
+		stopSigHandler: stop,
 	}
 }
 
@@ -51,6 +56,7 @@ func (c *cmd) stop(err error) {
 	if c.t != nil {
 		c.t.Stop()
 	}
+	c.stopSigHandler()
 }
 
 type installerCmd struct {
@@ -118,7 +124,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		apiKey = config.APIKey
 	}
 	site := env.Site
-	if site == "" {
+	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
 		site = config.Site
 	}
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
@@ -143,6 +149,8 @@ func RootCommands() []*cobra.Command {
 		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
+		statusCommand(),
+		postinstCommand(),
 	}
 }
 
@@ -426,6 +434,26 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
+func getState() (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states")
+	if err != nil {
+		return nil, err
+	}
+	defer i.stop(err)
+	states, err := i.States(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	configStates, err := i.ConfigStates(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		States:       states,
+		ConfigStates: configStates,
+	}, nil
+}
+
 func getStateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
@@ -433,23 +461,9 @@ func getStateCommand() *cobra.Command {
 		Short:   "Get the package & config states",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i, err := newInstallerCmd("get_states")
+			pStates, err := getState()
 			if err != nil {
-				return err
-			}
-			defer func() { i.stop(err) }()
-			states, err := i.States(i.ctx)
-			if err != nil {
-				return err
-			}
-			configStates, err := i.ConfigStates(i.ctx)
-			if err != nil {
-				return err
-			}
-
-			pStates := repository.PackageStates{
-				States:       states,
-				ConfigStates: configStates,
+				return
 			}
 
 			pStatesRaw, err := json.Marshal(pStates)
@@ -459,6 +473,25 @@ func getStateCommand() *cobra.Command {
 
 			fmt.Fprintf(os.Stdout, "%s\n", pStatesRaw)
 			return nil
+		},
+	}
+	return cmd
+}
+
+func postinstCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		Use:     "postinst <package> <caller:deb|rpm|oci>",
+		Short:   "Run postinstall scripts for a package",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("postinst")
+			if err != nil {
+				return err
+			}
+			defer i.stop(err)
+			return i.Postinst(i.ctx, args[0], args[1])
 		},
 	}
 	return cmd

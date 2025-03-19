@@ -937,13 +937,6 @@ func getFieldHandler(allFields map[string]*common.StructField, field *common.Str
 	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s.%s)", field.Handler, ptr, field.Prefix, field.Ref)
 }
 
-func fieldADPrint(field *common.StructField, handler string) string {
-	if field.SkipADResolution {
-		return fmt.Sprintf("if !forADs { _ = %s }", handler)
-	}
-	return fmt.Sprintf("_ = %s", handler)
-}
-
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
 	idx := strings.LastIndex(field.Name, ".")
 	if idx == -1 {
@@ -978,6 +971,36 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	}
 
 	return checks
+}
+
+func getFieldHandlersChecks(allFields map[string]*common.StructField, field *common.StructField) string {
+	checks := getChecks(allFields, field)
+
+	var res []string
+
+	if field.SkipADResolution {
+		res = append(res, "!forADs")
+	}
+
+	if len(field.RestrictedTo) != 0 {
+		parts := make([]string, 0)
+		for _, restriction := range field.RestrictedTo {
+			parts = append(parts, fmt.Sprintf("eventType == \"%s\"", restriction))
+		}
+		check := strings.Join(parts, " || ")
+		if len(parts) > 1 {
+			check = fmt.Sprintf("(%s)", check)
+		}
+
+		res = append(res, check)
+	}
+
+	for _, check := range checks {
+		check := fmt.Sprintf("ev.%s()", check)
+		res = append(res, check)
+	}
+
+	return strings.Join(res, " && ")
 }
 
 func getSetHandler(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -1093,8 +1116,8 @@ var funcMap = map[string]interface{}{
 	"BuildFirstAccessor":       buildFirstAccessor,
 	"GeneratePrefixNilChecks":  generatePrefixNilChecks,
 	"GetFieldHandler":          getFieldHandler,
-	"FieldADPrint":             fieldADPrint,
 	"GetChecks":                getChecks,
+	"GetFieldHandlersChecks":   getFieldHandlersChecks,
 	"GetHandlers":              getHandlers,
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,

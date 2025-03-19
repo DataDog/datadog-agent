@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
 // Rule presents a rule in a ruleset
@@ -176,6 +177,10 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 			switch {
 			case actionDef.Set != nil:
 				varName := actionDef.Set.Name
+				if !validators.CheckRuleID(varName) {
+					errs = multierror.Append(errs, fmt.Errorf("invalid variable name '%s'", varName))
+					continue
+				}
 				if actionDef.Set.Scope != "" {
 					varName = string(actionDef.Set.Scope) + "." + varName
 				}

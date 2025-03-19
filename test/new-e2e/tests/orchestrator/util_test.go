@@ -7,8 +7,10 @@ package orchestrator
 
 import (
 	"fmt"
+	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -25,12 +27,12 @@ type expectAtLeastOneResource struct {
 
 // Assert waits for a resource to appear in the orchestrator payloads, then checks if any of the found payloads pass the
 // supplied test function. If no matching resource is found within the timeout, the test fails.
-func (e expectAtLeastOneResource) Assert(suite *k8sSuite) {
+func (e expectAtLeastOneResource) Assert(t *testing.T, client *fakeintake.Client) {
 	giveup := time.Now().Add(e.timeout)
 	fmt.Println("trying to " + e.message)
 	for {
-		payloads, err := suite.Fakeintake.GetOrchestratorResources(e.filter)
-		suite.NoError(err, "failed to get resource payloads from intake")
+		payloads, err := client.GetOrchestratorResources(e.filter)
+		require.NoError(t, err, "failed to get resource payloads from intake")
 		//fmt.Printf("found %d resources\n", len(payloads))
 		for _, p := range payloads {
 			if p != nil && e.test(p) {
@@ -43,7 +45,7 @@ func (e expectAtLeastOneResource) Assert(suite *k8sSuite) {
 		}
 		time.Sleep(5 * time.Second)
 	}
-	suite.Fail("failed to " + e.message)
+	t.Error("failed to " + e.message)
 }
 
 type manifest struct {
@@ -74,7 +76,7 @@ func (e expectAtLeastOneManifest) Assert(suite *k8sSuite) {
 	giveup := time.Now().Add(e.timeout)
 	fmt.Println("trying to " + e.message)
 	for {
-		payloads, err := suite.Fakeintake.GetOrchestratorManifests()
+		payloads, err := suite.Env().FakeIntake.Client().GetOrchestratorManifests()
 		suite.NoError(err, "failed to get manifest payloads from intake")
 		//fmt.Printf("found %d manifests\n", len(payloads))
 		for _, p := range payloads {

@@ -46,6 +46,8 @@ type installerCmd struct {
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
+	// Enforce the use of the installer when it is bundled with the agent.
+	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
@@ -296,4 +298,11 @@ func (iCmd *installerCmd) Run() error {
 
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
+}
+
+// Postinst runs post install scripts for a given package.
+func (i *InstallerExec) Postinst(ctx context.Context, pkg string, caller string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "postinst", pkg, caller)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
 }
