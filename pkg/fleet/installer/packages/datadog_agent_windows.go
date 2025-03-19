@@ -39,17 +39,21 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
+//
+// Function requirements:
+//   - be its own process, not run within the daemon
+//   - be run from a copy of the installer, not from the install path,
+//     to avoid locking the executable
 func SetupAgent(ctx context.Context, args []string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
-		// Don't log error here, or it will appear twice in the output
-		// since installerImpl.Install will also print the error.
 		span.Finish(err)
 	}()
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
 	// remove the installer if it is installed
+	// if nothing is installed this will return without an error
 	err = removeInstallerIfInstalled(ctx)
 	if err != nil {
 		// failed to remove the installer
@@ -57,6 +61,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	}
 
 	// remove the Agent if it is installed
+	// if nothing is installed this will return without an error
 	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		// failed to remove the Agent

@@ -51,7 +51,7 @@ func WithInstallerURL(installerURL string) Option {
 	}
 }
 
-// WithInstallerURL uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
+// WithInstallerScript uses a specific URL for the Datadog Installer script command instead of using the pipeline script.
 func WithInstallerScript(installerScript string) Option {
 	return func(params *Params) error {
 		params.installerScript = installerScript

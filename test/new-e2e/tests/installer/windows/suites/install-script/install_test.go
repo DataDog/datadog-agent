@@ -40,7 +40,7 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 	s.Run("Fresh install", func() {
 		s.installPrevious()
 		s.Run("Install different Agent version", func() {
-			s.UpgradeToLatestExperiment()
+			s.upgradeToLatestExperiment()
 			s.Run("Reinstall last stable", func() {
 				s.installPrevious()
 			})
@@ -101,7 +101,7 @@ func (s *testInstallScriptSuite) installCurrent() {
 	)
 }
 
-func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
+func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 	s.MustStartExperimentCurrentVersion()
 
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
@@ -115,14 +115,13 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Act
 	output, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
+			// all of these make sure we install old versions from install.datadoghq.com
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     agentVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
 			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "install.datadoghq.com",
 			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "install.datadoghq.com",
-			// make sure to install the agent
-			"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "true",
 		}),
 		installerwindows.WithInstallerURL(oldInstallerURL),
 		installerwindows.WithInstallerScript(oldInstallerScript),
