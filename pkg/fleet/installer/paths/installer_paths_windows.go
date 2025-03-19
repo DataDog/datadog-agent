@@ -124,7 +124,7 @@ func secureCreateDirectory(path string, sddl string) error {
 	// We choose option (b) because it allows us to modify the permissions in the future.
 	// We check the owner to ensure it is Administrators or SYSTEM before changing the permissions,
 	// as the owner cannot be set to Administrators by a non-privileged user.
-	err = isDirSecure(path)
+	err = IsDirSecure(path)
 	if err != nil {
 		// The directory owner is not Administrators or SYSTEM, so may have been created
 		// by an unknown party. Adjusting the permissions may not be safe, as it won't affect
@@ -152,10 +152,12 @@ func secureCreateDirectory(path string, sddl string) error {
 func IsInstallerDataDirSecure() error {
 	targetDir := DatadogInstallerData
 	log.Infof("Checking if installer data directory is secure: %s", targetDir)
-	return isDirSecure(targetDir)
+	return IsDirSecure(targetDir)
 }
 
-func isDirSecure(targetDir string) error {
+// IsDirSecure returns nil if the directory is owned by Administrators or SYSTEM,
+// otherwise an error is returned.
+func IsDirSecure(targetDir string) error {
 	allowedWellKnownSids := []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinBuiltinAdministratorsSid,
 		windows.WinLocalSystemSid,

@@ -360,9 +360,14 @@ func removeInstallerIfInstalled(ctx context.Context) (err error) {
 			return err
 		}
 		// remove the old installer directory
-		err = os.RemoveAll(oldInstallerDir)
-		if err != nil {
-			return fmt.Errorf("could not remove old installer directory: %w", err)
+		// check that owner of oldInstallerDir is admin/system
+		if nil == paths.IsDirSecure(oldInstallerDir) {
+			err = os.RemoveAll(oldInstallerDir)
+			if err != nil {
+				return fmt.Errorf("could not remove old installer directory: %w", err)
+			}
+		} else {
+			log.Warnf("Old installer directory is not secure, not removing: %s", oldInstallerDir)
 		}
 	}
 	return nil
