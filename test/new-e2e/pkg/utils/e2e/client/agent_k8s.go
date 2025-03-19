@@ -7,6 +7,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 
@@ -35,15 +36,15 @@ func AgentSelectorAnyPod(agentType kubernetes.KubernetesObjRefOutput) metav1.Lis
 
 // newAgentK8sExecutor creates a new agentK8sexecutor for the given selector and cluster client. Note that
 // the selector must return a single pod, otherwise this function will panic.
-func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesClient) *agentK8sexecutor {
+func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesClient) (*agentK8sexecutor, error) {
 	// Find this specific pod object in the cluster
 	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), selector)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if len(pods.Items) != 1 {
-		panic("Expected to find a single pod")
+		return nil, fmt.Errorf("Expected to find a single pod, got %d", len(pods.Items))
 	}
 
 	pod := pods.Items[0]
@@ -51,7 +52,7 @@ func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesC
 	return &agentK8sexecutor{
 		pod:           pod,
 		clusterClient: clusterClient,
-	}
+	}, nil
 }
 
 func (ae agentK8sexecutor) execute(arguments []string) (string, error) {
