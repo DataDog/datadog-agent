@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -54,7 +54,7 @@ func (v *linuxSecretSuite) TestAgentSecretCorrectPermissions() {
 host_aliases:
   - ENC[/tmp/alias_secret]`
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient := secrets.NewHostClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("alias_secret", "a_super_secret_string")
 	config += secretClient.GetAgentConfiguration()
 
@@ -84,7 +84,7 @@ host_aliases:
 func (v *linuxSecretSuite) TestAgentConfigRefresh() {
 	config := "api_key: ENC[/tmp/api_key]\n"
 
-	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient := secrets.NewHostClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 	config += secretClient.GetAgentConfiguration()
 

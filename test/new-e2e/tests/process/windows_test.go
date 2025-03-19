@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 )
 
 type windowsTestSuite struct {
@@ -61,7 +61,7 @@ func (s *windowsTestSuite) SetupSuite() {
 func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "C:/TestFolder")
+	secretClient := secrets.NewHostClient(t, s.Env().RemoteHost, `C:/TestFolder`)
 	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 	config := processAgentWinRefreshStr + secretClient.GetAgentConfiguration()
