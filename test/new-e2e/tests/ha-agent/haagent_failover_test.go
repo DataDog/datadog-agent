@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +24,6 @@ import (
 
 	componentsOs "github.com/DataDog/test-infra-definitions/components/os"
 
-	haagent "github.com/DataDog/datadog-agent/comp/metadata/haagent/impl"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -102,32 +102,35 @@ type testHAAgentFailoverSuite struct {
 func TestHAAgentFailoverSuite(t *testing.T) {
 	e2e.Run(t, &testHAAgentFailoverSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
 }
+type haAgentMetadata struct {
+	State string `json:"state"`
+}
 
-func (v *testHAAgentFailoverSuite) assertHAState(c *assert.CollectT, host *components.RemoteHost, expectedState string) {
-	output, err := host.Execute("sudo datadog-agent diagnose show-metadata ha-agent --json")
+type metadataPayload struct {
+	Metadata haAgentMetadata `json:"ha_agent_metadata"`
+}
+
+func (v *testHAAgentFailoverSuite) assertHAState(c *assert.CollectT, agent *components.RemoteHostAgent, expectedState string) {
+	output := agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "ha-agent"}))
+
+	var payload metadataPayload
+	err := json.Unmarshal([]byte(output), &payload)
 	require.NoError(c, err)
 
-	var payload haagent.Payload
-	err = json.Unmarshal([]byte(output), &payload)
-	require.NoError(c, err)
-
-	state, ok := payload.Metadata["state"]
-	require.True(c, ok, "Expected state to be present in metadata")
+	state := payload.Metadata.State
 	require.Equal(c, expectedState, state, "Expected agent to be %s", expectedState)
 }
 
-func (v *testHAAgentFailoverSuite) assertCheckIsRunning(c *assert.CollectT, host *components.RemoteHost, checkName string) {
-	output, err := host.Execute("sudo datadog-agent status collector")
-	require.NoError(c, err)
+func (v *testHAAgentFailoverSuite) assertCheckIsRunning(c *assert.CollectT, agent *components.RemoteHostAgent, checkName string) {
+	output := agent.Client.Status(agentclient.WithArgs([]string{"collector"}))
 
-	require.Contains(c, output, checkName, fmt.Sprintf("Expected %s to be running", checkName))
+	require.Contains(c, output.Content, checkName, fmt.Sprintf("Expected %s to be running", checkName))
 }
 
-func (v *testHAAgentFailoverSuite) assertCheckIsNotRunning(c *assert.CollectT, host *components.RemoteHost, checkName string) {
-	output, err := host.Execute("sudo datadog-agent status collector")
-	require.NoError(c, err)
+func (v *testHAAgentFailoverSuite) assertCheckIsNotRunning(c *assert.CollectT, agent *components.RemoteHostAgent, checkName string) {
+	output := agent.Client.Status(agentclient.WithArgs([]string{"collector"}))
 
-	require.NotContains(c, output, checkName, fmt.Sprintf("Expected %s to be not running", checkName))
+	require.NotContains(c, output.Content, checkName, fmt.Sprintf("Expected %s to be not running", checkName))
 }
 
 func (v *testHAAgentFailoverSuite) TestHAFailover() {
@@ -136,15 +139,15 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 	// Wait for the agent1 to be active
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent1 state is active")
-		v.assertHAState(c, v.Env().Host1, "active")
+		v.assertHAState(c, v.Env().Agent1, "active")
 	}, 5*time.Minute, 30*time.Second)
 
 	// Check that agent1 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent1 is running HA and non-HA checks")
-		v.assertCheckIsRunning(c, v.Env().Host1, "snmp")
-		v.assertCheckIsRunning(c, v.Env().Host1, "cisco_aci")
-		v.assertCheckIsRunning(c, v.Env().Host1, "cpu")
+		v.assertCheckIsRunning(c, v.Env().Agent1, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Agent1, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Agent1, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host2.Execute("sudo systemctl start datadog-agent")
@@ -152,15 +155,15 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 	// Wait for the agent2 to be standby
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 state is standby")
-		v.assertHAState(c, v.Env().Host2, "standby")
+		v.assertHAState(c, v.Env().Agent2, "standby")
 	}, 5*time.Minute, 30*time.Second)
 
 	// Check that agent2 is not running the HA checks but is running the non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 is not running the HA checks but is running the non-HA checks")
-		v.assertCheckIsNotRunning(c, v.Env().Host2, "snmp")
-		v.assertCheckIsNotRunning(c, v.Env().Host2, "cisco_aci")
-		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
+		v.assertCheckIsNotRunning(c, v.Env().Agent2, "snmp")
+		v.assertCheckIsNotRunning(c, v.Env().Agent2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host1.Execute("sudo systemctl stop datadog-agent")
@@ -168,15 +171,15 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 	// Wait for the agent2 to be active
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 state is active")
-		v.assertHAState(c, v.Env().Host2, "active")
+		v.assertHAState(c, v.Env().Agent2, "active")
 	}, 5*time.Minute, 30*time.Second)
 
 	// Check that agent2 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 is running HA and non-HA checks")
-		v.assertCheckIsRunning(c, v.Env().Host2, "snmp")
-		v.assertCheckIsRunning(c, v.Env().Host2, "cisco_aci")
-		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	v.Env().Host1.Execute("sudo systemctl start datadog-agent")
@@ -184,28 +187,28 @@ func (v *testHAAgentFailoverSuite) TestHAFailover() {
 	// Wait for the agent1 to be standby
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent1 state is standby")
-		v.assertHAState(c, v.Env().Host1, "standby")
+		v.assertHAState(c, v.Env().Agent1, "standby")
 	}, 5*time.Minute, 30*time.Second)
 
 	// Check that agent1 is not running HA checks but is running the non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent1 is not running HA checks but is running the non-HA checks")
-		v.assertCheckIsNotRunning(c, v.Env().Host1, "snmp")
-		v.assertCheckIsNotRunning(c, v.Env().Host1, "cisco_aci")
-		v.assertCheckIsRunning(c, v.Env().Host1, "cpu")
+		v.assertCheckIsNotRunning(c, v.Env().Agent1, "snmp")
+		v.assertCheckIsNotRunning(c, v.Env().Agent1, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Agent1, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 
 	// Wait for the agent2 to be active
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 state is active")
-		v.assertHAState(c, v.Env().Host2, "active")
+		v.assertHAState(c, v.Env().Agent2, "active")
 	}, 5*time.Minute, 30*time.Second)
 
 	// Check that agent2 is running HA and non-HA checks
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		v.T().Log("try assert agent2 is running HA and non-HA checks")
-		v.assertCheckIsRunning(c, v.Env().Host2, "snmp")
-		v.assertCheckIsRunning(c, v.Env().Host2, "cisco_aci")
-		v.assertCheckIsRunning(c, v.Env().Host2, "cpu")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "snmp")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "cisco_aci")
+		v.assertCheckIsRunning(c, v.Env().Agent2, "cpu")
 	}, 5*time.Minute, 10*time.Second)
 }
