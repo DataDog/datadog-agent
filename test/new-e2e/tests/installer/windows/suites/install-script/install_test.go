@@ -23,7 +23,7 @@ const (
 	oldInstallerURL     = "http://install.datadoghq.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
 	oldInstallerScript  = "http://install.datadoghq.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
 	oldInstallerVersion = "7.62"
-	oldAgentVersion     = "7.63.2-1"
+	oldAgentVersion     = "7.63.2"
 )
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
@@ -111,14 +111,16 @@ func (s *testInstallScriptSuite) UpgradeToLatestExperiment() {
 
 func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Arrange
+	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
 	// Act
 	output, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "install.datadoghq.com",
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     oldAgentVersion,
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     agentVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "install.datadoghq.com",
 			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "install.datadoghq.com",
+			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "install.datadoghq.com",
 			// make sure to install the agent
 			"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "true",
 		}),
@@ -135,6 +137,6 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, "7.63.2-1")
+			s.Require().Contains(version, oldAgentVersion)
 		})
 }
