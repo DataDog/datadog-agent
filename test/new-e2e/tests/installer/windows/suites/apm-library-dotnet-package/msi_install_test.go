@@ -175,6 +175,68 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 	s.Require().NotEqual(oldLibraryPath, newLibraryPath)
 }
 
+// TestMSIRollbackRemovesLibrary tests that the dotnet library is removed when the MSI installation fails
+func (s *testAgentMSIInstallsDotnetLibrary) TestMSIRollbackRemovesLibrary() {
+	// Arrange
+	s.setAgentConfig()
+	version := s.currentDotnetLibraryVersion
+
+	// Act
+	err := s.Installer().Install(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		// TODO: support DD_INSTALLER_REGISTRY_URL
+		installerwindows.WithMSIArg("SITE=datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
+		installerwindows.WithMSILogFile("install-rollback.log"),
+		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+	)
+	s.Require().Error(err)
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(`C:/ProgramData/Datadog/Installer/packages/datadog-apm-library-dotnet`)
+}
+
+// TestMSISkipRollbackIfInstalled tests that the newly installed dotnet library is not removed when the MSI upgrade fails
+// if another version of the library was already installed.
+func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
+	// Arrange
+	s.setAgentConfig()
+	oldVersion := s.previousDotnetLibraryVersion
+	newVersion := s.currentDotnetLibraryVersion
+
+	// Install first version
+	s.installPreviousAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		// TODO: support DD_INSTALLER_REGISTRY_URL
+		installerwindows.WithMSIArg("SITE=datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+
+	// Rollback during upgrade to the new version
+	err := s.Installer().Install(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		// TODO: support DD_INSTALLER_REGISTRY_URL
+		installerwindows.WithMSIArg("SITE=datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", newVersion.PackageVersion())),
+		installerwindows.WithMSILogFile("install-rollback.log"),
+		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+	)
+	s.Require().Error(err)
+
+	// Start IIS and check that the NEW version of the library is loaded
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(newLibraryPath, newVersion.Version())
+}
+
 func (s *testAgentMSIInstallsDotnetLibrary) setAgentConfig() {
 	s.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
 	s.Env().RemoteHost.WriteFile(consts.ConfigPath, []byte(`
