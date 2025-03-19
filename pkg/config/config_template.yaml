@@ -1032,7 +1032,7 @@ api_key:
   ## The total combined usage all integrations logs files can use
   #
   # integrations_logs_total_usage: 100
-
+  
   ## @param streaming - custom object - optional
   ## This section allows you to configure streaming logs via remote config.
   # streaming:
