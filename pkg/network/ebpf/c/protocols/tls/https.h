@@ -35,8 +35,7 @@
 #include "protocols/tls/tls-maps.h"
 
 // Helper function to check if process is Nginx
-static __always_inline bool is_nginx_process(u64 pid_tgid) {
-    u32 pid = GET_USER_MODE_PID(pid_tgid);
+static __always_inline bool is_nginx_process() {
     char comm[16] = {};
     bpf_get_current_comm(comm, sizeof(comm));
     return bpf_memcmp(comm, "nginx", 5) == 0;
