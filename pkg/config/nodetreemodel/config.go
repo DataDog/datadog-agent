@@ -223,9 +223,9 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.isReady() {
-		panic("cannot SetDefault() once the config has been marked as ready for use")
-	}
+	//if c.isReady() {
+	//	panic("cannot SetDefault() once the config has been marked as ready for use")
+	//}
 	key = strings.ToLower(key)
 	c.addToSchema(key, model.SourceDefault)
 
@@ -330,9 +330,9 @@ func (c *ntmConfig) addToKnownKeys(key string) {
 func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
-	if c.isReady() {
-		panic("cannot SetKnown() once the config has been marked as ready for use")
-	}
+	//if c.isReady() {
+	//	panic("cannot SetKnown() once the config has been marked as ready for use")
+	//}
 
 	c.addToSchema(key, model.SourceSchema)
 }
@@ -639,9 +639,9 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.isReady() {
-		panic("cannot BindEnv() once the config has been marked as ready for use")
-	}
+	//if c.isReady() {
+	//	panic("cannot BindEnv() once the config has been marked as ready for use")
+	//}
 	key = strings.ToLower(key)
 
 	// If only a key was given, with no associated envvars, then derive
@@ -664,9 +664,9 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
-	if c.isReady() {
-		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
-	}
+	//if c.isReady() {
+	//	panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
+	//}
 	c.envKeyReplacer = r
 }
 
