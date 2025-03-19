@@ -8,8 +8,6 @@
 package procfs
 
 import (
-	"bytes"
-	"os"
 	"strconv"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -18,28 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func cgroupContains(pid uint32, str string) (bool, error) {
-	cgroupPath := kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "cgroup")
-
-	data, err := os.ReadFile(cgroupPath)
-	if err != nil {
-		return false, err
-	}
-
-	return bytes.Contains(data, []byte(str)), nil
-}
-
 func procRootPath(pid uint32) string {
 	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "root")
 }
 
-// IsAgentContainer returns whether the container ID is the agent one
-func IsAgentContainer(ctrID string) (bool, error) {
-	pid := os.Getpid()
-	return cgroupContains(uint32(pid), ctrID)
-}
-
-func (c *Collector) getPath(request sbom.ScanRequest) (string, error) {
+func getPath(request sbom.ScanRequest) (string, error) {
 	pids, err := process.Pids()
 	if err != nil {
 		return "", err
