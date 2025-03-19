@@ -30,9 +30,12 @@ const (
 // errors.
 func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// API Logging config supersedes file/socket configs as it does not depend on pod/container logWhat
-	if pkgconfigsetup.Datadog().GetBool("eks_fargate") &&
-		pkgconfigsetup.Datadog().GetBool("logs_config.eks_fargate_native_logging") {
-		return api
+	if pkgconfigsetup.Datadog().GetBool("logs_config.eks_fargate_native_logging") {
+		if pkgconfigsetup.Datadog().GetBool("eks_fargate") {
+			return api
+		}
+		source.Messages.AddMessage("EKSFargateNativeLoggingError", "EKS Fargate Native logging is only available on EKS Fargate")
+		log.Warnf("Could not enable EKS Fargate native logging for source %s, trying other methods", source.Name)
 	}
 
 	// The user configuration consulted is different depending on what we are

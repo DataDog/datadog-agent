@@ -53,7 +53,7 @@ func TestWhichTailer(t *testing.T) {
 		dcfuf          bool                     // dcuf sets logs_config.docker_container_force_use_file.
 		kcuf           bool                     // kcuf sets logs_config.k8s_container_use_file.
 		fargate        bool                     // fargate sets eks_fargate configuration.
-		kcua           bool                     // kcua sets logs_config.eks_fargate_native_logging.
+		nativeLogging  bool                     // nativeLogging sets logs_config.eks_fargate_native_logging.
 		containerInReg bool                     // containerInReg sets presence of a socket registry entry
 		tailer         whichTailer              // expected result
 	}{
@@ -66,14 +66,14 @@ func TestWhichTailer(t *testing.T) {
 		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: true, tailer: socket},
 		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: false, tailer: file},
 		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: true, tailer: file},
-		{logWhat: pods, kcua: true, fargate: true, kcuf: true, tailer: api},   // eks_fargate_native_logging supersedes k8s_container_use_file
-		{logWhat: pods, kcua: true, fargate: false, kcuf: true, tailer: file}, // eks_fargate_native_logging is only available on fargate clusters
+		{logWhat: pods, nativeLogging: true, fargate: true, kcuf: true, tailer: api},   // eks_fargate_native_logging supersedes k8s_container_use_file
+		{logWhat: pods, nativeLogging: true, fargate: false, kcuf: true, tailer: file}, // eks_fargate_native_logging is only available on fargate clusters
 		{logWhat: pods, kcuf: false, tailer: socket},
 		{logWhat: pods, kcuf: true, tailer: file},
 	}
 	for _, c := range cases {
-		name := fmt.Sprintf("logWhat=%s/dcuf=%t/dcfuf=%t/kcuf=%t/kcua=%t/containerInReg=%t",
-			c.logWhat.String(), c.dcuf, c.dcfuf, c.kcuf, c.kcua, c.containerInReg)
+		name := fmt.Sprintf("logWhat=%s/dcuf=%t/dcfuf=%t/kcuf=%t/nativeLogging=%t/fargate=%t/containerInReg=%t",
+			c.logWhat.String(), c.dcuf, c.dcfuf, c.kcuf, c.nativeLogging, c.fargate, c.containerInReg)
 		t.Run(name, func(t *testing.T) {
 			runtime := "evrgivn"
 			identifier := "abc123"
@@ -81,7 +81,8 @@ func TestWhichTailer(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
 			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
-			cfg.SetWithoutSource("logs_config.eks_fargate_native_logging", c.kcua)
+			cfg.SetWithoutSource("logs_config.eks_fargate_native_logging", c.nativeLogging)
+			cfg.SetWithoutSource("eks_fargate", c.fargate)
 			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
 
 			reg := &fakeRegistry{
@@ -100,6 +101,7 @@ func TestWhichTailer(t *testing.T) {
 					Type:       runtime,
 					Identifier: identifier,
 				},
+				Messages: config.NewMessages(),
 			}
 
 			result := tf.whichTailer(source)
