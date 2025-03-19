@@ -106,7 +106,7 @@ const (
 	KubeGPUUUID = "gpu_uuid"
 
 	// GPUDriver is the tag for the GPU driver
-	GPUDriver = "gpu_driver"
+	GPUDriver = "gpu_driver_version"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"
