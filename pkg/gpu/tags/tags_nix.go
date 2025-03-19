@@ -13,6 +13,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
+// used for tests to mock the NVML library
 var nvmlLibrary nvml.Interface
 
 // GetTags returns gpu_host:true if any NVIDIA GPUs are present, nil otherwise
