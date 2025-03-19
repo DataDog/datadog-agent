@@ -41,6 +41,7 @@ type APITailer struct {
 	PodNamespace  string
 	source        *sources.LogSource
 	pipeline      chan *message.Message
+	readTimeout   time.Duration
 	tagger        tagger.Component
 
 	// registry is used to calculate `since`
@@ -57,7 +58,7 @@ type APITailer struct {
 }
 
 // NewAPITailer Creates a new API tailer
-func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, registry auditor.Registry, tagger tagger.Component) *APITailer {
+func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *APITailer {
 	return &APITailer{
 		kubeUtil:      kubeutil,
 		ContainerID:   containerID,
@@ -66,6 +67,7 @@ func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName
 		PodNamespace:  podNamespace,
 		source:        source,
 		pipeline:      pipeline,
+		readTimeout:   readTimeout,
 		registry:      registry,
 		tagger:        tagger,
 		ctx:           nil,
@@ -87,6 +89,7 @@ func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 		t.source,
 		t.pipeline,
 		erroredContainerID,
+		t.readTimeout,
 		t.tagger,
 	)
 	since, err := since(t.registry, inner.Identifier())

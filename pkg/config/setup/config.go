@@ -1563,6 +1563,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// This field lets you increase the read timeout to prevent the client from
 	// timing out too early in such a situation. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
+	// Configurable API client timeout while communicating with the kubelet to stream logs
+	config.BindEnvAndSetDefault("logs_config.api_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	// DEPRECATED in favor of `logs_config.force_use_http`.

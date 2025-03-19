@@ -12,8 +12,10 @@ package tailerfactory
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -65,6 +67,7 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	// kubernetes-launcher behavior.
 
 	pipeline := tf.pipelineProvider.NextPipelineChan()
+	readTimeout := time.Duration(pkgconfigsetup.Datadog().GetInt("logs_config.api_client_read_timeout")) * time.Second
 
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, containersorpods.LogPods)
 
@@ -76,6 +79,7 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 		pod.Namespace,
 		source,
 		pipeline,
+		readTimeout,
 		tf.registry,
 		tf.tagger,
 	), nil
