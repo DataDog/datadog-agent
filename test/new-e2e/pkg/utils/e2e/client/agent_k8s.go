@@ -43,6 +43,16 @@ func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesC
 		return nil, err
 	}
 
+	// We might have 0 pods returned but a continue token, so we need to query more pods
+	// again until we get a single pod or we run out of pods.
+	for len(pods.Items) == 0 && pods.Continue != "" {
+		selector.Continue = pods.Continue
+		pods, err = clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), selector)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if len(pods.Items) != 1 {
 		return nil, fmt.Errorf("Expected to find a single pod, got %d", len(pods.Items))
 	}
