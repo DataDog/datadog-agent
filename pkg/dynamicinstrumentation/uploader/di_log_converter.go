@@ -130,7 +130,7 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 		}
 
 		cv := &ditypes.CapturedValue{
-			Type: capture.Type,
+			Type: def.Type,
 		}
 
 		if capture.ValueStr != "" || capture.Type == "string" {

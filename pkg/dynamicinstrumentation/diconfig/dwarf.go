@@ -173,13 +173,11 @@ entryLoop:
 
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
-
 				typeReader.Seek(entry.Field[i].Val.(dwarf.Offset))
 				typeEntry, err := typeReader.Next()
 				if err != nil {
 					return nil, err
 				}
-
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
@@ -467,6 +465,7 @@ func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize in
 	for i := range typeEntry.Field {
 		if typeEntry.Field[i].Attr == dwarf.AttrName {
 			typeName = strings.Clone(typeEntry.Field[i].Val.(string))
+			fmt.Println("TYPE NAME", typeName)
 		}
 		if typeEntry.Field[i].Attr == dwarf.AttrByteSize {
 			typeSize = typeEntry.Field[i].Val.(int64)
@@ -545,7 +544,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 func kindIsSupported(k reflect.Kind) bool {
 	if k == reflect.Map ||
 		k == reflect.UnsafePointer ||
-		k == reflect.Chan {
+		k == reflect.Chan ||
+		k == reflect.Float32 ||
+		k == reflect.Float64 ||
+		k == reflect.Interface {
 		return false
 	}
 	return true
@@ -592,8 +594,9 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 		kind = uint(reflect.UnsafePointer)
 	}
 	return &ditypes.Parameter{
-		Type:             fmt.Sprintf("unsupported-%s", reflect.Kind(kind).String()),
+		Type:             fmt.Sprintf("%s", reflect.Kind(kind).String()),
 		Kind:             kind,
 		NotCaptureReason: ditypes.Unsupported,
+		DoNotCapture:     true,
 	}
 }
