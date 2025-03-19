@@ -77,10 +77,7 @@ func BenchmarkGetTags(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		nvmlLibrary = nil
-		tags := GetTags()
-		if len(tags) > 0 {
-			b.Logf("GPU detected: %v", tags)
-		}
+		_ = GetTags()
 	}
 
 	// Verify the function completes within 500ms
@@ -91,5 +88,7 @@ func BenchmarkGetTags(b *testing.B) {
 	duration := time.Since(start)
 	if duration > 500*time.Millisecond {
 		b.Errorf("GetTags took %v, expected less than 500ms", duration)
+	} else {
+		b.Logf("GetTags took %v", duration)
 	}
 }
