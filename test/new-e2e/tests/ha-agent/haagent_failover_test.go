@@ -102,6 +102,7 @@ type testHAAgentFailoverSuite struct {
 func TestHAAgentFailoverSuite(t *testing.T) {
 	e2e.Run(t, &testHAAgentFailoverSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
 }
+
 type haAgentMetadata struct {
 	State string `json:"state"`
 }
