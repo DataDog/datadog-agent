@@ -141,9 +141,7 @@ func (c *kubernetesCapabilities) FakeIntake() *components.FakeIntake {
 func (c *kubernetesCapabilities) Agent() agentclient.Agent {
 	linuxAgent := c.suite.Env().Agent.LinuxNodeAgent
 	client, err := client.NewK8sAgentClient(c.suite, client.AgentSelectorAnyPod(linuxAgent), c.suite.Env().KubernetesCluster.KubernetesClient)
-	if err != nil {
-		panic(err)
-	}
+	c.suite.Require().NoError(err)
 	return client
 }
 
