@@ -9,6 +9,7 @@ package tags
 
 import (
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
@@ -61,5 +62,34 @@ func TestGetTags(t *testing.T) {
 			gotTags := GetTags()
 			assert.Equal(t, tt.wantTags, gotTags)
 		})
+	}
+}
+
+// BenchmarkGetTags requires libnvidia-ml.so to be present on the host.
+// This benchmark uses the real NVML library to measure actual performance,
+// as loading the native library is potentially the main bottleneck.
+func BenchmarkGetTags(b *testing.B) {
+	if res := nvml.Init(); res != nvml.SUCCESS && res != nvml.ERROR_ALREADY_INITIALIZED {
+		b.Fatalf("Failed to initialize NVML library")
+	}
+	_ = nvml.Shutdown()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		nvmlLibrary = nil
+		tags := GetTags()
+		if len(tags) > 0 {
+			b.Logf("GPU detected: %v", tags)
+		}
+	}
+
+	// Verify the function completes within 500ms
+	b.StopTimer()
+	nvmlLibrary = nil
+	start := time.Now()
+	GetTags()
+	duration := time.Since(start)
+	if duration > 500*time.Millisecond {
+		b.Errorf("GetTags took %v, expected less than 500ms", duration)
 	}
 }
