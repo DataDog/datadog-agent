@@ -99,7 +99,12 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
                 "orange",
             )
         )
-    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{'-7' if flavor == 'agent' else ''}{'-jmx' if jmx else ''}{image_suffix if image_suffix else ''}-{arch}"
+    image_suffixes = (
+        "-7" if flavor == "agent" else "" +
+        "-jmx" if jmx else "" +
+        image_suffix if image_suffix else ""
+    )
+    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     # Fetch the on wire and on disk size of the image from the url
     image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
     # Check if the docker image is within acceptable bounds
