@@ -30,7 +30,8 @@ const (
 // errors.
 func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// API Logging config supersedes file/socket configs as it does not depend on pod/container logWhat
-	if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_api") {
+	if pkgconfigsetup.Datadog().GetBool("eks_fargate") &&
+		pkgconfigsetup.Datadog().GetBool("logs_config.eks_fargate_native_logging") {
 		return api
 	}
 
@@ -61,15 +62,12 @@ func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 				return socket
 			}
 		}
-
 		return file
 
 	case containersorpods.LogPods:
 		if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_file") {
 			return file
 		}
-
-		// TODO: Do we want to default to API for pod logging?
 		return socket
 
 	default:

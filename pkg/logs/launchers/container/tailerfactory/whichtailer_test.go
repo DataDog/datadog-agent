@@ -52,7 +52,8 @@ func TestWhichTailer(t *testing.T) {
 		dcuf           bool                     // dcuf sets logs_config.docker_container_use_file.
 		dcfuf          bool                     // dcuf sets logs_config.docker_container_force_use_file.
 		kcuf           bool                     // kcuf sets logs_config.k8s_container_use_file.
-		kcua           bool                     // kcua sets logs_config.k8_container_use_api.
+		fargate        bool                     // fargate sets eks_fargate configuration.
+		kcua           bool                     // kcua sets logs_config.eks_fargate_native_logging.
 		containerInReg bool                     // containerInReg sets presence of a socket registry entry
 		tailer         whichTailer              // expected result
 	}{
@@ -65,7 +66,8 @@ func TestWhichTailer(t *testing.T) {
 		{logWhat: ctrs, dcuf: true, dcfuf: false, containerInReg: true, tailer: socket},
 		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: false, tailer: file},
 		{logWhat: ctrs, dcuf: true, dcfuf: true, containerInReg: true, tailer: file},
-		{logWhat: pods, kcua: true, kcuf: true, tailer: api}, // k8s_container_use_api supersedes k8s_container_use_file
+		{logWhat: pods, kcua: true, fargate: true, kcuf: true, tailer: api},   // eks_fargate_native_logging supersedes k8s_container_use_file
+		{logWhat: pods, kcua: true, fargate: false, kcuf: true, tailer: file}, // eks_fargate_native_logging is only available on fargate clusters
 		{logWhat: pods, kcuf: false, tailer: socket},
 		{logWhat: pods, kcuf: true, tailer: file},
 	}
@@ -79,7 +81,7 @@ func TestWhichTailer(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
 			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
-			cfg.SetWithoutSource("logs_config.k8s_container_use_api", c.kcua)
+			cfg.SetWithoutSource("logs_config.eks_fargate_native_logging", c.kcua)
 			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
 
 			reg := &fakeRegistry{
