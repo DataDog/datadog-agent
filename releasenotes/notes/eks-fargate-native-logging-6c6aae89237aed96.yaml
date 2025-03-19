@@ -8,6 +8,5 @@
 ---
 features:
   - |
-    Adds the ability to tail container logs via the kubelet to ease
-    the EKS log integration.
+    adds the ability for the Agent to tail logs via the kubelet on EKS Fargate clusters.
 
