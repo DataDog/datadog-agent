@@ -160,24 +160,24 @@ func (v *gpuBaseSuite[Env]) SetupSuite() {
 	}
 }
 
-func (v *gpuK8sSuite) AfterTest(suiteName, testName string) {
-	v.BaseSuite.AfterTest(suiteName, testName)
+func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
+	s.BaseSuite.AfterTest(suiteName, testName)
 
-	if v.T().Failed() {
+	if s.T().Failed() {
 		return
 	}
 
-	k8sPulumiProvisioner, ok := v.provisioner.(*provisioners.PulumiProvisioner[environments.Kubernetes])
+	k8sPulumiProvisioner, ok := s.provisioner.(*provisioners.PulumiProvisioner[environments.Kubernetes])
 	if !ok {
 		return
 	}
 
-	diagnose, err := k8sPulumiProvisioner.Diagnose(context.Background(), v.Env().KubernetesCluster.ClusterName)
+	diagnose, err := k8sPulumiProvisioner.Diagnose(context.Background(), s.Env().KubernetesCluster.ClusterName)
 	if err != nil {
-		v.T().Logf("failed to diagnose provisioner: %v", err)
+		s.T().Logf("failed to diagnose provisioner: %v", err)
 	}
 
-	v.T().Logf("Diagnose result:\n\n%s", diagnose)
+	s.T().Logf("Diagnose result:\n\n%s", diagnose)
 }
 
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
