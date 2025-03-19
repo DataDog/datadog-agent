@@ -690,7 +690,7 @@ def create_dependencies(ctx, build_tags=None):
     modules = list(get_default_modules())
 
     # Process modules in batches of 16 to avoid too many open files errors
-    batch_size = 16
+    batch_size = 8
     for i in range(0, len(modules), batch_size):
         batch_modules = modules[i : i + batch_size]
         running_commands = []
