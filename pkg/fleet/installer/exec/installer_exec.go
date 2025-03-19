@@ -299,3 +299,10 @@ func (iCmd *installerCmd) Run() error {
 	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
+
+// Postinst runs post install scripts for a given package.
+func (i *InstallerExec) Postinst(ctx context.Context, pkg string, caller string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "postinst", pkg, caller)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
