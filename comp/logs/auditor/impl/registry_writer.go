@@ -9,13 +9,13 @@ import (
 	"os"
 	"path/filepath"
 
-	def "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 )
 
 // atomicRegistryWriter implements atomic registry writing using a temporary file and rename
 type atomicRegistryWriter struct{}
 
-func NewAtomicRegistryWriter() def.RegistryWriter {
+func NewAtomicRegistryWriter() auditor.RegistryWriter {
 	return &atomicRegistryWriter{}
 }
 
@@ -47,7 +47,7 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 // nonAtomicRegistryWriter implements direct registry writing without atomic operations
 type nonAtomicRegistryWriter struct{}
 
-func NewNonAtomicRegistryWriter() def.RegistryWriter {
+func NewNonAtomicRegistryWriter() auditor.RegistryWriter {
 	return &nonAtomicRegistryWriter{}
 }
 
