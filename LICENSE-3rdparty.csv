@@ -910,6 +910,7 @@ core,github.com/expr-lang/expr,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/ast,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/builtin,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/checker,MIT,Copyright (c) 2018 Anton Medvedev
+core,github.com/expr-lang/expr/checker/nature,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/compiler,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/conf,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/file,MIT,Copyright (c) 2018 Anton Medvedev
@@ -920,6 +921,7 @@ core,github.com/expr-lang/expr/parser/lexer,MIT,Copyright (c) 2018 Anton Medvede
 core,github.com/expr-lang/expr/parser/operator,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/parser/utils,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/patcher,MIT,Copyright (c) 2018 Anton Medvedev
+core,github.com/expr-lang/expr/types,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/vm,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/vm/runtime,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/fatih/color,MIT,Copyright (c) 2013 Fatih Arslan

@@ -114,6 +114,22 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
+    u32 cpu = bpf_get_smp_processor_id();
+
+    void *param_stack_map;
+    switch (cpu) {
+        {{- range $i, $val := until .InstrumentationInfo.InstrumentationOptions.NumCPUs }}
+        case {{$i}}: param_stack_map = &param_stack_cpu_{{$i}};
+        {{- end }}
+        default: param_stack_map = NULL;
+    }
+
+    if (!param_stack_map)
+    {
+        log_debug("there is no `param_stack` map associated with currently executing cpu %d", cpu);
+        bpf_ringbuf_discard(event, 0);
+        return 0;
+    }
 
     expression_context_t context = {
         .ctx = ctx,
@@ -122,6 +138,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         .zero_string = zero_string,
         .output_offset = 0,
         .stack_counter = 0,
+        .param_stack = param_stack_map,
     };
 
     {{ .InstrumentationInfo.BPFParametersSourceCode }}
@@ -134,7 +151,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u64 placeholder;
     long pop_ret = 0;
     for (m = 0; m < context.stack_counter; m++) {
-        pop_ret = bpf_map_pop_elem(&param_stack, &placeholder);
+        pop_ret = bpf_map_pop_elem(&context.param_stack, &placeholder);
         if (pop_ret != 0) {
             break;
         }

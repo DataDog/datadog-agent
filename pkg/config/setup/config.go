@@ -925,6 +925,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 	// Seconds to wait to sent metadata payload to the backend after startup
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
+	config.BindEnvAndSetDefault("metadata_ip_resolution_from_hostname", false) // resolve the hostname to get the IP address
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
@@ -1595,15 +1596,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 
+	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
-	// The following auto_multi_line settings are experimental and may change
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
@@ -1612,6 +1606,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+
+	// Enable the legacy auto multiline detection (v1)
+	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
+
+	// The following auto_multi_line settings are settings for auto multiline detection v1
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
 	// Add a tag to logs that are multiline aggregated
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
