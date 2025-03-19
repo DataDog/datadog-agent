@@ -295,8 +295,8 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	// Wait for three (the number of concurrent requests allowed) process calls to be made.
 	processedwg.Wait()
 
-	// Ensure the four possible transactions (three that have been processed, and one stuck in the
-	// semaphore) have been processed by the `Start` loop.
+	// Ensure the four possible transactions (three that have been processed, and one that doesn't get
+	// past the semaphore) have been processed by the `Start` loop.
 	for len(highPrio) > 1 {
 		time.Sleep(time.Nanosecond)
 	}
