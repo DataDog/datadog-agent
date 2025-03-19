@@ -209,7 +209,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	mockTransaction.shouldBlock = true
 	mockTransaction.
 		On("Process", w.Client.GetClient()).
-		Run(func(args tmock.Arguments) {
+		Run(func(_args tmock.Arguments) {
 			processedwg.Done()
 		}).
 		Return(fmt.Errorf("Cancelled")).Times(1)
@@ -275,7 +275,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 			mockTransaction.shouldBlock = true
 			mockTransaction.
 				On("Process", w.Client.GetClient()).
-				Run(func(args tmock.Arguments) {
+				Run(func(_args tmock.Arguments) {
 					processedwg.Done()
 				}).
 				Return(fmt.Errorf("Cancelled")).Times(1)
