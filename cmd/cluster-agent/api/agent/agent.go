@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -102,7 +103,11 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 		httputils.SetJSONError(w, err, 500)
 		return
 	}
-	j, err := json.Marshal(av)
+	versionString := av.String()
+	if strings.Contains(av.Pre, "fips") {
+		versionString = av.GetNumberAndPre()
+	}
+	j, err := json.Marshal(versionString)
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
