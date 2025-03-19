@@ -72,7 +72,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.16.0
 	github.com/clbanning/mxj v1.8.4
-	github.com/containerd/containerd v1.7.25
+	github.com/containerd/containerd v1.7.27
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.5.0
@@ -268,7 +268,7 @@ require (
 	github.com/containerd/continuity v0.4.4 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/containerd/ttrpc v1.2.5 // indirect
+	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
