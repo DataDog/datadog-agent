@@ -385,7 +385,7 @@ func TestHosts(s OTelTestSuite) {
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	SetupSampleTraces(s)
 
-	TestAPMStats(s, 10, computeTopLevelBySpanKind)
+	TestAPMStats(s, 20, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
@@ -485,7 +485,7 @@ func SetupSampleTraces(s OTelTestSuite) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	numTraces := 10
+	numTraces := 20
 
 	s.T().Log("Starting telemetrygen")
 	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
