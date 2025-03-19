@@ -148,6 +148,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
+	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
+
 	p := &Probe{
 		cfg:       cfg,
 		deps:      deps,

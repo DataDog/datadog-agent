@@ -66,7 +66,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	type agentProfileCollector func(service string) error
 
 	pdata := flaretypes.ProfileData{}
-	c := util.GetClient(false)
+	c := util.GetClient()
 
 	type pprofGetter func(path string) ([]byte, error)
 	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {

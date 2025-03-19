@@ -1815,7 +1815,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			return
 		case <-ticker.C:
 			// create the sysctl snapshot
-			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames)
+			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
 			if err != nil {
 				seclog.Errorf("sysctl snapshot failed: %v", err)
 				continue
