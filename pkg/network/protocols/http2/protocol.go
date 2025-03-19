@@ -401,7 +401,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, 1024, InFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return

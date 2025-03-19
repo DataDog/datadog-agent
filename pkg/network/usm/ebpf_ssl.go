@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"fmt"
+	"github.com/cilium/ebpf/features"
 	"io"
 	"os"
 	"path/filepath"
@@ -69,6 +70,9 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+
+	rawTracepointSchedProcessExit = "raw_tracepoint__sched_process_exit"
+	oldTracepointSchedProcessExit = "tracepoint__sched__sched_process_exit"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -416,6 +420,16 @@ var opensslSpec = &protocols.ProtocolSpec{
 				EBPFFuncName: gnutlsDeinitProbe,
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: rawTracepointSchedProcessExit,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: oldTracepointSchedProcessExit,
+			},
+		},
 	},
 }
 
@@ -424,6 +438,7 @@ type sslProgram struct {
 	watcher       *sharedlibraries.Watcher
 	istioMonitor  *istioMonitor
 	nodeJSMonitor *nodeJSMonitor
+	ebpfManager   *manager.Manager
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
@@ -437,10 +452,18 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			err     error
 		)
 
+		sslProg := &sslProgram{
+			cfg:         c,
+			ebpfManager: m,
+		}
+		var cleanerCB func(map[uint32]struct{})
+		if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+			cleanerCB = sslProg.cleanupDeadPids
+		}
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
+			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto, cleanerCB,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -472,12 +495,11 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
 		}
 
-		return &sslProgram{
-			cfg:           c,
-			watcher:       watcher,
-			istioMonitor:  istio,
-			nodeJSMonitor: nodejs,
-		}, nil
+		sslProg.istioMonitor = istio
+		sslProg.nodeJSMonitor = nodejs
+		sslProg.watcher = watcher
+
+		return sslProg, nil
 	}
 }
 
@@ -496,6 +518,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	o.addProcessExitProbe(options)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
@@ -777,4 +800,79 @@ func getUID(lib utils.PathIdentifier) string {
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
 func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+// addProcessExitProbe adds a raw or regular tracepoint program depending on which is supported.
+func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
+		p := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: rawTracepointSchedProcessExit,
+				UID:          probeUID,
+			},
+			TracepointName: "sched_process_exit",
+		}
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+		// exclude regular tracepoint
+		options.ExcludedFunctions = append(options.ExcludedFunctions, oldTracepointSchedProcessExit)
+	} else {
+		// use a regular tracepoint to intercept terminated threads
+		p := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: oldTracepointSchedProcessExit,
+				UID:          probeUID,
+			},
+		}
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+		// exclude a raw tracepoint
+		options.ExcludedFunctions = append(options.ExcludedFunctions, rawTracepointSchedProcessExit)
+	}
+}
+
+var sslPidKeyMaps = []string{
+	"ssl_read_args",
+	"ssl_read_ex_args",
+	"ssl_write_args",
+	"ssl_write_ex_args",
+	"ssl_ctx_by_pid_tgid",
+	"bio_new_socket_args",
+}
+
+// cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
+func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
+	for _, mapName := range sslPidKeyMaps {
+		err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
+		if err != nil {
+			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
+		}
+	}
+}
+
+// deleteDeadPidsInMap finds a map by name and deletes dead processes.
+// enters when raw tracepoint is not supported, kernel < 4.17
+func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
+	emap, _, err := manager.GetMap(mapName)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", mapName, err)
+	}
+
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, emap.ValueSize())
+	iter := emap.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		_ = emap.Delete(unsafe.Pointer(&k))
+	}
+
+	return nil
 }

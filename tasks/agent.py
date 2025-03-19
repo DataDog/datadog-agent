@@ -90,6 +90,7 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "service_discovery",
+    "ebpf",
 ]
 
 WINDOWS_CORECHECKS = [

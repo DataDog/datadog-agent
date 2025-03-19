@@ -48,7 +48,7 @@ type kernelTelemetry struct {
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
 func newHTTP2KernelTelemetry() *kernelTelemetry {
-	metricGroup := libtelemetry.NewMetricGroup("usm.http2", libtelemetry.OptPrometheus)
+	metricGroup := libtelemetry.NewMetricGroup("usm.http2", libtelemetry.OptStatsd)
 	http2KernelTel := &kernelTelemetry{
 		metricGroup:                    metricGroup,
 		http2requests:                  libtelemetry.NewTLSAwareCounter(metricGroup, "requests"),

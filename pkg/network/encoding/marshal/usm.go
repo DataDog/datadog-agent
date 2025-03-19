@@ -183,7 +183,7 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 		// Count the number of USM connections for this particular protocol
 		telemetry.NewCounter(
 			fmt.Sprintf("usm.%s.connections", bc.protocol),
-			telemetry.OptPrometheus,
+			telemetry.OptStatsd,
 		).Add(int64(len(bc.data)))
 
 		// Determine count of orphan aggregations

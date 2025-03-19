@@ -175,11 +175,13 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		if !usmconfig.TLSSupported(c) {
-			return nil, errors.New("goTLS not supported by this platform")
+			log.Warn("goTLS not supported by this platform")
+			return nil, nil
 		}
 
 		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			log.Warn("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			return nil, nil
 		}
 
 		return &goTLSProgram{
@@ -187,8 +189,8 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			cfg:                c,
 			manager:            m,
 			procRoot:           c.ProcRoot,
-			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptStatsd),
+			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptStatsd),
 			registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
 		}, nil
 	}

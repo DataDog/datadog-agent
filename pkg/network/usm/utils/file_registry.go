@@ -411,7 +411,7 @@ func newRegistryTelemetry(programName string) registryTelemetry {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.file_registry",
 		fmt.Sprintf("program:%s", programName),
-		telemetry.OptPrometheus,
+		telemetry.OptStatsd,
 	)
 
 	return registryTelemetry{
