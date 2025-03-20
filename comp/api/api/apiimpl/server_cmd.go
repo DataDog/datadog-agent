@@ -56,13 +56,7 @@ func (server *apiServer) startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				server.wmeta,
-				server.senderManager,
-				server.secretResolver,
-				server.collector,
-				server.autoConfig,
 				server.endpointProviders,
-				server.taggerComp,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

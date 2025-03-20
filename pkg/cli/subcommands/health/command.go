@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,7 +72,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -79,10 +79,13 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	}
 
 	var urlstr string
+	var c *http.Client
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		c = util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 	} else {
 		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+		c = util.GetClient()
 	}
 
 	// Set session token
