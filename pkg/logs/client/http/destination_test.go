@@ -54,7 +54,7 @@ func TestDestinationSend200(t *testing.T) {
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 	<-output
 
 	server.Stop()
@@ -82,11 +82,11 @@ func testNoRetry(t *testing.T, statusCode int) {
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 	<-output
 
 	// Should not retry this request - no error reported back (because it's not retryable) so input should be unblocked
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 	<-output
 
 	server.Stop()
@@ -101,7 +101,7 @@ func retryTest(t *testing.T, statusCode int) {
 	isRetrying := make(chan bool, 1)
 	server.Destination.Start(input, output, isRetrying)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 
 	// In a retry loop. let the server respond once
 	<-respondChan
@@ -131,7 +131,7 @@ func TestDestinationContextCancel(t *testing.T) {
 	isRetrying := make(chan bool, 1)
 	server.Destination.Start(input, output, isRetrying)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 
 	// In a retry loop. let the server respond once
 	<-respondChan
@@ -144,7 +144,7 @@ func TestDestinationContextCancel(t *testing.T) {
 	// If this blocks - the test will timeout and fail. This should not block as the destination context
 	// has been canceled and the payload will be dropped. In the real agent, this channel would be closed
 	// by the caller while the agent is shutting down
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("yo")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
 	server.Stop()
 }
 
@@ -196,9 +196,14 @@ func TestDestinationSendsTimestampHeaders(t *testing.T) {
 	defer server.httpServer.Close()
 	currentTimestamp := time.Now().UnixMilli()
 
-	err := server.Destination.unconditionalSend(&message.Payload{Messages: []*message.Message{{
-		IngestionTimestamp: 1234567890_999_999,
-	}}, Encoded: []byte("payload")})
+	err := server.Destination.unconditionalSend(&message.Payload{MessageMetas: []*message.MessageMetadata{
+		{
+			IngestionTimestamp: 9234567890999999,
+		},
+		{
+			IngestionTimestamp: 1234567890999999,
+		},
+	}, Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Equal(t, server.request.Header.Get("dd-message-timestamp"), "1234567890")
 
@@ -330,7 +335,7 @@ func TestBackoffDelayEnabled(t *testing.T) {
 	isRetrying := make(chan bool, 1)
 	server.Destination.Start(input, output, isRetrying)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("test log")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
 	<-respondChan
 	<-isRetrying
 
@@ -347,7 +352,7 @@ func TestBackoffDelayDisabled(t *testing.T) {
 	isRetrying := make(chan bool, 1)
 	server.Destination.Start(input, output, isRetrying)
 
-	input <- &message.Payload{Messages: []*message.Message{}, Encoded: []byte("test log")}
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
 	<-respondChan
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
