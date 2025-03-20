@@ -27,7 +27,7 @@ func TestPeriodically(t *testing.T) {
 	assert := assert.New(t)
 
 	// flush should happen at least every 2 second
-	s := &Periodically{interval: 2 * time.Second}
+	s := &Periodically{Interval: 2 * time.Second}
 	s.lastFlush = time.Now().Add(-time.Second * 10)
 
 	assert.True(s.ShouldFlush(Starting, time.Now()), "it should flush because last flush was 10 seconds ago")
@@ -48,22 +48,22 @@ func TestStrategyFromString(t *testing.T) {
 
 	s, err = StrategyFromString("periodically")
 	assert.Equal("periodically,10000", s.String())
-	assert.Equal(s.(*Periodically).interval, 10*time.Second, "default value should be 10s")
+	assert.Equal(s.(*Periodically).Interval, 10*time.Second, "default value should be 10s")
 	assert.NoError(err, "parsing this string shouldn't fail")
 
 	s, err = StrategyFromString("periodically,10000")
 	assert.Equal("periodically,10000", s.String())
-	assert.Equal(s.(*Periodically).interval, 10*time.Second, "default value should be 10s")
+	assert.Equal(s.(*Periodically).Interval, 10*time.Second, "default value should be 10s")
 	assert.NoError(err, "parsing this string shouldn't fail")
 
 	s, err = StrategyFromString("periodically,2000")
 	assert.Equal("periodically,2000", s.String())
-	assert.Equal(s.(*Periodically).interval, 2*time.Second, "should be 2s")
+	assert.Equal(s.(*Periodically).Interval, 2*time.Second, "should be 2s")
 	assert.NoError(err, "parsing this string shouldn't fail")
 
 	s, err = StrategyFromString("periodically,4789")
 	assert.Equal("periodically,4789", s.String())
-	assert.Equal(s.(*Periodically).interval, 4789*time.Millisecond, "should be 4.789s")
+	assert.Equal(s.(*Periodically).Interval, 4789*time.Millisecond, "should be 4.789s")
 	assert.NoError(err, "parsing this string shouldn't fail")
 
 	s, err = StrategyFromString("ddog")
