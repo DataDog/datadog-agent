@@ -57,7 +57,6 @@ static_quality_gates:
   allow_failure: true
   script:
     - !reference [.login_to_docker_readonly_crane]
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - export DD_API_KEY="$DATADOG_API_KEY"
