@@ -1,11 +1,9 @@
 features:
   - |
-    On Windows, the Agent MSI can install the .NET APM Instrumentation libraries
-    and automatically configure APM Instrumentation for IIS.
-    To enable this feature, provide the following properties to the MSI command line::
+    The Agent MSI for Windows now installs the .NET APM Instrumentation libraries and automatically configures APM Instrumentation for IIS. To enable this feature, specify the following properties in the MSI command line:
 
-        DD_APM_INSTRUMENTATION_ENABLED=iis DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3
+        `DD_APM_INSTRUMENTATION_ENABLED=iis DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3`
 
     Requires IIS 10.0 or later.
-    For more information see `Single Step APM Instrumentation <https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/>`_
+    For more information see [Single Step APM Instrumentation](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/).
 
