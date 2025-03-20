@@ -35,7 +35,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())
@@ -122,7 +122,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		color.NoColor = true
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	// Set session token
 	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {

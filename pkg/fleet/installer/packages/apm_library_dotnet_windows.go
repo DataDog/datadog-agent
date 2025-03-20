@@ -50,7 +50,11 @@ func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.Install(ctx, getLibraryPath(installDir))
+	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
+	if err != nil {
+		return err
+	}
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 	if err != nil {
 		return err
 	}
@@ -68,7 +72,11 @@ func StartAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.Install(ctx, getLibraryPath(installDir))
+	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
+	if err != nil {
+		return err
+	}
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 	if err != nil {
 		return err
 	}
@@ -86,7 +94,11 @@ func StopAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.Install(ctx, getLibraryPath(installDir))
+	_, err = dotnetExec.InstallVersion(ctx, getLibraryPath(installDir))
+	if err != nil {
+		return err
+	}
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 	if err != nil {
 		return err
 	}
@@ -116,7 +128,7 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 		return err
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.UninstallProduct(ctx)
+	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
 	if err != nil {
 		return err
 	}

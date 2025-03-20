@@ -124,7 +124,7 @@ type DatadogConfig struct {
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
-	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
+	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`

@@ -626,6 +626,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
 	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
 	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 
 	low, orch, high, standard := tagList.Compute()
 

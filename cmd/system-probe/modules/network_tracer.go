@@ -109,7 +109,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id, err := nt.tracer.GetNetworkID(req.Context())
 		if err != nil {
-			log.Errorf("unable to retrieve network ID: %s", err)
+			log.Debugf("unable to retrieve network ID: %s", err)
 			w.WriteHeader(500)
 			return
 		}

@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/fatih/color"
@@ -20,8 +22,13 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(w io.Writer, url string) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+func GetTaggerList(w io.Writer, url string, withInsecureClient bool) error {
+	var c *http.Client
+	if withInsecureClient {
+		c = util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	} else {
+		c = util.GetClient()
+	}
 
 	// get the tagger-list from server
 	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)

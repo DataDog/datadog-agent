@@ -231,6 +231,7 @@ type KSMCheck struct {
 	cancel               context.CancelFunc
 	isCLCRunner          bool
 	isRunningOnNodeAgent bool
+	clusterIDTagValue    string
 	clusterNameTagValue  string
 	clusterNameRFC1123   string
 	metricNamesMapper    map[string]string
@@ -289,6 +290,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Retrieve cluster name
 	k.getClusterName()
+
+	// Retrieve the ClusterID from the cluster-agent
+	k.getClusterID()
 
 	// Initialize global tags and check tags
 	k.initTags()
@@ -903,12 +907,26 @@ func (k *KSMCheck) getClusterName() {
 	}
 }
 
+func (k *KSMCheck) getClusterID() {
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		log.Warnf("Error retrieving the cluster ID: %s", err)
+		return
+	}
+	k.clusterIDTagValue = clusterID
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
+// Sets the orch_cluster_id tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.clusterNameTagValue != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
+		k.instance.Tags = append(k.instance.Tags, tags.KubeClusterName+":"+k.clusterNameTagValue)
+	}
+
+	if k.clusterIDTagValue != "" {
+		k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+k.clusterIDTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.34.0-1"
+	databricksInjectorVersion   = "0.35.0-1"
 	databricksJavaTracerVersion = "1.46.1-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
@@ -106,7 +106,7 @@ func SetupDatabricks(s *common.Setup) error {
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
-	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") != "true" {
+	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
 		installMethod = "managed"
 	}
 	s.Span.SetTag("install_method", installMethod)
