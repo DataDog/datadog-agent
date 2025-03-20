@@ -583,7 +583,8 @@ new-e2e-installer-windows:
       # - EXTRA_PARAMS: --run "TestInstallerRollback$"
       # apm-library-dotnet
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
-      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
 
 
 new-e2e-installer-ansible:
