@@ -215,26 +215,26 @@ func (bs *BaseSuite[Env]) Env() *Env {
 }
 
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
-func (bs *BaseSuite[Env]) EventuallyWithT(f func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) {
-	bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
+func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
+	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
 				require.Nil(bs.T(), r, "Panic in EventuallyWithT: %v", r)
 			}
 		}()
-		f(c)
+		condition(c)
 	}, timeout, interval, msgAndArgs...)
 }
 
 // EventuallyWithTf is a wrapper around testify.Suite.EventuallyWithTf that catches panics to fail test without skipping TeardownSuite
-func (bs *BaseSuite[Env]) EventuallyWithTf(f func(*assert.CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) {
-	bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
+func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) bool {
+	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
 				require.Nil(bs.T(), r, "Panic in EventuallyWithTf: %v", r)
 			}
 		}()
-		f(c)
+		condition(c)
 	}, waitFor, tick, msg, args)
 }
 
