@@ -14,10 +14,7 @@ relative_path 'security-agent-policies'
 
 source git: 'https://github.com/DataDog/security-agent-policies.git'
 
-policies_version = ENV['SECURITY_AGENT_POLICIES_VERSION']
-if policies_version.nil? || policies_version.empty?
-  policies_version = 'master'
-end
+policies_version = 'momar/test-embedded-multi-policy'
 default_version policies_version
 
 always_build true
