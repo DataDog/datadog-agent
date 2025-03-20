@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -80,17 +81,21 @@ func (d *DotnetLibraryExec) RemoveIISInstrumentation(ctx context.Context) (exitC
 }
 
 func (d *dotnetLibraryExecCmd) Run() (int, error) {
-	var errBuf bytes.Buffer
-	d.Stderr = &errBuf
+	var mergedBuffer bytes.Buffer
+	errWriter := io.MultiWriter(&mergedBuffer, os.Stderr)
+	outWriter := io.MultiWriter(&mergedBuffer, os.Stdout)
+	d.Stderr = errWriter
+	d.Stdout = outWriter
+
 	err := d.Cmd.Run()
 	if err == nil {
 		return d.Cmd.ProcessState.ExitCode(), nil
 	}
 
-	if len(errBuf.Bytes()) == 0 {
+	if len(mergedBuffer.Bytes()) == 0 {
 		return d.Cmd.ProcessState.ExitCode(), fmt.Errorf("run failed: %w", err)
 	}
 
-	installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
+	installerError := installerErrors.FromJSON(strings.TrimSpace(mergedBuffer.String()))
 	return d.Cmd.ProcessState.ExitCode(), fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }

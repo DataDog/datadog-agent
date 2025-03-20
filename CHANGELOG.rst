@@ -2,6 +2,193 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.1:
+
+7.64.1
+======
+
+.. _Release Notes_7.64.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-03-20
+
+
+.. _Release Notes_7.64.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed Python package dependency issue preventing integrations from loading on Windows
+
+
+.. _Release Notes_7.64.0:
+
+7.64.0
+======
+
+.. _Release Notes_7.64.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-03-19
+
+- Please refer to the `7.64.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7640>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.64.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Add the new following docker images, containing every components of the Datadog Agent, including the new Otel-Agent:
+  - `7.X.Y-full`
+  - `7-full`
+  - `latest-full`
+
+- The `datadog-fips-agent` now builds with the ['requirefips' buildtag](https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode)
+  in the 7.64 Linux release and no longer needs the `GOFIPS=1` environment
+  variable set to enable FIPS mode. When upgrading from 7.63, this can be removed.
+
+- Enables IMDSv2 by default on all EC2 instance hosts by updating the``ec2_imdsv2_transition_payload_enabled`` flag from ``false`` to ``true``.
+  If IMDSv2 hasn’t been explicitly enabled and the hostname isn’t set to the instance ID, the display name may change to the instance ID without affecting Agent behavior.
+  For more information, see the `IMDSv2 Enablement by Default <https://docs.datadoghq.com/agent/faq/ec2_imdsv2_transition_payload_enabled/>`.
+
+- Bump the Python version to 3.12.9
+
+- ECS task collection is now enabled by default (see `ecs_task_collection_enabled` in the datadog.yaml configuration).
+
+
+.. _Release Notes_7.64.0_New Features:
+
+New Features
+------------
+
+- Added support for obfuscation for valkey command. This feature is enabled by default.
+  To disable it, set ``DD_APM_OBFUSCATION_VALKEY_ENABLED=false``.
+  To replace all valkey command arguments with a single ``?``,
+  set ``DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS=true`` (default: false).
+
+- APM: Add support for multi-region failover. This feature is controlled via Remote Config and allows the trace-agent to switch to a failover data center when enabled.
+
+- Add new `card:` common field to DogStatsD Datagram specification to allow
+  customer to specify the cardinality of the metric. This field is optional.
+
+- Log Agent now officially supports http2 transport to proxy.
+
+
+.. _Release Notes_7.64.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add per-process GPU tagging when running process checks on the Core Agent.
+
+- Enable pymem.inuse metric when Agent telemetry is enabled
+
+- In rare cases, when the Agent's Network Performance Monitor is enabled and
+  the Agent is identified as contributing to a "Blue Screen of Death" (BSOD) event,
+  Agent telemetry is used to generate a payload that includes Agent's driver code
+  offset for further analysis.
+
+- Adds a flag for setting the inactivity timeout and adds support for "check name" for the analyze logs subcommand
+
+- Agents are now built with Go ``1.23.6``.
+
+- Added a new feature flag `disable_receive_resource_spans_v2` in DD_APM_FEATURES that replaces `enable_receive_resource_spans_v2` - the refactored implementation of ReceiveResourceSpans for OTLP is now opt-out instead of opt-in.
+
+- Enable IMDSv2 by default for all EC2 instance hosts if IMDSv2 usage was not explicitly enabled.
+
+- Added capability to generate profiling data in a flare 
+  requested via Remote Config
+
+- Image layer digests will no longer report as "<missing>" from Docker runtimes.
+
+- Upgraded github.com/DataDog/go-sqllexer to v0.1.1, resulting in reduced CPU usage and improved memory allocation efficiency.
+
+- Upgraded github.com/DataDog/go-sqllexer to v0.1.3 to fix a bug that caused the lexer to panic when trimming identifier quotes.
+
+- Added a new language detector that uses the apm-inject propagated
+  language, if available.
+
+- The KSM core check is now capable of retrying its coordination with
+  the Kubernetes API Server. Failed queries in the check configuration
+  will no longer block the check from being scheduled.
+
+- - Add logging for log compression configuration.
+  - The Agent now validates the log compression setting and falls back to the default compression if an invalid option is provided.
+
+- Report resource requirements as native sidecars when `restartPolicy=Always` is used.
+
+- Improved the behavior of the SQL obfuscator cache to allow
+  caching of both obfuscated and normalized queries
+
+- APM: Fix a formatting bug where the trace-agent's PID from "agent status" could be displayed in scientific notation for large PIDs.
+
+
+.. _Release Notes_7.64.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- `logs.processed` and `logs.sent` metrics are no longer emitted by the Agent
+
+- Deprecation warnings added for the fips-proxy configuration keys (e.g. `fips.*`)
+  as this is planned to be unsupported in 7.65+ releases of the `datadog-agent`.
+  Please use the `datadog-fips-agent` for FIPS compliance instead.
+
+- APM: The existing /config/set endpoint on the trace-agent is now deprecated in favor of the /config/set endpoint on the debug port on the trace-agent (default: 5012). The old endpoint will be removed in a future version.
+
+
+.. _Release Notes_7.64.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed parsing of group resource strings to support groups with periods.
+
+- Fixed a bug in the DogStatsD Unix socket server that caused metrics to miss container tags and the Agent to report ``matched PID for the process is 0`` warnings.
+
+- Fix issue with FIPS image where some build tags were missing for the process
+  and trace agents during packaging.
+
+- Makes CWS report the correct container ID on EKS Fargate.
+
+- Fix an issue where ``ingestion_reason:probabilistic`` is set
+  even when an OTLP span was sampled by the Error Sampler.
+  To enable the Error Sampler for OTLP spans, you need to set
+  ``DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE``
+  to 99 or lower, or enable ``DD_APM_PROBABILISTIC_SAMPLER_ENABLED``
+  and set ``DD_APM_PROBABILISTIC_SAMPLER_PERCENTAGE`` to 99 or lower.
+
+- version-manifest.json and version-manifest.txt files now correctly reflect the packages content.
+
+- Prevent journald and windows event logs from being errantly marked as
+  truncated in specific circumstances. 
+
+- Obfuscation Cache Size Calculation:
+  Resolved an issue where the cache item size was underestimated by not accounting for the Go struct overhead (including struct fields and headers for strings and slices).
+  This fix ensures a more accurate calculation of cache item memory usage, leading to better memory efficiency and preventing over-allocation of NumCounters in cache configurations.
+
+- Fix potential panic in journald and Windows event tailers during system shutdown
+
+- Remove leading expressions in parentheses during SQL normalization.
+
+- APM: Fix a rare panic that can occur when using client side stats in the tracers.
+
+- APM: Fix an issue where the environment tag was normalized incorrectly. This resulted in some valid envs, like `123foo`, having the leading digits removed. This fix allows these envs to pass through unedited.
+
+
+.. _Release Notes_7.64.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add multi line log aggregation telemetry. 
+
+
 .. _Release Notes_7.63.3:
 
 7.63.3

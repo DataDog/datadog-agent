@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 
@@ -63,7 +64,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
+	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)

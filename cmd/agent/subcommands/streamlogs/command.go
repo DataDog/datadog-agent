@@ -134,7 +134,7 @@ func streamLogs(lc log.Component, config config.Component, cliParams *CliParams)
 
 func streamRequest(url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
 	var e error
-	c := util.GetClient(false)
+	c := util.GetClient()
 	if duration != 0 {
 		c.Timeout = duration
 	}
