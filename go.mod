@@ -203,19 +203,19 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.32.2
+	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.1
-	k8s.io/apimachinery v0.32.2
-	k8s.io/apiserver v0.32.1 // indirect
+	k8s.io/apimachinery v0.32.3
+	k8s.io/apiserver v0.32.3 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
-	k8s.io/client-go v0.32.2
-	k8s.io/cri-api v0.31.2
+	k8s.io/client-go v0.32.3
+	k8s.io/cri-api v0.32.3
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.2
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
-	k8s.io/kubelet v0.31.2
+	k8s.io/kubelet v0.32.3
 	k8s.io/metrics v0.31.2
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
@@ -419,7 +419,7 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.32.1
+	k8s.io/component-base v0.32.3
 	mellium.im/sasl v0.3.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
 	sigs.k8s.io/controller-runtime v0.20.2 // indirect
