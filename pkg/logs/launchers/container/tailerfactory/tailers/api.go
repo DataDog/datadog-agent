@@ -12,11 +12,10 @@ import (
 	"context"
 	"time"
 
-	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,55 +23,32 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
-// APITailer wraps pkg/logs/tailers/docker.Tailer to satisfy
-// the container launcher's `Tailer` interface, and to handle the
-// erroredContainerID channel.
-//
-// NOTE: once the docker launcher is removed, the inner Docker tailer can be
-// modified to suit the Tailer interface directly and to handle connection
-// failures on its own, and this wrapper will no longer be necessary.
 type APITailer struct {
-	// arguments to dockerTailerPkg.NewTailer (except erroredContainerID)
-
 	kubeUtil      kubelet.KubeUtilInterface
-	ContainerID   string
 	ContainerName string
 	PodName       string
 	PodNamespace  string
-	source        *sources.LogSource
-	pipeline      chan *message.Message
-	readTimeout   time.Duration
-	tagger        tagger.Component
-
-	// registry is used to calculate `since`
-	registry auditor.Registry
-
-	// ctx controls the run loop
-	ctx context.Context
-
-	// cancel stops the run loop
-	cancel context.CancelFunc
-
-	// stopped is closed when the run loop finishes
-	stopped chan struct{}
+	*base
 }
 
 // NewAPITailer Creates a new API tailer
 func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *APITailer {
 	return &APITailer{
 		kubeUtil:      kubeutil,
-		ContainerID:   containerID,
 		ContainerName: containerName,
 		PodName:       podName,
 		PodNamespace:  podNamespace,
-		source:        source,
-		pipeline:      pipeline,
-		readTimeout:   readTimeout,
-		registry:      registry,
-		tagger:        tagger,
-		ctx:           nil,
-		cancel:        nil,
-		stopped:       nil,
+		base: &base{
+			ContainerID: containerID,
+			source:      source,
+			pipeline:    pipeline,
+			readTimeout: readTimeout,
+			registry:    registry,
+			tagger:      tagger,
+			ctx:         nil,
+			cancel:      nil,
+			stopped:     nil,
+		},
 	}
 }
 
@@ -106,85 +82,10 @@ func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 	return inner, erroredContainerID, nil
 }
 
-// stopTailer stops the inner tailer.
-func (t *APITailer) stopTailer(inner *containerTailerPkg.Tailer) {
-	inner.Stop()
-}
-
 // Start implements Tailer#Start.
 func (t *APITailer) Start() error {
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	t.stopped = make(chan struct{})
-	go t.run(t.tryStartTailer, t.stopTailer)
+	go t.run(t.tryStartTailer, t.base.stopTailer)
 	return nil
-}
-
-// Stop implements Tailer#Stop.
-func (t *APITailer) Stop() {
-	t.cancel()
-	t.cancel = nil
-	<-t.stopped
-}
-
-// run implements a loop to monitor the tailer and re-create it if it fails.  It takes
-// pointers to tryStartTailer and stopTailer to support testing.
-func (t *APITailer) run(
-	tryStartTailer func() (*containerTailerPkg.Tailer, chan string, error),
-	stopTailer func(*containerTailerPkg.Tailer),
-) {
-	defer close(t.stopped)
-
-	backoffDuration := backoffInitialDuration
-
-	for {
-		var backoffTimerC <-chan time.Time
-
-		// try to start the inner tailer
-		inner, erroredContainerID, err := tryStartTailer()
-		if err != nil {
-			if backoffDuration > backoffMaxDuration {
-				log.Warnf("Could not tail container %v: %v",
-					dockerutilPkg.ShortContainerID(t.ContainerID), err)
-				return
-			}
-			// set up to wait before trying again
-			backoffTimerC = time.After(backoffDuration)
-			backoffDuration *= 2
-		} else {
-			// success, so reset backoff
-			backoffTimerC = nil
-			backoffDuration = backoffInitialDuration
-		}
-
-		select {
-		case <-t.ctx.Done():
-			// the launcher has requested that the tailer stop
-			if inner != nil {
-				// Ensure any pending errors are cleared when we try to stop the tailer. Since erroredContainerID
-				// is unbuffered, any pending writes to this channel could cause a deadlock as the tailers stop
-				// condition is managed in the same goroutine in dockerTailerPkg.
-				go func() {
-					//nolint:revive // TODO(AML) Fix revive linter
-					for range erroredContainerID {
-					}
-				}()
-				stopTailer(inner)
-				if erroredContainerID != nil {
-					close(erroredContainerID)
-				}
-			}
-			return
-
-		case <-erroredContainerID:
-			// the inner tailer has failed after it has started
-			if inner != nil {
-				stopTailer(inner)
-			}
-			continue // retry
-
-		case <-backoffTimerC:
-			// it's time to retry starting the tailer
-			continue
-		}
-	}
 }
