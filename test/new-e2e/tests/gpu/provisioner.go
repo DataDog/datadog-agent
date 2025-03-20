@@ -121,7 +121,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		name := "gpuvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
 		// Create the EC2 instance
@@ -130,46 +130,46 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			ec2.WithAMI(params.ami, params.amiOS, os.AMD64Arch),
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 		err = host.Export(ctx, &env.RemoteHost.HostOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("host.Export: %w", err)
 		}
 
 		// Create the fakeintake instance
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
 		}
 		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeIntake.Export: %w", err)
 		}
 
 		// install the ECR credentials helper
 		// required to get pipeline agent images or other internally hosted images
 		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 		if err != nil {
-			return err
+			return fmt.Errorf("ec2.InstallECRCredentialsHelper: %w", err)
 		}
 
 		// Validate GPU devices
 		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host)
 		if err != nil {
-			return err
+			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
 		// Install Docker (only after GPU devices are validated and the ECR credentials helper is installed)
 		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 		if err != nil {
-			return err
+			return fmt.Errorf("docker.NewManager: %w", err)
 		}
 
 		// Pull all the docker images required for the tests
 		dockerPullCmds, err := downloadDockerImages(&awsEnv, host, params.dockerImages, dockerManager)
 		if err != nil {
-			return err
+			return fmt.Errorf("downloadDockerImages: %w", err)
 		}
 
 		// Validate that Docker can run CUDA samples
@@ -258,11 +258,11 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		// Create the fakeintake instance
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
 		}
 		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeIntake.Export: %w", err)
 		}
 
 		// Pull all the docker images required for the tests
@@ -276,7 +276,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		}
 		dockerPullCmds, err := downloadContainerdImagesInKindNodes(&awsEnv, host, kindCluster, imagesForKindNodes, kindCluster.GPUOperator)
 		if err != nil {
-			return err
+			return fmt.Errorf("downloadContainerdImagesInKindNodes: %w", err)
 		}
 
 		kindClusterName := ctx.Stack()
