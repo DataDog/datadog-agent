@@ -1039,6 +1039,73 @@ func CIDRArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 	return cidrArrayMatches(a, b, state, op)
 }
 
+func cidrArrayMatchesCIDREvaluator(a *CIDRArrayEvaluator, b *CIDREvaluator, state *State, arrayOp func(a []net.IPNet, b net.IPNet) bool) (*BoolEvaluator, error) {
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:           arrayOp(ea, eb),
+			Weight:          b.Weight + a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+// CIDRArrayMatchesCIDREvaluator weak comparison, at least one element of a should be in b.
+func CIDRArrayMatchesCIDREvaluator(a *CIDRArrayEvaluator, b *CIDREvaluator, state *State) (*BoolEvaluator, error) {
+	op := func(values []net.IPNet, ipnet net.IPNet) bool {
+		for _, ip := range values {
+			if ip.Contains(ipnet.IP) {
+				return true
+			}
+		}
+		return false
+	}
+	return cidrArrayMatchesCIDREvaluator(a, b, state, op)
+}
+
 // CIDRArrayMatchesAll ensures that all values from a and b match.
 func CIDRArrayMatchesAll(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	op := func(values *CIDRValues, ipnets []net.IPNet) bool {
