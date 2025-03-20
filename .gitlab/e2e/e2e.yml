@@ -912,12 +912,3 @@ new-e2e-eks-cleanup-on-failure:
     - !reference [.except_mergequeue]
     - when: always
   allow_failure: true
-
-new-e2e-cc:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent
-  variables:
-    TARGETS: ./tests/cc
-    TEAM: celian

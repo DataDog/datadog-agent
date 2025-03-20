@@ -147,7 +147,16 @@ class TestWasher:
         if self.flaky_test_indicator in log:
             return True
 
-        for pattern in self.flaky_log_main_patterns + self.flaky_log_patterns[package][test]:
+        # Flaky MarkOnLog patterns for this test containing this specific test and also its parents
+        # This is useful to mark a test as flaky if the marker is within a parent test and the failure in a subtest (as in most e2e tests)
+        all_flaky_log_patterns = []
+        test_parts = test.split('/')
+        for i_part in range(len(test_parts)):
+            parent_test = '/'.join(test_parts[: i_part + 1])
+            if parent_test in self.flaky_log_patterns[package]:
+                all_flaky_log_patterns += self.flaky_log_patterns[package][parent_test]
+
+        for pattern in self.flaky_log_main_patterns + all_flaky_log_patterns:
             if re.search(pattern, log, re.IGNORECASE):
                 return True
 
