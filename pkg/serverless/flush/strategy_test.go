@@ -119,3 +119,13 @@ func TestMaxBackoff(t *testing.T) {
 		sEnd.Success() // reset global var
 	})
 }
+
+func TestPeriodicallyStategyFlushesAtStopping(t *testing.T) {
+	assert := assert.New(t)
+
+	s := &Periodically{Interval: 2 * time.Second}
+	s.lastFlush = time.Now().Add(-1 * time.Second)
+
+	assert.False(s.ShouldFlush(Starting, time.Now()), "At Starting, flush should not occur if the interval hasn't passed")
+	assert.True(s.ShouldFlush(Stopping, time.Now()), "At Stopping, flush should always occur regardless of the interval")
+}
