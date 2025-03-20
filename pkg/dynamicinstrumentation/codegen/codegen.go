@@ -29,8 +29,9 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		preChange := procInfo.TypeMap.Functions[probe.FuncName]
 		depth := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+		fieldCountLimit := probe.InstrumentationInfo.InstrumentationOptions.MaxFieldCount
 		setDoNotCaptureBeyondDepth(preChange, depth)
-
+		setFieldLimit(preChange, fieldCountLimit)
 		params := make([]*ditypes.Parameter, len(preChange))
 		copyTree(&params, &preChange)
 

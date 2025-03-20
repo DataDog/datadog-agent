@@ -48,6 +48,56 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 	return result
 }
 
+func setFieldLimit(params []*ditypes.Parameter, fieldCountLimit int) {
+	if fieldCountLimit <= 0 || len(params) == 0 {
+		return
+	}
+
+	// Create a queue to hold parameters that need to be processed
+	queue := make([]*ditypes.Parameter, 0, len(params))
+
+	// Initialize the queue with the top-level parameters
+	for _, param := range params {
+		if param != nil {
+			queue = append(queue, param)
+		}
+	}
+
+	// Process parameters until the queue is empty
+	for len(queue) > 0 {
+		// Dequeue the next parameter
+		param := queue[0]
+		queue = queue[1:]
+
+		// Apply field limiting to struct types
+		if reflect.Kind(param.Kind) == reflect.Struct {
+			markExcessiveFieldsDoNotCapture(param, fieldCountLimit)
+		}
+
+		// Add nested parameters to the queue
+		for _, childParam := range param.ParameterPieces {
+			if childParam != nil {
+				queue = append(queue, childParam)
+			}
+		}
+	}
+}
+
+// markExcessiveFieldsDoNotCapture sets DoNotCapture=true for fields beyond the limit in a struct
+func markExcessiveFieldsDoNotCapture(structParam *ditypes.Parameter, fieldCountLimit int) {
+	if structParam == nil || len(structParam.ParameterPieces) <= fieldCountLimit {
+		return
+	}
+
+	// Mark fields beyond the limit as DoNotCapture
+	for i := fieldCountLimit; i < len(structParam.ParameterPieces); i++ {
+		if structParam.ParameterPieces[i] != nil {
+			structParam.ParameterPieces[i].DoNotCapture = true
+			structParam.ParameterPieces[i].NotCaptureReason = ditypes.FieldLimitReached
+		}
+	}
+}
+
 // setDoNotCaptureBeyondDepth sets the DoNotCapture flag on all parameters that are at or beyond the target depth
 func setDoNotCaptureBeyondDepth(params []*ditypes.Parameter, targetDepth int) {
 	queue := []*captureDepthItem{}

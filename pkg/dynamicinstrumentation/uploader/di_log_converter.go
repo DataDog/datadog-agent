@@ -161,17 +161,14 @@ func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[strin
 			cv := &ditypes.CapturedValue{
 				Type: capture.Type,
 			}
-
 			if capture.ValueStr != "" || capture.Type == "string" {
 				valueCopy := capture.ValueStr
 				cv.Value = &valueCopy
 			}
-
 			// Don't recursively process fields for captures not in defs
 			args[argName] = cv
 		}
 	}
-
 	return args
 }
 
