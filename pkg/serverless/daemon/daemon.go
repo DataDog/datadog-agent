@@ -60,6 +60,9 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
+	// periodicFlushStop is used to stop the background flusher loop when the daemon stops
+	periodicFlushStop chan struct{}
+
 	// Stopped represents whether the Daemon has been Stopped
 	Stopped bool
 
@@ -338,6 +341,11 @@ func (d *Daemon) Stop() {
 
 	if d.logCollector != nil {
 		d.logCollector.Shutdown()
+	}
+
+	// Close periodic flushing channel
+	if d.periodicFlushStop != nil {
+		close(d.periodicFlushStop)
 	}
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
