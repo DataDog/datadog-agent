@@ -30,7 +30,7 @@ const (
 // errors.
 func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// API Logging config supersedes file/socket configs as it does not depend on pod/container logWhat
-	if pkgconfigsetup.Datadog().GetBool("logs_config.eks_fargate_native_logging") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_kubelet_api") {
 		if pkgconfigsetup.Datadog().GetBool("eks_fargate") {
 			return api
 		}

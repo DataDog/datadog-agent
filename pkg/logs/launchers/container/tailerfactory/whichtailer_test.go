@@ -53,7 +53,7 @@ func TestWhichTailer(t *testing.T) {
 		dcfuf          bool                     // dcuf sets logs_config.docker_container_force_use_file.
 		kcuf           bool                     // kcuf sets logs_config.k8s_container_use_file.
 		fargate        bool                     // fargate sets eks_fargate configuration.
-		nativeLogging  bool                     // nativeLogging sets logs_config.eks_fargate_native_logging.
+		nativeLogging  bool                     // nativeLogging sets logs_config.k8s_container_use_kubelet_api.
 		containerInReg bool                     // containerInReg sets presence of a socket registry entry
 		tailer         whichTailer              // expected result
 	}{
@@ -81,7 +81,7 @@ func TestWhichTailer(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
 			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
-			cfg.SetWithoutSource("logs_config.eks_fargate_native_logging", c.nativeLogging)
+			cfg.SetWithoutSource("logs_config.k8s_container_use_kubelet_api", c.nativeLogging)
 			cfg.SetWithoutSource("eks_fargate", c.fargate)
 			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
 
