@@ -107,10 +107,7 @@ func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, t
 		demultiplexerimpl.MockModule(),
 		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
-		taggermock.Module(),
-		fx.Provide(func(mock taggermock.Mock) tagger.Component {
-			return mock
-		}),
+		taggerfxmock.MockModule(),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 		autodiscoveryimpl.MockModule(),
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
