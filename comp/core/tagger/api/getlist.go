@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/fatih/color"
