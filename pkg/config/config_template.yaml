@@ -288,6 +288,20 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
+## @param http_protocol - string - optional - default: auto
+## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: auto
+## The transport type to use for sending logs. Possible values are "auto" or "http1".
+# forwarder_http_protocol: auto
+
+## @param forwarder_max_concurrent_requests - integer - optional - default: 10
+## @ENV DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
+## The maximum number of concurrent requests that each worker can have queued up
+## at any one time. If the connection is over HTTP/1 each request will be waiting
+## for the previous request to complete before sending the next one. With HTTP/2
+## each request can be sent before waiting for the response.
+#
+# forwarder_max_concurrent_requests: 10
+
 ## @param forwarder_storage_max_size_in_bytes - integer - optional - default: 0
 ## @env DD_FORWARDER_STORAGE_MAX_SIZE_IN_BYTES - integer - optional - default: 0
 ## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`

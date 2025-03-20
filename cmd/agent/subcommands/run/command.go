@@ -632,7 +632,7 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.CoreEndpointsConnectivity, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
-		return connectivity.Diagnose(diagCfg)
+		return connectivity.Diagnose(diagCfg, log)
 	})
 
 	// start dependent services

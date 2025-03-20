@@ -342,10 +342,8 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		return "", nil
 	}
 
-	for _, id := range rs.opts.ReservedRuleIDs {
-		if id == pRule.Def.ID {
-			return "", &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
-		}
+	if slices.Contains(rs.opts.ReservedRuleIDs, pRule.Def.ID) {
+		return "", &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {

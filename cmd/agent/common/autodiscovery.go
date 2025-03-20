@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"go.uber.org/atomic"
@@ -277,12 +278,7 @@ func waitForConfigsFromAD(ctx context.Context,
 	} else {
 		// match configs with names in checkNames
 		match = func(cfg integration.Config) bool {
-			for _, checkName := range checkNames {
-				if cfg.Name == checkName {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(checkNames, cfg.Name)
 		}
 	}
 

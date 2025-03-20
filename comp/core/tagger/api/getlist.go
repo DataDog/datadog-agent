@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -60,9 +60,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 		}
 
 		// sort sources for deterministic output
-		sort.Slice(sources, func(i, j int) bool {
-			return sources[i] < sources[j]
-		})
+		slices.Sort(sources)
 
 		for _, source := range sources {
 			fmt.Fprintf(w, "== Source %s =\n=", source)
@@ -71,9 +69,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 
 			// sort tags for easy comparison
 			tags := tagItem.Tags[source]
-			sort.Slice(tags, func(i, j int) bool {
-				return tags[i] < tags[j]
-			})
+			slices.Sort(tags)
 
 			for i, tag := range tags {
 				tagInfo := strings.Split(tag, ":")
