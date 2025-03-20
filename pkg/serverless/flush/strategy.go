@@ -120,6 +120,11 @@ func (s *Periodically) String() string {
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
+	if moment == Stopping {
+		// Always flush at the end of the invocation so that any logs arriving near shutdown are sent.
+		return true
+	}
+
 	if moment == Starting && !globalRetryState.shouldWaitBackoff(t) {
 		if s.lastFlush.Add(s.Interval).Before(t) {
 			s.lastFlush = t
