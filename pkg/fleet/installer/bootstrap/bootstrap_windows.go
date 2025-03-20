@@ -11,6 +11,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,7 +52,6 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
-	var installPath string
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
@@ -76,14 +76,24 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	installPath, err = getInstallerFromMSI(tmpDir)
+	installPath, err := getInstallerPath(tmpDir)
 	if err != nil {
+		return nil, fmt.Errorf("failed to get installer path: %w", err)
+	}
+
+	return iexec.NewInstallerExec(env, installPath), nil
+}
+
+func getInstallerPath(tmpDir string) (string, error) {
+	installPath, msiErr := getInstallerFromMSI(tmpDir)
+	if msiErr != nil {
+		var err error
 		installPath, err = getInstallerFromOCI(tmpDir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get installer: %w", err)
+			return "", fmt.Errorf("%w, %w ", err, msiErr)
 		}
 	}
-	return iexec.NewInstallerExec(env, installPath), nil
+	return installPath, nil
 }
 
 func getInstallerFromMSI(tmpDir string) (string, error) {
@@ -91,6 +101,11 @@ func getInstallerFromMSI(tmpDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	if len(msis) != 1 {
+		return "", fmt.Errorf("inncorect number of MSIs found %d in %s", len(msis), tmpDir)
+	}
+
 	adminInstallDir := path.Join(tmpDir, "datadog-installer")
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
@@ -115,7 +130,7 @@ func getInstallerFromOCI(tmpDir string) (string, error) {
 		return "", err
 	}
 	if len(installers) == 0 {
-		return "", fmt.Errorf("no installer found in %s", tmpDir)
+		return "", fmt.Errorf("no installer found in %s: %w", tmpDir, fs.ErrNotExist)
 	}
 	return installers[0], nil
 }
