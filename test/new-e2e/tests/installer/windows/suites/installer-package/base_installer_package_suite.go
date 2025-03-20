@@ -7,13 +7,14 @@ package installertests
 
 import (
 	"embed"
+
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
-//go:embed fixtures/sample_config
+//go:embed fixtures/sample_config*
 var fixturesFS embed.FS
 
 // baseInstallerPackageSuite is the base test suite for tests of the installer MSI
@@ -31,20 +32,13 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 
 	// Assert
 	s.requireInstalled()
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		// the service cannot start because of the missing API key
-		WithStatus("Stopped").
-		// no named pipe when service is not running
-		HasNoNamedPipe(consts.NamedPipe)
-	// no status when service is not running (no daemon/named pipe)
-	_, err := s.Installer().Status()
-	s.Require().Error(err)
+	// the service cannot start because of the missing API key
+	s.requireNotRunning()
 }
 
 func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", consts.ConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_enabled", consts.ConfigPath)
 
 	// Act
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
@@ -53,6 +47,14 @@ func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(consts.ServiceName).
 		WithStatus("Running")
+}
+
+func (s *baseInstallerPackageSuite) requireNotRunning() {
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(consts.ServiceName).
+		WithStatus("Stopped").
+		// no named pipe when service is not running
+		HasNoNamedPipe(consts.NamedPipe)
 }
 
 func (s *baseInstallerPackageSuite) requireInstalled() {

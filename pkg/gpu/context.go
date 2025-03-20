@@ -76,6 +76,10 @@ type systemContext struct {
 
 	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
 	fatbinTelemetry *fatbinTelemetry
+
+	// fatbinParsingEnabled is a flag to enable/disable fatbin parsing.
+	// TODO: this flag will be unnecessary once we have a separate structure for the fatbin parser
+	fatbinParsingEnabled bool
 }
 
 // symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid

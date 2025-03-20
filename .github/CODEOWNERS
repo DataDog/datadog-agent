@@ -38,7 +38,6 @@
 /mkdocs.yml                             @DataDog/agent-devx-infra
 /release.json                           @DataDog/agent-delivery @DataDog/agent-metric-pipelines @DataDog/windows-kernel-integrations @DataDog/agent-security
 /renovate.json                          @DataDog/agent-devx-infra
-/requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
@@ -288,7 +287,7 @@
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-delivery @DataDog/fleet
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-delivery @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-delivery @DataDog/fleet
-/omnibus/python-scripts/                @DataDog/agent-runtimes @DataDog/windows-agent
+/omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-agent
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery

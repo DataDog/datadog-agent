@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 func TestGetPublicIPv4(t *testing.T) {
@@ -37,7 +38,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -69,8 +70,8 @@ func TestGetNetworkID(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -93,8 +94,8 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -131,8 +132,8 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	}))
 
 	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -174,8 +175,8 @@ func TestGetVPCSubnets(t *testing.T) {
 	defer ts.Close()
 
 	defer resetPackageVars()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
@@ -231,8 +232,8 @@ func TestGetVPCSubnets404(t *testing.T) {
 	defer ts.Close()
 
 	defer resetPackageVars()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 

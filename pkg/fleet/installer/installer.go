@@ -67,6 +67,8 @@ type Installer interface {
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
+	Postinst(ctx context.Context, pkg string, caller string) error
+
 	Close() error
 }
 
@@ -369,7 +371,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	tmpDir, err := i.packages.MkdirTemp()
+	tmpDir, err := i.configs.MkdirTemp()
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -590,6 +592,27 @@ func (i *installerImpl) close() error {
 		return errors.Join(errs...)
 	}
 	return nil
+}
+
+// Postinst runs the post-install script for a package.
+func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if caller != "deb" && caller != "rpm" && caller != "oci" {
+		return fmt.Errorf("invalid caller: %s", caller)
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
+		if caller == "deb" || caller == "rpm" {
+			installPath = "/opt/datadog-agent"
+		}
+		return packages.PostInstallAgent(ctx, installPath, caller)
+	default:
+		return nil
+	}
 }
 
 // Close cleans up the Installer's dependencies

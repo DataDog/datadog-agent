@@ -18,7 +18,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fatih/color"
 	"gopkg.in/yaml.v2"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
@@ -27,16 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
@@ -46,7 +44,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFiller {
+func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component]) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -65,8 +63,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
-		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
-		flaretypes.NewFiller(provideContainers(diagnoseDeps)),
+		flaretypes.NewFiller(provideContainers(workloadmeta)),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -90,13 +87,13 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 	return providers
 }
 
-func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
+func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
 	return func(fb flaretypes.FlareBuilder) error {
-		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                          //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                           //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                               //nolint:errcheck
-		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                       //nolint:errcheck
-		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) }) //nolint:errcheck
+		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                               //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                    //nolint:errcheck
+		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                            //nolint:errcheck
+		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(workloadmeta) }) //nolint:errcheck
 
 		return nil
 	}
@@ -105,13 +102,6 @@ func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.Flar
 func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 	return nil
-}
-
-func provideDiagnoses(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
-	return func(fb flaretypes.FlareBuilder) error {
-		fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), diagnoseDeps)) //nolint:errcheck
-		return nil
-	}
 }
 
 func provideInstallInfo(fb flaretypes.FlareBuilder) error {
@@ -138,7 +128,7 @@ func getVPCSubnetsForHost() ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	subnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	subnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +214,8 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	bytes, err := getHTTPCallContent(procStatusURL)
+	c := apiutil.GetClient()
+	bytes, err := apiutil.DoGet(c, procStatusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
 	}
@@ -247,11 +238,12 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 			return
 		}
 
-		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return getHTTPCallContent(checkURL + checkName) })
+		c := apiutil.GetClient()
+		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return apiutil.DoGet(c, checkURL+checkName, apiutil.LeaveConnectionOpen) })
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
-				"process_check_output.json",
-				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
+				filename,
+				[]byte(err.Error()),
 			)
 		}
 	}
@@ -259,45 +251,6 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 	getCheck("process", "process_config.process_collection.enabled")
 	getCheck("container", "process_config.container_collection.enabled")
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
-}
-
-func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, error) {
-	fct := func(w io.Writer) error {
-		// Run diagnose always "local" (in the host process that is)
-		diagCfg := diagnosis.Config{
-			Verbose:  true,
-			RunLocal: true,
-		}
-
-		// ... but when running within Agent some diagnose suites need to know
-		// that to run more optimally/differently by using existing in-memory objects
-		collector, ok := deps.Collector.Get()
-		if !isFlareLocal && ok {
-			diagnoses, err := diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
-			if err != nil {
-				return err
-			}
-			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
-		}
-
-		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
-		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-		if err != nil && !diagCfg.RunLocal {
-			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-			diagCfg.RunLocal = true
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-			if err != nil {
-				fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-				return err
-			}
-		}
-		return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
-
-	}
-
-	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
 }
 
 func getAgentTaggerList() ([]byte, error) {
@@ -328,7 +281,7 @@ func getProcessAgentTaggerList() ([]byte, error) {
 
 // GetTaggerList fetches the tagger list from the given URL.
 func GetTaggerList(remoteURL string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -353,12 +306,17 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), false)
 }
 
 // GetWorkloadList fetches the workload list from the given URL.
-func GetWorkloadList(url string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+func GetWorkloadList(url string, withInsecureClient bool) ([]byte, error) {
+	var c *http.Client
+	if withInsecureClient {
+		c = apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	} else {
+		c = apiutil.GetClient()
+	}
 
 	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -410,7 +368,7 @@ func getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	client := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	client := apiutil.GetClient()
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

@@ -1,0 +1,891 @@
+generator:
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 132]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 133]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 134]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 135]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 136]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 137]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 138]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 139]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 140]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 141]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 142]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 143]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 144]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 145]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 146]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 147]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 148]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 149]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 149]
+      path: "/tmp/dsd.socket"
+      block_cache_method: Fixed
+      variant:
+        dogstatsd:
+          length_prefix_framed: true
+          contexts:
+            inclusive:
+              min: 300
+              max: 301
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_length:
+            inclusive:
+              min: 3
+              max: 150
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          # Weights based on analyzing internal Datadog usage data of metric type for metrics sent to the Agent over DogStatsD.
+          metric_weights:
+            count: 208
+            gauge: 66
+            timer: 0
+            distribution: 72
+            set: 9
+            histogram: 1
+      bytes_per_second: "1 MiB"
+      maximum_prebuild_cache_size_bytes: "16 Mb"
+      maximum_block_size: 8192
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+
+target_metrics:
+  - prometheus:
+        uri: "http://127.0.0.1:5000/telemetry"
