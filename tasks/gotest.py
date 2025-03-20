@@ -215,7 +215,7 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_result, result_json: str, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
         junit_file = test_result.junit_file_path
 
@@ -231,7 +231,7 @@ def process_test_result(test_result, result_json: str, junit_tar: str, flavor: A
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher(test_output_json_file=result_json)
+        tw = TestWasher(test_output_json_file=test_result.result_json_path)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -394,22 +394,22 @@ def test(
             coverage=coverage,
         )
 
-    # Output
+    # Output (only if tests ran)
+    if test_result:
+        if coverage and print_coverage:
+            coverage_flavor(ctx)
 
-    if coverage and print_coverage:
-        coverage_flavor(ctx)
+        # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
+        # in the meantime to avoid confusion
+        if profile:
+            # print("\n--- Top 15 packages sorted by run time:")
+            test_profiler.print_sorted(15)
 
-    # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
-    # in the meantime to avoid confusion
-    if profile:
-        # print("\n--- Top 15 packages sorted by run time:")
-        test_profiler.print_sorted(15)
+        success = process_test_result(test_result, junit_tar, flavor, test_washer)
+        if not success:
+            raise Exit(code=1)
 
-    success = process_test_result(test_result, result_json, junit_tar, flavor, test_washer)
-    if not success:
-        raise Exit(code=1)
-
-    print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
+        print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
 
 
 @task

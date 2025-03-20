@@ -199,7 +199,7 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, result_json, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
