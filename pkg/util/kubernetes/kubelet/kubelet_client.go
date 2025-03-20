@@ -132,10 +132,20 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 }
 
 func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
+	_, response, err := kc.rawQuery(ctx, path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Body, nil
+}
+
+func (kc *kubeletClient) rawQuery(ctx context.Context, path string) (*http.Request, *http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new request: %w", err)
+		return nil, nil, fmt.Errorf("Failed to create new request: %w", err)
 	}
 
 	response, err := kc.client.Do(req)
@@ -153,9 +163,10 @@ func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.Rea
 
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
-		return nil, err
+		return nil, nil, err
 	}
-	return response.Body, nil
+
+	return req, response, nil
 }
 
 func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
@@ -168,28 +179,11 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 		fullURL = fmt.Sprintf("%s%s", kc.kubeletURL, path)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+	req, response, err := kc.rawQuery(ctx, fullURL)
 	if err != nil {
-		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
-	}
-
-	response, err := kc.client.Do(req)
-	kubeletExpVar.Add(1)
-
-	// telemetry
-	defer func() {
-		code := 0
-		if response != nil {
-			code = response.StatusCode
-		}
-
-		queries.Inc(path, strconv.Itoa(code))
-	}()
-
-	if err != nil {
-		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
 		return nil, 0, err
 	}
+
 	defer response.Body.Close()
 
 	b, err := io.ReadAll(response.Body)
