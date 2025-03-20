@@ -14,7 +14,13 @@ Prelude
 
 Release on: 2025-03-20
 
-- Please refer to the `7.64.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7641>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.64.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed Python package dependency issue preventing integrations from loading on Windows
 
 
 .. _Release Notes_7.64.0:
