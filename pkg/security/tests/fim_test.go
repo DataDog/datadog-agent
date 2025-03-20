@@ -90,6 +90,22 @@ func TestFIMPermError(t *testing.T) {
 			ID:         "test_perm_unlink_rule",
 			Expression: `unlink.file.path == "{{.Root}}/test-file" && unlink.retval == -13`,
 		},
+		{
+			ID:         "test_perm_chmod_rule",
+			Expression: `chmod.file.path == "{{.Root}}/test-file" && chmod.retval == -1`,
+		},
+		{
+			ID:         "test_perm_chown_rule",
+			Expression: `chown.file.path == "{{.Root}}/test-file" && chown.retval == -1`,
+		},
+		{
+			ID:         "test_perm_rename_rule",
+			Expression: `rename.file.destination.path == "{{.Root}}/test-file" && rename.file.path == "{{.Root}}/rename-file" && rename.retval == -13`,
+		},
+		{
+			ID:         "test_perm_utimes_rule",
+			Expression: `utimes.file.path == "{{.Root}}/test-file" && utimes.retval == -1`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -123,6 +139,11 @@ func TestFIMPermError(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	renameFile, _, err := test.Create("rename-file")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +167,6 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		t.Skip("not stable")
-
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
@@ -161,6 +180,74 @@ func TestFIMPermError(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_unlink_rule")
 			assert.Equal(t, -int64(syscall.EACCES), event.Unlink.Retval)
+		})
+	})
+
+	test.Run(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"chmod", testFile, "0600",
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_chmod_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Chmod.Retval)
+		})
+	})
+
+	test.Run(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"chown", testFile, "0", "0",
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_chown_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Chown.Retval)
+		})
+	})
+
+	test.Run(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"rename", renameFile, testFile,
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_rename_rule")
+			assert.Equal(t, -int64(syscall.EACCES), event.Rename.Retval)
+		})
+	})
+
+	test.Run(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"utimes", testFile,
+		}
+		envs := []string{}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_perm_utimes_rule")
+			assert.Equal(t, -int64(syscall.EPERM), event.Utimes.Retval)
 		})
 	})
 }
