@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Implement periodic flushing strategy in the compatibility-version Lambda extension.
+    This can be enabled with the `DD_SERVERLESS_FLUSH_STRATEGY: periodically,<period in ms>` environment variable.
