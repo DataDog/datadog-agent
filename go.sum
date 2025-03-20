@@ -2811,8 +2811,8 @@ k8s.io/cli-runtime v0.31.2/go.mod h1:XROyicf+G7rQ6FQJMbeDV9jqxzkWXTYD6Uxd15noe0Q
 k8s.io/client-go v0.31.2 h1:Y2F4dxU5d3AQj+ybwSMqQnpZH9F30//1ObxOKlTI9yc=
 k8s.io/client-go v0.31.2/go.mod h1:NPa74jSVR/+eez2dFsEIHNa+3o09vtNaWwWwb1qSxSs=
 k8s.io/code-generator v0.21.1/go.mod h1:hUlps5+9QaTrKx+jiM4rmq7YmH8wPOIko64uZCHDh6Q=
-k8s.io/component-base v0.31.2 h1:Z1J1LIaC0AV+nzcPRFqfK09af6bZ4D1nAOpWsy9owlA=
-k8s.io/component-base v0.31.2/go.mod h1:9PeyyFN/drHjtJZMCTkSpQJS3U9OXORnHQqMLDz0sUQ=
+k8s.io/component-base v0.32.3 h1:98WJvvMs3QZ2LYHBzvltFSeJjEx7t5+8s71P7M74u8k=
+k8s.io/component-base v0.32.3/go.mod h1:LWi9cR+yPAv7cu2X9rZanTiFKB2kHA+JjmhkKjCZRpI=
 k8s.io/cri-api v0.31.2 h1:O/weUnSHvM59nTio0unxIUFyRHMRKkYn96YDILSQKmo=
 k8s.io/cri-api v0.31.2/go.mod h1:Po3TMAYH/+KrZabi7QiwQI4a692oZcUOUThd/rqwxrI=
 k8s.io/gengo v0.0.0-20200413195148-3a45101e95ac/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=
