@@ -28,14 +28,17 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		preChange := procInfo.TypeMap.Functions[probe.FuncName]
-		depth := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
-		fieldCountLimit := probe.InstrumentationInfo.InstrumentationOptions.MaxFieldCount
-		setDoNotCaptureBeyondDepth(preChange, depth)
+		depthLimit := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+		fieldCountLimit := ditypes.MaxFieldCount
+		setDepthLimit(preChange, depthLimit)
 		setFieldLimit(preChange, fieldCountLimit)
+
+		// We make a copy of the parameter tree to avoid modifying the original
+		// for the sake of event translation when uploading to backend
 		params := make([]*ditypes.Parameter, len(preChange))
 		copyTree(&params, &preChange)
 
-		params = applyCaptureDepth(params)
+		params = applyExclusions(params)
 		for i := range params {
 			if params[i].DoNotCapture {
 				log.Tracef("Not capturing parameter %d %s: %s", i, params[i].Name, params[i].NotCaptureReason.String())
