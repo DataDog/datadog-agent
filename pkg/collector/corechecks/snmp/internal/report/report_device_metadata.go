@@ -100,7 +100,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
-		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
+		ms.sender.Gauge(interfaceStatusMetric, 1, ms.hostname, interfaceTags)
 	}
 }
 

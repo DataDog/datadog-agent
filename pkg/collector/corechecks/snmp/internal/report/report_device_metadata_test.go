@@ -286,7 +286,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
-		sender: sender,
+		hostname: "test",
+		sender:   sender,
 		interfaceConfigs: []snmpintegration.InterfaceConfig{
 			{
 				MatchField: "index",
@@ -370,8 +371,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
 
-	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
-	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "test", ifTags1)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "test", ifTags2)
 	// language=json
 	event := []byte(`
 {
