@@ -1044,7 +1044,7 @@ api_key:
 
   ## @param kublet_api_client_read_timeout - integer - optional - default: 30
   ## @env DD_LOGS_CONFIG_KUBELET_API_CLIENT_READ_TIMEOUT - integer - optional - default: 30
-  ## Configure the kubelet API client's timeout used while streaming logs
+  ## Configure the kubelet API client's timeout used while streaming logs. Value in seconds.
   #
   # kublet_api_client_read_timeout: 30
 
