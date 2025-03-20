@@ -219,6 +219,10 @@ type AttacherConfig struct {
 
 	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
 	SharedLibsLibset sharedlibraries.Libset
+
+	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
+	// the set of alive PIDs in the system.
+	OnSyncCallback func(map[uint32]struct{})
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -506,7 +510,7 @@ func (ua *UprobeAttacher) Start() error {
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
 func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
-	if !trackDeletions && !trackCreations {
+	if !trackDeletions && !trackCreations && ua.config.OnSync == nil {
 		return nil // Nothing to do
 	}
 
@@ -519,10 +523,13 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		return err
 	}
 
+	alivePIDs := make(map[uint32]struct{})
 	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
 		if pid == thisPID { // don't scan ourselves
 			return nil
 		}
+
+		alivePIDs[uint32(pid)] = struct{}{}
 
 		if trackDeletions {
 			if _, ok := deletionCandidates[uint32(pid)]; ok {
@@ -546,6 +553,10 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		for pid := range deletionCandidates {
 			ua.handleProcessExit(pid)
 		}
+	}
+
+	if ua.config.OnSyncCallback != nil {
+		ua.config.OnSyncCallback(alivePIDs)
 	}
 
 	return nil
