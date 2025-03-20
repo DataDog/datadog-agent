@@ -508,15 +508,13 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 
 		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 			// at least one test failed, diagnose the environment
-			if diagnosableEnv != nil {
-				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-				if diagnoseErr != nil {
-					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-				} else {
-					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
-				}
+			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+			if diagnoseErr != nil {
+				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+			} else {
+				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 			}
 		}
 
@@ -593,16 +591,13 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			bs.T().Logf("unable to create test output directory: %v", err)
 		} else {
 			// run environment diagnose if the test failed
-			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
-				if diagnosableEnv != nil {
-					diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
-					if diagnoseErr != nil {
-						bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-					} else {
-						bs.T().Logf("Diagnose result:\n\n%s", diagnose)
-
-					}
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
 			}
 		}
