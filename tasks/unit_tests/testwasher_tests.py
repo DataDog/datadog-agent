@@ -150,7 +150,7 @@ class TestUtils(unittest.TestCase):
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast'}},
         )
 
-    def test_flaky_on_log6_subtest(self):
+    def test_flaky_on_log_panic_on_subtest(self):
         test_washer = TestWasher(
             test_output_json_file="test_output_failure_panic_subtest.json",
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_6.yaml"],
