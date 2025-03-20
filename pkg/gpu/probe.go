@@ -103,6 +103,7 @@ type ProbeDependencies struct {
 	WorkloadMeta workloadmeta.Component
 }
 
+// NewProbeDependencies creates a new ProbeDependencies instance
 func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
 	nvmlLib := nvml.New(nvml.WithLibraryPath(cfg.NVMLLibraryPath))
 	ret := nvmlLib.Init()
