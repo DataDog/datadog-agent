@@ -510,7 +510,7 @@ func (ua *UprobeAttacher) Start() error {
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
 func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
-	if !trackDeletions && !trackCreations && ua.config.OnSync == nil {
+	if !trackDeletions && !trackCreations && ua.config.OnSyncCallback == nil {
 		return nil // Nothing to do
 	}
 
