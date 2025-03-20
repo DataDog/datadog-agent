@@ -140,7 +140,7 @@ func (s *testDotnetLibraryInstallSuite) TestUpgradeAndDowngradePackage() {
 
 	// Start app using the library
 	defer s.stopIISApp()
-	s.startIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
 	initialLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(initialLibraryPath, initialVersion[:len(initialVersion)-2], "library path should contain initial version")
 
@@ -161,7 +161,7 @@ func (s *testDotnetLibraryInstallSuite) TestUpgradeAndDowngradePackage() {
 
 	// Restart app and verify downgrade
 	s.stopIISApp()
-	s.startIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
 
 	downgradedLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(downgradedLibraryPath, initialVersion[:len(initialVersion)-2], "library path should contain initial version after downgrade")
