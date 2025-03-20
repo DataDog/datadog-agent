@@ -94,6 +94,11 @@ var (
 	MetricDNSResolverCnameEvictions = newRuntimeMetric(".dns_resolver.cname_evictions")
 	// MetricDNSResolverCnameInsertions Tags: cache
 	MetricDNSResolverCnameInsertions = newRuntimeMetric(".dns_resolver.cname_insertions")
+	// MetricRepeatedDNSResponsesFilteredOnKernel Tags: cache
+	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
+	// MetricDNSResponseReceived Tags: cache
+	MetricDNSResponseReceived = newRuntimeMetric(".dns_response_collector.dns_response_received")
+
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added

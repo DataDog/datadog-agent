@@ -136,34 +136,34 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 
 // SendStats sends the DNS resolver metrics
 func (r *Resolver) SendStats() error {
-	entry := []string{
+	tags := []string{
 		metrics.CacheTag,
 		metrics.SegmentResolutionTag,
 	}
 
 	hits := r.resolverStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverHits, hits, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverHits, hits, tags, 1.0)
 
 	misses := r.resolverStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverMiss, misses, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverMiss, misses, tags, 1.0)
 
 	evictions := r.resolverStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverEvictions, evictions, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverEvictions, evictions, tags, 1.0)
 
 	insertions := r.resolverStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverInsertions, insertions, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverInsertions, insertions, tags, 1.0)
 
 	cnameHits := r.cnameStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameHits, cnameHits, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameHits, cnameHits, tags, 1.0)
 
 	cnameMisses := r.cnameStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameMiss, cnameMisses, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameMiss, cnameMisses, tags, 1.0)
 
 	cnameEvictions := r.cnameStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameEvictions, cnameEvictions, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameEvictions, cnameEvictions, tags, 1.0)
 
 	cnameInsertions := r.cnameStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameInsertions, cnameInsertions, entry, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameInsertions, cnameInsertions, tags, 1.0)
 
 	return nil
 }
