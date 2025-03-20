@@ -13,9 +13,6 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
@@ -38,6 +35,10 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
 const (
@@ -45,7 +46,8 @@ const (
 	defaultVMName     = "kind"
 )
 
-func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+// KindDiagnoseFunc is the diagnose function for the Kind provisioner
+func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
@@ -69,7 +71,7 @@ func KindProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[en
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(KindDiagnoseFunc)
 
 	return provisioner
 }

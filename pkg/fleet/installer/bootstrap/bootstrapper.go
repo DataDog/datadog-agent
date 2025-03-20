@@ -11,17 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 // Bootstrap bootstraps the installer and uses it to install the default packages.
 func Bootstrap(ctx context.Context, env *env.Env) error {
-	version := "latest"
-	if env.DefaultPackagesVersionOverride[InstallerPackage] != "" {
-		version = env.DefaultPackagesVersionOverride[InstallerPackage]
-	}
-	installerURL := oci.PackageURL(env, InstallerPackage, version)
+	installerURL := getInstallerOCI(ctx, env)
 	err := Install(ctx, env, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)

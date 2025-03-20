@@ -21,11 +21,7 @@ var containerIDPattern *regexp.Regexp
 var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 func init() {
-	var prefixes []string
-	for _, runtimePrefix := range RuntimePrefixes {
-		prefixes = append(prefixes, runtimePrefix.prefix)
-	}
-	ContainerIDPatternStr = "(?:" + strings.Join(prefixes[:], "|") + ")?([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
+	ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
 
@@ -48,34 +44,35 @@ func getSystemdCGroupFlags(cgroup CGroupID) uint64 {
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
 func FindContainerID(s CGroupID) (ContainerID, uint64) {
-	match := containerIDPattern.FindIndex([]byte(s))
-	if match == nil {
-		return "", getSystemdCGroupFlags(s)
-	}
+	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 
-	// first, check what's before
-	if match[0] != 0 {
-		previousChar := string(s[match[0]-1])
-		if strings.ContainsAny(previousChar, containerIDCoreChars) {
-			return "", getSystemdCGroupFlags(s)
+	var (
+		flags       CGroupFlags
+		containerID ContainerID
+	)
+
+	for _, match := range matches {
+		// first, check what's before
+		if match[0] != 0 {
+			previousChar := string(s[match[0]-1])
+			if strings.ContainsAny(previousChar, containerIDCoreChars) {
+				continue
+			}
 		}
-	}
-	// then, check what's after
-	if match[1] < len(s) {
-		nextChar := string(s[match[1]])
-		if strings.ContainsAny(nextChar, containerIDCoreChars) {
-			return "", getSystemdCGroupFlags(s)
+		// then, check what's after
+		if match[1] < len(s) {
+			nextChar := string(s[match[1]])
+			if strings.ContainsAny(nextChar, containerIDCoreChars) {
+				continue
+			}
 		}
+
+		containerID, flags = ContainerID(s[match[0]:match[1]]), getContainerRuntime(s)
 	}
 
-	// ensure the found containerID is delimited by characters other than a-zA-Z0-9, or that
-	// it starts or/and ends the initial string
-
-	cgroupID := s[match[0]:match[1]]
-	containerID, flags := getContainerFromCgroup(CGroupID(cgroupID))
-	if containerID == "" {
-		return ContainerID(cgroupID), uint64(flags)
+	if containerID != "" {
+		return containerID, uint64(flags)
 	}
 
-	return containerID, uint64(flags)
+	return "", getSystemdCGroupFlags(s)
 }
