@@ -233,6 +233,10 @@ func configureAdaptiveFlush(serverlessDaemon *daemon.Daemon) {
 		} else {
 			serverlessDaemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
 			serverlessDaemon.SetFlushStrategy(flushStrategy)
+
+			if fs, ok := flushStrategy.(*flush.Periodically); ok {
+				serverlessDaemon.StartPeriodicFlusher(fs.Interval)
+			}
 		}
 	} else {
 		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case

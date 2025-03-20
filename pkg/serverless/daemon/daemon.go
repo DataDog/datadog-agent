@@ -317,6 +317,34 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 	d.logsFlushMutex.Unlock()
 }
 
+// StartPeriodicFlusher creates a background goroutine that triggers flush
+// every `interval`, until Stop() closes periodicFlushStop.
+func (d *Daemon) StartPeriodicFlusher(interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+
+	// Make sure we only start once
+	if d.periodicFlushStop != nil {
+		log.Debug("Periodic flusher is already started; ignoring")
+		return
+	}
+
+	d.periodicFlushStop = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				d.TriggerFlush(false)
+			case <-d.periodicFlushStop:
+				return
+			}
+		}
+	}()
+}
+
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
 func (d *Daemon) Stop() {

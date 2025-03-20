@@ -105,24 +105,23 @@ func (s *AtTheEnd) Success() {
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.
 type Periodically struct {
-	interval  time.Duration
+	Interval  time.Duration
 	lastFlush time.Time
 }
 
 // NewPeriodically returns an initialized Periodically flush strategy.
 func NewPeriodically(interval time.Duration) *Periodically {
-	return &Periodically{interval: interval}
+	return &Periodically{Interval: interval}
 }
 
 func (s *Periodically) String() string {
-	return fmt.Sprintf("periodically,%d", s.interval/time.Millisecond)
+	return fmt.Sprintf("periodically,%d", s.Interval/time.Millisecond)
 }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting && !globalRetryState.shouldWaitBackoff(t) {
-		// Periodically strategy will not flush anyway if the s.interval didn't pass
-		if s.lastFlush.Add(s.interval).Before(t) {
+		if s.lastFlush.Add(s.Interval).Before(t) {
 			s.lastFlush = t
 			return true
 		}
