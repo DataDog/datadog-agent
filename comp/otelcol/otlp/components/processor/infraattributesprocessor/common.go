@@ -6,6 +6,7 @@
 package infraattributesprocessor
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,8 +16,10 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var unifiedServiceTagMap = map[string][]string{
@@ -26,15 +29,18 @@ var unifiedServiceTagMap = map[string][]string{
 }
 
 type infraTagsProcessor struct {
-	tagger taggerClient
+	tagger   taggerClient
+	hostname option.Option[hostname.Component]
 }
 
 // newInfraTagsProcessor creates a new infraTagsProcessor instance
 func newInfraTagsProcessor(
 	tagger taggerClient,
+	hostname option.Option[hostname.Component],
 ) infraTagsProcessor {
 	return infraTagsProcessor{
-		tagger: tagger,
+		tagger:   tagger,
+		hostname: hostname,
 	}
 }
 
@@ -43,6 +49,7 @@ func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
+	allowHostnameOverride bool,
 ) {
 	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
@@ -92,6 +99,12 @@ func (p infraTagsProcessor) ProcessTags(
 		}
 		if !hasOTelAttr {
 			resourceAttributes.PutStr(otelAttrs[0], v)
+		}
+	}
+
+	if h, ok := p.hostname.Get(); ok && allowHostnameOverride {
+		if hostname, err := h.Get(context.Background()); err == nil {
+			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
 	}
 }

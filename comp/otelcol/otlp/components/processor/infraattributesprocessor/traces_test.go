@@ -9,12 +9,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type traceNameTest struct {
@@ -128,7 +129,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
-			factory := NewFactoryForAgent(tc)
+			factory := NewFactoryForAgent(tc, option.None[hostnameinterface.Component]())
 			fmp, err := factory.CreateTraces(
 				context.Background(),
 				processortest.NewNopSettings(Type),

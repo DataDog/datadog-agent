@@ -15,9 +15,10 @@ import (
 )
 
 type infraAttributesMetricProcessor struct {
-	infraTags   infraTagsProcessor
-	logger      *zap.Logger
-	cardinality types.TagCardinality
+	infraTags             infraTagsProcessor
+	logger                *zap.Logger
+	cardinality           types.TagCardinality
+	allowHostnameOverride bool
 }
 
 func newInfraAttributesMetricProcessor(
@@ -26,9 +27,10 @@ func newInfraAttributesMetricProcessor(
 	cfg *Config,
 ) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
-		infraTags:   infraTags,
-		logger:      set.Logger,
-		cardinality: cfg.Cardinality,
+		infraTags:             infraTags,
+		logger:                set.Logger,
+		cardinality:           cfg.Cardinality,
+		allowHostnameOverride: cfg.AllowHostnameOverride,
 	}
 	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
@@ -38,7 +40,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes)
+		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.allowHostnameOverride)
 	}
 	return md, nil
 }

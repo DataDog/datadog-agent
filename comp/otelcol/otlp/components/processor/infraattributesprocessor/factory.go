@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"go.uber.org/fx"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -47,6 +50,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 	}
 	f.data = &data{}
 	var client taggerClient
+	var hostname hostname.Component
 	app := fx.New(
 		fx.Provide(func() config.Component {
 			return pkgconfigsetup.Datadog()
@@ -57,6 +61,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		logfx.Module(),
 		telemetryModule(),
 		fxutil.FxAgentBase(),
+		hostnameimpl.Module(),
 		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
@@ -72,11 +77,12 @@ func (f *factory) getOrCreateData() (*data, error) {
 			return t
 		}),
 		fx.Populate(&client),
+		fx.Populate(&hostname),
 	)
 	if err := app.Err(); err != nil {
 		return nil, err
 	}
-	f.data.infraTags = newInfraTagsProcessor(client)
+	f.data.infraTags = newInfraTagsProcessor(client, option.New(hostname))
 	return f.data, nil
 }
 
@@ -86,9 +92,9 @@ func NewFactory() processor.Factory {
 }
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
-func NewFactoryForAgent(tagger taggerClient) processor.Factory {
+func NewFactoryForAgent(tagger taggerClient, hostname option.Option[hostname.Component]) processor.Factory {
 	return newFactoryForAgent(&data{
-		infraTags: newInfraTagsProcessor(tagger),
+		infraTags: newInfraTagsProcessor(tagger, hostname),
 	})
 }
 

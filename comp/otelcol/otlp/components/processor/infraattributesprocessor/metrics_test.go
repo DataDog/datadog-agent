@@ -9,6 +9,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -16,8 +19,6 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type metricNameTest struct {
@@ -133,7 +134,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
 
-			factory := NewFactoryForAgent(tc)
+			factory := NewFactoryForAgent(tc, option.None[hostnameinterface.Component]())
 			fmp, err := factory.CreateMetrics(
 				context.Background(),
 				processortest.NewNopSettings(Type),

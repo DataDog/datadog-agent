@@ -15,9 +15,10 @@ import (
 )
 
 type infraAttributesLogProcessor struct {
-	infraTags   infraTagsProcessor
-	logger      *zap.Logger
-	cardinality types.TagCardinality
+	infraTags             infraTagsProcessor
+	logger                *zap.Logger
+	cardinality           types.TagCardinality
+	allowHostnameOverride bool
 }
 
 func newInfraAttributesLogsProcessor(
@@ -26,9 +27,10 @@ func newInfraAttributesLogsProcessor(
 	cfg *Config,
 ) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
-		infraTags:   infraTags,
-		logger:      set.Logger,
-		cardinality: cfg.Cardinality,
+		infraTags:             infraTags,
+		logger:                set.Logger,
+		cardinality:           cfg.Cardinality,
+		allowHostnameOverride: cfg.AllowHostnameOverride,
 	}
 	set.Logger.Info("Logs Infra Attributes Processor configured")
 	return ialp, nil
@@ -38,7 +40,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes)
+		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.allowHostnameOverride)
 	}
 	return ld, nil
 }
