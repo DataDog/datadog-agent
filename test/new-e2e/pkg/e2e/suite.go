@@ -225,6 +225,7 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
+		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -558,6 +559,7 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -570,7 +572,18 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	if bs.T().Failed() {
+		if bs.firstFailTest == "" {
+			// As far as I know, there is no way to prevent other tests from being
+			// run when a test fail. Even calling panic doesn't work.
+			// Instead, this code stores the name of the first fail test and prevents
+			// the environment to be updated.
+			// Note: using os.Exit(1) prevents other tests from being run but at the
+			// price of having no test output at all.
+			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+		}
+
 		// create output directory for this failed test
+		// WARNING: the diagnose code can call require, if it fails everything that come after will ignored.
 		testPart := common.SanitizeDirectoryName(testName)
 		testOutputDir := filepath.Join(bs.SessionOutputDir(), testPart)
 		err := os.MkdirAll(testOutputDir, 0755)
@@ -587,16 +600,6 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
 				}
 			}
-		}
-
-		if bs.firstFailTest == "" {
-			// As far as I know, there is no way to prevent other tests from being
-			// run when a test fail. Even calling panic doesn't work.
-			// Instead, this code stores the name of the first fail test and prevents
-			// the environment to be updated.
-			// Note: using os.Exit(1) prevents other tests from being run but at the
-			// price of having no test output at all.
-			bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
 		}
 	}
 }

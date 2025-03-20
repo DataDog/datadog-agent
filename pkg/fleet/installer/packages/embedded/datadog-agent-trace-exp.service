@@ -1,5 +1,5 @@
 [Unit]
-Description=Datadog Trace Agent Experiment
+Description=Datadog Trace Agent (APM) Experiment
 BindsTo=datadog-agent-exp.service
 
 [Service]

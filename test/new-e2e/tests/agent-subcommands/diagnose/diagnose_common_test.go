@@ -65,7 +65,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 
 	diagnose = getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
 	diagnoseJSON := unmarshalDiagnose(diagnose)
-	assert.NotNil(v.T(), diagnoseJSON)
+	require.NotNil(v.T(), diagnoseJSON)
 	assert.Zero(v.T(), diagnoseJSON.Summary.Fail)
 	assert.Zero(v.T(), diagnoseJSON.Summary.UnexpectedErr)
 }
@@ -76,7 +76,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 
 	diagnose = getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--local"}))
 	diagnoseJSON := unmarshalDiagnose(diagnose)
-	assert.NotNil(v.T(), diagnoseJSON)
+	require.NotNil(v.T(), diagnoseJSON)
 	assert.Zero(v.T(), diagnoseJSON.Summary.Fail)
 	assert.Zero(v.T(), diagnoseJSON.Summary.UnexpectedErr)
 }
@@ -109,7 +109,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
 	diagnoseResult := unmarshalDiagnose(diagnose)
-	assert.NotNil(v.T(), diagnoseResult)
+	require.NotNil(v.T(), diagnoseResult)
 	diagnoseSummary := diagnoseResult.Summary
 	for _, suite := range v.suites {
 		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
@@ -129,7 +129,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 	// Diagnose with all suites included should be equal to diagnose without args
 	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
 	diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
-	assert.NotNil(v.T(), diagnoseIncludeEverySuiteResult)
+	require.NotNil(v.T(), diagnoseIncludeEverySuiteResult)
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
 }
 
@@ -154,7 +154,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONExclude() {
 	for _, suite := range v.suites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--exclude", suite}))
 		diagnoseExcludeResult := unmarshalDiagnose(diagnoseExclude)
-		assert.NotNil(v.T(), diagnoseExcludeResult)
+		require.NotNil(v.T(), diagnoseExcludeResult)
 
 		resultExclude := diagnoseExcludeResult.Summary
 
@@ -168,7 +168,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONExclude() {
 	// Diagnose with all suites excluded should do nothing
 	diagnoseExcludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(excludeArgs))
 	diagnoseExcludeEverySuiteResult := unmarshalDiagnose(diagnoseExcludeEverySuite)
-	assert.NotNil(v.T(), diagnoseExcludeEverySuiteResult)
+	require.NotNil(v.T(), diagnoseExcludeEverySuiteResult)
 	assert.Equal(v.T(), diagnoseExcludeEverySuiteResult.Summary.Total, 0)
 
 }

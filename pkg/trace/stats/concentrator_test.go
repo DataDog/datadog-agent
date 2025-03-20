@@ -694,7 +694,6 @@ func TestWithContainerTags(t *testing.T) {
 	conf := config.New()
 	conf.Hostname = "host"
 	conf.DefaultEnv = "env"
-	conf.Features["enable_cid_stats"] = struct{}{}
 	conf.BucketInterval = time.Duration(testBucketInterval)
 	c := NewTestConcentratorWithCfg(now, conf)
 	c.addNow(testTrace, "cid", ctags)
@@ -702,6 +701,27 @@ func TestWithContainerTags(t *testing.T) {
 	stats := c.flushNow(time.Now().Unix(), true)
 	assert.Len(stats.GetStats(), 1)
 	assert.ElementsMatch(stats.Stats[0].Tags, ctags)
+}
+
+func TestDisabledContainerTags(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	ctags := []string{"container_id:test_cid", "kube_container_name:k8s_container"}
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	conf := config.New()
+	conf.Hostname = "host"
+	conf.DefaultEnv = "env"
+	conf.Features["disable_cid_stats"] = struct{}{}
+	conf.BucketInterval = time.Duration(testBucketInterval)
+	c := NewTestConcentratorWithCfg(now, conf)
+	c.addNow(testTrace, "cid", ctags)
+
+	stats := c.flushNow(time.Now().Unix(), true)
+	assert.Len(stats.GetStats(), 1)
+	assert.Nil(stats.Stats[0].Tags)
 }
 
 func TestPeerTags(t *testing.T) {

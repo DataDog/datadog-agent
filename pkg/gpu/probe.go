@@ -115,6 +115,7 @@ type Probe struct {
 	eventHandler     ddebpf.EventHandler
 	telemetry        *probeTelemetry
 	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
+	streamHandlers   *streamCollection
 }
 
 type probeTelemetry struct {
@@ -147,6 +148,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
+
+	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
 
 	p := &Probe{
 		cfg:       cfg,
@@ -184,9 +187,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg, deps.Telemetry)
-	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
-	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers, deps.Telemetry)
+	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
+	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
 		return nil, err
@@ -235,7 +238,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 func (p *Probe) cleanupFinished() {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.consumer.cleanFinishedHandlers()
+	p.streamHandlers.clean()
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {

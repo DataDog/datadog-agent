@@ -26,7 +26,6 @@ import (
 //nolint:revive
 func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *ditypes.Parameter) {
 	triePaths, expressionTargets := generateLocationVisitsMap(param)
-
 	getParamFromTriePaths := func(pathElement string) *ditypes.Parameter {
 		for n := range triePaths {
 			if triePaths[n].TypePath == pathElement {
@@ -90,6 +89,12 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						targetExpressions = append(targetExpressions, ditypes.PopPointerAddressCompoundLocationExpression())
 						seenPointers[elementParam.ID] = true
 					}
+				} else if elementParam.Kind == uint(reflect.Struct) {
+					// Structs can have directly assigned locations if passed on the stack (common in the case of large structs)
+					targetExpressions = append(targetExpressions,
+						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.Location.StackOffset)),
+					)
 				} else {
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
@@ -110,16 +115,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
-					// but we know that if there's a struct, the next element will have to have
-					// the offset applied
-					if len(pathElements) > pathElementIndex+1 {
-						// Apply the appropriate offset for the next element (the struct field)
-						structField := getParamFromTriePaths(pathElements[pathElementIndex+1])
-						targetExpressions = append(targetExpressions,
-							ditypes.CopyLocationExpression(),
-							ditypes.ApplyOffsetLocationExpression(uint(structField.FieldOffset)),
-						)
-					}
+					// Just need to copy the address for each field
+					targetExpressions = append(targetExpressions,
+						ditypes.CopyLocationExpression(),
+					)
+
 					continue
 				} else if elementParam.Kind == uint(reflect.String) {
 					if len(instrumentationTarget.ParameterPieces) != 2 {
@@ -134,15 +134,20 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					stringLength.LocationExpressions = append(stringLength.LocationExpressions, targetExpressions...)
 					if stringLength.Location != nil {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.DirectReadLocationExpression(stringLength),
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.ApplyOffsetLocationExpression(uint(stringLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
+
+					targetExpressions = append(targetExpressions,
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)))
 
 					if stringCharArray.Location != nil && stringLength.Location != nil {
 						// Fields of the string are directly assigned
@@ -182,6 +187,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						)
 					} else {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 							ditypes.ApplyOffsetLocationExpression(uint(sliceLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
@@ -222,6 +228,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
 						targetExpressions = append(targetExpressions,
+							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)), // Apply offset to the slice struct itself (incase we're in a struct on the stack or pointer)
 							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (indirect read)"),
 							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
 							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
@@ -256,7 +263,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					}
 					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
-					for i := 0; i < len(elementParam.ParameterPieces); i++ {
+					for i := range elementParam.ParameterPieces {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
 							ditypes.ApplyOffsetLocationExpression(uint(int(elementParam.ParameterPieces[0].TotalSize)*i)),
@@ -266,6 +273,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				} else {
 					// Basic type, indirectly assigned
 					targetExpressions = append(targetExpressions,
+						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
 						ditypes.DereferenceToOutputLocationExpression(uint(elementParam.TotalSize)))
 				}
 			} /* end indirectly assigned types */
@@ -311,7 +319,7 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 			return
 		}
 
-		trieKeys = append(trieKeys, expressionParamTuple{path + param.Type, param})
+		trieKeys = append(trieKeys, expressionParamTuple{path + param.Name + param.Type, param})
 
 		if (len(param.ParameterPieces) == 0 ||
 			isBasicType(param.Kind) ||
@@ -319,12 +327,12 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 			param.Kind == uint(reflect.Slice)) &&
 			param.Kind != uint(reflect.Struct) &&
 			param.Kind != uint(reflect.Pointer) {
-			needsExpressions = append(needsExpressions, expressionParamTuple{path + param.Type, param})
+			needsExpressions = append(needsExpressions, expressionParamTuple{path + param.Name + param.Type, param})
 			return
 		}
 
 		for i := range param.ParameterPieces {
-			newPath := path + param.Type + "@"
+			newPath := path + param.Name + param.Type + "@"
 			visit(param.ParameterPieces[i], newPath)
 		}
 	}
