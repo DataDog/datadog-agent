@@ -1156,7 +1156,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
 	// Use to output logs in JSON format
-	config.BindEnvAndSetDefault("log_format_json", false)
+	config.BindEnvAndSetDefault("log_format_json", true)
 
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
