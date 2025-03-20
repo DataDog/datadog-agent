@@ -511,7 +511,7 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		)
 		time.Sleep(time.Duration(250*attempt) * time.Millisecond)
 	}
-	return "", fmt.Errorf("failed to get network ID after %d attempts: %s", maxRetries, err)
+	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
 }
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
