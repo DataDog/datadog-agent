@@ -510,11 +510,13 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// run environment diagnose
 		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
 			// at least one test failed, diagnose the environment
-			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-			if diagnoseErr != nil {
-				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-			} else {
-				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+			if diagnosableEnv != nil {
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
 			}
 		}
 
@@ -593,11 +595,14 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
 				// at least one test failed, diagnose the environment
-				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
-				if diagnoseErr != nil {
-					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-				} else {
-					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				if diagnosableEnv != nil {
+					diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
+					if diagnoseErr != nil {
+						bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+					} else {
+						bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+
+					}
 				}
 			}
 		}
