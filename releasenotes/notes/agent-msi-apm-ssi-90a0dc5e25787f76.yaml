@@ -6,5 +6,5 @@ features:
 
         DD_APM_INSTRUMENTATION_ENABLED=iis DD_APM_INSTRUMENTATION_LIBRARIES=dotnet
 
-    For more information see `Single Step APM Instrumentation <https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/>`
+    For more information see `Single Step APM Instrumentation <https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/>`_
 
