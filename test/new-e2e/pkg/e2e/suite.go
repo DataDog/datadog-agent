@@ -508,7 +508,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 
 		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 			// at least one test failed, diagnose the environment
 			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
 			if diagnoseErr != nil {
@@ -591,7 +591,7 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			bs.T().Logf("unable to create test output directory: %v", err)
 		} else {
 			// run environment diagnose if the test failed
-			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {

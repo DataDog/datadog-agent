@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.1:
+
+7.64.1
+======
+
+.. _Release Notes_7.64.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-03-20
+
+
+.. _Release Notes_7.64.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed Python package dependency issue preventing integrations from loading on Windows
+
+
 .. _Release Notes_7.64.0:
 
 7.64.0

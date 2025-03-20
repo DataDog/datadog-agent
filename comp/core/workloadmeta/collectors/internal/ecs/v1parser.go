@@ -50,13 +50,14 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: taskID,
 			},
-			ClusterName:  c.clusterName,
-			Family:       task.Family,
-			Version:      task.Version,
-			Region:       taskRegion,
-			AWSAccountID: taskAccountID,
-			LaunchType:   workloadmeta.ECSLaunchTypeEC2,
-			Containers:   taskContainers,
+			ClusterName:          c.clusterName,
+			ContainerInstanceARN: c.containerInstanceARN,
+			Family:               task.Family,
+			Version:              task.Version,
+			Region:               taskRegion,
+			AWSAccountID:         taskAccountID,
+			LaunchType:           workloadmeta.ECSLaunchTypeEC2,
+			Containers:           taskContainers,
 		}
 
 		// Only fetch tags if they're both available and used

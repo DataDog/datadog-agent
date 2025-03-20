@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -101,6 +101,22 @@ type ProbeDependencies struct {
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
+}
+
+// NewProbeDependencies creates a new ProbeDependencies instance
+func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
+	nvmlLib := nvml.New(nvml.WithLibraryPath(cfg.NVMLLibraryPath))
+	ret := nvmlLib.Init()
+	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
+		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
+	}
+
+	return ProbeDependencies{
+		Telemetry:      telemetry,
+		NvmlLib:        nvmlLib,
+		ProcessMonitor: processMonitor,
+		WorkloadMeta:   workloadMeta,
+	}, nil
 }
 
 // Probe represents the GPU monitoring probe

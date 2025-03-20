@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"text/tabwriter"
 
@@ -154,10 +155,5 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
-		if provider == names.KubeEndpointsRegisterName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers"), names.KubeEndpointsRegisterName)
 }

@@ -1397,6 +1397,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
@@ -1416,6 +1417,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_http_protocol", "auto")
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {
