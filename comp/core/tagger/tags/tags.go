@@ -20,6 +20,10 @@ const (
 
 	// ClusterName is the tag for the cluster name
 	ClusterName = "cluster_name"
+	// KubeClusterName is the tag for the Kubernetes cluster name
+	KubeClusterName = "kube_cluster_name"
+	// OrchClusterID is the tag for the orchestrator cluster ID
+	OrchClusterID = "orch_cluster_id"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
