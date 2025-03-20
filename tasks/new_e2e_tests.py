@@ -122,6 +122,17 @@ def run(
                 code=1,
             )
         parsed_params[parts[0]] = parts[1]
+    if local_package and running_in_ci():
+        files = os.listdir(local_package)
+        if len(files) == 0:
+            raise Exit(f"Local package {local_package} should contain files", 1)
+        print("Removing debug package")
+        for file in files:
+            if "-dbg_" in file:
+                os.remove(os.path.join(local_package, file))
+        new_files = os.listdir(local_package)
+        print("Using the following files for tests:", new_files)
+
     if local_package:
         parsed_params["ddagent:localPackage"] = local_package
 
