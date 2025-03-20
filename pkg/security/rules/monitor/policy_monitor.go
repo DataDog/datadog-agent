@@ -192,6 +192,7 @@ type RuleAction struct {
 	Kill     *RuleKillAction `json:"kill,omitempty"`
 	Hash     *HashAction     `json:"hash,omitempty"`
 	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
+	Log      *LogAction      `json:"log,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -224,6 +225,13 @@ type CoreDumpAction struct {
 	Mount         bool `json:"mount,omitempty"`
 	Dentry        bool `json:"dentry,omitempty"`
 	NoCompression bool `json:"no_compression,omitempty"`
+}
+
+// LogAction is used to report the 'log' action
+// easyjson:json
+type LogAction struct {
+	Level   string `json:"level,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
@@ -306,6 +314,11 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 				Mount:         action.Def.CoreDump.Mount,
 				Dentry:        action.Def.CoreDump.Dentry,
 				NoCompression: action.Def.CoreDump.NoCompression,
+			}
+		case action.Def.Log != nil:
+			ruleAction.Log = &LogAction{
+				Level:   action.Def.Log.Level,
+				Message: action.Def.Log.Message,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
