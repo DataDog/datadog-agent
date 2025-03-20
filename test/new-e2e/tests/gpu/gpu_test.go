@@ -160,7 +160,7 @@ func (v *gpuBaseSuite[Env]) SetupSuite() {
 func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	if s.T().Failed() {
+	if !s.T().Failed() {
 		return
 	}
 

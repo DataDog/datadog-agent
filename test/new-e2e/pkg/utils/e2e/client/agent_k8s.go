@@ -29,7 +29,7 @@ const agentNamespace = "datadog"
 // For example, you can pass Agent.LinuxNodeAgent to select any pod that runs the node agent.
 func AgentSelectorAnyPod(agentType kubernetes.KubernetesObjRefOutput) metav1.ListOptions {
 	return metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("metadata.name", agentType.Name).String(),
+		LabelSelector: fields.OneTermEqualSelector("app", agentType.LabelSelectors["app"]).String(),
 		Limit:         1,
 	}
 }
