@@ -128,7 +128,7 @@ func (e *ddExtension) startForOCB() error {
 	}
 
 	if source.Kind == "task_arn" {
-		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_ECS,task_arn:%s", source.Identifier))
+		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_ecs,task_arn:%s", source.Identifier))
 	}
 
 	cl := new(http.Client)
