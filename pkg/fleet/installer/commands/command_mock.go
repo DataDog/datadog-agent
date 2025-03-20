@@ -78,6 +78,10 @@ func (m *installerMock) ForceInstall(_ context.Context, _ string, _ []string) er
 	return nil
 }
 
+func (m *installerMock) SetupInstaller(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *installerMock) Remove(_ context.Context, _ string) error {
 	return nil
 }

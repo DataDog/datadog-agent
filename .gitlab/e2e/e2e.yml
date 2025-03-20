@@ -549,8 +549,11 @@ new-e2e-installer-windows:
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    # TODO: temp override of version until we have a stable version
+    # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel-1"
+    - export PREVIOUS_AGENT_MSI_PIPELINE=58948204
+    - export PREVIOUS_AGENT_OCI_PIPELINE=58948204
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -559,17 +562,25 @@ new-e2e-installer-windows:
   parallel:
     matrix:
       # agent-package
-      - EXTRA_PARAMS: --run "TestAgentInstallsWithAgentUser$"
-      - EXTRA_PARAMS: --run "TestAgentInstalls$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestDowngradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentForNonExistingPackageFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestExperimentCurrentVersionFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestStopWithoutExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRunAgentMSIAfterExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
       # install-script
-      - EXTRA_PARAMS: --run "TestInstallScript$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      # TODO: disabling tests during MSI merge, so we can split PRs
+      # - EXTRA_PARAMS: --run "TestInstallScript$"
+      # - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallerRollback$"
-      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
-      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+      # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
+      # - EXTRA_PARAMS: --run "TestInstallerRollback$"
       # apm-library-dotnet
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS$"

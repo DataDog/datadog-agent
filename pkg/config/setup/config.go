@@ -272,7 +272,15 @@ func init() {
 		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	if envvar == "enable" {
+		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	} else if envvar == "tee" {
+		viperConfig := viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	}
 
 	// Configuration defaults
 	initConfig()
