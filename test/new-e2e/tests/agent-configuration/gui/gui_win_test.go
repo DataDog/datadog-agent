@@ -25,7 +25,7 @@ import (
 )
 
 const authTokenFilePath = `C:\ProgramData\Datadog\auth_token`
-const installPath = `c:\Program Files\CustomePath\Datadog Agent`
+const installPath = `c:\Program Files\CustomPath\Datadog Agent`
 
 var config = fmt.Sprintf(`auth_token_file_path: %v
 cmd_port: %d
@@ -44,13 +44,12 @@ func TestGUIWindowsSuite(t *testing.T) {
 			agentparams.WithAgentConfig(config),
 			agentparams.WithAdditionalInstallParameters(
 				msiparams.NewInstallParams(
-					msiparams.WithCustomInstallPath(installPath),
+					msiparams.WithCustomInstallPath(fmt.Sprintf(`"%s"`, installPath)),
 				),
 			),
 		),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-			agentclientparams.WithAgentInstallPath(installPath),
 		),
 	)))
 }
