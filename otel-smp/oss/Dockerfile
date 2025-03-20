@@ -6,12 +6,11 @@ COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificat
 COPY --from=prep otelcol-contrib /otelcol-contrib
 COPY --from=prep /etc/otelcol-contrib /etc/otelcol-contrib
 
-COPY otelcorecol  /otelcol-contrib
-COPY  otel-config.yaml /etc/datadog-agent/otel-config.yaml
-
 RUN apt-get update && apt-get install -y curl lsof iftop nethogs  net-tools
 EXPOSE 4317 4318 55680 55679
 
+COPY otelcorecol /otelcol-contrib
+COPY otel-config.yaml /etc/datadog-agent/otel-config.yaml
 COPY entrypoint.sh /bin/entrypoint.sh
 ENTRYPOINT ["/bin/entrypoint.sh"]
 
