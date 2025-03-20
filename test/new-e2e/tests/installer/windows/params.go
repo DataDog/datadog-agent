@@ -5,18 +5,35 @@
 
 package installer
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+)
 
 // Params contains the optional parameters for the Datadog Install Script command
 type Params struct {
 	installerURL string
+	agentUser    string
 	// For now the extraEnvVars are only used by the install script,
 	// but they can (and should) be passed to the executable.
-	extraEnvVars map[string]string
+	installerScript string
+	extraEnvVars    map[string]string
 }
 
 // Option is an optional function parameter type for the Params
 type Option func(*Params) error
+
+// WithAgentUser sets the user to install the agent as
+func WithAgentUser(user string) Option {
+	return func(params *Params) error {
+		params.agentUser = user
+		return nil
+	}
+}
 
 // WithExtraEnvVars specifies additional environment variables.
 func WithExtraEnvVars(envVars map[string]string) Option {
@@ -34,7 +51,29 @@ func WithInstallerURL(installerURL string) Option {
 	}
 }
 
-// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
+// WithInstallerScript uses a specific URL for the Datadog Installer script command instead of using the pipeline script.
+func WithInstallerScript(installerScript string) Option {
+	return func(params *Params) error {
+		params.installerScript = installerScript
+		return nil
+	}
+}
+
+// WithURLFromPipeline uses the Datadog Installer MSI from a pipeline artifact.
+func WithURLFromPipeline(pipelineID string) Option {
+	return func(params *Params) error {
+		artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+			return strings.Contains(artifact, "datadog-agent") && strings.HasSuffix(artifact, ".msi")
+		})
+		if err != nil {
+			return err
+		}
+		params.installerURL = artifactURL
+		return nil
+	}
+}
+
+// WithURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
 // jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
@@ -42,9 +81,9 @@ func WithInstallerURL(installerURL string) Option {
 // Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
 // will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
+func WithURLFromInstallersJSON(jsonURL, version string) Option {
 	return func(params *Params) error {
-		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
+		url, err := installers.GetProductURL(jsonURL, "datadog-agent", version, "x86_64")
 		if err != nil {
 			return err
 		}
@@ -84,6 +123,47 @@ func WithMSIArg(arg string) MsiOption {
 func WithMSILogFile(filename string) MsiOption {
 	return func(params *MsiParams) error {
 		params.msiLogFilename = filename
+		return nil
+	}
+}
+
+// WithMSIDevEnvOverrides applies overrides to the MSI source config based on environment variables.
+//
+// Example: local MSI package file
+//
+//	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
+//
+// Example: from a different pipeline
+//
+//	export CURRENT_AGENT_MSI_PIPELINE="123456"
+//
+// Example: stable version from installers_v2.json
+//
+//	export CURRENT_AGENT_MSI_VERSION=7.60.0-1"
+//
+// Example: custom URL
+//
+//	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
+func WithMSIDevEnvOverrides(prefix string) MsiOption {
+	return func(params *MsiParams) error {
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", prefix)); ok {
+			err := WithOption(WithInstallerURL(url))(params)
+			if err != nil {
+				return err
+			}
+		}
+		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", prefix)); ok {
+			err := WithOption(WithURLFromPipeline(pipeline))(params)
+			if err != nil {
+				return err
+			}
+		}
+		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", prefix)); ok {
+			err := WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 }

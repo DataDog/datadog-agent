@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -125,12 +126,16 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	hname, _ := hostname.Get(ctx)
 	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
 	if clusterName != "" {
-		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
+		clusterNameTags := []string{tags.KubeClusterName + ":" + clusterName}
 		if !conf.GetBool("disable_cluster_name_tag_key") {
-			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
+			clusterNameTags = append(clusterNameTags, tags.ClusterName+":"+clusterName)
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
+	}
+
+	if clusterID, err := clustername.GetClusterID(); err == nil && clusterID != "" {
+		hostTags = appendToHostTags(hostTags, []string{tags.OrchClusterID + ":" + clusterID})
 	}
 
 	gceTags := []string{}

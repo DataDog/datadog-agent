@@ -8,6 +8,7 @@ package settingsimpl
 
 import (
 	"html"
+	"maps"
 	"net/http"
 	"sync"
 
@@ -63,9 +64,7 @@ func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting 
 	s.rwMutex.RLock()
 	defer s.rwMutex.RUnlock()
 	settingsCopy := map[string]settings.RuntimeSetting{}
-	for k, v := range s.settings {
-		settingsCopy[k] = v
-	}
+	maps.Copy(settingsCopy, s.settings)
 	return settingsCopy
 }
 

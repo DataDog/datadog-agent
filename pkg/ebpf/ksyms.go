@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -135,7 +136,7 @@ func findKernelFuncs(ksymsReader io.Reader, writeKsym func(string, uint64), chec
 				}
 
 				writeKsym(string(check[idx]), s)
-				check = append(check[:idx], check[idx+1:]...)
+				check = slices.Delete(check, idx, idx+1)
 			}
 		}
 		if err := scanner.Err(); err != nil {
