@@ -177,7 +177,7 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	})
 }
 
-func (p *ProcessKiller) isKillAllowed(pcs []processContext) (bool, error) {
+func (p *ProcessKiller) isKillAllowed(pcs []killContext) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
@@ -339,7 +339,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 }
 
 // KillProcesses kills the given list of processes
-func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, pcs []processContext) {
+func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, pcs []killContext) {
 	var processesKilled int64
 	for _, pc := range pcs {
 		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
@@ -573,7 +573,7 @@ func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmer
 }
 
 // FirstPeriodEnqueued returns true if called on the first rule period (and also queue related kills on the quee)
-func (p *ProcessKiller) FirstPeriodEnqueued(rd *ruleDisarmer, signal int, pcs []processContext, period time.Duration) bool {
+func (p *ProcessKiller) FirstPeriodEnqueued(rd *ruleDisarmer, signal int, pcs []killContext, period time.Duration) bool {
 	if time.Now().After(rd.createdAt.Add(period)) {
 		return false
 	}
@@ -584,13 +584,13 @@ func (p *ProcessKiller) FirstPeriodEnqueued(rd *ruleDisarmer, signal int, pcs []
 	} else {
 		rd.killQueue = append(rd.killQueue, pcs...)
 		// sort and compact to ensure we don't duplicate kill actions
-		slices.SortFunc(rd.killQueue, func(a, b processContext) int {
+		slices.SortFunc(rd.killQueue, func(a, b killContext) int {
 			if a.pid < b.pid {
 				return -1
 			}
 			return 1
 		})
-		rd.killQueue = slices.CompactFunc(rd.killQueue, func(a, b processContext) bool {
+		rd.killQueue = slices.CompactFunc(rd.killQueue, func(a, b killContext) bool {
 			return a.pid == b.pid
 		})
 	}
@@ -613,7 +613,7 @@ const (
 	executableDisarmerType disarmerType = "executable"
 )
 
-type processContext struct {
+type killContext struct {
 	createdAt uint64
 	pid       int
 	path      string
@@ -630,7 +630,7 @@ type ruleDisarmer struct {
 	executable      disarmerParams
 	executableCache *disarmerCache[string, bool]
 
-	killQueue      []processContext
+	killQueue      []killContext
 	killSignal     int
 	killQueueAlarm time.Time
 

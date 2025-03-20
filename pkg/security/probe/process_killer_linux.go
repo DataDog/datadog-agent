@@ -46,7 +46,7 @@ const (
 )
 
 // KillFromUserspace tries to kill from userspace
-func (p *ProcessKiller) KillFromUserspace(sig uint32, pc *processContext) error {
+func (p *ProcessKiller) KillFromUserspace(sig uint32, pc *killContext) error {
 
 	// check path
 	exePathLink := utils.ProcExePath(uint32(pc.pid))
@@ -76,9 +76,9 @@ func (p *ProcessKiller) KillFromUserspace(sig uint32, pc *processContext) error 
 	return syscall.Kill(pc.pid, syscall.Signal(sig))
 }
 
-func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]processContext, error) {
+func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
 	if entry.ContainerID != "" && scope == "container" {
-		pcs := []processContext{}
+		pcs := []killContext{}
 		pids, paths := entry.GetContainerPIDs()
 		l := min(len(pids), len(paths))
 		for i := 0; i < l; i++ {
@@ -95,7 +95,7 @@ func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model
 			if err != nil {
 				continue
 			}
-			pcs = append(pcs, processContext{
+			pcs = append(pcs, killContext{
 				pid:       int(pid),
 				path:      path,
 				createdAt: uint64(createdAt),
@@ -104,7 +104,7 @@ func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model
 		return pcs, nil
 	}
 
-	return []processContext{
+	return []killContext{
 		{
 			createdAt: uint64(ev.ProcessContext.ExecTime.UnixMilli()),
 			pid:       int(ev.ProcessContext.Pid),

@@ -47,7 +47,7 @@ func TestProcessKillerExclusion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		isKilledAllowed, _ := p.isKillAllowed([]processContext{{pid: int(test.pids), path: test.paths}})
+		isKilledAllowed, _ := p.isKillAllowed([]killContext{{pid: int(test.pids), path: test.paths}})
 		assert.Equal(t, test.expectedResult, isKilledAllowed)
 	}
 }
