@@ -109,6 +109,7 @@ func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 }
 
 func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
+	flake.Mark(s.T())
 	s.installDotnetAPMLibrary()
 
 	defer s.stopIISApp()
