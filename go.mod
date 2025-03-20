@@ -199,7 +199,7 @@ require (
 	google.golang.org/grpc v1.70.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.5
-	gopkg.in/DataDog/dd-trace-go.v1 v1.72.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.73.0-dev.0.20250317195732-2758f7ecc146
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -621,7 +621,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.64.0-rc.3
-	github.com/DataDog/go-libddwaf/v3 v3.5.2
+	github.com/DataDog/go-libddwaf/v3 v3.5.3
 	github.com/DataDog/go-sqllexer v0.1.3
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
@@ -793,8 +793,8 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/onsi/ginkgo/v2 v2.21.0 // indirect
-	github.com/onsi/gomega v1.35.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.22.1 // indirect
+	github.com/onsi/gomega v1.36.2 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.121.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.121.0 // indirect
@@ -849,7 +849,7 @@ require (
 	github.com/prometheus-community/windows_exporter v0.27.2 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/prometheus v0.300.1 // indirect
-	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
