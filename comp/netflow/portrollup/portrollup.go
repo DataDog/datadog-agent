@@ -10,6 +10,7 @@
 package portrollup
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -140,10 +141,7 @@ func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string,
 	destToSourcePortCount := len(prs.curStore[destToSrcKey])
 	prs.storeMu.RUnlock()
 
-	portCount := sourceToDestPortCount
-	if destToSourcePortCount > sourceToDestPortCount {
-		portCount = destToSourcePortCount
-	}
+	portCount := max(destToSourcePortCount, sourceToDestPortCount)
 
 	if portCount < prs.portRollupThreshold {
 		return NoEphemeralPort
@@ -209,10 +207,8 @@ func buildStoreKey(sourceAddr []byte, destAddr []byte, endpointT endpointType, p
 }
 
 func appendPort(ports []uint16, newPort uint16) []uint16 {
-	for _, port := range ports {
-		if port == newPort {
-			return ports
-		}
+	if slices.Contains(ports, newPort) {
+		return ports
 	}
 	return append(ports, newPort)
 }
