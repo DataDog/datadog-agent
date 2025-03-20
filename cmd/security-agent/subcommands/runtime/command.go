@@ -25,23 +25,17 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -51,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -551,8 +544,13 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, errors.New("unknown event type")
 	}
 
-	m := &model.Model{}
-	event := m.NewDefaultEventWithType(kind)
+	event := &model.Event{
+		BaseEvent: model.BaseEvent{
+			Type:             uint32(kind),
+			FieldHandlers:    &model.FakeFieldHandlers{},
+			ContainerContext: &model.ContainerContext{},
+		},
+	}
 	event.Init()
 
 	for k, v := range eventData.Values {
@@ -707,43 +705,6 @@ func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Compon
 	}
 
 	return nil
-}
-
-// StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression compression.Component) (*secagent.RuntimeSecurityAgent, error) {
-	enabled := config.GetBool("runtime_security_config.enabled")
-	if !enabled {
-		log.Info("Datadog runtime security agent disabled by config")
-		return nil, nil
-	}
-
-	// start/stop order is important, agent need to be stopped first and started after all the others
-	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(statsdClient, hostname, secagent.RSAOptions{
-		LogProfiledWorkloads: config.GetBool("runtime_security_config.log_profiled_workloads"),
-	}, wmeta)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
-	}
-	stopper.Add(agent)
-
-	useSecRuntimeTrack := config.GetBool("runtime_security_config.use_secruntime_track")
-	endpoints, ctx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
-	if err != nil {
-		_ = log.Error(err)
-	}
-	stopper.Add(ctx)
-
-	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
-	if err != nil {
-		return nil, err
-	}
-
-	agent.Start(reporter, endpoints)
-
-	log.Info("Datadog runtime security agent is now running")
-
-	return agent, nil
 }
 
 func downloadPolicy(log log.Component, config config.Component, _ secrets.Component, downloadPolicyArgs *downloadPolicyCliParams) error {

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -24,7 +24,7 @@ import (
 )
 
 func TestGetComponents(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	// No duplicate component
@@ -32,7 +32,7 @@ func TestGetComponents(t *testing.T) {
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)

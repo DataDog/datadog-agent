@@ -407,7 +407,26 @@
             }
           ]
         },
+        "default_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array"
+            }
+          ]
+        },
         "field": {
+          "type": "string"
+        },
+        "expression": {
           "type": "string"
         },
         "append": {
@@ -417,7 +436,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "size": {

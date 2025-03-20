@@ -4,8 +4,11 @@ include:
 
 .tests_macos_gitlab:
   stage: source_test
-  extends: .macos_gitlab
+  extends: 
+    - .unit_test_base
+    - .macos_gitlab
   rules:
+    - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   variables:
@@ -13,11 +16,11 @@ include:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test --rerun-fails=2 --race --profile --cpus 12 --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --test-washer --coverage
-    - inv -e invoke-unit-tests
+    - dda inv -e test --rerun-fails=2 --race --profile --cpus 12 --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --test-washer --coverage
+    - dda inv -e invoke-unit-tests
   artifacts:
     expire_in: 2 weeks
     when: always

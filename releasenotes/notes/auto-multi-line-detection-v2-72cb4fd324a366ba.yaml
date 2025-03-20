@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    A new implementation of auto multi-line detection for logs is now available.
+    This new implementation is more flexible and powerful than the previous one. 
+    It now supports arbitrary timestamps, continuous matching, and more flexible configuration.
+    It will be enabled automatically when ``logs_config.auto_multi_line_detection`` is set to ``true``.
+    You can opt out of the new implementation by setting ``logs_config.force_auto_multi_line_detection_v1`` to ``true``.

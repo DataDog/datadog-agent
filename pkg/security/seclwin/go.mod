@@ -7,15 +7,16 @@ require github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
 require (
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/jellydator/ttlcache/v3 v3.3.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
 )
 
-// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
+// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
@@ -136,6 +137,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
+	github.com/DataDog/datadog-agent/pkg/util/otel => ../../../pkg/util/otel
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber

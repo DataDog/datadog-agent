@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -128,7 +128,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(

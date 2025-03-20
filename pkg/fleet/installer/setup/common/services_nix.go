@@ -16,11 +16,6 @@ import (
 // restartServices restarts the services that need to be restarted after a package upgrade or
 // an install script re-run; because the configuration may have changed.
 func (s *Setup) restartServices(pkgs []packageWithVersion) error {
-	if s.Config.DatadogYAML.RemoteUpdates {
-		if err := restartService("datadog-installer.service"); err != nil {
-			return err
-		}
-	}
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
