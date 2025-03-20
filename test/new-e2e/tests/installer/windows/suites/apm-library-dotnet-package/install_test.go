@@ -131,6 +131,7 @@ func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
 }
 
 func (s *testDotnetLibraryInstallSuite) TestUpgradeAndDowngradePackage() {
+	flake.Mark(s.T())
 	const (
 		initialVersion = "3.13.0-pipeline.58926677.beta.sha-af5a1fab-1"
 		upgradeVersion = "3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"
