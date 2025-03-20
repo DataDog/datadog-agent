@@ -25,6 +25,7 @@ type ProbeDependencies struct {
 	WorkloadMeta   workloadmeta.Component
 }
 
+// NewProbeDependencies is not implemented on non-linux systems
 func NewProbeDependencies(_ *config.Config, _ telemetry.Component, _ any, _ workloadmeta.Component) (ProbeDependencies, error) {
 	return ProbeDependencies{}, nil
 }
