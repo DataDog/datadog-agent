@@ -17,6 +17,7 @@ import (
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/clock"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -1594,7 +1595,7 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	}
 	dpai := model.NewPodAutoscalerInternal(dpa)
 
-	r := newReplicaCalculator(pw)
+	r := newReplicaCalculator(clock.RealClock{}, pw)
 	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), res.Replicas)
