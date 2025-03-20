@@ -13,6 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -21,18 +26,18 @@ import (
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	util "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // Requires defines the dependencies for the remoteagentregistry component
 type Requires struct {
 	Config    config.Component
 	Lifecycle compdef.Lifecycle
+	Telemetry telemetry.Component
 }
 
 // Provides defines the output of the remoteagentregistry component
@@ -64,6 +69,7 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 		conf:         reqs.Config,
 		agentMap:     make(map[string]*remoteAgentDetails),
 		shutdownChan: shutdownChan,
+		telemetry:    reqs.Telemetry,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -87,6 +93,7 @@ type remoteAgentRegistry struct {
 	agentMap     map[string]*remoteAgentDetails
 	agentMapMu   sync.Mutex
 	shutdownChan chan struct{}
+	telemetry    telemetry.Component
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -149,6 +156,8 @@ func (ra *remoteAgentRegistry) start() {
 	go func() {
 		log.Info("Remote Agent registry started.")
 
+		ra.telemetry.RegisterCollector(NewRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
+
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
@@ -176,6 +185,77 @@ func (ra *remoteAgentRegistry) start() {
 			}
 		}
 	}()
+}
+
+type registryCollector struct {
+	agentMapMu   *sync.Mutex
+	agentMap     map[string]*remoteAgentDetails
+	queryTimeout time.Duration
+}
+
+func NewRegistryCollector(agentMapMu *sync.Mutex, agentMap map[string]*remoteAgentDetails, queryTimeout time.Duration) prometheus.Collector {
+	return &registryCollector{
+		agentMapMu:   agentMapMu,
+		agentMap:     agentMap,
+		queryTimeout: queryTimeout,
+	}
+}
+
+func (c *registryCollector) Describe(ch chan<- *prometheus.Desc) {
+}
+
+func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
+	c.getRegisteredAgentsTelemetry(ch)
+}
+
+func (c *registryCollector) getRegisteredAgentsTelemetry(_ chan<- prometheus.Metric) {
+	c.agentMapMu.Lock()
+
+	agentsLen := len(c.agentMap)
+
+	// Return early if we have no registered remote agents.
+	if agentsLen == 0 {
+		c.agentMapMu.Unlock()
+		return
+	}
+
+	data := make(chan *pb.GetTelemetryResponse, agentsLen)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for agentID, details := range c.agentMap {
+		go func() {
+			// Retrieve the telemetry data in exposition format from the remote agent
+			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
+			if err != nil {
+				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
+				return
+			}
+			// TODO: parse the response and add the metrics to the channel
+			data <- resp
+		}()
+	}
+
+	c.agentMapMu.Unlock()
+
+	timeout := time.After(c.queryTimeout)
+	responsesRemaining := agentsLen
+
+collect:
+	for {
+		select {
+		case _ = <-data:
+			responsesRemaining--
+		case <-timeout:
+			break collect
+		default:
+			if responsesRemaining == 0 {
+				break collect
+			}
+		}
+	}
+
 }
 
 func (ra *remoteAgentRegistry) getQueryTimeout() time.Duration {

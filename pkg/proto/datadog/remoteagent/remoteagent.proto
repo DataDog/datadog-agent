@@ -72,3 +72,12 @@ message GetFlareFilesResponse {
   // `.yaml` for YAML data.
   map<string, bytes> files = 1;
 }
+
+message GetTelemetryRequest {}
+
+message GetTelemetryResponse {
+  // Text based metrics in Prometheus exposition format.
+  //
+  // This needs to be parsed into the appropriate metrics.
+  string telemetry = 1;
+}
