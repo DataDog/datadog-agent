@@ -169,12 +169,12 @@ type IntegrationConfig struct {
 
 // IntegrationConfigLogs represents the configuration for the logs of an integration
 type IntegrationConfigLogs struct {
-	Type      string `yaml:"type,omitempty"`
-	Path      string `yaml:"path,omitempty"`
-	Service   string `yaml:"service,omitempty"`
-	Source    string `yaml:"source,omitempty"`
-	Tags      string `yaml:"tags,omitempty"`
-	MultiLine bool   `yaml:"auto_multi_line_detection,omitempty"`
+	Type                   string `yaml:"type,omitempty"`
+	Path                   string `yaml:"path,omitempty"`
+	Service                string `yaml:"service,omitempty"`
+	Source                 string `yaml:"source,omitempty"`
+	Tags                   string `yaml:"tags,omitempty"`
+	AutoMultiLineDetection bool   `yaml:"auto_multi_line_detection,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
