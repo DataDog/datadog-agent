@@ -35,6 +35,10 @@ var _ common.Diagnosable = (*Host)(nil)
 
 // Diagnose returns a string containing the diagnosis of the environment
 func (e *Host) Diagnose(outputDir string) (string, error) {
+	if e == nil {
+		return "", fmt.Errorf("Host component is not initialized")
+	}
+
 	diagnoses := []string{}
 	if e.RemoteHost == nil {
 		return "", fmt.Errorf("RemoteHost component is not initialized")
