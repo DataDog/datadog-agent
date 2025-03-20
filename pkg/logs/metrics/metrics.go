@@ -88,9 +88,15 @@ var (
 	TlmUtilizationRatio = telemetry.NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
 	// TlmUtilizationItems is the capacity of a component by number of elements
 	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
-	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and it's bufferes")
+	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
 	// TlmUtilizationBytes is the capacity of a component by number of bytes
-	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and it's bufferes")
+	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers")
+	// TlmDestNumWorkers is the number of destination workers in use.
+	TlmDestNumWorkers = telemetry.NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
+	// TlmDestVirtualLatency is a moving average of the destination's latency.
+	TlmDestVirtualLatency = telemetry.NewGauge("logs_destination", "virtual_latency", []string{"instance"}, "Gauge of the destination's average latency")
+	// TlmDestWorkerResets tracks the count of times the destination worker pool resets the worker count after encountering a retryable error.
+	TlmDestWorkerResets = telemetry.NewCounter("logs_destination", "destination_worker_resets", []string{"instance"}, "Count of times the destination worker pool resets the worker count")
 )
 
 func init() {
