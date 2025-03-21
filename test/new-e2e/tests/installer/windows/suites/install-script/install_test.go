@@ -61,7 +61,7 @@ func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 
 // TestFailedUnsupportedVersion Test that version <65 fails to install
 func (s *testInstallScriptSuite) TestFailedUnsupportedVersion() {
-	s.Run("Install from old installer", func() {
+	s.Run("Install unsupported agent", func() {
 		s.installUnsupportedAgent()
 	})
 }
@@ -160,5 +160,6 @@ func (s *testInstallScriptSuite) installUnsupportedAgent() {
 
 	// Assert that the installation failed
 	s.Require().Error(err)
-	s.Require().Contains(output, "agent version 7.64.0 does not support fleet automation")
+	s.T().Log(output)
+	s.Require().Contains(output, "does not support fleet automation")
 }

@@ -147,5 +147,10 @@ func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
 			return "", fmt.Errorf("agent version %s does not support fleet automation", agentVersion)
 		}
 	}
+	// This override is used for testing purposes
+	// It allows us to specify a pipeline version to install
+	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
+		agentVersion = env.DefaultPackagesVersionOverride[AgentPackage]
+	}
 	return oci.PackageURL(env, AgentPackage, agentVersion), nil
 }
