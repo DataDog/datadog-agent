@@ -9,42 +9,49 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
 var (
-	_                extension.Extension = (*ddExtension)(nil)
-	_                component.Config    = (*Config)(nil)
-	defaultEndpoint                      = "7501"
-	errAPIKeyMissing                     = errors.New("API key is required for ddprofiling extension")
+	_                    extension.Extension = (*ddExtension)(nil)
+	_                    component.Config    = (*Config)(nil)
+	defaultEndpoint                          = "7501"
+	errAPIKeyMissing                         = errors.New("API key is required for ddprofiling extension")
+	additionalTagsHeader                     = "X-Datadog-Additional-Tags"
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
 
-	cfg        *Config // Extension configuration.
-	info       component.BuildInfo
-	traceAgent traceagent.Component
-	server     *http.Server
-	log        corelog.Component
+	cfg            *Config // Extension configuration.
+	info           component.BuildInfo
+	traceAgent     traceagent.Component
+	server         *http.Server
+	log            corelog.Component
+	sourceProvider source.Provider
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
+func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component, sourceProvider source.Provider) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
-		cfg:        cfg,
-		info:       info,
-		traceAgent: traceAgent,
-		log:        log,
+		cfg:            cfg,
+		info:           info,
+		traceAgent:     traceAgent,
+		log:            log,
+		sourceProvider: sourceProvider,
 	}, nil
 }
 
@@ -75,6 +82,18 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	)
 }
 
+type headerTransport struct {
+	wrapped http.RoundTripper
+	headers map[string]string
+}
+
+func (m *headerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	for k, v := range m.headers {
+		r.Header.Add(k, v)
+	}
+	return m.wrapped.RoundTrip(r)
+}
+
 func (e *ddExtension) startForOCB() error {
 	profilerOptions := e.buildProfilerOptions()
 
@@ -87,12 +106,40 @@ func (e *ddExtension) startForOCB() error {
 		profiler.WithAPIKey(string(e.cfg.API.Key)),
 	)
 
-	// todo(mackjmr): add datadogexporter hostmetadata provider to retrieve hostname, and
-	// pass it to profiler via profiler.WithHostname(). This requires a refactor in contrib,
-	// as the logic lives within an internal package.
 	if string(e.cfg.API.Site) != "" {
 		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
 	}
+
+	source, err := e.sourceProvider.Source(context.Background())
+	if err != nil {
+		return err
+	}
+
+	var tags strings.Builder
+	// hardcode agent version to 7.64.0. The backend requires this tag, but this path does not include agent,
+	// so hardcode value.
+	tags.WriteString("agent_version:7.64.0")
+	if e.cfg.ProfilerOptions.Env != "" {
+		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
+	}
+
+	if source.Kind == "host" {
+		profilerOptions = append(profilerOptions, profiler.WithHostname(source.Identifier))
+		tags.WriteString(fmt.Sprintf(",host:%s", source.Identifier))
+	}
+
+	if source.Kind == "task_arn" {
+		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_ecs,task_arn:%s", source.Identifier))
+	}
+
+	cl := new(http.Client)
+	cl.Transport = &headerTransport{
+		wrapped: http.DefaultTransport,
+		headers: map[string]string{
+			additionalTagsHeader: tags.String(),
+		},
+	}
+	profilerOptions = append(profilerOptions, profiler.WithHTTPClient(cl))
 
 	return profiler.Start(
 		profilerOptions...,
