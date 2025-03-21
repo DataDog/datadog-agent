@@ -108,15 +108,15 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 }
 
 // DatadogClusterAgentConfig fetch the configuration from the cluster-agent process by querying its HTTPS API
-func DatadogClusterAgentConfig(config config.Reader) (string, error) {
+func DatadogClusterAgentConfig(config config.Reader) (string, string, error) {
 	err := util.SetAuthToken(config)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	port := config.GetInt("cluster_agent.cmd_port")
 	if port <= 0 {
-		return "", fmt.Errorf("invalid cluster_agent.cmd_port -- %d", port)
+		return "", "", fmt.Errorf("invalid cluster_agent.cmd_port -- %d", port)
 	}
 
 	c := util.GetClient()
@@ -125,5 +125,15 @@ func DatadogClusterAgentConfig(config config.Reader) (string, error) {
 	ipcAddressWithPort := fmt.Sprintf("https://localhost:%d/config", port)
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "cluster-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return client.FullConfig()
+	fullConfig := ""
+	fullConfigBySource := ""
+	fullConfig, err = client.FullConfig()
+	if err != nil {
+		return fullConfig, fullConfigBySource, err
+	}
+	fullConfigBySource, err = client.FullConfigBySource()
+	if err != nil {
+		return fullConfig, fullConfigBySource, err
+	}
+	return fullConfig, fullConfigBySource, nil
 }
