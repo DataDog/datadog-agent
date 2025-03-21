@@ -1,7 +1,8 @@
 [Unit]
 Description=Datadog Installer
-After=network.target datadog-agent.service
+After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
+Conflicts=datadog-agent-installer-exp.service
 ConditionPathExists=!/etc/systemd/system/datadog-installer.service
 ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
 
