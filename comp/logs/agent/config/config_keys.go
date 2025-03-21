@@ -109,16 +109,28 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
+// compressionKind returns the compression kind for the logs agent
+// However, other pipelines (agent_telemetry, databse_monitoring,network_device, container,sbom, service_discovery, compliance, runtime_security) also use this function.
+// Todo: Refactor this to eventually account for different config/global keys for different pipelines other than the logs pipeline.
 func (l *LogsConfigKeys) compressionKind() string {
-	compressionKind := l.getConfig().GetString(l.getConfigKey("compression_kind"))
-	switch compressionKind {
-	case "zstd", "gzip":
+	configKey := l.getConfigKey("compression_kind")
+	compressionKind := l.getConfig().GetString(configKey)
+
+	if l.prefix != "logs_config." {
+		sharedPipelineCompressionKind := l.getConfig().GetString("logs_config.compression_kind")
+		if sharedPipelineCompressionKind == "zstd" || sharedPipelineCompressionKind == "gzip" {
+			log.Debugf("Using shared pipeline compression kind: %s for %s", sharedPipelineCompressionKind, l.prefix)
+			return sharedPipelineCompressionKind
+		}
+	}
+
+	if compressionKind == "zstd" || compressionKind == "gzip" {
 		log.Debugf("Logs agent is using: %s compression", compressionKind)
 		return compressionKind
-	default:
-		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
-		return pkgconfigsetup.DefaultLogCompressionKind
 	}
+
+	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s'", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
+	return pkgconfigsetup.DefaultLogCompressionKind
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
