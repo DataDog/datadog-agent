@@ -206,7 +206,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 // gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
 func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 	provisioner := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
-		name := "gpu-k8s"
+		name := "kind" // Match the name of the kind cluster in the aws-kind provisioner so that we can reuse the DiagnoseFunc, which assumes the VM name is kind
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
