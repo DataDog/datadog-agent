@@ -58,6 +58,7 @@ func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
 }
 
 func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error {
+	s.log.Debugf("starting device scan for ip %s namesapce %s and scan type %s", connParams.IPAddress, namespace, scanType)
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, s.log)
 	if err != nil {

@@ -64,7 +64,9 @@ func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task r
 }
 
 func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) error {
+	s.log.Debugf("received task to scan device with config %v", task.Config)
 	deviceIP := task.Config.TaskArgs["ip_address"]
+	s.log.Debugf("scanning device with ip %s", deviceIP)
 	ns, ok := task.Config.TaskArgs["namespace"]
 	if !ok || ns == "" {
 		ns = s.config.GetString("network_devices.namespace")
@@ -72,8 +74,11 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = "default"
 		}
 	}
+	s.log.Debugf("scanning device with namespace %s", ns)
+	s.log.Debugf("getting instance params for device %s", deviceIP)
 	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config)
 	if err != nil {
+		s.log.Errorf("failed to get instance params for device %s: %v", deviceIP, err)
 		return err
 	}
 	return s.ScanDeviceAndSendData(instance, ns, metadata.RCTriggeredScan)
