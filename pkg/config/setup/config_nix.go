@@ -47,6 +47,8 @@ const (
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
+	// DefaultRegistryFilename is the default registry filename
+	DefaultRegistryFilename = "registry.json"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
