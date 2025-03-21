@@ -130,7 +130,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 	for _, deviceIP := range devices {
 		entityID := subnet.config.Digest(deviceIP.String())
-		l.createService(entityID, subnet, deviceIP.String(), false)
+		l.createService(entityID, subnet, deviceIP.String(), subnet.config, false)
 	}
 }
 
@@ -170,6 +170,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 
 	deviceFound := false
+	var successfulAuthentication snmp.Authentication
 	for i, authentication := range job.subnet.config.Authentications {
 		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
 		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
@@ -180,19 +181,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 		if deviceFound {
-			// Update the Config to create a correct CheckConfig afterwards
-			job.subnet.config.Version = authentication.Version
-			job.subnet.config.Timeout = authentication.Timeout
-			job.subnet.config.Retries = authentication.Retries
-			job.subnet.config.Community = authentication.Community
-			job.subnet.config.User = authentication.User
-			job.subnet.config.AuthKey = authentication.AuthKey
-			job.subnet.config.AuthProtocol = authentication.AuthProtocol
-			job.subnet.config.PrivKey = authentication.PrivKey
-			job.subnet.config.PrivProtocol = authentication.PrivProtocol
-			job.subnet.config.ContextEngineID = authentication.ContextEngineID
-			job.subnet.config.ContextName = authentication.ContextName
-
+			successfulAuthentication = authentication
 			break
 		}
 	}
@@ -200,7 +189,19 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	if !deviceFound {
 		l.deleteService(entityID, job.subnet)
 	} else {
-		l.createService(entityID, job.subnet, deviceIP, true)
+		config := job.subnet.config
+		config.Version = successfulAuthentication.Version
+		config.Timeout = successfulAuthentication.Timeout
+		config.Retries = successfulAuthentication.Retries
+		config.Community = successfulAuthentication.Community
+		config.User = successfulAuthentication.User
+		config.AuthKey = successfulAuthentication.AuthKey
+		config.AuthProtocol = successfulAuthentication.AuthProtocol
+		config.PrivKey = successfulAuthentication.PrivKey
+		config.PrivProtocol = successfulAuthentication.PrivProtocol
+		config.ContextEngineID = successfulAuthentication.ContextEngineID
+		config.ContextName = successfulAuthentication.ContextName
+		l.createService(entityID, job.subnet, deviceIP, config, true)
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
@@ -337,7 +338,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, config snmp.Config, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -347,7 +348,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		config:       subnet.config,
+		config:       config,
 		subnet:       subnet,
 	}
 	l.services[entityID] = svc
