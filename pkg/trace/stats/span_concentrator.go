@@ -179,12 +179,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, c
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	end := s.start + s.duration
-	btime := end - end%sc.bsize
-
-	// If too far in the past, count in the oldest-allowed time bucket instead.
-	if btime < sc.oldestTs {
-		btime = sc.oldestTs
-	}
+	btime := max(end-end%sc.bsize, sc.oldestTs)
 
 	b, ok := sc.buckets[btime]
 	if !ok {

@@ -480,10 +480,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		}
 
 		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
-			firstIndex := lenActions - statusRetainedActions
-			if firstIndex < 0 {
-				firstIndex = 0
-			}
+			firstIndex := max(lenActions-statusRetainedActions, 0)
 
 			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
 		}

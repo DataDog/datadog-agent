@@ -991,7 +991,7 @@ func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
 	aes := &AcceptEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
 			model.AddressFamily(e.Accept.AddrFamily).String()),
-		Hostnames: e.Connect.Hostnames,
+		Hostnames: e.Accept.Hostnames,
 	}
 	return aes
 }

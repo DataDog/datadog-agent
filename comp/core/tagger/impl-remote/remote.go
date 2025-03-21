@@ -109,23 +109,23 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
+	remoteTaggerInstance, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {
 		return Provides{}, err
 	}
 
+	// Creates the connection to the remote tagger and starts watching for events.
 	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
-		mainCtx, _ := common.GetMainCtxCancel()
-		return remoteTagger.Start(mainCtx)
+		return start(remoteTaggerInstance)
 	}})
 	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
-		return remoteTagger.Stop()
+		return stop(remoteTaggerInstance)
 	}})
 
 	return Provides{
-		Comp:     remoteTagger,
-		Endpoint: api.NewAgentEndpointProvider(remoteTagger.writeList, "/tagger-list", "GET"),
+		Comp:     remoteTaggerInstance,
+		Endpoint: api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
 	}, nil
 }
 
@@ -166,12 +166,12 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 	return remotetagger, nil
 }
 
-// Start creates the connection to the remote tagger and starts watching for
-// events.
-func (t *remoteTagger) Start(ctx context.Context) error {
-	t.telemetryTicker = time.NewTicker(1 * time.Minute)
+func start(remoteTagger *remoteTagger) error {
+	remoteTagger.telemetryTicker = time.NewTicker(1 * time.Minute)
 
-	t.ctx, t.cancel = context.WithCancel(ctx)
+	// Main context passed to components, consistent with the one used in the WorkloadMeta component.
+	mainCtx, _ := common.GetMainCtxCancel()
+	remoteTagger.ctx, remoteTagger.cancel = context.WithCancel(mainCtx)
 
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
@@ -182,70 +182,68 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 		InsecureSkipVerify: true,
 	})
 
-	var err error
-	t.conn, err = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		t.ctx,
-		t.options.Target,
+	var onStartErr error
+	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		remoteTagger.ctx,
+		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
 		}),
 	)
-	if err != nil {
-		return err
+	if onStartErr != nil {
+		return onStartErr
 	}
 
 	// Fetch the auth token
-	t.log.Debug("fetching auth token")
-
+	remoteTagger.log.Debug("fetching auth token")
 	retries := 0
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 50 * time.Millisecond
 	expBackoff.MaxInterval = 500 * time.Millisecond
 	expBackoff.MaxElapsedTime = 30 * time.Second
-	err = backoff.Retry(func() error {
+	onStartErr = backoff.Retry(func() error {
 		select {
-		case <-t.ctx.Done():
+		case <-remoteTagger.ctx.Done():
 			return &backoff.PermanentError{Err: errFetchAuthToken}
 		default:
 		}
 
-		t.token, err = t.options.TokenFetcher()
-		if err != nil {
+		remoteTagger.token, onStartErr = remoteTagger.options.TokenFetcher()
+		if onStartErr != nil {
 			retries++
-			t.log.Warnf("unable to fetch auth token, will possibly retry: %s", err)
-			return err
+			remoteTagger.log.Warnf("unable to fetch auth token, will possibly retry: %s", onStartErr)
+			return onStartErr
 		}
 		return nil
 	}, expBackoff)
-	if err != nil {
-		t.log.Errorf("unable to fetch auth token after %d retries: %s", retries, err)
-		return err
+	if onStartErr != nil {
+		remoteTagger.log.Errorf("unable to fetch auth token after %d retries: %s", retries, onStartErr)
+		return onStartErr
 	}
+	remoteTagger.log.Debugf("auth token fetched after %d retries", retries)
 
-	t.log.Debugf("auth token fetched after %d retries", retries)
+	// Initialize the gRPC client.
+	remoteTagger.client = pb.NewAgentSecureClient(remoteTagger.conn)
 
-	t.client = pb.NewAgentSecureClient(t.conn)
+	remoteTagger.log.Info("remote tagger initialized successfully")
 
-	t.log.Info("remote tagger initialized successfully")
-
-	go t.run()
-
+	// Start the tagger stream.
+	go remoteTagger.run()
 	return nil
 }
 
-// Stop closes the connection to the remote tagger and stops event collection.
-func (t *remoteTagger) Stop() error {
-	t.cancel()
+func stop(remoteTagger *remoteTagger) error {
+	remoteTagger.cancel()
 
-	err := t.conn.Close()
-	if err != nil {
-		return err
+	onStopErr := remoteTagger.conn.Close()
+	if onStopErr != nil {
+		return onStopErr
 	}
 
-	t.telemetryTicker.Stop()
+	remoteTagger.telemetryTicker.Stop()
 
-	t.log.Info("remote tagger stopped successfully")
+	remoteTagger.log.Info("remote tagger stopped successfully")
 
 	return nil
 }

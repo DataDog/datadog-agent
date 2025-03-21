@@ -91,6 +91,7 @@ def run(
     logs_post_processing=False,
     logs_post_processing_test_depth=1,
     logs_folder="e2e_logs",
+    local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
 ):
     """
@@ -121,6 +122,8 @@ def run(
                 code=1,
             )
         parsed_params[parts[0]] = parts[1]
+    if local_package:
+        parsed_params["ddagent:localPackage"] = local_package
 
     if agent_image:
         parsed_params["ddagent:fullImagePath"] = agent_image
