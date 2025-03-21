@@ -93,6 +93,8 @@ agents:
           value: "/host/root/proc"
 `
 
+const dockerPullMaxRetries = 3
+
 type provisionerParams struct {
 	agentOptions           []agentparams.Option
 	kubernetesAgentOptions []kubernetesagentparams.Option
@@ -370,10 +372,14 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
+		// This pull can fail, so we retry it a few times just in case
+		// Build the comand
+		pullCmd := fmt.Sprintf("crictl pull %s", image)
+		retryWrappedCmd := fmt.Sprintf("counter=0; while ! %s && [ $counter -lt %d ]; do echo failed to pull, retrying ; sleep 1; counter=$((counter+1)); done", pullCmd, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{
-				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} crictl pull %s", kindCluster.ClusterName, image),
+				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c \"%s\"", kindCluster.ClusterName, image, retryWrappedCmd),
 			},
 			utils.PulumiDependsOn(dependsOn...),
 		)
