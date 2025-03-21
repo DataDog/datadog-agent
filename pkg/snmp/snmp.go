@@ -49,24 +49,25 @@ type ListenerConfig struct {
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	Network                     string          `mapstructure:"network_address"`
-	Port                        uint16          `mapstructure:"port"`
-	Version                     string          `mapstructure:"snmp_version"`
-	Timeout                     int             `mapstructure:"timeout"`
-	Retries                     int             `mapstructure:"retries"`
-	OidBatchSize                int             `mapstructure:"oid_batch_size"`
-	Community                   string          `mapstructure:"community_string"`
-	User                        string          `mapstructure:"user"`
-	AuthKey                     string          `mapstructure:"authKey"`
-	AuthProtocol                string          `mapstructure:"authProtocol"`
-	PrivKey                     string          `mapstructure:"privKey"`
-	PrivProtocol                string          `mapstructure:"privProtocol"`
-	ContextEngineID             string          `mapstructure:"context_engine_id"`
-	ContextName                 string          `mapstructure:"context_name"`
-	IgnoredIPAddresses          map[string]bool `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier                string          `mapstructure:"ad_identifier"`
-	Loader                      string          `mapstructure:"loader"`
-	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
+	Network                     string           `mapstructure:"network_address"`
+	Port                        uint16           `mapstructure:"port"`
+	Version                     string           `mapstructure:"snmp_version"`
+	Timeout                     int              `mapstructure:"timeout"`
+	Retries                     int              `mapstructure:"retries"`
+	OidBatchSize                int              `mapstructure:"oid_batch_size"`
+	Community                   string           `mapstructure:"community_string"`
+	User                        string           `mapstructure:"user"`
+	AuthKey                     string           `mapstructure:"authKey"`
+	AuthProtocol                string           `mapstructure:"authProtocol"`
+	PrivKey                     string           `mapstructure:"privKey"`
+	PrivProtocol                string           `mapstructure:"privProtocol"`
+	ContextEngineID             string           `mapstructure:"context_engine_id"`
+	ContextName                 string           `mapstructure:"context_name"`
+	Authentications             []Authentication `mapstructure:"authentications"`
+	IgnoredIPAddresses          map[string]bool  `mapstructure:"ignored_ip_addresses"`
+	ADIdentifier                string           `mapstructure:"ad_identifier"`
+	Loader                      string           `mapstructure:"loader"`
+	CollectDeviceMetadataConfig *bool            `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
 	CollectTopology             bool
@@ -89,6 +90,21 @@ type Config struct {
 	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
 	PrivKeyLegacy      string `mapstructure:"privacy_key"`
 	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
+}
+
+// Authentication holds SNMP authentication data
+type Authentication struct {
+	Version         string `mapstructure:"snmp_version"`
+	Timeout         int    `mapstructure:"timeout"`
+	Retries         int    `mapstructure:"retries"`
+	Community       string `mapstructure:"community_string"`
+	User            string `mapstructure:"user"`
+	AuthKey         string `mapstructure:"authKey"`
+	AuthProtocol    string `mapstructure:"authProtocol"`
+	PrivKey         string `mapstructure:"privKey"`
+	PrivProtocol    string `mapstructure:"privProtocol"`
+	ContextEngineID string `mapstructure:"context_engine_id"`
+	ContextName     string `mapstructure:"context_name"`
 }
 
 type intOrBoolPtr interface {
@@ -177,6 +193,33 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, config.PrivProtocolLegacy)
 		config.Network = firstNonEmpty(config.Network, config.NetworkLegacy)
 		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
+
+		if config.Community != "" || config.User != "" {
+			config.Authentications = append([]Authentication{
+				{
+					Version:         config.Version,
+					Timeout:         config.Timeout,
+					Retries:         config.Retries,
+					Community:       config.Community,
+					User:            config.User,
+					AuthKey:         config.AuthKey,
+					AuthProtocol:    config.AuthProtocol,
+					PrivKey:         config.PrivKey,
+					PrivProtocol:    config.PrivProtocol,
+					ContextEngineID: config.ContextEngineID,
+					ContextName:     config.ContextName,
+				},
+			}, config.Authentications...)
+		}
+
+		for authIndex := range config.Authentications {
+			if config.Authentications[authIndex].Timeout == 0 {
+				config.Authentications[authIndex].Timeout = defaultTimeout
+			}
+			if config.Authentications[authIndex].Retries == 0 {
+				config.Authentications[authIndex].Retries = defaultRetries
+			}
+		}
 	}
 	return snmpConfig, nil
 }
@@ -213,57 +256,62 @@ func (c *Config) Digest(address string) string {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
-	if c.Community == "" && c.User == "" {
+func (c *Config) BuildSNMPParams(deviceIP string, authIndex int) (*gosnmp.GoSNMP, error) {
+	if authIndex < 0 || authIndex >= len(c.Authentications) {
+		return nil, fmt.Errorf("Authentication index %d out of range", authIndex)
+	}
+	authentication := c.Authentications[authIndex]
+
+	if authentication.Community == "" && authentication.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if c.Version == "1" {
+	if authentication.Version == "1" {
 		version = gosnmp.Version1
-	} else if c.Version == "2" || (c.Version == "" && c.Community != "") {
+	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
 		version = gosnmp.Version2c
-	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
+	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(c.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if c.PrivKey != "" {
+	if authentication.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if c.AuthKey != "" {
+	} else if authentication.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            c.Port,
-		Community:       c.Community,
+		Community:       authentication.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(c.Timeout) * time.Second,
-		Retries:         c.Retries,
+		Timeout:         time.Duration(authentication.Timeout) * time.Second,
+		Retries:         authentication.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: c.ContextEngineID,
-		ContextName:     c.ContextName,
+		ContextEngineID: authentication.ContextEngineID,
+		ContextName:     authentication.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 c.User,
+			UserName:                 authentication.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: c.AuthKey,
+			AuthenticationPassphrase: authentication.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        c.PrivKey,
+			PrivacyPassphrase:        authentication.PrivKey,
 		},
 	}, nil
 }

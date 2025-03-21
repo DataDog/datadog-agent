@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -129,7 +130,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 	for _, deviceIP := range devices {
 		entityID := subnet.config.Digest(deviceIP.String())
-		l.createService(entityID, subnet, deviceIP.String(), false)
+		l.createService(entityID, subnet, deviceIP.String(), subnet.config, false)
 	}
 }
 
@@ -166,38 +167,69 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-
 	deviceIP := job.currentIP.String()
-	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
-	if err != nil {
-		log.Errorf("Error building params for device %s: %v", deviceIP, err)
-		return
+
+	deviceFound := false
+	var successfulAuthentication snmp.Authentication
+	for i, authentication := range job.subnet.config.Authentications {
+		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
+		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
+		if err != nil {
+			log.Errorf("Error building params for device %s: %v", deviceIP, err)
+			continue
+		}
+
+		deviceFound = l.checkDeviceForParams(params, deviceIP)
+		if deviceFound {
+			successfulAuthentication = authentication
+			break
+		}
 	}
 	entityID := job.subnet.config.Digest(deviceIP)
-	if err := params.Connect(); err != nil {
-		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+	if !deviceFound {
 		l.deleteService(entityID, job.subnet)
 	} else {
-		defer params.Conn.Close()
-
-		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
-		value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
-		if err != nil {
-			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			l.deleteService(entityID, job.subnet)
-		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("SNMP get to %s no data", deviceIP)
-			l.deleteService(entityID, job.subnet)
-		} else {
-			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-
-			l.createService(entityID, job.subnet, deviceIP, true)
-		}
+		config := job.subnet.config
+		config.Version = successfulAuthentication.Version
+		config.Timeout = successfulAuthentication.Timeout
+		config.Retries = successfulAuthentication.Retries
+		config.Community = successfulAuthentication.Community
+		config.User = successfulAuthentication.User
+		config.AuthKey = successfulAuthentication.AuthKey
+		config.AuthProtocol = successfulAuthentication.AuthProtocol
+		config.PrivKey = successfulAuthentication.PrivKey
+		config.PrivProtocol = successfulAuthentication.PrivProtocol
+		config.ContextEngineID = successfulAuthentication.ContextEngineID
+		config.ContextName = successfulAuthentication.ContextName
+		l.createService(entityID, job.subnet, deviceIP, config, true)
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
 	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+}
+
+func (l *SNMPListener) checkDeviceForParams(params *gosnmp.GoSNMP, deviceIP string) bool {
+	if err := params.Connect(); err != nil {
+		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		return false
+	}
+
+	defer params.Conn.Close()
+
+	// Since `params<GoSNMP>.ContextEngineID` is empty
+	// `params.GetNext` might lead to multiple SNMP GET calls when using SNMP v3
+	value, err := params.GetNext([]string{snmp.DeviceReachableGetNextOid})
+	if err != nil {
+		log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+		return false
+	}
+	if len(value.Variables) < 1 || value.Variables[0].Value == nil {
+		log.Debugf("SNMP get to %s no data", deviceIP)
+		return false
+	}
+
+	log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+	return true
 }
 
 func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
@@ -306,7 +338,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, config snmp.Config, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -316,7 +348,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		config:       subnet.config,
+		config:       config,
 		subnet:       subnet,
 	}
 	l.services[entityID] = svc
