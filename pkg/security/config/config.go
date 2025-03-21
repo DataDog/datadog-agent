@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,6 +45,12 @@ var (
 		"CONFIG_ARCH_OPTIONAL_KERNEL_RWX",
 		"CONFIG_ARCH_HAS_STRICT_KERNEL_RWX",
 		"CONFIG_DEBUG_WX",
+		"CONFIG_INIT_ON_ALLOC_DEFAULT_ON",
+		"CONFIG_INIT_ON_FREE_DEFAULT_ON",
+		"CONFIG_IOMMU_DEFAULT_DMA_STRICT",
+		"CONFIG_KFENCE",
+		"CONFIG_KFENCE_SAMPLE_INTERVAL",
+		"CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT",
 		"CONFIG_CC_STACKPROTECTOR",
 		"CONFIG_CC_STACKPROTECTOR_STRONG",
 		"CONFIG_STACKPROTECTOR",
@@ -68,12 +75,14 @@ var (
 		"CONFIG_LEGACY_VSYSCALL_EMULATE",
 		"CONFIG_LEGACY_VSYSCALL_XONLY",
 		"CONFIG_X86_VSYSCALL_EMULATION",
+		"CONFIG_SHUFFLE_PAGE_ALLOCATOR",
 		// protect kernel data structures
 		"CONFIG_DEBUG_CREDENTIALS",
 		"CONFIG_DEBUG_NOTIFIERS",
 		"CONFIG_DEBUG_LIST",
 		"CONFIG_DEBUG_SG",
 		"CONFIG_BUG_ON_DATA_CORRUPTION",
+		// harden the memory allocator
 		"CONFIG_SLAB_FREELIST_RANDOM",
 		"CONFIG_SLUB",
 		"CONFIG_SLAB_FREELIST_HARDENED",
@@ -91,7 +100,6 @@ var (
 		"CONFIG_MODULE_SIG_ALL",
 		"CONFIG_MODULE_SIG_SHA512",
 		"CONFIG_MODULE_SIG_HASH",
-		"CONFIG_MODULE_SIG_KEY",
 		// handle abnormal situations
 		"CONFIG_BUG",
 		"CONFIG_PANIC_ON_OOPS",
@@ -103,7 +111,23 @@ var (
 		"CONFIG_SECCOMP_FILTER",
 		"CONFIG_SECURITY_YAMA",
 		"CONFIG_SECURITY_WRITABLE_HOOKS",
+		"CONFIG_SECURITY_SELINUX",
 		"CONFIG_SECURITY_SELINUX_DISABLE",
+		"CONFIG_BPF_LSM",
+		"CONFIG_SECURITY_SMACK",
+		"CONFIG_SECURITY_TOMOYO",
+		"CONFIG_SECURITY_APPARMOR",
+		"CONFIG_SECURITY_LOCKDOWN_LSM",
+		"CONFIG_LOCK_DOWN_KERNEL_FORCE_INTEGRITY",
+		"CONFIG_SECURITY_LANDLOCK",
+		"CONFIG_LSM",
+		"CONFIG_INTEGRITY_AUDIT",
+		"CONFIG_INTEGRITY",
+		"CONFIG_INTEGRITY_SIGNATURE",
+		"CONFIG_INTEGRITY_ASYMMETRIC_KEYS",
+		"CONFIG_INTEGRITY_TRUSTED_KEYRING",
+		"CONFIG_INTEGRITY_PLATFORM_KEYRING",
+		"CONFIG_INTEGRITY_MACHINE_KEYRING",
 		// configure compiler plugins
 		"CONFIG_GCC_PLUGINS",
 		"CONFIG_GCC_PLUGIN_LATENT_ENTROPY",
@@ -117,26 +141,21 @@ var (
 		"CONFIG_SYN_COOKIES",
 		// various kernel behavior
 		"CONFIG_KEXEC",
+		"CONFIG_KEXEC_SIG",
 		"CONFIG_HIBERNATION",
 		"CONFIG_BINFMT_MISC",
 		"CONFIG_LEGACY_PTYS",
 		// options for x86_32 bit architectures
 		"CONFIG_HIGHMEM64G",
 		"CONFIG_X86_PAE",
+		// options for x86_64 or arm64 architectures
+		"CONFIG_X86_64",
 		"CONFIG_DEFAULT_MMAP_MIN_ADDR",
 		"CONFIG_RANDOMIZE_BASE",
-		// options for x86_64 bit architectures
-		"CONFIG_X86_64",
 		"CONFIG_RANDOMIZE_MEMORY",
 		"CONFIG_PAGE_TABLE_ISOLATION",
 		"CONFIG_IA32_EMULATION",
 		"CONFIG_MODIFY_LDT_SYSCALL",
-		// options for arm architectures
-		"CONFIG_VMSPLIT_3G",
-		"CONFIG_STRICT_MEMORY_RWX",
-		"CONFIG_CPU_SW_DOMAIN_PAN",
-		"CONFIG_OABI_COMPAT",
-		// options for arm64 architectures
 		"CONFIG_ARM64_SW_TTBR0_PAN",
 		"CONFIG_UNMAP_KERNEL_AT_EL0",
 	}
@@ -514,10 +533,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			mds := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size")
-			if mds < ADMinMaxDumSize {
-				mds = ADMinMaxDumSize
-			}
+			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
 
@@ -696,14 +712,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 // sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
-	var execFound bool
-	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		if evtType == model.ExecEventType {
-			execFound = true
-			break
-		}
-	}
-	if !execFound {
+	if !slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 

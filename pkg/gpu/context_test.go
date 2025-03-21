@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -198,7 +198,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			}
 
 			for i, idx := range c.expectedDeviceIdx {
-				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, c.containerID)
+				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
 				testutil.RequireDevicesEqual(t, sysCtx.gpuDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}

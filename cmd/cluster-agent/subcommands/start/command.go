@@ -35,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -75,6 +77,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -208,6 +211,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressionfx.Module(),
 				metricscompressionfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -232,6 +236,7 @@ func start(log log.Component,
 	settings settings.Component,
 	compression logscompression.Component,
 	datadogConfig config.Component,
+	diagnoseComp diagnose.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -271,18 +276,32 @@ func start(log log.Component,
 		}
 	}()
 
+	// Create the Leader election engine and initialize it
+	leaderelection.CreateGlobalLeaderEngine(mainCtx)
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+
 	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
 		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
-			config.GetInt("cluster_agent.max_connections"),
+			config.GetInt("cluster_agent.max_leader_connections"),
 		)
 	}
 
+	// Register Diagnose functions
+	diagnoseCatalog := diagnose.GetCatalog()
+
+	diagnoseCatalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+	})
+
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, diagnoseComp); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -307,13 +326,6 @@ func start(log log.Component,
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
-
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
 
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()
