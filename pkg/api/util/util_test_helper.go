@@ -10,6 +10,7 @@ package util
 import (
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,8 @@ func SetAuthTokenInMemory(t testing.TB) {
 		if initSource != setAuthTokenInMemory {
 			t.Fatal("the auth stack have been initialized by un underlying part of the code")
 		}
-		t.Log("the auth stack have been initialized before calling SetAuthTokenInMemory")
+		t.Log("the auth stack have been initialized in a previous call to SetAuthTokenInMemory, no need to generate new values")
+		return
 	}
 
 	t.Log("generating random token, clientTLSConfig and serverTLSConfig for test")
@@ -44,28 +46,13 @@ func SetAuthTokenInMemory(t testing.TB) {
 	// Starting a TLS httptest server to retrieve a localhost selfsigned tlsCert
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	serverTLSConfig = ts.TLS.Clone()
+	certpool := x509.NewCertPool()
+	certpool.AddCert(ts.Certificate())
 	ts.Close()
 
 	clientTLSConfig = &tls.Config{
-		InsecureSkipVerify: true,
+		RootCAs: certpool,
 	}
 
-	// Cleanup the auth token, client TLS config and server TLS config in memory
-	// when the test is done
-	// This avoid difference in behavior between running one test or an entire test suite in some cases
-	t.Cleanup(CleanupAuthTokenInMemory)
-
 	initSource = setAuthTokenInMemory
-}
-
-// CleanupAuthTokenInMemory is only expected to be used for unit-tests
-// It cleans up the auth token, client TLS config and server TLS config in memory
-// and initializes the initSource to uninitialized
-func CleanupAuthTokenInMemory() {
-	tokenLock.Lock()
-	defer tokenLock.Unlock()
-	initSource = uninitialized
-	token = ""
-	clientTLSConfig = nil
-	serverTLSConfig = nil
 }
