@@ -20,6 +20,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
+tests_serverless                        @DataDog/serverless
 tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
