@@ -43,7 +43,7 @@ var eksParams = utils.IAParams{
 
 func (s *iaEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *iaEKSTestSuite) TestOTLPTraces() {
@@ -83,7 +83,7 @@ datadog:
 
 func (s *iaUSTEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, true)
+	utils.TestCalendarApp(s, true, utils.CalendarService)
 }
 
 func (s *iaUSTEKSTestSuite) TestOTLPTraces() {

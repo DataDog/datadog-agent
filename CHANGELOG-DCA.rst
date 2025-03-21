@@ -2,6 +2,142 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.1:
+
+7.64.1
+======
+
+.. _Release Notes_7.64.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-03-20
+Pinned to datadog-agent v7.64.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7641>`_.
+
+.. _Release Notes_7.64.0:
+
+7.64.0
+======
+
+.. _Release Notes_7.64.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-03-19
+Pinned to datadog-agent v7.64.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7640>`_.
+
+.. _Release Notes_7.64.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Datadog Autoscaling is upgraded to use DatadogPodAutoscaler CRD v1alpha2 instead of v1alpha1. Remote (created in Datadog) autoscalers are automatically migrated. In-cluster (Local) autoscalers need to be migrated manually.
+
+
+.. _Release Notes_7.64.0_New Features:
+
+New Features
+------------
+
+- Enable collection of Pod Disruption Budgets by default in the orchestrator check.
+
+- Target-based workload selection is now available for Single Step Instrumentation. This feature enables you to
+  instrument specific workloads using pod and namespace label selectors. By applying user-defined labels, you can
+  select workloads for instrumentation without modifying applications. For example, the following configuration
+  injects the Python tracer with a default version for pods labeled with `language=python`:
+  ```yaml
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Services"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "default"
+  ```
+  
+  Targets can also be chained together, with the first matching rule taking precedence. For example, the following
+  configuration installs the Python tracer for pods labeled `language=python` and the Java tracer for pods in a
+  namespace labeled `language=java`. If a pod matches both rules, the first match takes precedence:
+  ```
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Services"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "default"
+      - name: "Java Namespaces"
+        namespaceSelector:
+          matchLabels:
+            language: "java"
+        ddTraceVersions:
+          python: "default"
+  ```
+  
+  Targets support tracer configuration options in the form of environment variables. All options must have the
+  `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
+  ```
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Apps"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "v2"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: "true"
+          - name: "DD_DATA_JOBS_ENABLED"
+            value: "true"
+  ```
+
+
+.. _Release Notes_7.64.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Enrich ``kubernetes_state`` metrics with resource labels or annotations
+  as tags.
+
+- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
+  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
+  Advanced users can customize the securityContext through clusterAgent.admissionController.agentSidecarInjection.profiles.
+
+- When there are no pinned library versions in the autoinstrumentation webhook,
+  use detected languages to omit unnecessary libraries.
+
+- Error messages displayed in the DatadogMetric `Error` condition has been improved to reflect more accurately the source of the error.
+
+
+.. _Release Notes_7.64.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- ``DD_APM_INSTRUMENTATION_VERSION=v1`` has been deprecated and will default to ``v2``.
+
+
+.. _Release Notes_7.64.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
+  enabling datadog.clusterTagger.collectKubernetesTags.
+
+- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
+  on a Job, the agent will now exit when the main Job completes.
+
+
 .. _Release Notes_7.63.3:
 
 7.63.3

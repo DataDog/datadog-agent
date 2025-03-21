@@ -8,11 +8,11 @@ package azure
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Azure Metadata availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Azure Metadata availability", diagnose)
 }
 
 // diagnose the azure metadata API availability

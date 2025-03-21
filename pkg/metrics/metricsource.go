@@ -62,6 +62,7 @@ const (
 	MetricSourceSnmp
 	MetricSourceCloudFoundry
 	MetricSourceJenkins
+	MetricSourceGPU
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -310,6 +311,8 @@ const (
 	MetricSourceNvidiaNim
 	MetricSourceQuarkus
 	MetricSourceVelero
+	MetricSourceCelery
+	MetricSourceInfiniband
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -548,6 +551,8 @@ func (ms MetricSource) String() string {
 		return "glusterfs"
 	case MetricSourceGoExpvar:
 		return "go_expvar"
+	case MetricSourceGPU:
+		return "gpu"
 	case MetricSourceGunicorn:
 		return "gunicorn"
 	case MetricSourceHaproxy:
@@ -930,6 +935,10 @@ func (ms MetricSource) String() string {
 		return "quarkus"
 	case MetricSourceVelero:
 		return "velero"
+	case MetricSourceCelery:
+		return "celery"
+	case MetricSourceInfiniband:
+		return "infiniband"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1174,6 +1183,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
+	case "gpu":
+		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
 	case "haproxy":
