@@ -28,16 +28,8 @@ func NewEtw() (etw.Component, error) {
 type etwImpl struct {
 }
 
-func (s *etwImpl) NewSession(sessionName string, f etw.SessionConfigurationFunc) (etw.Session, error) {
-	session, err := createEtwSession(sessionName, f)
-	if err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-func (s *etwImpl) NewWellKnownSession(sessionName string, f etw.SessionConfigurationFunc) (etw.Session, error) {
-	session, err := createWellKnownEtwSession(sessionName, f)
+func (s *etwImpl) NewSession(sessionName string, wellKnown bool, f etw.SessionConfigurationFunc) (etw.Session, error) {
+	session, err := createEtwSession(sessionName, wellKnown, f)
 	if err != nil {
 		return nil, err
 	}
