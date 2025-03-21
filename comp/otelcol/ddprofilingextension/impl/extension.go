@@ -18,7 +18,6 @@ import (
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
@@ -117,7 +116,9 @@ func (e *ddExtension) startForOCB() error {
 	}
 
 	var tags strings.Builder
-	tags.WriteString(fmt.Sprintf("agent_version:%s", version.AgentVersion))
+	// hardcode agent version to 7.64.0. The backend requires this tag, but this path does not include agent,
+	// so hardcode value.
+	tags.WriteString("agent_version:7.64.0")
 	if e.cfg.ProfilerOptions.Env != "" {
 		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
 	}
