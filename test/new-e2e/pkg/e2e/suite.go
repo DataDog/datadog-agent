@@ -161,6 +161,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -210,6 +212,30 @@ type BaseSuite[Env any] struct {
 // Env returns the current environment
 func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
+}
+
+// EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
+func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
+	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
+		defer func() {
+			if r := recover(); r != nil {
+				require.Nil(bs.T(), r, "Panic in EventuallyWithT: %v", r)
+			}
+		}()
+		condition(c)
+	}, timeout, interval, msgAndArgs...)
+}
+
+// EventuallyWithTf is a wrapper around testify.Suite.EventuallyWithTf that catches panics to fail test without skipping TeardownSuite
+func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) bool {
+	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
+		defer func() {
+			if r := recover(); r != nil {
+				require.Nil(bs.T(), r, "Panic in EventuallyWithTf: %v", r)
+			}
+		}()
+		condition(c)
+	}, waitFor, tick, msg, args)
 }
 
 // UpdateEnv updates the environment with new provisioners.
