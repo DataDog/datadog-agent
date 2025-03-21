@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -179,8 +181,35 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	if !dca.conf.GetBool("inventories_configuration_enabled") {
 		return dca.metadata
 	}
-	if str, err := fetchDatadogClusterAgentConfig(dca.conf); err == nil {
-		dca.metadata["full_configuration"] = str
+	if fullConfig, rawLayers, err := fetchDatadogClusterAgentConfig(dca.conf); err == nil {
+		dca.metadata["full_configuration"] = fullConfig
+		configBySources := map[string]interface{}{}
+		if err := json.Unmarshal([]byte(rawLayers), &configBySources); err != nil {
+			dca.log.Debugf("error unmarshalling securityagent config by source: %s", err)
+			return dca.metadata
+		}
+
+		layersName := map[model.Source]string{
+			model.SourceFile:               "file_configuration",
+			model.SourceEnvVar:             "environment_variable_configuration",
+			model.SourceAgentRuntime:       "agent_runtime_configuration",
+			model.SourceLocalConfigProcess: "source_local_configuration",
+			model.SourceRC:                 "remote_configuration",
+			model.SourceFleetPolicies:      "fleet_policies_configuration",
+			model.SourceCLI:                "cli_configuration",
+			model.SourceProvided:           "provided_configuration",
+		}
+		for source, conf := range configBySources {
+			if layer, ok := layersName[model.Source(source)]; ok {
+				if yamlStr, err := yaml.Marshal(conf); err == nil {
+					dca.metadata[layer] = string(yamlStr)
+				} else {
+					dca.log.Debugf("error serializing cluster-agent '%s' config layer: %s", source, err)
+				}
+			} else {
+				dca.log.Debugf("error unknown config layer from cluster-agent '%s'", source)
+			}
+		}
 	} else {
 		dca.log.Debugf("error fetching datadog-cluster-agent config: %s", err)
 	}
