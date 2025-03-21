@@ -14,14 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
-	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	backoffMaxSeconds = 60
-	backoffMaxRetries = 10
+	backoffInitialDuration = 1 * time.Second
+	backoffMaxDuration     = 60 * time.Second
 )
 
 // Tailer is the interface implemented by both DockerSocketTailer and APITailer
@@ -95,29 +94,26 @@ func (t *base) run(
 ) {
 	defer t.close()
 
-	numErrors := 0
-
-	policy := backoff.NewExpBackoffPolicy(2, 1, 60, backoffMaxSeconds, false)
+	backoffDuration := backoffInitialDuration
 
 	for {
 		var backoffTimerC <-chan time.Time
+
+		// try to start the inner tailer
 		inner, erroredContainerID, err := tryStartTailer()
-
 		if err != nil {
-			numErrors = policy.IncError(numErrors)
-
-			if numErrors > backoffMaxRetries {
+			if backoffDuration > backoffMaxDuration {
 				log.Warnf("Could not tail container %v: %v",
-					dockerutilPkg.ShortContainerID(t.GetContainerID()), err)
+					dockerutilPkg.ShortContainerID(t.ContainerID), err)
 				return
 			}
-
-			duration := policy.GetBackoffDuration(numErrors)
-			backoffTimerC = time.After(duration)
-
+			// set up to wait before trying again
+			backoffTimerC = time.After(backoffDuration)
+			backoffDuration *= 2
 		} else {
-			// reset the number of errors
-			numErrors = 0
+			// success, so reset backoff
+			backoffTimerC = nil
+			backoffDuration = backoffInitialDuration
 		}
 
 		select {

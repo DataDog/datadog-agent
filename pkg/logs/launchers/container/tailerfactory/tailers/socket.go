@@ -22,21 +22,16 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
-var (
-	backoffInitialDuration = 1 * time.Second
-	backoffMaxDuration     = 60 * time.Second
-)
-
 type DockerSocketTailer struct {
 	dockerutil *dockerutilPkg.DockerUtil
-	*base
+	base
 }
 
 // NewDockerSocketTailer Creates a new docker socket tailer
 func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil: dockerutil,
-		base: &base{
+		base: base{
 			ContainerID: containerID,
 			source:      source,
 			pipeline:    pipeline,

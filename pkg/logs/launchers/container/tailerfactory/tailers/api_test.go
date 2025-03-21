@@ -21,6 +21,7 @@ import (
 
 func TestApiTailer_run_normal_stop(t *testing.T) {
 	a := &APITailer{}
+
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.stopped = make(chan struct{})
 

@@ -28,7 +28,7 @@ type APITailer struct {
 	ContainerName string
 	PodName       string
 	PodNamespace  string
-	*base
+	base
 }
 
 // NewAPITailer Creates a new API tailer
@@ -38,7 +38,7 @@ func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName
 		ContainerName: containerName,
 		PodName:       podName,
 		PodNamespace:  podNamespace,
-		base: &base{
+		base: base{
 			ContainerID: containerID,
 			source:      source,
 			pipeline:    pipeline,
