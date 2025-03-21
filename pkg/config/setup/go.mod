@@ -35,7 +35,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.2-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.2-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.2-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.53.2-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.2-rc.5
 	github.com/stretchr/testify v1.10.0

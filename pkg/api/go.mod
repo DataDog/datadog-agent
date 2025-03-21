@@ -51,7 +51,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.2-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.2-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.2-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.2-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.2-rc.5 // indirect
