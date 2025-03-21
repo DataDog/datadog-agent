@@ -37,10 +37,6 @@ type Tailer interface {
 // Base wraps pkg/logs/tailers/container.Tailer to satisfy
 // the container launcher's `Tailer` interface, and to handle the
 // erroredContainerID channel.
-//
-// NOTE: once the docker launcher is removed, the inner Docker tailer can be
-// modified to suit the Tailer interface directly and to handle connection
-// failures on its own, and this wrapper will no longer be necessary.
 type base struct {
 	ContainerID string
 	source      *sources.LogSource
