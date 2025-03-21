@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 // Package mock is a mock implementation of the authtoken component
 package mock
 
@@ -50,14 +48,7 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 // New returns a new authtoken mock
 func New(t *testing.T) authtokeninterface.Mock {
 	// setting pkg/api/util globals
-	util.SetAuthTokenInMemory() // TODO IPC: remove this line when the migration to component framework will be fully finished
-
-	// Cleanup the auth token, client TLS config and server TLS config in memory
-	// when the test is done
-	// This avoid difference in behavior between running one test or an entire test suite in some cases
-	t.Cleanup(func() {
-		util.CleanupAuthTokenInMemory()
-	})
+	util.SetAuthTokenInMemory(t) // TODO IPC: remove this line when the migration to component framework will be fully finished
 
 	return &inMemoryAuthComponent{
 		t: t,

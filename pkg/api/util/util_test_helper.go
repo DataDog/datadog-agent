@@ -11,31 +11,31 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 )
 
 // SetAuthTokenInMemory is only expected to be used for unit-tests
 // It sets the auth token, client TLS config and server TLS config in memory
 // and initializes the initSource to setAuthTokenInMemory
-func SetAuthTokenInMemory() {
-	if initSource != uninitialized {
-		if initSource != setAuthTokenInMemory {
-			panic("the auth stack have been initialized by un underlying part of the code")
-		}
-		fmt.Printf("the auth stack have been initialized before calling SetAuthTokenInMemory")
-		return
-	}
-
-	fmt.Printf("set custom values for token, clientConfig and serverConfig")
+func SetAuthTokenInMemory(t *testing.T) {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
+
+	if initSource != uninitialized {
+		if initSource != setAuthTokenInMemory {
+			t.Fatal("the auth stack have been initialized by un underlying part of the code")
+		}
+		t.Log("the auth stack have been initialized before calling SetAuthTokenInMemory")
+	}
+
+	t.Log("set custom values for token, clientConfig and serverConfig")
 
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
 	if err != nil {
-		panic(fmt.Sprintf("can't create agent authentication token value: %v", err.Error()))
+		t.Fatalf("can't create agent authentication token value: %v", err.Error())
 	}
 
 	// convert the raw token to an hex string
@@ -49,6 +49,12 @@ func SetAuthTokenInMemory() {
 	clientTLSConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
+
+	// Cleanup the auth token, client TLS config and server TLS config in memory
+	// when the test is done
+	// This avoid difference in behavior between running one test or an entire test suite in some cases
+	t.Cleanup(CleanupAuthTokenInMemory)
+
 	initSource = setAuthTokenInMemory
 }
 
@@ -58,9 +64,6 @@ func SetAuthTokenInMemory() {
 func CleanupAuthTokenInMemory() {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
-	if initSource != setAuthTokenInMemory {
-		return
-	}
 	initSource = uninitialized
 	token = ""
 	clientTLSConfig = nil
