@@ -125,15 +125,6 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	return nil
 }
 
-// until generates a slice of integers from 0 to n-1
-func until(n int) []int {
-	arr := make([]int, n)
-	for i := 0; i < n; i++ {
-		arr[i] = i
-	}
-	return arr
-}
-
 // CompileBPFProgram compiles the code for a single probe
 func CompileBPFProgram(probe *ditypes.Probe) error {
 	f := func(in io.Reader, out io.Writer) error {
@@ -141,10 +132,7 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 		if err != nil {
 			return err
 		}
-		programTemplate := template.New("program_template").Funcs(template.FuncMap{
-			"until": until,
-		})
-		programTemplate, err = programTemplate.Parse(string(fileContents))
+		programTemplate, err := template.New("program_template").Parse(string(fileContents))
 		if err != nil {
 			return err
 		}
