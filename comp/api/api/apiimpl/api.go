@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -58,8 +58,8 @@ type apiServer struct {
 	pkgSigning            packagesigning.Component
 	statusComponent       status.Component
 	eventPlatformReceiver eventplatformreceiver.Component
-	rcService             option.Option[rcservice.Component]
-	rcServiceHA           option.Option[rcserviceha.Component]
+	rcService             optional.Option[rcservice.Component]
+	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
 }
 
@@ -79,8 +79,8 @@ type dependencies struct {
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Component
 	EventPlatformReceiver eventplatformreceiver.Component
-	RcService             option.Option[rcservice.Component]
-	RcServiceHA           option.Option[rcserviceha.Component]
+	RcService             optional.Option[rcservice.Component]
+	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
 }
 
@@ -112,9 +112,9 @@ func (server *apiServer) StartServer(
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
-	logsAgent option.Option[logsAgent.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	collector option.Option[collector.Component],
+	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceHA,

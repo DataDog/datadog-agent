@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -78,8 +78,8 @@ type provides struct {
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newProvides),
-		fx.Provide(func(c collector.Component) option.Option[collector.Component] {
-			return option.New[collector.Component](c)
+		fx.Provide(func(c collector.Component) optional.Option[collector.Component] {
+			return optional.NewOption[collector.Component](c)
 		}),
 	)
 }

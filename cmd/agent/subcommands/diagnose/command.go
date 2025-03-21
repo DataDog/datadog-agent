@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
@@ -99,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.runLocal,
 					}
 				}),
-				fx.Supply(option.None[collector.Component]()),
+				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.Module(),
 				tagger.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
@@ -234,9 +234,9 @@ This command print the package-signing metadata payload. This payload is used by
 
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
-	wmeta option.Option[workloadmeta.Component],
+	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	collector option.Option[collector.Component],
+	collector optional.Option[collector.Component],
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
@@ -245,7 +245,7 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, option.New(ac))
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, optional.NewOption(ac))
 	// Is it List command
 	if cliParams.listSuites {
 		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)

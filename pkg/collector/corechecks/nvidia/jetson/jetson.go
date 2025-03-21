@@ -23,7 +23,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -201,8 +201,8 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, integrationC
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
 func newCheck() check.Check {

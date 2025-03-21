@@ -20,7 +20,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type mockAPIServer struct {
@@ -43,9 +43,9 @@ func (mock *mockAPIServer) StartServer(
 	_ workloadmeta.Component,
 	_ tagger.Component,
 	_ autodiscovery.Component,
-	_ option.Option[logsAgent.Component],
+	_ optional.Option[logsAgent.Component],
 	_ sender.DiagnoseSenderManager,
-	_ option.Option[collector.Component],
+	_ optional.Option[collector.Component],
 ) error {
 	return nil
 }
