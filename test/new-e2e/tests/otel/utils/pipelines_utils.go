@@ -107,8 +107,12 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
 		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		if sp.Meta["span.kind"] == "client" {
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		} else {
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+		}
 		ctags, ok := getContainerTags(s.T(), tp)
 		assert.True(s.T(), ok)
 		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])

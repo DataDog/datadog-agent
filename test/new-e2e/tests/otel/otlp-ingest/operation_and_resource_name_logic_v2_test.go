@@ -153,7 +153,7 @@ agents:
         - name: DD_APM_FEATURES
           value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
-          value: '{"calendar_rest_go.client":"mapping.output","go.opentelemetry.io_contrib_instrumentation_net_http_otelhttp.server":"calendar.server"}'
+          value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
 `
 	t.Parallel()
 	ts := &otlpIngestOpNameV2RemappingTestSuite{}
