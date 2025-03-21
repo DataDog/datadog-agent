@@ -81,14 +81,15 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		var ctags []string
 		fmt.Println("******** Inside OTLPTracesToConcentratorInputsWithObfuscation ********")
 		fmt.Println("querying container tags for container id: ", cid)
-		fmt.Println(conf.ContainerTags)
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
 			if conf.ContainerTags != nil {
 				tags, err := conf.ContainerTags(cid)
 				if err != nil {
+					fmt.Println("******** Failed ********")
 					log.Debugf("Failed to get container tags for container %q: %v", cid, err)
 				} else {
+					fmt.Println("******** success ********")
 					log.Tracef("Getting container tags for ID %q: %v", cid, tags)
 					ctags = append(ctags, tags...)
 				}
