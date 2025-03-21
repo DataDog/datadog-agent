@@ -285,6 +285,7 @@ func TestProcessAgentChecks(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("without process-agent running", func(t *testing.T) {
+		panic("try this")
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
 		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
