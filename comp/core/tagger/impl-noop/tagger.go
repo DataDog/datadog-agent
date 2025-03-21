@@ -76,10 +76,6 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
-func (n *noopTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
 // NewComponent returns a new noop tagger component
 func NewComponent() tagger.Component {
 	return &noopTagger{}
