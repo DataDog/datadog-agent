@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // FIXTURE
@@ -40,8 +40,8 @@ func TestNewGoCheckLoader(t *testing.T) {
 	}
 }
 
-func testCheckNew() optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func testCheckNew() option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &TestCheck{}
 	})
 }

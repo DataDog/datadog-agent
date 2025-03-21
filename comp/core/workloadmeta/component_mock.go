@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: container-integrations
@@ -45,7 +45,7 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMock),
 		fx.Provide(func(mock Mock) Component { return mock }),
-		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+		fx.Provide(func(mock Mock) option.Option[Component] { return option.New[Component](mock) }),
 	)
 }
 
@@ -58,6 +58,6 @@ func MockModuleV2() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMockV2),
 		fx.Provide(func(mock Mock) Component { return mock }),
-		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+		fx.Provide(func(mock Mock) option.Option[Component] { return option.New[Component](mock) }),
 	)
 }

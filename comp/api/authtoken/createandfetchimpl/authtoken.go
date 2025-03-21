@@ -15,15 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newAuthToken),
-		fx.Provide(func(authToken authtoken.Component) optional.Option[authtoken.Component] {
-			return optional.NewOption[authtoken.Component](authToken)
+		fx.Provide(func(authToken authtoken.Component) option.Option[authtoken.Component] {
+			return option.New[authtoken.Component](authToken)
 		}),
 	)
 }

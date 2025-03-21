@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // SetupConfigForTest fires up the configuration system and returns warnings if any.
@@ -36,7 +36,7 @@ func SetupConfigForTest(confFilePath string) (*config.Warnings, error) {
 	}
 	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadDatadogCustom(cfg, origin, optional.NewNoneOption[secrets.Component](), nil)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, option.None[secrets.Component](), nil)
 	if err != nil {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {

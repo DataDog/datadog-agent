@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/util/optional
+module github.com/DataDog/datadog-agent/pkg/util/option
 
 go 1.21.9
 
