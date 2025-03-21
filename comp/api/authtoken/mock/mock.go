@@ -19,12 +19,12 @@ import (
 // inMemoryAuthComponent is a mock for the authtoken component
 // It is used to set the auth token, client TLS config and server TLS config in memory
 type inMemoryAuthComponent struct {
-	t *testing.T
+	t testing.TB
 }
 
 // Get is a mock of the fetchonly Get function
-func (m *inMemoryAuthComponent) Get() string {
-	return util.GetAuthToken()
+func (m *inMemoryAuthComponent) Get() (string, error) {
+	return util.GetAuthToken(), nil
 }
 
 // GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function
@@ -46,7 +46,7 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 }
 
 // New returns a new authtoken mock
-func New(t *testing.T) authtokeninterface.Mock {
+func New(t testing.TB) authtokeninterface.Mock {
 	// setting pkg/api/util globals
 	util.SetAuthTokenInMemory(t) // TODO IPC: remove this line when the migration to component framework will be fully finished
 

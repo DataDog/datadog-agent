@@ -19,7 +19,7 @@ import (
 // SetAuthTokenInMemory is only expected to be used for unit-tests
 // It sets the auth token, client TLS config and server TLS config in memory
 // and initializes the initSource to setAuthTokenInMemory
-func SetAuthTokenInMemory(t *testing.T) {
+func SetAuthTokenInMemory(t testing.TB) {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
 
@@ -30,12 +30,12 @@ func SetAuthTokenInMemory(t *testing.T) {
 		t.Log("the auth stack have been initialized before calling SetAuthTokenInMemory")
 	}
 
-	t.Log("set custom values for token, clientConfig and serverConfig")
+	t.Log("generating random token, clientTLSConfig and serverTLSConfig for test")
 
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
 	if err != nil {
-		t.Fatalf("can't create agent authentication token value: %v", err.Error())
+		t.Fatalf("can't create agent auth token value: %v", err)
 	}
 
 	// convert the raw token to an hex string
