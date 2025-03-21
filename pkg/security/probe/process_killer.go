@@ -177,7 +177,7 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	})
 }
 
-func (p *ProcessKiller) isKillAllowed(pcs []killContext) (bool, error) {
+func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
@@ -185,7 +185,7 @@ func (p *ProcessKiller) isKillAllowed(pcs []killContext) (bool, error) {
 	}
 	p.Unlock()
 
-	for _, pc := range pcs {
+	for _, pc := range kcs {
 		if pc.pid <= 1 || uint32(pc.pid) == utils.Getpid() {
 			return false, fmt.Errorf("process with pid %d cannot be killed", pc.pid)
 		}
@@ -251,28 +251,39 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		}
 		p.ruleDisarmersLock.Unlock()
 
-		onActionBlockedByDisarmer := func(dt disarmerType) {
-			seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
-			ev.ActionReports = append(ev.ActionReports, &KillActionReport{
+		onActionBlockedByDisarmer := func(dt disarmerType, dismantled bool) {
+			report := &KillActionReport{
 				Scope:        scope,
 				Signal:       kill.Signal,
-				Status:       KillActionStatusRuleDisarmed,
 				DisarmerType: string(dt),
 				CreatedAt:    ev.ProcessContext.ExecTime,
 				DetectedAt:   ev.ResolveEventTime(),
 				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
-			})
+			}
+			if dismantled {
+				report.Status = KillActionStatusRuleDismantled
+				seclog.Warnf("skipping kill action of rule `%s` because it has been dismantled", rule.ID)
+			} else {
+				report.Status = KillActionStatusRuleDisarmed
+				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+			}
+			ev.ActionReports = append(ev.ActionReports, report)
 		}
 
 		if disarmer.container.enabled {
 			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
-				if !disarmer.allow(disarmer.containerCache, containerID, func() {
-					disarmer.disarmedCount[containerDisarmerType]++
-					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
+				if !disarmer.allow(disarmer.containerCache, containerID, func(dismantled bool) {
+					if dismantled {
+						disarmer.dismantledCount[containerDisarmerType]++
+						seclog.Warnf("dismantling kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
+					} else {
+						disarmer.disarmedCount[containerDisarmerType]++
+						seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
+					}
 					p.updateKillQueueAlarm(disarmer)
 				}) {
-					onActionBlockedByDisarmer(containerDisarmerType)
+					onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
 					return false
 				}
 			}
@@ -280,12 +291,17 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 		if disarmer.executable.enabled {
 			executable := entry.Process.FileEvent.PathnameStr
-			if !disarmer.allow(disarmer.executableCache, executable, func() {
-				disarmer.disarmedCount[executableDisarmerType]++
-				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
+			if !disarmer.allow(disarmer.executableCache, executable, func(dismantled bool) {
+				if dismantled {
+					disarmer.dismantledCount[executableDisarmerType]++
+					seclog.Warnf("dismantled kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
+				} else {
+					disarmer.disarmedCount[executableDisarmerType]++
+					seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
+				}
 				p.updateKillQueueAlarm(disarmer)
 			}) {
-				onActionBlockedByDisarmer(executableDisarmerType)
+				onActionBlockedByDisarmer(executableDisarmerType, disarmer.dismantled)
 				return false
 			}
 		}
@@ -314,8 +330,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		rule:       rule,
 	}
 
-	// TODO: merge periods to keep only one?
-	if disarmer != nil && p.FirstPeriodEnqueued(disarmer, sig, pcs, max(disarmer.container.period, disarmer.executable.period)) {
+	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {
 		log.Warnf("rule %s triggered on first period, putting pids to kill on wait list", rule.ID)
 		report.Status = KillActionStatusQueued
 		report.resolved = true
@@ -339,9 +354,9 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 }
 
 // KillProcesses kills the given list of processes
-func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, pcs []killContext) {
+func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) {
 	var processesKilled int64
-	for _, pc := range pcs {
+	for _, pc := range kcs {
 		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
 
 		if err := p.KillFromUserspace(uint32(sig), &pc); err != nil {
@@ -432,6 +447,13 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 				tags := append([]string{"disarmer_type:" + string(disarmerType)}, ruleIDTag...)
 				_ = statsd.Count(metrics.MetricEnforcementRuleDisarmed, count, tags, 1)
 				disarmer.disarmedCount[disarmerType] = 0
+			}
+		}
+		for disarmerType, count := range disarmer.dismantledCount {
+			if count > 0 {
+				tags := append([]string{"disarmer_type:" + string(disarmerType)}, ruleIDTag...)
+				_ = statsd.Count(metrics.MetricEnforcementRuleDismantled, count, tags, 1)
+				disarmer.dismantledCount[disarmerType] = 0
 			}
 		}
 		if disarmer.rearmedCount > 0 {
@@ -525,17 +547,19 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 					p.ruleDisarmersLock.Lock()
 					for ruleID, disarmer := range p.ruleDisarmers {
 						disarmer.Lock()
-						var cLength, eLength int
-						if disarmer.container.enabled {
-							cLength = disarmer.containerCache.flush()
-						}
-						if disarmer.executable.enabled {
-							eLength = disarmer.executableCache.flush()
-						}
-						if disarmer.disarmed && cLength == 0 && eLength == 0 {
-							disarmer.disarmed = false
-							disarmer.rearmedCount++
-							seclog.Infof("kill action of rule `%s` has been re-armed", ruleID)
+						if !disarmer.dismantled {
+							var cLength, eLength int
+							if disarmer.container.enabled {
+								cLength = disarmer.containerCache.flush()
+							}
+							if disarmer.executable.enabled {
+								eLength = disarmer.executableCache.flush()
+							}
+							if disarmer.disarmed && cLength == 0 && eLength == 0 {
+								disarmer.disarmed = false
+								disarmer.rearmedCount++
+								seclog.Infof("kill action of rule `%s` has been re-armed", ruleID)
+							}
 						}
 						disarmer.Unlock()
 					}
@@ -572,17 +596,17 @@ func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmer
 	return &containerParams, &executableParams
 }
 
-// FirstPeriodEnqueued returns true if called on the first rule period (and also queue related kills on the quee)
-func (p *ProcessKiller) FirstPeriodEnqueued(rd *ruleDisarmer, signal int, pcs []killContext, period time.Duration) bool {
-	if time.Now().After(rd.createdAt.Add(period)) {
+// warmupEnqueued returns true if called on the first rule period (and also queue related kills on the quee)
+func (p *ProcessKiller) warmupEnqueued(rd *ruleDisarmer, signal int, kcs []killContext) bool {
+	if time.Now().After(rd.warmupEnd) {
 		return false
 	}
 
 	rd.killSignal = signal // should not change
 	if len(rd.killQueue) == 0 {
-		rd.killQueue = pcs
+		rd.killQueue = kcs
 	} else {
-		rd.killQueue = append(rd.killQueue, pcs...)
+		rd.killQueue = append(rd.killQueue, kcs...)
 		// sort and compact to ensure we don't duplicate kill actions
 		slices.SortFunc(rd.killQueue, func(a, b killContext) int {
 			if a.pid < b.pid {
@@ -594,7 +618,7 @@ func (p *ProcessKiller) FirstPeriodEnqueued(rd *ruleDisarmer, signal int, pcs []
 			return a.pid == b.pid
 		})
 	}
-	rd.killQueueAlarm = rd.createdAt.Add(period)
+	rd.killQueueAlarm = rd.warmupEnd
 	p.setKillQueueAlarm(&rd.killQueueAlarm)
 	return true
 }
@@ -624,7 +648,9 @@ type ruleDisarmer struct {
 	sync.Mutex
 	ruleID          string
 	createdAt       time.Time
+	warmupEnd       time.Time
 	disarmed        bool
+	dismantled      bool
 	container       disarmerParams
 	containerCache  *disarmerCache[string, bool]
 	executable      disarmerParams
@@ -635,8 +661,9 @@ type ruleDisarmer struct {
 	killQueueAlarm time.Time
 
 	// stats
-	disarmedCount map[disarmerType]int64
-	rearmedCount  int64
+	disarmedCount   map[disarmerType]int64
+	dismantledCount map[disarmerType]int64
+	rearmedCount    int64
 }
 
 type disarmerParams struct {
@@ -671,7 +698,7 @@ func (c *disarmerCache[K, V]) flush() int {
 }
 
 func newRuleDisarmer(ruleID string, containerParams *disarmerParams, executableParams *disarmerParams) *ruleDisarmer {
-	kd := &ruleDisarmer{
+	rd := &ruleDisarmer{
 		ruleID:        ruleID,
 		createdAt:     time.Now(),
 		disarmed:      false,
@@ -680,18 +707,24 @@ func newRuleDisarmer(ruleID string, containerParams *disarmerParams, executableP
 		disarmedCount: make(map[disarmerType]int64),
 	}
 
-	if kd.container.enabled {
-		kd.containerCache = newDisarmerCache[string, bool](containerParams)
+	period := time.Duration(0)
+
+	if rd.container.enabled {
+		rd.containerCache = newDisarmerCache[string, bool](containerParams)
+		period = max(period, rd.container.period)
+		rd.warmupEnd = rd.createdAt.Add(period)
 	}
 
-	if kd.executable.enabled {
-		kd.executableCache = newDisarmerCache[string, bool](executableParams)
+	if rd.executable.enabled {
+		rd.executableCache = newDisarmerCache[string, bool](executableParams)
+		period = max(period, rd.container.period)
+		rd.warmupEnd = rd.createdAt.Add(period)
 	}
 
-	return kd
+	return rd
 }
 
-func (rd *ruleDisarmer) allow(cache *disarmerCache[string, bool], key string, onDisarm func()) bool {
+func (rd *ruleDisarmer) allow(cache *disarmerCache[string, bool], key string, onDisarm func(dismantled bool)) bool {
 	rd.Lock()
 	defer rd.Unlock()
 
@@ -711,7 +744,10 @@ func (rd *ruleDisarmer) allow(cache *disarmerCache[string, bool], key string, on
 		cache.Set(key, true, ttlcache.DefaultTTL)
 		if alreadyAtCapacity && !rd.disarmed {
 			rd.disarmed = true
-			onDisarm()
+			if time.Now().Before(rd.warmupEnd) {
+				rd.dismantled = true
+			}
+			onDisarm(rd.dismantled)
 			// clear kill queue list map if not empty
 			if len(rd.killQueue) > 0 {
 				rd.killQueue = nil

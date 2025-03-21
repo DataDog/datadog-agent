@@ -388,6 +388,9 @@ var (
 	// MetricEnforcementRuleDisarmed is the name of the metric used to report that a rule was disarmed
 	// Tags: rule_id, disarmer_type ('executable', 'container')
 	MetricEnforcementRuleDisarmed = newRuntimeMetric(".enforcement.rule_disarmed")
+	// MetricEnforcementRuleDismantled is the name of the metric used to report that a rule was dismantled
+	// Tags: rule_id, disarmer_type ('executable', 'container')
+	MetricEnforcementRuleDismantled = newRuntimeMetric(".enforcement.rule_dismantled")
 	// MetricEnforcementRuleRearmed is the name of the metric used to report that a rule was rearmed
 	// Tags: rule_id
 	MetricEnforcementRuleRearmed = newRuntimeMetric(".enforcement.rule_rearmed")
