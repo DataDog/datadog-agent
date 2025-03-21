@@ -1,0 +1,131 @@
+receivers:
+  otlp/loadbalancer:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  otlp/backend-1:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:55690
+  otlp/backend-2:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:55700
+  otlp/backend-3:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:55710
+  otlp/backend-4:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:55720
+processors:
+  resource/1:
+    attributes:
+      - key: backend
+        value: "1"
+        action: upsert
+  resource/2:
+    attributes:
+      - key: backend
+        value: "2"
+        action: upsert
+  resource/3:
+    attributes:
+      - key: backend
+        value: "3"
+        action: upsert
+  resource/4:
+    attributes:
+      - key: backend
+        value: "4"
+        action: upsert
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${env:DD_API_KEY}
+  loadbalancing:
+    routing_key: "service"
+    protocol:
+      otlp:
+        timeout: 1s
+        tls:
+          insecure: true
+    resolver:
+      static:
+        hostnames:
+          - 0.0.0.0:55690
+          - 0.0.0.0:55700
+          - 0.0.0.0:55710
+          - 0.0.0.0:55720
+service:
+  pipelines:
+    traces/loadbalancer:
+      receivers: [otlp/loadbalancer]
+      processors: []
+      exporters: [loadbalancing]
+    traces/backend-1:
+      receivers: [otlp/backend-1]
+      processors: [resource/1]
+      exporters: [datadog]
+    traces/backend-2:
+      receivers: [otlp/backend-2]
+      processors: [resource/2]
+      exporters: [datadog]
+    traces/backend-3:
+      receivers: [otlp/backend-3]
+      processors: [resource/3]
+      exporters: [datadog]
+    traces/backend-4:
+      receivers: [otlp/backend-4]
+      processors: [resource/4]
+      exporters: [datadog]
+
+    metrics/loadbalancer:
+      receivers: [otlp/loadbalancer]
+      processors: []
+      exporters: [loadbalancing]
+    metrics/backend-1:
+      receivers: [otlp/backend-1]
+      processors: [resource/1]
+      exporters: [datadog]
+    metrics/backend-2:
+      receivers: [otlp/backend-2]
+      processors: [resource/2]
+      exporters: [datadog]
+    metrics/backend-3:
+      receivers: [otlp/backend-3]
+      processors: [resource/3]
+      exporters: [datadog]
+    metrics/backend-4:
+      receivers: [otlp/backend-4]
+      processors: [resource/4]
+      exporters: [datadog]
+
+    logs/loadbalancer:
+      receivers: [otlp/loadbalancer]
+      processors: []
+      exporters: [loadbalancing]
+    logs/backend-1:
+      receivers: [otlp/backend-1]
+      processors: [resource/1]
+      exporters: [datadog]
+    logs/backend-2:
+      receivers: [otlp/backend-2]
+      processors: [resource/2]
+      exporters: [datadog]
+    logs/backend-3:
+      receivers: [otlp/backend-3]
+      processors: [resource/3]
+      exporters: [datadog]
+    logs/backend-4:
+      receivers: [otlp/backend-4]
+      processors: [resource/4]
+      exporters: [datadog]

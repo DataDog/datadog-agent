@@ -399,3 +399,5 @@ github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore: ["Copyright (c) 2019 
 
 # https://github.com/bhmj/xpression/blob/master/LICENCE
 github.com/bhmj/xpression: Copyright 2021-2022 Michael Gurov (github.com/bhmj)
+
+cel.dev/expr: TristonianJones <tswadell@google.com>

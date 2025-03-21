@@ -339,6 +339,7 @@ namespace Datadog.CustomActions
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
+                    Constants.InstallerServiceName,
                     Constants.AgentServiceName
                 };
                 foreach (var service in ddservices)
@@ -401,15 +402,32 @@ namespace Datadog.CustomActions
         {
             try
             {
-                using var actionRecord = new Record(
-                    "Start Datadog services",
-                    "Starting Datadog Agent service",
-                    ""
-                );
-                _session.Message(InstallMessage.ActionStart, actionRecord);
-                // only start the main agent service. it should start any other services
-                // that should be running.
-                _serviceController.StartService(Constants.AgentServiceName, TimeSpan.FromMinutes(3));
+                var ddservices = new[]
+                {
+                    // only start the main agent service. it should start any other services
+                    // that should be running.
+                    Constants.AgentServiceName,
+                    // TODO WINA-1322: Installer service isn't managed by Agent yet
+                    Constants.InstallerServiceName
+                };
+                foreach (var service in ddservices)
+                {
+                    try
+                    {
+                        using var actionRecord = new Record(
+                            "Start Datadog services",
+                            $"Starting {service} service",
+                            ""
+                        );
+                        _session.Message(InstallMessage.ActionStart, actionRecord);
+                        _serviceController.StartService(service, TimeSpan.FromMinutes(3));
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to start service {service}: {e}");
+                        // Allow service start to fail and continue the install
+                    }
+                }
             }
             catch (Exception e)
             {
