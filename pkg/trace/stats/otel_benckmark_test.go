@@ -154,6 +154,10 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	containerTagKeys := []string{"az", semconv.AttributeContainerID, semconv.AttributeK8SClusterName}
 	expected := []string{"az:my-az", "container_id:test_cid", "kube_cluster_name:test_cluster"}
 
+	conf.ContainerTags = func(_ string) ([]string, error) {
+		return []string{"container_name:my_container"}, nil
+	}
+
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {

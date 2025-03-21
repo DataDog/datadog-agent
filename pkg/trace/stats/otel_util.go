@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -78,8 +79,20 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
 		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 		var ctags []string
+		fmt.Println("******** Inside OTLPTracesToConcentratorInputsWithObfuscation ********")
+		fmt.Println("querying container tags for container id: ", cid)
+		fmt.Println(conf.ContainerTags)
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
+			if conf.ContainerTags != nil {
+				tags, err := conf.ContainerTags(cid)
+				if err != nil {
+					log.Debugf("Failed to get container tags for container %q: %v", cid, err)
+				} else {
+					log.Tracef("Getting container tags for ID %q: %v", cid, tags)
+					ctags = append(ctags, tags...)
+				}
+			}
 			if ctags != nil {
 				// Make sure container tags are sorted per APM stats intake requirement
 				if !slices.IsSorted(ctags) {
