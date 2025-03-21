@@ -27,6 +27,7 @@ cc_binary(
         "common/builtins/tagger.h",
         "common/builtins/util.c",
         "common/builtins/util.h",
+        "rtloader/rtloader.cpp",
         "include/rtloader_types.h",
         "include/rtloader.h",
     ],

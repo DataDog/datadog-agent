@@ -1,0 +1,14 @@
+diff --git go/tools/builders/env.go go/tools/builders/env.go
+index 7942f92f..c84ec696 100644
+--- go/tools/builders/env.go
++++ go/tools/builders/env.go
+@@ -543,7 +543,8 @@ func passLongArgsInResponseFiles(cmd *exec.Cmd) (cleanup func()) {
+ 	cleanup = func() { os.Remove(tf.Name()) }
+ 	var buf bytes.Buffer
+ 	for _, arg := range cmd.Args[1:] {
+-		fmt.Fprintf(&buf, "%s\n", arg)
++		// Slashes need to be doubled for escaping
++		fmt.Fprintf(&buf, "%s\n", strings.ReplaceAll(arg, "\\", "\\\\"))
+ 	}
+ 	if _, err := tf.Write(buf.Bytes()); err != nil {
+ 		tf.Close()

@@ -23,6 +23,7 @@ AGENT_BUILD_TAGS = [
     "python",
     "systemd",
     "trivy",
+    "wmi",
     "zk",
     "zlib",
     "zstd",

@@ -11,6 +11,7 @@ go_library(
         "metricsSender.go",
         "powerMetricsSender.go",
         "ramMetricsSender.go",
+        "stub.go",  # keep
         "swapMetricsSender.go",
         "temperatureMetricsSender.go",
     ],

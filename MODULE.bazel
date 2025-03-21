@@ -4,6 +4,7 @@ bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "rules_python", version = "1.1.0")
 bazel_dep(name = "rules_foreign_cc", version = "0.13.0")
+bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
 # Temporarily disable the hermetic zig-cc toolchain as it causes unsolved troubles
 # bazel_dep(
@@ -22,6 +23,10 @@ bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf"
 #     "@zig_sdk//libc_aware/toolchain:linux_amd64_gnu.2.17",
 #     "@zig_sdk//libc_aware/toolchain:linux_arm64_gnu.2.23",
 # )
+
+register_toolchains(
+    "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
 
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
@@ -42,6 +47,16 @@ python.toolchain(
 ##################
 ## GO / GAZELLE ##
 ##################
+
+# Patch to properly handle Windows "response files".
+# TODO: Upstream fix and remove patch.
+single_version_override(
+    module_name = "rules_go",
+    patches = [
+        "bazel/patch/rules_go_response_files_fix.patch",
+    ],
+    version = "0.53.0",
+)
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.23.5")

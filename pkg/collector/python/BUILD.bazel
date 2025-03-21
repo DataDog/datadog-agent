@@ -42,6 +42,9 @@ go_library(
     cgo = True,
     # keep: This gets updated with #cgo directives that don't seem relevant for the Bazel build
     clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-lstdc++",
+        ],
         "//conditions:default": [],
     }),
     # keep
