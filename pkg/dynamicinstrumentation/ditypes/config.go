@@ -96,7 +96,7 @@ func (p *ProbesByID) Delete(id ProbeID) {
 
 // Range calls f sequentially for each key and value present in the map
 func (p *ProbesByID) Range(f func(id ProbeID, probe *Probe) bool) {
-	p.Map.Range(func(key, value interface{}) bool {
+	p.Map.Range(func(key, value any) bool {
 		return f(key.(ProbeID), value.(*Probe))
 	})
 }
@@ -104,7 +104,7 @@ func (p *ProbesByID) Range(f func(id ProbeID, probe *Probe) bool) {
 // Len returns the number of items in the map
 func (p *ProbesByID) Len() int {
 	count := 0
-	p.Range(func(id ProbeID, probe *Probe) bool {
+	p.Range(func(_ ProbeID, _ *Probe) bool {
 		count++
 		return true
 	})
@@ -193,7 +193,7 @@ func (p *InstrumentationUprobesMap) Delete(id ProbeID) {
 
 // Range calls f sequentially for each key and value present in the map
 func (p *InstrumentationUprobesMap) Range(f func(id ProbeID, l *link.Link) bool) {
-	p.Map.Range(func(key, value interface{}) bool {
+	p.Map.Range(func(key, value any) bool {
 		return f(key.(ProbeID), value.(*link.Link))
 	})
 }
@@ -223,7 +223,7 @@ func (p *InstrumentationObjectsMap) Delete(id ProbeID) {
 
 // Range calls f sequentially for each key and value present in the map
 func (p *InstrumentationObjectsMap) Range(f func(id ProbeID, c *ebpf.Collection) bool) {
-	p.Map.Range(func(key, value interface{}) bool {
+	p.Map.Range(func(key, value any) bool {
 		return f(key.(ProbeID), value.(*ebpf.Collection))
 	})
 }
@@ -315,7 +315,7 @@ func (pi *ProcessInfo) CloseAllUprobeLinks() {
 	if pi.InstrumentationUprobes == nil {
 		return
 	}
-	pi.InstrumentationUprobes.Range(func(id ProbeID, l *link.Link) bool {
+	pi.InstrumentationUprobes.Range(func(id ProbeID, _ *link.Link) bool {
 		if err := pi.CloseUprobeLink(id); err != nil {
 			log.Info("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, id, err)
 		}
@@ -333,7 +333,7 @@ func (pi *ProcessInfo) GetProbes() []*Probe {
 		return nil
 	}
 	probes := make([]*Probe, 0, pi.ProbesByID.Len())
-	pi.ProbesByID.Range(func(id ProbeID, probe *Probe) bool {
+	pi.ProbesByID.Range(func(_ ProbeID, probe *Probe) bool {
 		probes = append(probes, probe)
 		return true
 	})
