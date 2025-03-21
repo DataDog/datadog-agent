@@ -45,7 +45,14 @@ import (
 )
 
 const (
-	maxRetry   = 10
+	// events delay is used for 2 actions: hash and kills:
+	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
+	//   it doesn't matter if this retry period lasts for longer)
+	// - for kill actions:
+	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
+	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
+	//     time to trigger the kill and wait to catch the process exit)
+	maxRetry   = 62
 	retryDelay = time.Second
 )
 
