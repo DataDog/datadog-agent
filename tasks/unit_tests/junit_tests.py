@@ -119,6 +119,9 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
         mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
-        junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
+        junit.junit_upload_from_tgz(
+            "tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz",
+            "tasks/unit_tests/testdata/test_output_no_failure.json",
+        )
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 30)

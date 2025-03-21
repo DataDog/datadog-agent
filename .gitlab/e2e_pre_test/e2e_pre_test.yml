@@ -10,9 +10,9 @@ e2e_pre_test:
     - job: publish_fakeintake
       optional: true
   script:
-    - dda inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+    - dda inv -e new-e2e-tests.run --targets ./test-infra-definition --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
   after_script:
-    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   variables:
     TEAM: "agent-devx-loops"
     # override to use latest stable agent

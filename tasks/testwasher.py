@@ -15,7 +15,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
 from tasks.libs.testing.flakes import consolidate_flaky_failures
-from tasks.test_core import ModuleTestResult
+from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult
 
 FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
 
@@ -23,7 +23,7 @@ FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
 class TestWasher:
     def __init__(
         self,
-        test_output_json_file="module_test_output.json",
+        test_output_json_file=DEFAULT_TEST_OUTPUT_JSON,
         flaky_test_indicator=FLAKY_TEST_INDICATOR,
         flakes_file_paths: list[str] | None = None,
     ):
@@ -48,13 +48,13 @@ class TestWasher:
 
         self.parse_flaky_files()
 
-    def get_flaky_marked_tests(self, module_path: str) -> dict:
+    def get_flaky_marked_tests(self) -> dict:
         """
         Read the test output json file and return the tests that are marked as flaky, tests that succeeded but are marked as flaky will be returned
         """
         marked_flaky_test = defaultdict(set)  # dict[package] =  {TestName, TestName2}
 
-        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
+        with open(self.test_output_json_file, encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
                 if "Test" not in test_result:
@@ -78,12 +78,12 @@ class TestWasher:
             or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
         )
 
-    def get_failing_tests(self, module_path: str) -> dict:
+    def get_failing_tests(self) -> dict:
         """
         Read the test output json file and return the tests that are failing
         """
         failing_tests = defaultdict(set)
-        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
+        with open(self.test_output_json_file, encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
                 if "Test" not in test_result:
@@ -95,7 +95,7 @@ class TestWasher:
 
         return failing_tests
 
-    def get_flaky_failures(self, module_path: str) -> dict:
+    def get_flaky_failures(self) -> dict:
         """
         Return failures that are due to flakiness. A test is considered flaky if it failed because of a flake.
         In the following cases the test failure is considered a flaky failure:
@@ -104,7 +104,7 @@ class TestWasher:
         """
         flaky_failures = defaultdict(set)  # dict[package] =  {TestName, TestName2}
         failing_tests = defaultdict(set)
-        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
+        with open(self.test_output_json_file, encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
                 if "Test" not in test_result:
@@ -162,12 +162,12 @@ class TestWasher:
 
         return False
 
-    def get_non_flaky_failing_tests(self, module_path):
+    def get_non_flaky_failing_tests(self):
         """
         Parse the test output json file and compute the failing tests and the one known flaky
         """
-        failing_tests = self.get_failing_tests(module_path)
-        flaky_failures = self.get_flaky_failures(module_path)
+        failing_tests = self.get_failing_tests()
+        flaky_failures = self.get_flaky_failures()
 
         non_flaky_failures = defaultdict(set)
         for package, tests in failing_tests.items():
@@ -212,34 +212,32 @@ class TestWasher:
                 main_patterns = [main_patterns]
             self.flaky_log_main_patterns += main_patterns
 
-    def process_module_results(self, module_results: list[ModuleTestResult]):
+    def process_result(self, result: TestResult):
         """
-        Process the module test results and decide whether we should succeed or not.
+        Process the test results and decide whether we should succeed or not.
         If only known flaky tests are failing, we should succeed.
         If failing, displays the failing tests that are not known to be flaky
         """
 
         should_succeed = True
+        failed_command = False
         failed_tests = []
-        failed_command_modules = []
-        for module_result in module_results:
-            non_flaky_failing_tests = self.get_non_flaky_failing_tests(module_result.path)
-            if (
-                not self.get_failing_tests(module_result.path) and module_result.failed
-            ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
-                should_succeed = False
-                failed_command_modules.append(module_result.path)
-            if non_flaky_failing_tests:
-                should_succeed = False
-                for package, tests in non_flaky_failing_tests.items():
-                    failed_tests.extend(f"- {package} {test}" for test in tests)
+        non_flaky_failing_tests = self.get_non_flaky_failing_tests()
+        if (
+            not self.get_failing_tests() and result.failed
+        ):  # In this case the Go test command failed but no test failed, it means that the test command itself failed (build errors,...)
+            should_succeed = False
+            failed_command = True
+        if non_flaky_failing_tests:
+            should_succeed = False
+            for package, tests in non_flaky_failing_tests.items():
+                failed_tests.extend(f"- {package} {test}" for test in tests)
         if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
             print("\n".join(sorted(failed_tests)))
-        if failed_command_modules:
-            print("The test command failed, before test execution on the following modules:")
-            print("\n".join(sorted(failed_command_modules)))
-            print("Please check the job logs for more information")
+        if failed_command:
+            print("The test command failed, before test execution.")
+            print("Please check the job logs for more information.")
 
         return should_succeed
 
