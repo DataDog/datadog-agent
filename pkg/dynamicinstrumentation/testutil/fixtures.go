@@ -39,7 +39,7 @@ var basicCaptures = fixtures{
 		},
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"x": &ditypes.CapturedValue{
+				"x": {
 					NotCapturedReason: "depth",
 					Type:              "bool",
 				}},
@@ -432,7 +432,7 @@ var pointerCaptures = fixtures{
 		},
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"x": &ditypes.CapturedValue{
+				"x": {
 					NotCapturedReason: "depth",
 					Type:              "*uint",
 				},
@@ -617,7 +617,7 @@ func mergeMaps(maps ...fixtures) fixtures {
 var expectedCaptures = mergeMaps(
 	basicCaptures,
 	stringCaptures,
-	// arrayCaptures,
+	arrayCaptures,
 	structCaptures,
 	sliceCaptures,
 	pointerCaptures,
