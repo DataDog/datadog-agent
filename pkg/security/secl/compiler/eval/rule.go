@@ -244,10 +244,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 
 		// eval with each possible value of the registers
 		evalBool.EvalFnc = func(ctx *Context) bool {
-			size := lenEval.Eval(ctx).(int)
-			if size > maxRegisterIteration {
-				size = maxRegisterIteration
-			}
+			size := min(lenEval.Eval(ctx).(int), maxRegisterIteration)
 
 			for i := 0; i != size; i++ {
 				ctx.Registers[regID] = i

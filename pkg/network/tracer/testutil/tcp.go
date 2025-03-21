@@ -91,6 +91,7 @@ func DialTCP(network, address string) (net.Conn, error) {
 	}
 	err = SetTestDeadline(conn)
 	if err != nil {
+		conn.Close()
 		return nil, err
 	}
 	return conn, nil

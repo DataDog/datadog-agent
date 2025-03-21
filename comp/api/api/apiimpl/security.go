@@ -6,8 +6,6 @@
 package apiimpl
 
 import (
-	"crypto/subtle"
-	"errors"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -23,17 +21,4 @@ func validateToken(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// parseToken parses the token and validate it for our gRPC API, it returns an empty
-// struct and an error or nil
-func parseToken(token string) (interface{}, error) {
-	if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetAuthToken())) == 0 {
-		return struct{}{}, errors.New("Invalid session token")
-	}
-
-	// Currently this empty struct doesn't add any information
-	// to the context, but we could potentially add some custom
-	// type.
-	return struct{}{}, nil
 }
