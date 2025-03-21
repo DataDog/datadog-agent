@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"runtime"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -227,7 +226,6 @@ func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 				SliceMaxLength:    ditypes.SliceMaxLength,
 				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
 				MaxFieldCount:     rc.Capture.MaxFieldCount,
-				NumCPUs:           runtime.NumCPU(),
 			},
 		},
 	}
