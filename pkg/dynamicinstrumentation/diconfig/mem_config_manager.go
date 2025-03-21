@@ -25,7 +25,7 @@ import (
 type ReaderConfigManager struct {
 	sync.Mutex
 	ConfigWriter *ConfigWriter
-	procTracker  *proctracker.ProcessTracker
+	ProcTracker  *proctracker.ProcessTracker
 
 	callback configUpdateCallback
 	configs  configsByService
@@ -41,8 +41,8 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 		state:    ditypes.NewDIProcs(),
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
-	err := cm.procTracker.Start()
+	cm.ProcTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
+	err := cm.ProcTracker.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
 // Stop causes the ReaderConfigManager to stop processing data
 func (cm *ReaderConfigManager) Stop() {
 	cm.ConfigWriter.Stop()
-	cm.procTracker.Stop()
+	cm.ProcTracker.Stop()
 }
 
 func (cm *ReaderConfigManager) update() error {
@@ -168,6 +168,10 @@ func (r *ConfigWriter) Write(p []byte) (n int, e error) {
 	return 0, nil
 }
 
+func (r *ConfigWriter) WriteSync(p []byte) error {
+	return r.parseRawConfigBytesAndTriggerCallback(p)
+}
+
 // Start initiates the ConfigWriter to start processing data
 func (r *ConfigWriter) Start() error {
 	go func() {
@@ -175,18 +179,23 @@ func (r *ConfigWriter) Start() error {
 		for {
 			select {
 			case rawConfigBytes := <-r.updateChannel:
-				conf := map[string]map[string]rcConfig{}
-				err := json.Unmarshal(rawConfigBytes, &conf)
-				if err != nil {
-					log.Errorf("invalid config read from reader: %v", err)
-					continue
-				}
-				r.configCallback(conf)
+				r.parseRawConfigBytesAndTriggerCallback(rawConfigBytes)
 			case <-r.stopChannel:
 				break configUpdateLoop
 			}
 		}
 	}()
+	return nil
+}
+
+func (r *ConfigWriter) parseRawConfigBytesAndTriggerCallback(rawConfigBytes []byte) error {
+	conf := map[string]map[string]rcConfig{}
+	err := json.Unmarshal(rawConfigBytes, &conf)
+	if err != nil {
+		log.Errorf("invalid config read from reader: %v", err)
+		return fmt.Errorf("invalid config read from reader: %v", err)
+	}
+	r.configCallback(conf)
 	return nil
 }
 
