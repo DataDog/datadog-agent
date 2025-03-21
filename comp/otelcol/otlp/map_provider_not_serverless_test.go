@@ -17,11 +17,13 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestNewMap(t *testing.T) {
@@ -1108,7 +1110,7 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, option.None[hostname.Component]())
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

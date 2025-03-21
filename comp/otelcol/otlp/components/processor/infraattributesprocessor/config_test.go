@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -36,7 +38,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
 			tc := newTestTaggerClient()
-			f := NewFactoryForAgent(tc)
+			f := NewFactoryForAgent(tc, option.None[hostnameinterface.Component]())
 			cfg := f.CreateDefaultConfig()
 
 			sub, err := cm.Sub(tt.id.String())

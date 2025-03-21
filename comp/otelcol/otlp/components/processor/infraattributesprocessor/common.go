@@ -6,6 +6,7 @@
 package infraattributesprocessor
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,8 +16,10 @@ import (
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var unifiedServiceTagMap = map[string][]string{
@@ -25,19 +28,35 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Version: {conventions.AttributeServiceVersion},
 }
 
-// processInfraTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
-func processInfraTags(
-	logger *zap.Logger,
+type infraTagsProcessor struct {
+	tagger   taggerClient
+	hostname option.Option[hostname.Component]
+}
+
+// newInfraTagsProcessor creates a new infraTagsProcessor instance
+func newInfraTagsProcessor(
 	tagger taggerClient,
+	hostname option.Option[hostname.Component],
+) infraTagsProcessor {
+	return infraTagsProcessor{
+		tagger:   tagger,
+		hostname: hostname,
+	}
+}
+
+// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
+func (p infraTagsProcessor) ProcessTags(
+	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
+	allowHostnameOverride bool,
 ) {
 	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
 
 	// Get all unique tags from resource attributes and global tags
 	for _, entityID := range entityIDs {
-		entityTags, err := tagger.Tag(entityID, cardinality)
+		entityTags, err := p.tagger.Tag(entityID, cardinality)
 		if err != nil {
 			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 			continue
@@ -50,7 +69,7 @@ func processInfraTags(
 			}
 		}
 	}
-	globalTags, err := tagger.GlobalTags(cardinality)
+	globalTags, err := p.tagger.GlobalTags(cardinality)
 	if err != nil {
 		logger.Error("Cannot get global tags", zap.Error(err))
 	}
@@ -80,6 +99,12 @@ func processInfraTags(
 		}
 		if !hasOTelAttr {
 			resourceAttributes.PutStr(otelAttrs[0], v)
+		}
+	}
+
+	if h, ok := p.hostname.Get(); ok && allowHostnameOverride {
+		if hostname, err := h.Get(context.Background()); err == nil {
+			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
 	}
 }

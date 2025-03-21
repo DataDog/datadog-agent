@@ -9,12 +9,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor/processortest"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type logNameTest struct {
@@ -129,7 +130,7 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
 
-			factory := NewFactoryForAgent(tc)
+			factory := NewFactoryForAgent(tc, option.None[hostnameinterface.Component]())
 			flp, err := factory.CreateLogs(
 				context.Background(),
 				processortest.NewNopSettings(Type),
