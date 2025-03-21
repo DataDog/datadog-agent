@@ -150,7 +150,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 func (s *testInstallScriptSuite) installUnsupportedAgent() {
 	// Arrange
 	// Act
-	output, err := s.InstallScript().Run(
+	_, err := s.InstallScript().Run(
 		installerwindows.WithExtraEnvVars(map[string]string{
 			// install pre 7.65 version
 			"DD_AGENT_MAJOR_VERSION": "7",
@@ -159,7 +159,5 @@ func (s *testInstallScriptSuite) installUnsupportedAgent() {
 	)
 
 	// Assert that the installation failed
-	s.Require().Error(err)
-	s.T().Log(output)
-	s.Require().Contains(output, "does not support fleet automation")
+	s.Require().ErrorContains(err, "does not support fleet automation")
 }
