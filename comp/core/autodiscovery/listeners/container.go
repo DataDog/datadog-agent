@@ -115,7 +115,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

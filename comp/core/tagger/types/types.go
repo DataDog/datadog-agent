@@ -79,6 +79,8 @@ const (
 	OrchestratorCardinality
 	HighCardinality
 	NoneCardinality
+	// ChecksConfigCardinality is an internal cardinality that represents the checks_tag_cardinality setting.
+	ChecksConfigCardinality
 )
 
 // Entity is an entity ID + tags.
