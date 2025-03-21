@@ -59,6 +59,13 @@ func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
 	})
 }
 
+// TestFailedUnsupportedVersion Test that version <65 fails to install
+func (s *testInstallScriptSuite) TestFailedUnsupportedVersion() {
+	s.Run("Install from old installer", func() {
+		s.installUnsupportedAgent()
+	})
+}
+
 func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
 	// Arrange
 	packageConfig, err := installerwindows.NewPackageConfig(opts...)
@@ -138,4 +145,20 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, oldAgentVersion)
 		})
+}
+
+func (s *testInstallScriptSuite) installUnsupportedAgent() {
+	// Arrange
+	// Act
+	output, err := s.InstallScript().Run(
+		installerwindows.WithExtraEnvVars(map[string]string{
+			// install pre 7.65 version
+			"DD_AGENT_MAJOR_VERSION": "7",
+			"DD_AGENT_MINOR_VERSION": "64.0",
+		}),
+	)
+
+	// Assert that the installation failed
+	s.Require().Error(err)
+	s.Require().Contains(output, "agent version 7.64.0 does not support fleet automation")
 }
