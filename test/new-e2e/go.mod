@@ -239,7 +239,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/option v0.55.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.5
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0

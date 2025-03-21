@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type testDependencies struct {
@@ -32,7 +32,7 @@ func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	deps := fxutil.Test[testDependencies](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
-		fx.Supply(option.None[rcservice.Component]()),
+		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		Module(),
 	))
 	_, err := newUpdaterComponent(&mockLifecycle{}, deps.Dependencies)

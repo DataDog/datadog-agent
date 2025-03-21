@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"sync"
 
-	"go.uber.org/fx"
-
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
@@ -30,7 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -277,7 +276,7 @@ func (t *TaggerClient) Standard(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +396,7 @@ type optionalTaggerDeps struct {
 	Lc     fx.Lifecycle
 	Config configComponent.Component
 	Log    logComp.Component
-	Wmeta  option.Option[workloadmeta.Component]
+	Wmeta  optional.Option[workloadmeta.Component]
 }
 
 // OptionalModule defines the fx options when tagger should be used as an optional
@@ -410,12 +409,12 @@ func OptionalModule() fxutil.Module {
 }
 
 // NewOptionalTagger returns a tagger component if workloadmeta is available
-func NewOptionalTagger(deps optionalTaggerDeps) option.Option[Component] {
+func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[Component] {
 	w, ok := deps.Wmeta.Get()
 	if !ok {
-		return option.None[Component]()
+		return optional.NewNoneOption[Component]()
 	}
-	return option.New[Component](newTaggerClient(dependencies{
+	return optional.NewOption[Component](newTaggerClient(dependencies{
 		In:     deps.In,
 		Lc:     deps.Lc,
 		Config: deps.Config,
