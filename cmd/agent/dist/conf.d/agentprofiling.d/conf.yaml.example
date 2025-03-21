@@ -12,6 +12,12 @@ instances:
     #
     # memory_threshold: 0
 
+    ## @param user_email - string - optional - default: 0
+    ## Set to a value in percent. When this check runs, it will check if the Core Agent's CPU usage is above this threshold.
+    ## If the threshold is exceeded, the check will generate a flare with memory and CPU profiles.
+    #
+    # cpu_threshold: 0
+
     ## @param ticket_id - string - optional - default: ""
     ## Set to a valid ticket ID. When a flare is generated, it will be sent to the ticket ID specified here.
     ## If no ticket ID is specified or the flare fails to send to the specified ticket, it will attempt to be stored locally.

@@ -14,6 +14,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/shirou/gopsutil/v4/cpu"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
@@ -30,11 +32,13 @@ import (
 // CheckName is the name of the agentprofiling check
 const (
 	CheckName = "agentprofiling"
+	MB        = 1024 * 1024
 )
 
 // AgentProfilingConfig is the configuration for the agentprofiling check
 type AgentProfilingConfig struct {
 	MemoryThreshold int    `yaml:"memory_threshold"`
+	CPUThreshold    int    `yaml:"cpu_threshold"`
 	TicketID        string `yaml:"ticket_id"`
 	UserEmail       string `yaml:"user_email"`
 }
@@ -69,6 +73,7 @@ func newCheck(flareComponent flare.Component, agentConfig config.Component) chec
 func (c *AgentProfilingConfig) Parse(data []byte) error {
 	// default values
 	c.MemoryThreshold = 0
+	c.CPUThreshold = 0
 	c.TicketID = ""
 	c.UserEmail = ""
 	return yaml.Unmarshal(data, c)
@@ -92,33 +97,46 @@ func (m *AgentProfilingCheck) Run() error {
 		return nil
 	}
 
-	// Get the memory profile threshold from config
-	thresholdBytes := m.instance.MemoryThreshold
-	if thresholdBytes <= 0 {
-		log.Debugf("Memory profile threshold is not set or is <= 0, skipping memory profile capture check.")
+	// Exit early if both thresholds are disabled
+	if m.instance.MemoryThreshold <= 0 && m.instance.CPUThreshold <= 0 {
+		log.Debugf("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
 	// Get Agent memory usage
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	heapUsedBytes := memStats.HeapAlloc
-	heapUsedMB := float64(heapUsedBytes) / 1024 / 1024
-	thresholdMB := float64(thresholdBytes) / 1024 / 1024
+	var heapUsedMB float64
+	if m.instance.MemoryThreshold > 0 {
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
+		heapUsedMB = float64(memStats.HeapAlloc) / MB
 
-	log.Infof("Current heap usage: %.2f MB, Threshold: %.2f MB", heapUsedMB, thresholdMB)
+		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", heapUsedMB, float64(m.instance.MemoryThreshold)/MB)
+	}
 
-	// If memory usage exceeds threshold, capture profile
-	if heapUsedBytes >= uint64(thresholdBytes) {
-		log.Infof("Heap usage exceeds threshold, generating flare with profiles.")
-
-		err := m.generateFlare()
+	// Get Agent CPU usage
+	var currentCPU float64
+	if m.instance.CPUThreshold > 0 {
+		percentages, err := cpu.Percent(200*time.Millisecond, false)
 		if err != nil {
-			log.Errorf("Failed to generate flare: %s", err)
+			log.Errorf("Failed to get CPU usage: %s", err)
 			return err
 		}
+		currentCPU = percentages[0]
 
-		log.Infof("Flare generated. Stopping further executions of this check.")
+		log.Infof("CPU usage check - Current: %.2f%%, Threshold: %d%%", currentCPU, m.instance.CPUThreshold)
+	}
+
+	// Exit early if usage is below thresholds
+	if heapUsedMB < float64(m.instance.MemoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
+		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", heapUsedMB, float64(m.instance.MemoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
+		return nil
+	}
+
+	// If either memory or CPU exceeds threshold, generate flare
+	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Generating flare.", heapUsedMB, currentCPU)
+	if err := m.generateFlare(); err != nil {
+		log.Errorf("Failed to generate flare: %s", err)
+		return err
 	}
 
 	return nil
