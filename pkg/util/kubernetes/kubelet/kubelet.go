@@ -11,11 +11,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	v1 "k8s.io/api/core/v1"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -174,6 +177,16 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
+}
+
+// StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
+func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *v1.PodLogOptions) (io.ReadCloser, error) {
+	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
+	if logOptions.SinceTime != nil {
+		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+	}
+	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
+	return ku.kubeletClient.queryWithResp(ctx, path)
 }
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
