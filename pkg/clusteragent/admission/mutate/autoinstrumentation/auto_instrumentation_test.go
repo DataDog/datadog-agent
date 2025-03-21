@@ -2378,6 +2378,67 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
+			name: "Single Step Instrumentation: default service name for Job",
+			pod: common.FakePodSpec{
+				Labels: map[string]string{
+					"tags.datadoghq.com/service": "expected-job-service",
+				},
+				ParentKind: "job",
+				ParentName: "test-cronjob-123",
+			}.Create(),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
+				Name:  "DD_SERVICE",
+				Value: "expected-job-service",
+			},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			),
+			expectedInjectedLibraries: defaultLibraries,
+			expectedSecurityContext:   &corev1.SecurityContext{},
+			wantErr:                   false,
+			wantWebhookInitErr:        false,
+			setupConfig:               funcs{enableAPMInstrumentation},
+		},
+		{
+			name: "Single Step Instrumentation: default service name for Job - no label",
+			pod: common.FakePodSpec{
+				ParentKind: "job",
+				ParentName: "test-cronjob-123",
+			}.Create(),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
+				Name:  "DD_SERVICE",
+				Value: "test-cronjob-123",
+			},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			),
+			expectedInjectedLibraries: defaultLibraries,
+			expectedSecurityContext:   &corev1.SecurityContext{},
+			wantErr:                   false,
+			wantWebhookInitErr:        false,
+			setupConfig:               funcs{enableAPMInstrumentation},
+		},
+		{
 			name: "Single Step Instrumentation: default service name (disabled)",
 			pod: common.FakePodSpec{
 				ParentKind: "replicaset",

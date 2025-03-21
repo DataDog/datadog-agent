@@ -429,11 +429,16 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 	switch owner := ownerReferences[0]; owner.Kind {
 	case "StatefulSet":
 		fallthrough
-	case "Job":
-		fallthrough
+	case "DaemonSet":
+		return owner.Name, nil
 	case "CronJob":
 		fallthrough
-	case "DaemonSet":
+	case "Job":
+		if pod.GetLabels() != nil {
+			if serviceName, ok := pod.GetLabels()[kubernetes.ServiceTagLabelKey]; ok && serviceName != "" {
+				return serviceName, nil
+			}
+		}
 		return owner.Name, nil
 	case "ReplicaSet":
 		return kubernetes.ParseDeploymentForReplicaSet(owner.Name), nil
