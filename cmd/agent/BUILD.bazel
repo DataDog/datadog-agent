@@ -168,9 +168,9 @@ INSTALL_PATH = "/opt/datadog-agent"
 
 go_binary(
     name = "agent",
-    embed = [":agent_lib"],
     # keep
     data = ["//rtloader:datadog-agent-three"],
+    embed = [":agent_lib"],
     # keep
     gc_linkopts = [
         "-r",
@@ -180,10 +180,14 @@ go_binary(
             # A bit ugly but $(rlocationpath) doesn't work and this serves our purpose
             "$$ORIGIN/agent.runfiles/_main/rtloader",
         ]),
-        # Fix go-nvml runtime symbol finding issue
-        "-extldflags",
-        "-Wl,-z,lazy",
-    ],
+    ] + select({
+        "@rules_go//go/platform:linux": [
+            # Fix go-nvml runtime symbol finding issue
+            "-extldflags",
+            "-Wl,-z,lazy",
+        ],
+        "//conditions:default": [],
+    }),
     # keep
     gotags = select({
         "@rules_go//go/platform:darwin": [
@@ -207,7 +211,6 @@ go_binary(
         ],
         "@rules_go//go/platform:linux": AGENT_BUILD_TAGS,
         "@rules_go//go/platform:windows": [
-            "apm",
             "consul",
             "containerd",
             "cri",
@@ -224,6 +227,7 @@ go_binary(
             "otlp",
             "process",
             "python",
+            "wmi",
             "zk",
             "zlib",
             "zstd",

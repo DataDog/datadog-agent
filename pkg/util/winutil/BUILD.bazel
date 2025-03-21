@@ -43,7 +43,8 @@ go_test(
         "time_test.go",
         "users_test.go",
     ],
-    data = glob(["testdata/**"]),
+    # keep: for some reason gazelle thinks that it needs to add `testdata/**` here, which doesn't really exist
+    data = [],
     embed = [":winutil"],
     deps = select({
         "@rules_go//go/platform:windows": [

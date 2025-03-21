@@ -6,6 +6,7 @@ go_library(
         "collector.go",
         "doc.go",
         "host.go",
+        "host_wmi.go",  # keep
         "request.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host",
@@ -67,6 +68,11 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/sbom/collectors",
+            "//pkg/util/winutil",  # keep
+            "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",  # keep
+            "@com_github_datadog_gopsutil//host",  # keep
+            "@com_github_shirou_gopsutil_v4//host",  # keep
+            "@com_github_yusufpapurcu_wmi//:wmi",  # keep
         ],
         "//conditions:default": [],
     }),

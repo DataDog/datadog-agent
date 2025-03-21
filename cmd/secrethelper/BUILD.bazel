@@ -18,7 +18,15 @@ go_library(
 go_test(
     name = "secrethelper_test",
     srcs = ["secret_helper_test.go"],
-    data = glob(["testdata/**"]),
+    # keep: The links cause issues when trying to use the default glob, list manually
+    data = [
+        "testdata/read-secretes-secret5-target",
+        "testdata/read-secrets/secret1",
+        "testdata/read-secrets/secret3",
+        "testdata/read-secrets/secret4",
+        "testdata/read-secrets/secret5",
+        "testdata/read-secrets/secret6",
+    ],
     embed = [":secrethelper"],
     deps = [
         "//pkg/util/fxutil",

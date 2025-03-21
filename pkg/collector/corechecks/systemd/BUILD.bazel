@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "dbus_conn.go",
         "doc.go",
+        "stub.go",  # keep
         "systemd.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd",

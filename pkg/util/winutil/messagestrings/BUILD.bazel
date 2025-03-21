@@ -2,8 +2,28 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "messagestrings",
-    srcs = ["messages.go"],
+    srcs = [
+        "messages.go",
+        "messagestrings.h",
+    ],
+    cdeps = [":messagestrings_header"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
     visibility = ["//visibility:public"],
+)
+
+# Bridge between the genrule and the go rule (genrule output can't be used as a dep for `go_library`
+cc_library(
+    name = "messagestrings_header",
+    hdrs = [":messagestrings_h"],
+    includes = ["."],
+)
+
+genrule(
+    name = "messagestrings_h",
+    srcs = ["messagestrings.mc"],
+    outs = ["messagestrings.h"],
+    cmd_bat = """
+    windmc --target pe-x86-64 -r $(RULEDIR) -h $(RULEDIR) $<
+    """,
 )
