@@ -6,13 +6,13 @@
 package otlpingest
 
 import (
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -46,7 +46,7 @@ agents:
 
 func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

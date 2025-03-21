@@ -46,11 +46,11 @@ agents:
 
 func (s *otlpIngestOpNameV2RecvrV1TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestOpNameV2RecvrV1TestSuite) TestTraces() {
-	utils.TestTracesWithOperationAndResourceName(s, "client.request", "lets-go", "server.request", "okey-dokey-0")
+	utils.TestTracesWithOperationAndResourceName(s, "client.request", "getDate", "http.server.request", "GET")
 }
 
 type otlpIngestOpNameV2RecvrV2TestSuite struct {
@@ -83,11 +83,11 @@ agents:
 
 func (s *otlpIngestOpNameV2RecvrV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestOpNameV2RecvrV2TestSuite) TestTraces() {
-	utils.TestTracesWithOperationAndResourceName(s, "client.request", "lets-go", "server.request", "okey-dokey-0")
+	utils.TestTracesWithOperationAndResourceName(s, "client.request", "getDate", "http.server.request", "GET")
 }
 
 type otlpIngestOpNameV2SpanAsResNameTestSuite struct {
@@ -122,11 +122,11 @@ agents:
 
 func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) TestTraces() {
-	utils.TestTracesWithOperationAndResourceName(s, "lets_go", "lets-go", "okey_dokey_0", "okey-dokey-0")
+	utils.TestTracesWithOperationAndResourceName(s, "getDate", "getDate", "CalendarHandler", "GET")
 }
 
 type otlpIngestOpNameV2RemappingTestSuite struct {
@@ -153,7 +153,7 @@ agents:
         - name: DD_APM_FEATURES
           value: 'enable_operation_and_resource_name_logic_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
-          value: '{"telemetrygen.client":"mapping.output","server.request":"telemetrygen.server"}'
+          value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
 `
 	t.Parallel()
 	ts := &otlpIngestOpNameV2RemappingTestSuite{}
@@ -162,9 +162,9 @@ agents:
 
 func (s *otlpIngestOpNameV2RemappingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestOpNameV2RemappingTestSuite) TestTraces() {
-	utils.TestTracesWithOperationAndResourceName(s, "mapping.output", "lets-go", "telemetrygen.server", "okey-dokey-0")
+	utils.TestTracesWithOperationAndResourceName(s, "mapping.output", "getDate", "calendar.server", "GET")
 }
