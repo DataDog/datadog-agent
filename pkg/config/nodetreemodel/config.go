@@ -215,10 +215,6 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 // SetWithoutSource assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
-	if value == nil {
-		c.UnsetForSource(key, model.SourceUnknown)
-		return
-	}
 	c.Set(key, value, model.SourceUnknown)
 }
 

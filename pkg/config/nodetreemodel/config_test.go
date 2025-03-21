@@ -650,9 +650,9 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	_, found = cfg.AllSettings()["api_key"]
 	assert.True(t, found)
 
-	cfg.SetWithoutSource("api_key", nil)
+	cfg.UnsetForSource("api_key", model.SourceUnknown)
 
-	// special case: SetWithoutSource with nil value will Unset the setting
+	// api_key is unset again, should not appear in AllSettings
 	assert.Equal(t, "", cfg.GetString("api_key"))
 	_, found = cfg.AllSettings()["api_key"]
 	assert.False(t, found)
