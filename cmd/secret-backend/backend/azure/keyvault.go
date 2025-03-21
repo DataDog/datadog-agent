@@ -10,6 +10,8 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
 	"github.com/Azure/go-autorest/autorest"
@@ -87,9 +89,21 @@ func NewKeyVaultBackend(backendID string, bc map[string]interface{}) (*KeyVaultB
 	if backendConfig.ForceString {
 		secretValue["_"] = *out.Value
 	} else {
-		if err := json.Unmarshal([]byte(*out.Value), &secretValue); err != nil {
-			// assume: not json, store as single key -> string value
-			secretValue["_"] = *out.Value
+		err := json.Unmarshal([]byte(*out.Value), &secretValue)
+		if err != nil {
+			// See https://github.com/Azure/azure-sdk-for-net/issues/39434, Azure KeyVault can return an escaped string value
+			// that is not parsable as is. We need to unquote it first.
+			unquoted, err := strconv.Unquote(fmt.Sprintf(`"%s"`, *out.Value))
+			if err != nil {
+				// assume: not json, store as single key -> string value
+				secretValue["_"] = *out.Value
+			} else {
+				err := json.Unmarshal([]byte(unquoted), &secretValue)
+				if err != nil {
+					// assume: not json, store as single key -> string value
+					secretValue["_"] = unquoted
+				}
+			}
 		}
 	}
 

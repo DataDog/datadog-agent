@@ -132,3 +132,32 @@ func TestKeyvaultBackend_NotJSON(t *testing.T) {
 	assert.Equal(t, "not json", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 }
+
+func TestKeyVaultBackend_issue39434(t *testing.T) {
+	mockClient := &keyvaultMockClient{
+		secrets: map[string]interface{}{
+			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
+		},
+	}
+	getKeyvaultClient = func(_ *autorest.Authorizer) keyvaultClient {
+		return mockClient
+	}
+
+	keyvaultBackendParams := map[string]interface{}{
+		"backend_type": "azure.keyvault",
+		"secret_id":    "key1",
+		"force_string": false,
+	}
+	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	assert.NoError(t, err)
+
+	// Top-level keys are not fetchable
+	secretOutput := keyvaultSecretsBackend.GetSecretOutput("key1")
+	assert.Nil(t, secretOutput.Value)
+	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
+
+	// But the contents under the selected key are
+	secretOutput = keyvaultSecretsBackend.GetSecretOutput("foo")
+	assert.Equal(t, "bar", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
+}
