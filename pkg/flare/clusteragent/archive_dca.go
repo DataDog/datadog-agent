@@ -79,14 +79,15 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	getMetadataMap(fb)               //nolint:errcheck
 	getClusterAgentClusterChecks(fb) //nolint:errcheck
 
-	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                  //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
-	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
-	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)           //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                      //nolint:errcheck
-	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
-	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck
-	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                     //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)    //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                             //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)              //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                         //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                              //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                          //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                       //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-metadata.json", getClusterAgentMetadataPayload) //nolint:errcheck
 	getPerformanceProfileDCA(fb, pdata)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
@@ -242,6 +243,32 @@ func getDCAWorkloadList() ([]byte, error) {
 	}
 
 	return flare.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")), true)
+}
+
+func getClusterAgentMetadataPayload() ([]byte, error) {
+	c := util.GetClient()
+
+	// Set session token
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	targetURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
+		Path:   "metadata/cluster-agent",
+	}
+
+	r, err := util.DoGet(c, targetURL.String(), util.CloseConnection)
+	if err != nil {
+		if r != nil && string(r) != "" {
+			return nil, fmt.Errorf("the agent ran into an error while checking dca metadata: %s", string(r))
+		}
+		return nil, fmt.Errorf("failed to query the agent (running?): %s", err)
+	}
+
+	return r, nil
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
