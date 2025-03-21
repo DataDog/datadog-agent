@@ -39,7 +39,7 @@ agents:
 
 func (s *otelAgentSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otelAgentSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -32,15 +31,14 @@ import (
 
 const (
 	// CalendarService is the default service value for the calendar app
-	CalendarService = "calendar-rest-go"
+	CalendarService          = "calendar-rest-go"
+	calendarTopLevelResource = "GET"
 
-	telemetrygenService          = "telemetrygen-job"
-	telemetrygenTopLevelResource = "lets-go"
-	env                          = "e2e"
-	version                      = "1.0"
-	customAttribute              = "custom.attribute"
-	customAttributeValue         = "true"
-	logBody                      = "random date"
+	env                  = "e2e"
+	version              = "1.0"
+	customAttribute      = "custom.attribute"
+	customAttributeValue = "true"
+	logBody              = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -151,7 +149,7 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
@@ -160,35 +158,35 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	tp := traces[0].TracerPayloads[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
-	assert.Empty(s.T(), tp.ContainerID)
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	ctags, ok := getContainerTags(s.T(), tp)
 
 	for _, sp := range spans {
-		assert.Equal(s.T(), telemetrygenService, sp.Service)
+		assert.Equal(s.T(), CalendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		if sp.Meta["span.kind"] == "client" {
 			assert.Equal(s.T(), "client.request", sp.Name)
-			assert.Equal(s.T(), "lets-go", sp.Resource)
+			assert.Equal(s.T(), "getDate", sp.Resource)
 			assert.Equal(s.T(), "http", sp.Type)
-			assert.Zero(s.T(), sp.ParentID)
-		} else {
-			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), "server.request", sp.Name)
-			assert.Equal(s.T(), "okey-dokey-0", sp.Resource)
-			assert.Equal(s.T(), "web", sp.Type)
 			assert.IsType(s.T(), uint64(0), sp.ParentID)
 			assert.NotZero(s.T(), sp.ParentID)
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		} else {
+			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
+			assert.Equal(s.T(), "http.server.request", sp.Name)
+			assert.Equal(s.T(), "GET", sp.Resource)
+			assert.Equal(s.T(), "web", sp.Type)
+			assert.Zero(s.T(), sp.ParentID)
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
 		}
 		assert.IsType(s.T(), uint64(0), sp.TraceID)
 		assert.NotZero(s.T(), sp.TraceID)
 		assert.IsType(s.T(), uint64(0), sp.SpanID)
 		assert.NotZero(s.T(), sp.SpanID)
-		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
 		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
 		assert.True(s.T(), ok)
 		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
@@ -229,7 +227,7 @@ func TestTracesWithOperationAndResourceName(
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
@@ -385,37 +383,34 @@ func TestHosts(s OTelTestSuite) {
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
-	SetupSampleTraces(s)
-
-	TestAPMStats(s, 20, computeTopLevelBySpanKind)
-}
-
-// TestAPMStats checks that APM stats are received with the correct number of hits per traces given
-func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
 	var err error
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		stats, err = s.Env().FakeIntake.Client().GetAPMStats()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, stats)
+		require.NoError(c, err)
+		require.NotEmpty(c, stats)
 		hasStatsForService := false
 		for _, payload := range stats {
 			for _, csp := range payload.StatsPayload.Stats {
 				for _, bucket := range csp.Stats {
 					for _, cgs := range bucket.Stats {
-						if cgs.Service == telemetrygenService {
+						if cgs.Service == CalendarService {
 							hasStatsForService = true
-							assert.EqualValues(c, cgs.Hits, numTraces)
-							if computeTopLevelBySpanKind || cgs.Resource == telemetrygenTopLevelResource {
-								assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							// TODO: Add functionality in example app to verify exact number of hits
+							require.True(c, cgs.Hits > 0)
+							if computeTopLevelBySpanKind && cgs.SpanKind == "client" {
+								require.EqualValues(c, cgs.TopLevelHits, 0)
+							}
+							if (computeTopLevelBySpanKind && cgs.SpanKind == "server") || cgs.Resource == calendarTopLevelResource {
+								require.EqualValues(c, cgs.Hits, cgs.TopLevelHits)
 							}
 						}
 					}
 				}
 			}
 		}
-		assert.True(c, hasStatsForService)
+		require.True(c, hasStatsForService)
 	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got APM stats", stats)
 }
@@ -566,81 +561,6 @@ func TestLoadBalancing(s OTelTestSuite) {
 	}
 }
 
-// SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
-func SetupSampleTraces(s OTelTestSuite) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-	numTraces := 20
-
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
-	// Wait for telemetrygen traces
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		traces, err := s.Env().FakeIntake.Client().GetTraces()
-		require.NoError(c, err)
-		require.NotEmpty(c, traces)
-	}, 10*time.Minute, 10*time.Second)
-}
-
-func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
-	var backOffLimit int32 = 4
-
-	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
-	jobSpec := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%v-%v", telemetry, strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-")),
-			Namespace: "datadog",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Env: []corev1.EnvVar{{
-								Name:  "OTEL_SERVICE_NAME",
-								Value: telemetrygenService,
-							}, {
-								Name:      "OTEL_K8S_POD_ID",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
-							}, {
-								Name:      "OTEL_K8S_NAMESPACE",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
-							}, {
-								Name:      "OTEL_K8S_NODE_NAME",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
-							}, {
-								Name:      "OTEL_K8S_POD_NAME",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
-							}},
-							Name:  "telemetrygen-job",
-							Image: "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.121.0",
-							Command: append([]string{
-								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
-								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
-								"--telemetry-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
-								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
-								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
-								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
-								"--otlp-attributes", fmt.Sprintf("service.version=\"%v\"", version),
-								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
-								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
-								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
-								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
-							}, options...),
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			},
-			BackoffLimit: &backOffLimit,
-		},
-	}
-
-	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
-	require.NoError(s.T(), err, "Could not properly start job")
-}
-
 // TestCalendarApp starts the calendar app to send telemetry for e2e tests
 func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 	ctx := context.Background()
@@ -730,7 +650,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "ghcr.io/datadog/apps-calendar-go:main",
+						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.17",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
