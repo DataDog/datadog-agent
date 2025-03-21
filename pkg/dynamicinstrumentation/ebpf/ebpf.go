@@ -87,7 +87,10 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
 	}
 
-	procInfo.InstrumentationObjects[probe.ID] = bpfObject
+	if procInfo.InstrumentationObjects == nil {
+		procInfo.InstrumentationObjects = &ditypes.InstrumentationObjectsMap{}
+	}
+	procInfo.InstrumentationObjects.Set(probe.ID, bpfObject)
 
 	// Populate map used for zero'ing out regions of memory
 	zeroValMap, ok := bpfObject.Maps["zeroval"]
