@@ -37,6 +37,29 @@ HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) 
     return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
 }
 
+int __attribute__((always_inline)) filename_create_common(struct path *p) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall) {
+        return 0;
+    }
+
+    syscall->mkdir.path = p;
+
+    return 0;
+}
+
+HOOK_ENTRY("filename_create")
+int hook_filename_create(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM3(ctx);
+    return filename_create_common(p);
+}
+
+HOOK_ENTRY("security_path_mkdir")
+int hook_security_path_mkdir(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM1(ctx);
+    return filename_create_common(p);
+}
+
 HOOK_ENTRY("vfs_mkdir")
 int hook_vfs_mkdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);

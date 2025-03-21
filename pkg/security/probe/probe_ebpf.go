@@ -2142,10 +2142,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
-			Name:  "vfs_link_target_dentry_position",
-			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",
 			Value: mount.GetVFSSetxattrDentryPosition(p.kernelVersion),
 		},

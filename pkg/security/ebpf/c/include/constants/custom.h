@@ -253,4 +253,10 @@ static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl()
     return tracing_helpers_in_cgroup_sysctl;
 }
 
+enum link_target_dentry_origin {
+	ORIGIN_UNSET = 0,
+	ORIGIN_RETHOOK_FILENAME_CREATE,
+	ORIGIN_RETHOOK___LOOKUP_HASH,
+};
+
 #endif
