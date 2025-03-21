@@ -139,11 +139,10 @@ class TestUtils(unittest.TestCase):
 
     def test_flaky_on_log_panic_on_subtest(self):
         test_washer = TestWasher(
-            test_output_json_file="test_output_failure_panic_subtest.json",
+            test_output_json_file="tasks/unit_tests/testdata/test_output_failure_panic_subtest.json",
             flakes_file_paths=["tasks/unit_tests/testdata/flakes_6.yaml"],
         )
-        module_path = "tasks/unit_tests/testdata"
-        flaky_tests = test_washer.get_flaky_failures(module_path)
+        flaky_tests = test_washer.get_flaky_failures()
         self.assertEqual(
             flaky_tests,
             {'github.com/DataDog/datadog-agent/pkg/serverless/trace': {'TestLoadConfigShouldBeFast/MySubTest'}},
