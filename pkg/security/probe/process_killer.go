@@ -33,6 +33,8 @@ import (
 const (
 	defaultKillActionFlushDelay = 2 * time.Second
 	disarmerCacheFlushInterval  = 5 * time.Second
+	// killActionDisarmerMaxPeriod represents the maximum disarmer period
+	killActionDisarmerMaxPeriod = time.Second * 60
 )
 
 // ProcessKiller defines a process killer structure
@@ -591,6 +593,14 @@ func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmer
 		executableParams.enabled = true
 		executableParams.capacity = uint64(p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableMaxAllowed)
 		executableParams.period = p.cfg.RuntimeSecurity.EnforcementDisarmerExecutablePeriod
+	}
+
+	// cap the disarmer periods to killActionDisarmerMaxPeriod
+	if containerParams.period > killActionDisarmerMaxPeriod {
+		containerParams.period = killActionDisarmerMaxPeriod
+	}
+	if executableParams.period > killActionDisarmerMaxPeriod {
+		executableParams.period = killActionDisarmerMaxPeriod
 	}
 
 	return &containerParams, &executableParams
