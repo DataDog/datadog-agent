@@ -38,7 +38,7 @@ func NewTCPSender(
 
 	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverless, status)
 
-	return sender.NewSenderV2(
+	return sender.NewSender(
 		config,
 		auditor,
 		destinationFactory,

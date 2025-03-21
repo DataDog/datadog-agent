@@ -57,7 +57,7 @@ func NewHTTPSender(
 		maxWorkerConcurrency,
 	)
 
-	return sender.NewSenderV2(
+	return sender.NewSender(
 		config,
 		auditor,
 		destinationFactory,
