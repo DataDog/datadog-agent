@@ -26,15 +26,19 @@ type SyncDestination struct {
 }
 
 // NewSyncDestination returns a new synchronous Destination.
-func NewSyncDestination(endpoint config.Endpoint,
+func NewSyncDestination(
+	endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
 	senderDoneChan chan *sync.WaitGroup,
 	destMeta *client.DestinationMetadata,
-	cfg pkgconfigmodel.Reader) *SyncDestination {
+	cfg pkgconfigmodel.Reader,
+) *SyncDestination {
+	minConcurrency := 1
+	maxConcurrency := minConcurrency
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, destMeta, cfg, metrics.NewNoopPipelineMonitor("0")),
+		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0")),
 		senderDoneChan: senderDoneChan,
 	}
 }
@@ -83,8 +87,8 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 			senderDoneWg.Done()
 		}
 
-		metrics.LogsSent.Add(int64(len(p.Messages)))
-		metrics.TlmLogsSent.Add(float64(len(p.Messages)))
+		metrics.LogsSent.Add(p.Count())
+		metrics.TlmLogsSent.Add(float64(p.Count()))
 		output <- p
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
