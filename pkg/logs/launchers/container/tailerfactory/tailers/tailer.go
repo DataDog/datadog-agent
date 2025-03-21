@@ -31,7 +31,6 @@ type Tailer interface {
 	Stop()
 	GetContainerID() string
 	GetContext() context.Context
-	close()
 }
 
 // Base wraps pkg/logs/tailers/container.Tailer to satisfy
