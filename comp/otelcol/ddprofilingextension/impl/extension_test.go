@@ -232,7 +232,66 @@ func TestOSSExtensionFargate(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "agent_version:6.0.0,orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+		assert.Equal(t, "agent_version:7.64.0,orchestrator:fargate_ECS,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+	case <-timeout:
+		t.Fatal("Timed out")
+	}
+	err = ext.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
+type hostSourceProvider struct{}
+
+func (*hostSourceProvider) Source(ctx context.Context) (source.Source, error) {
+	return source.Source{
+		Kind:       "host",
+		Identifier: "i-123456789",
+	}, nil
+}
+
+func TestOSSExtensionHost(t *testing.T) {
+	// fake intake
+	got := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		got <- req.Header.Get(additionalTagsHeader)
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	// create extension
+	os.Setenv("DD_PROFILING_URL", server.URL)
+	defer os.Unsetenv("DD_PROFILING_URL")
+	ext, err := NewExtension(&Config{
+		API: ossconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		ProfilerOptions: ProfilerOptions{
+			Period: 5,
+		},
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &hostSourceProvider{})
+	assert.NoError(t, err)
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("ddprofiling", "custom"): nil,
+		},
+	)
+
+	err = ext.Start(context.Background(), host)
+	assert.NoError(t, err)
+
+	extt, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+	assert.Equal(t, nil, extt.traceAgent)
+	var unitializedHTTPServer *http.Server
+	assert.Equal(t, unitializedHTTPServer, extt.server)
+
+	timeout := time.After(15 * time.Second)
+	select {
+	case out := <-got:
+		assert.Equal(t, "agent_version:7.64.0,host:i-123456789", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
