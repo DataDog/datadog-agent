@@ -50,10 +50,11 @@ func (p Parameter) String() string {
 type NotCaptureReason uint8
 
 const (
-	Unsupported         NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
-	NoFieldLocation                                 // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
-	FieldLimitReached                               // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
-	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	Unsupported            NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
+	NoFieldLocation                                    // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
+	FieldLimitReached                                  // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
+	CaptureDepthReached                                // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	CollectionLimitReached                             // CollectionLimitReached means the parameter wasn't captured because the data type has too many elements
 )
 
 func (r NotCaptureReason) String() string {
@@ -63,9 +64,11 @@ func (r NotCaptureReason) String() string {
 	case NoFieldLocation:
 		return "no field location"
 	case FieldLimitReached:
-		return "field limit reached"
+		return "fieldCount"
 	case CaptureDepthReached:
-		return "capture depth reached"
+		return "depth"
+	case CollectionLimitReached:
+		return "collectionSize"
 	default:
 		return fmt.Sprintf("unknown reason (%d)", r)
 	}

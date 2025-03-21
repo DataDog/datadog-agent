@@ -53,7 +53,7 @@ packages:
       Collector:
         config:
           with-expecter: true
-          mock-build-tags: "linux && test"
+          mock-build-tags: "linux && nvml && test"
           # Need to have it in the same package to avoid import loops!
           inpackage: true
           dir: "{{.InterfaceDir}}"

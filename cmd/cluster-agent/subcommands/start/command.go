@@ -276,13 +276,20 @@ func start(log log.Component,
 		}
 	}()
 
+	// Create the Leader election engine and initialize it
+	leaderelection.CreateGlobalLeaderEngine(mainCtx)
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+
 	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
 		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
-			config.GetInt("cluster_agent.max_connections"),
+			config.GetInt("cluster_agent.max_leader_connections"),
 		)
 	}
 
@@ -319,13 +326,6 @@ func start(log log.Component,
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
-
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
 
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()
