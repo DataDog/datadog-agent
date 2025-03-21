@@ -21,13 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	"github.com/fatih/color"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/fatih/color"
 )
 
 // Overall running statistics
@@ -411,23 +410,23 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 // SuitesDeps stores the dependencies for the diagnose suites.
 type SuitesDeps struct {
 	senderManager  sender.DiagnoseSenderManager
-	collector      option.Option[collector.Component]
+	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
-	wmeta          option.Option[workloadmeta.Component]
-	AC             option.Option[autodiscovery.Component]
+	wmeta          optional.Option[workloadmeta.Component]
+	AC             optional.Option[autodiscovery.Component]
 }
 
 // GetWMeta returns the workload metadata instance
-func (s *SuitesDeps) GetWMeta() option.Option[workloadmeta.Component] {
+func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
 	return s.wmeta
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
 func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
-	collector option.Option[collector.Component],
+	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta option.Option[workloadmeta.Component], ac option.Option[autodiscovery.Component]) SuitesDeps {
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
 	return SuitesDeps{
 		senderManager:  senderManager,
 		collector:      collector,

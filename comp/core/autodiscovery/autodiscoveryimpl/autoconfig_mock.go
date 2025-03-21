@@ -10,13 +10,12 @@ package autodiscoveryimpl
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 // MockParams defines the parameters for the mock component.
@@ -26,7 +25,7 @@ type MockParams struct {
 
 type mockdependencies struct {
 	fx.In
-	WMeta  option.Option[workloadmeta.Component]
+	WMeta  optional.Option[workloadmeta.Component]
 	Params MockParams
 }
 

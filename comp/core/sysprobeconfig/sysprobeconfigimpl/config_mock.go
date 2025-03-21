@@ -12,12 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 type mockDependencies struct {
@@ -35,8 +34,8 @@ func (m mockDependencies) getParams() *Params {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
-		fx.Provide(func(syscfg sysprobeconfig.Component) option.Option[sysprobeconfig.Component] {
-			return option.New[sysprobeconfig.Component](syscfg)
+		fx.Provide(func(syscfg sysprobeconfig.Component) optional.Option[sysprobeconfig.Component] {
+			return optional.NewOption[sysprobeconfig.Component](syscfg)
 		}),
 		fx.Supply(MockParams{}))
 }

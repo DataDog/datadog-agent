@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
@@ -65,15 +65,15 @@ func stopServer(listener net.Listener, name string) {
 
 // StartServers creates certificates and starts API servers
 func StartServers(
-	configService option.Option[rcservice.Component],
-	configServiceHA option.Option[rcserviceha.Component],
+	configService optional.Option[rcservice.Component],
+	configServiceHA optional.Option[rcserviceha.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
-	logsAgent option.Option[logsAgent.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -83,7 +83,7 @@ func StartServers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
-	collector option.Option[collector.Component],
+	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 ) error {

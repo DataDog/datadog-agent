@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -569,8 +569,8 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
 func newCheck() check.Check {

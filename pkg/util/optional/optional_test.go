@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package option
+package optional
 
 import (
 	"testing"
@@ -12,18 +12,18 @@ import (
 )
 
 func TestOptionConstructors(t *testing.T) {
-	optional := New(42)
+	optional := NewOption(42)
 	v, ok := optional.Get()
 	require.True(t, ok)
 	require.Equal(t, 42, v)
 
-	optional = None[int]()
+	optional = NewNoneOption[int]()
 	_, ok = optional.Get()
 	require.False(t, ok)
 }
 
 func TestOptionSetReset(t *testing.T) {
-	optional := New(0)
+	optional := NewOption(0)
 	optional.Set(42)
 	v, ok := optional.Get()
 	require.True(t, ok)
@@ -38,14 +38,14 @@ func TestMapOption(t *testing.T) {
 		return len(v)
 	}
 
-	optionalStr := New("hello")
+	optionalStr := NewOption("hello")
 	optionalInt := MapOption(optionalStr, getLen)
 
 	v, ok := optionalInt.Get()
 	require.True(t, ok)
 	require.Equal(t, 5, v)
 
-	optionalStr = None[string]()
+	optionalStr = NewNoneOption[string]()
 	optionalInt = MapOption(optionalStr, getLen)
 
 	_, ok = optionalInt.Get()
@@ -53,7 +53,7 @@ func TestMapOption(t *testing.T) {
 }
 
 func TestSetIfNone(t *testing.T) {
-	optional := New(42)
+	optional := NewOption(42)
 
 	optional.SetIfNone(10)
 	v, ok := optional.Get()
@@ -68,15 +68,15 @@ func TestSetIfNone(t *testing.T) {
 }
 
 func TestSetOptionIfNone(t *testing.T) {
-	optional := New(42)
+	optional := NewOption(42)
 
-	optional.SetOptionIfNone(New(10))
+	optional.SetOptionIfNone(NewOption(10))
 	v, ok := optional.Get()
 	require.Equal(t, 42, v)
 	require.True(t, ok)
 
 	optional.Reset()
-	optional.SetOptionIfNone(New(10))
+	optional.SetOptionIfNone(NewOption(10))
 	v, ok = optional.Get()
 	require.Equal(t, 10, v)
 	require.True(t, ok)

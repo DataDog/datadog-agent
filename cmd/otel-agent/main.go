@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -50,7 +50,7 @@ var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agen
 func run(
 	c collector.Component,
 	demux *aggregator.AgentDemultiplexer,
-	logsAgent option.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
+	logsAgent optional.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
