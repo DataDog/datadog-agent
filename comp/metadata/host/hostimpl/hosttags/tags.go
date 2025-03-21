@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -121,6 +122,11 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	env := conf.GetString("env")
 	if env != "" {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
+	}
+
+	gpuTags := conf.GetBool("collect_gpu_tags")
+	if gpuTags {
+		hostTags = appendToHostTags(hostTags, gpu.GetTags())
 	}
 
 	hname, _ := hostname.Get(ctx)
