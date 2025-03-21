@@ -13,6 +13,7 @@ package tailerfactory
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
@@ -42,7 +43,7 @@ func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 	// available at some point, so chances are good that tailing will succeed.
 
 	pipeline := tf.pipelineProvider.NextPipelineChan()
-	readTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.docker_client_read_timeout")
+	readTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.docker_client_read_timeout") * time.Second
 
 	// apply defaults for source and service directly to the LogSource struct (!!)
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, tf.cop.Get())

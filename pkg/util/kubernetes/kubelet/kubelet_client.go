@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/transport"
 )
 
-const apiServerQuery = "%s/api/v1/pods?fieldSelector=spec.nodeName=%s"
+const apiServerQuery = "/api/v1/pods?fieldSelector=spec.nodeName=%s"
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
@@ -170,16 +170,12 @@ func (kc *kubeletClient) rawQuery(ctx context.Context, path string) (*http.Reque
 }
 
 func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
-	var fullURL string
-
 	// Redirect pod list requests to the API server when `useAPIServer` is enabled
 	if kc.config.useAPIServer && path == kubeletPodPath {
-		fullURL = fmt.Sprintf(apiServerQuery, kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
-	} else {
-		fullURL = fmt.Sprintf("%s%s", kc.kubeletURL, path)
+		path = fmt.Sprintf(apiServerQuery, url.QueryEscape(kc.config.nodeName))
 	}
 
-	req, response, err := kc.rawQuery(ctx, fullURL)
+	req, response, err := kc.rawQuery(ctx, path)
 	if err != nil {
 		return nil, 0, err
 	}

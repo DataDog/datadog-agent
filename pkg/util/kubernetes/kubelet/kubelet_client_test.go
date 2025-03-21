@@ -18,7 +18,6 @@ import (
 )
 
 func TestRawQuery(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		path    string
@@ -78,5 +77,64 @@ func TestRawQuery(t *testing.T) {
 
 		})
 	}
+}
 
+func TestQuery(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       int
+		desiredPath  string
+		desiredQuery string
+		useAPIServer bool
+	}{
+		{
+			name:         "do_not_use_apiserver",
+			useAPIServer: false,
+			desiredPath:  kubeletPodPath,
+			status:       http.StatusOK,
+		},
+		{
+			name:         "use_apiserver",
+			useAPIServer: true,
+			desiredPath:  "/api/v1/pods",                    // intended to match apiServerQuery
+			desiredQuery: "fieldSelector=spec.nodeName=abc", // nodeName is hardcoded to abc below
+			status:       http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != tt.desiredPath {
+					t.Errorf("expected path: %s, got: %s", tt.desiredPath, r.URL.Path)
+				}
+				if r.URL.RawQuery != tt.desiredQuery {
+					t.Errorf("expected query: %s, got: %s", tt.desiredQuery, r.URL.RawQuery)
+				}
+				w.WriteHeader(tt.status)
+			}))
+
+			defer server.Close()
+
+			kc := &kubeletClient{
+				client: http.Client{},
+				config: kubeletClientConfig{
+					useAPIServer: tt.useAPIServer,
+					nodeName:     "abc",
+				},
+				kubeletURL: server.URL,
+			}
+
+			_, status, err := kc.query(context.Background(), kubeletPodPath)
+
+			// We never expect an error given the current test cases
+			if err != nil {
+				t.Errorf("did not expect an error but got: %v", err)
+			}
+
+			// Check that the status is returned properly
+			require.Equal(t, tt.status, status)
+
+		})
+	}
 }

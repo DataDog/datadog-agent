@@ -11,6 +11,7 @@ package tailerfactory
 
 import (
 	"fmt"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -46,7 +47,7 @@ func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	// kubernetes-launcher behavior.
 
 	pipeline := tf.pipelineProvider.NextPipelineChan()
-	readTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.kubelet_api_client_read_timeout")
+	readTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.kubelet_api_client_read_timeout") * time.Second
 
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, containersorpods.LogPods)
 
