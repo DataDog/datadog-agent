@@ -18,8 +18,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -249,10 +247,6 @@ func (pt *ProcessTracker) currentState() map[ditypes.PID]*ditypes.ProcessInfo {
 			PID:         pid,
 			BinaryPath:  bin.binaryPath,
 			ServiceName: bin.serviceName,
-
-			ProbesByID:             make(map[ditypes.ProbeID]*ditypes.Probe),
-			InstrumentationUprobes: make(map[ditypes.ProbeID]*link.Link),
-			InstrumentationObjects: make(map[ditypes.ProbeID]*ebpf.Collection),
 		}
 	}
 	return state
