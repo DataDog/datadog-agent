@@ -281,7 +281,7 @@ func rootNsLookup() (netns.NsHandle, error) {
 // retryGetNetworkID attempts to get the network ID from the cloud provider or config with a few retries
 // as the endpoint is sometimes unavailable during host startup
 func retryGetNetworkID() (string, error) {
-	const maxRetries = 3
+	const maxRetries = 4
 	var err error
 	var networkID string
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -295,7 +295,9 @@ func retryGetNetworkID() (string, error) {
 			maxRetries,
 			err,
 		)
-		time.Sleep(time.Duration(250*attempt) * time.Millisecond)
+		if attempt < maxRetries {
+			time.Sleep(time.Duration(250*attempt) * time.Millisecond)
+		}
 	}
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
 }
