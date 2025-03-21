@@ -19,17 +19,17 @@ import (
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 )
 
-func TestApiTailer_run_normal_stop(t *testing.T) {
-	a := &APITailer{}
+func TestBaseTailer_run_normal_stop(t *testing.T) {
+	b := base{}
 
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.stopped = make(chan struct{})
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.stopped = make(chan struct{})
 
 	tailerStarted := false
 	tailerStopped := false
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
-	go a.run(
+	go b.run(
 		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted = true
 			// fake a successful tailer start
@@ -39,23 +39,23 @@ func TestApiTailer_run_normal_stop(t *testing.T) {
 			tailerStopped = true
 		})
 
-	a.Stop()
+	b.Stop()
 
 	// check that the tailer was started and subsequently stopped
 	require.True(t, tailerStarted)
 	require.True(t, tailerStopped)
 }
 
-func TestApitTailer_run_erroredContainer(t *testing.T) {
-	a := &APITailer{}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.stopped = make(chan struct{})
+func TestBaseTailer_run_erroredContainer(t *testing.T) {
+	b := base{}
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
 	tailerStopped := atomic.NewInt32(0)
 
 	// emulate a.Start(), but with fake tryStartTailer and stopTailer
-	go a.run(
+	go b.run(
 		func() (*containerTailerPkg.Tailer, chan string, error) {
 			erroredContainerID := make(chan string)
 			if tailerStarted.Inc() < 3 {
@@ -77,24 +77,24 @@ func TestApitTailer_run_erroredContainer(t *testing.T) {
 	}
 
 	// stop the tailer
-	a.Stop()
+	b.Stop()
 
 	// check that the tailer was started and subsequently stopped twice
 	require.Equal(t, int32(3), tailerStarted.Load())
 	require.Equal(t, int32(3), tailerStopped.Load())
 }
 
-func TestAPITailer_run_canStopWithError(t *testing.T) {
-	a := &APITailer{}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.stopped = make(chan struct{})
+func TestBaseTailer_run_canStopWithError(t *testing.T) {
+	b := base{}
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
 	tailerStopped := atomic.NewInt32(0)
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	erroredContainerID := make(chan string)
-	go a.run(
+	go b.run(
 		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted.Inc()
 			return &containerTailerPkg.Tailer{}, erroredContainerID, nil
@@ -114,14 +114,14 @@ func TestAPITailer_run_canStopWithError(t *testing.T) {
 	}
 
 	// stop the tailer - this should not block.
-	a.Stop()
+	b.Stop()
 
 	// check that the tailer was started and subsequently stopped
 	require.Equal(t, int32(1), tailerStarted.Load())
 	require.Equal(t, int32(1), tailerStopped.Load())
 }
 
-func TestAPITailer_run_error_starting(t *testing.T) {
+func TestBaseTailer_run_error_starting(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	defer func() { backoffInitialDuration = 1 * time.Second }()
 
@@ -158,7 +158,7 @@ func TestAPITailer_run_error_starting(t *testing.T) {
 	require.Equal(t, int32(1), tailerStopped.Load())
 }
 
-func TestAPITailer_run_error_starting_expires(t *testing.T) {
+func TestBaseTailer_run_error_starting_expires(t *testing.T) {
 	backoffInitialDuration = 1 * time.Millisecond
 	backoffMaxDuration = 10 * time.Millisecond
 	defer func() {
@@ -166,15 +166,15 @@ func TestAPITailer_run_error_starting_expires(t *testing.T) {
 		backoffMaxDuration = 60 * time.Second
 	}()
 
-	a := &APITailer{}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.stopped = make(chan struct{})
+	b := base{}
+	b.ctx, b.cancel = context.WithCancel(context.Background())
+	b.stopped = make(chan struct{})
 
 	tailerStarted := atomic.NewInt32(0)
 	tailerStopped := atomic.NewInt32(0)
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
-	go a.run(
+	go b.run(
 		func() (*containerTailerPkg.Tailer, chan string, error) {
 			tailerStarted.Inc()
 			return nil, nil, errors.New("uhoh")
@@ -184,7 +184,7 @@ func TestAPITailer_run_error_starting_expires(t *testing.T) {
 		})
 
 	// wait until the tailer stops itself after giving up
-	<-a.stopped
+	<-b.stopped
 
 	// check that the tailer was started five times (with delays of 1 + 2 + 4 + 8ms between)
 	require.Equal(t, int32(5), tailerStarted.Load())
