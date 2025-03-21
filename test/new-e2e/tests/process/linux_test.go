@@ -41,6 +41,8 @@ func TestLinuxTestSuite(t *testing.T) {
 
 func (s *linuxTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	// Start a process and keep it running
 	s.Env().RemoteHost.MustExecute("sudo apt-get -y install stress")

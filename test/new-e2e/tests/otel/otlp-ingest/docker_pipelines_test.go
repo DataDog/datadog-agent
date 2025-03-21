@@ -46,6 +46,9 @@ func TestOTLPIngestDocker(t *testing.T) {
 
 func (s *otlpIngestDockerTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarAppDocker(s)
 }
 

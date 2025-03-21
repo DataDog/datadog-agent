@@ -81,6 +81,8 @@ func (s *BaseSuite) StableAgentVersion() PackageVersion {
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {

@@ -18,9 +18,10 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type fipsAgentSuite struct {
@@ -52,6 +53,9 @@ func (s *fipsAgentSuite) SetupSuite() {
 	}
 
 	s.BaseAgentInstallerSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	host := s.Env().RemoteHost
 	var err error
 

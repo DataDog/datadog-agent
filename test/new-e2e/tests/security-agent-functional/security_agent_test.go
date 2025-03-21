@@ -57,6 +57,9 @@ func (v *vmSuite) SetupSuite() {
 
 func (v *vmSuite) TestSystemProbeCWSSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
+
 	t := v.T()
 	// get the remote host
 	vm := v.Env().RemoteHost
