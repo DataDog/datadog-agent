@@ -352,7 +352,6 @@ namespace Datadog.CustomActions
                         {
                             "system-probe.yaml",
                             "security-agent.yaml",
-                            Path.Combine("runtime-security.d", "default.policy"),
                             "apm-inject.yaml",
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_high.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_low.yaml"),

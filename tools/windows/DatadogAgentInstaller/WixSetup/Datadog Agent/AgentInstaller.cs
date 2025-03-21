@@ -648,9 +648,10 @@ namespace WixSetup.Datadog_Agent
                 ));
 
             appData.AddDir(new Dir(new Id("security.d"),
-                                    "runtime-security.d",
-                                    new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                       "runtime-security.d",
+                       new Files($@"{EtcSource}\runtime-security.d\*.*")
             ));
+
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }
