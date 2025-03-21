@@ -6,8 +6,9 @@
 package otlpingest
 
 import (
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"testing"
+
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
@@ -46,6 +47,9 @@ agents:
 
 func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.SetupSampleTraces(s)
 }
 
