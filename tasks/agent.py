@@ -456,6 +456,7 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
     signed_pull=False,
 ):
@@ -505,6 +506,16 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+        from tasks.system_probe import build_object_files
+
+        system_probe_build(ctx)
+        build_object_files(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_extra_agents += (
+            "COPY pkg/ebpf/bytecode/build/runtime/ /opt/datadog-agent/embedded/share/system-probe/ebpf\n"
+        )
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
