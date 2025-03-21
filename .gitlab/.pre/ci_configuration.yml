@@ -1,0 +1,110 @@
+test_gitlab_configuration:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_gitlab_changes]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - dda inv -e linter.gitlab-ci
+    - dda inv -e linter.job-change-path
+    - dda inv -e linter.gitlab-change-paths
+    - dda inv -e linter.ssm-parameters
+
+test_gitlab_compare_to:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_gitlab_changes]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - !reference [.setup_agent_github_app]
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - dda self dep sync -f legacy-tasks
+    - dda inv pipeline.compare-to-itself
+
+# Computes and uploads the GitLab CI configuration diff as an artifact
+compute_gitlab_ci_config:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: .pre
+  needs: []
+  tags: ["arch:arm64"]
+  before_script:
+    # Get main history
+    - git fetch origin main
+    - git checkout main
+    - git checkout -
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - mkdir -p artifacts
+    - dda inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    expire_in: 1 day
+
+lint_gitlab_ci:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: [compute_gitlab_ci_config]
+  script:
+    - status=0
+    - dda inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
+    - dda inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
+    - |
+      if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
+
+lint_gitlab_ci_jobs_codeowners:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: []
+  script:
+    - dda inv -e linter.gitlab-ci-jobs-codeowners --all-files
+
+# TODO(celian): Merge this with lint_gitlab_ci without allow_failure
+lint_gitlab_ci_shellcheck:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: [compute_gitlab_ci_config]
+  allow_failure: true
+  script:
+    # Do only on diff and not on main / release branches
+    - status=0
+    - |
+      if [ "$CI_COMMIT_BRANCH" != "main" ] && ! [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
+        dda inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
+      fi
+    - |
+      if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
+
+lint_github_actions_shellcheck:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: []
+  rules:
+    - !reference [.on_dev_branches]
+    - changes:
+        paths:
+          - .github/workflows/**/*.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      when: on_success
+  allow_failure: true
+  script:
+    - dda inv -e linter.github-actions-shellcheck

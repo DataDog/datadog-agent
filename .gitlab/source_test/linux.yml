@@ -5,15 +5,16 @@
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
     - !reference [.retrieve_linux_go_deps]
-    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - inv -e rtloader.install
-    - inv -e rtloader.format --raise-if-changed
-    - inv -e rtloader.test
+    - dda inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
+    - dda inv -e rtloader.install
+    - dda inv -e rtloader.format --raise-if-changed
+    - dda inv -e rtloader.test
   # Placeholder script, overridden by .linux_tests when running all go tests
   script: ["# Skipping go tests"]
 
 .linux_tests:
   stage: source_test
+  extends: .unit_test_base
   needs: ["go_deps", "go_tools_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
@@ -27,13 +28,13 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e install-tools
-    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - dda inv -e install-tools
+    - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e sds.build-library
-    - inv -e agent.build
-    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    - dda inv -e sds.build-library
+    - dda inv -e agent.build
+    - dda inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -138,8 +139,8 @@ go_mod_tidy_check:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv -e check-mod-tidy
-    - inv -e check-go-mod-replaces
+    - dda inv -e check-mod-tidy
+    - dda inv -e check-go-mod-replaces
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
@@ -164,8 +165,8 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
-    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+    - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - dda inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
