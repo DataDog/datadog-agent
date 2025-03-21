@@ -136,16 +136,15 @@ type Event struct {
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
 	// internal usage
-	Umount                   UmountEvent              `field:"-"`
-	InvalidateDentry         InvalidateDentryEvent    `field:"-"`
-	ArgsEnvs                 ArgsEnvsEvent            `field:"-"`
-	MountReleased            MountReleasedEvent       `field:"-"`
-	CgroupTracing            CgroupTracingEvent       `field:"-"`
-	CgroupWrite              CgroupWriteEvent         `field:"-"`
-	NetDevice                NetDeviceEvent           `field:"-"`
-	VethPair                 VethPairEvent            `field:"-"`
-	UnshareMountNS           UnshareMountNSEvent      `field:"-"`
-	DNSEventResponsesNotSent DNSResponseEventsNotSent `field:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	CgroupWrite      CgroupWriteEvent      `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
@@ -166,11 +165,6 @@ type CGroupContext struct {
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
 	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
-}
-
-// DNSResponseEventsNotSent holds events that weren't sent from the kernel to the backend
-type DNSResponseEventsNotSent struct {
-	ResponseEventsNotSent uint64
 }
 
 // Merge two cgroup context

@@ -6,8 +6,7 @@
 #include "helpers/network/router.h"
 #include "perf_ring.h"
 
-// 5 Minutes. Maybe reduce?
-#define DNS_ENTRY_TIMEOUT_NS (5ULL * 60 * 1000 * 1000 * 1000)
+#define DNS_ENTRY_TIMEOUT_NS SEC_TO_NS(1)
 
 __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
     u16 qname_length = 0;
@@ -177,16 +176,33 @@ int classifier_dns_response(struct __sk_buff *skb) {
     u64 current_timestamp = bpf_ktime_get_ns();
 
     uint16_t header_id = evt->header.id;
-    u64* stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
+    struct dns_responses_sent_to_userspace_lru_entry_t* lru_entry = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
 
-    if (stored_timestamp != NULL &&  *stored_timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
-        struct kevent_t evt = {0};
-        evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
-        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
-        return ACT_OK;
+    if (lru_entry != NULL &&  lru_entry->timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
+        struct bpf_map_def *buffer = select_buffer(&fb_dns_stats, &bb_dns_stats, DNS_FILTERED_KEY);
+        if (buffer == NULL) {
+            return ACT_OK;
+        }
+
+        const u32 key = 0;
+        struct dns_receiver_stats_t *stats = bpf_map_lookup_elem(buffer, &key);
+        if (stats == NULL) {
+            return ACT_OK;
+        }
+
+        if (len == lru_entry->packet_size) {
+            __sync_fetch_and_add(&stats->filtered_dns_packets, 1);
+            return ACT_OK;
+        }
+
+        __sync_fetch_and_add(&stats->same_id_different_size, 1);
     }
 
-    bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &current_timestamp, BPF_ANY);
+    struct dns_responses_sent_to_userspace_lru_entry_t entry;
+    entry.timestamp = current_timestamp;
+    entry.packet_size = len;
+
+    bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &entry, BPF_ANY);
     send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;

@@ -137,33 +137,44 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 // SendStats sends the DNS resolver metrics
 func (r *Resolver) SendStats() error {
 	tags := []string{
-		metrics.CacheTag,
-		metrics.SegmentResolutionTag,
+		"hit",
 	}
 
 	hits := r.resolverStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverHits, hits, tags, 1.0)
-
-	misses := r.resolverStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverMiss, misses, tags, 1.0)
-
-	evictions := r.resolverStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverEvictions, evictions, tags, 1.0)
-
-	insertions := r.resolverStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverInsertions, insertions, tags, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, hits, tags, 1.0)
 
 	cnameHits := r.cnameStats.cacheHits.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameHits, cnameHits, tags, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, cnameHits, tags, 1.0)
+
+	tags = []string{
+		"miss",
+	}
+
+	misses := r.resolverStats.cacheMisses.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, misses, tags, 1.0)
 
 	cnameMisses := r.cnameStats.cacheMisses.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameMiss, cnameMisses, tags, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, cnameMisses, tags, 1.0)
 
-	cnameEvictions := r.cnameStats.cacheEvictions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameEvictions, cnameEvictions, tags, 1.0)
+	tags = []string{
+		"insertion",
+	}
+
+	insertions := r.resolverStats.cacheInsertions.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, insertions, tags, 1.0)
 
 	cnameInsertions := r.cnameStats.cacheInsertions.Swap(0)
-	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameInsertions, cnameInsertions, tags, 1.0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, cnameInsertions, tags, 1.0)
+
+	tags = []string{
+		"eviction",
+	}
+
+	evictions := r.resolverStats.cacheEvictions.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameResolverCache, evictions, tags, 1.0)
+
+	cnameEvictions := r.cnameStats.cacheEvictions.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverIPResolverCache, cnameEvictions, tags, 1.0)
 
 	return nil
 }
