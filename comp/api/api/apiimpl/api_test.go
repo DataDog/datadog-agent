@@ -70,7 +70,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		hostnameimpl.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Supply(context.Background()),
 		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {

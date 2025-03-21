@@ -77,7 +77,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),
-		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 	))
 
 	require.NotNil(t, cfg.Object())

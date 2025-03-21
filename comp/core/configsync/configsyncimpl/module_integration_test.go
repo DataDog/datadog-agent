@@ -8,7 +8,6 @@ package configsyncimpl
 import (
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -31,8 +30,9 @@ func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
-	server := httptest.NewTLSServer(http.HandlerFunc(handler))
-	t.Cleanup(server.Close)
+
+	at := authtokenmock.New(t)
+	server := at.NewMockServer(http.HandlerFunc(handler))
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestOptionalModule(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() authtoken.Component { return at }),
 		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),

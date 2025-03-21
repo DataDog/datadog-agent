@@ -27,7 +27,7 @@ func TestBundleDependencies(t *testing.T) {
 
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
-		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Provide(func() tagger.Component { return fakeTagger }),
 		fx.Supply(core.BundleParams{}),
 		agenttelemetryfx.Module(),
