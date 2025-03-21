@@ -227,8 +227,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
-	p.fimSession, err = etwcomp.NewSession(etwSessionName, nil)
-
+	p.fimSession, err = etwcomp.NewSession(etwSessionName, false, nil)
 	if err != nil {
 		return err
 	}
@@ -236,7 +235,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 		/* the well-known session requires being run as local system. It will initialize,
 		   but no events will be sent.
 		*/
-		p.auditSession, err = etwcomp.NewWellKnownSession(auditSessionName, nil)
+		p.auditSession, err = etwcomp.NewSession(auditSessionName, true, nil)
 		if err != nil {
 			return err
 		}

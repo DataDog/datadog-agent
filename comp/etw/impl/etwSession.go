@@ -240,15 +240,18 @@ func deleteEtwSession(name string) error {
 	return ret
 }
 
-func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
+func createEtwSession(name string, wellKnown bool, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	_ = deleteEtwSession(name)
 
 	utf16SessionName, err := windows.UTF16FromString(name)
 	s := &etwSession{
 		Name:      name,
-		wellKnown: false,
 		utf16name: utf16SessionName,
-		providers: make(map[windows.GUID]etw.ProviderConfiguration),
+		wellKnown: wellKnown,
+	}
+
+	if !wellKnown {
+		s.providers = make(map[windows.GUID]etw.ProviderConfiguration)
 	}
 
 	if err != nil {
@@ -264,6 +267,11 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	}
 
 	propertiesBuf, pProperties := initializeRealtimeSessionProperties(s)
+	s.propertiesBuf = propertiesBuf
+
+	if wellKnown {
+		return s, nil
+	}
 
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
@@ -277,35 +285,10 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	}
 
 	if ret == windows.ERROR_SUCCESS {
-		s.propertiesBuf = propertiesBuf
 		return s, nil
 	}
 
 	return nil, fmt.Errorf("StartTraceW failed; %w", err)
-}
-
-func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
-	utf16SessionName, err := windows.UTF16FromString(name)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect session name; %w", err)
-	}
-
-	s := &etwSession{
-		Name:      name,
-		utf16name: utf16SessionName,
-		wellKnown: true,
-	}
-
-	// get any caller supplied configuration
-	if f != nil {
-		f(&s.sessionConfig)
-		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
-			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
-		}
-	}
-
-	s.propertiesBuf, _ = initializeRealtimeSessionProperties(s)
-	return s, nil
 }
 
 func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_PROPERTIES) {
@@ -317,6 +300,7 @@ func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_
 	pProperties.Wnode.BufferSize = C.ulong(bufSize)
 	pProperties.Wnode.ClientContext = 1
 	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
+	pProperties.EnableFlags = C.ulong(s.sessionConfig.EnableFlags)
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
 	if s.sessionConfig.MaxBuffers > 0 {
