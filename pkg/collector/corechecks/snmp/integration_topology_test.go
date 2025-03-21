@@ -1783,6 +1783,26 @@ profiles:
 				Value: []byte{10, 10, 0, 134},
 			},
 			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.21.1.5",
+				Type:  gosnmp.OctetString,
+				Value: []byte(""),
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.22.1.5",
+				Type:  gosnmp.OctetString,
+				Value: []byte{},
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.3.1.5",
+				Type:  gosnmp.OctetString,
+				Value: []byte(""),
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.4.1.5",
+				Type:  gosnmp.OctetString,
+				Value: []byte{},
+			},
+			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.1.5",
 				Type:  gosnmp.OctetString,
 				Value: []byte(""),
@@ -1914,6 +1934,26 @@ profiles:
 				Value: []byte{10, 10, 0, 132},
 			},
 			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.21.2.3",
+				Type:  gosnmp.OctetString,
+				Value: []byte(""),
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.22.2.3",
+				Type:  gosnmp.OctetString,
+				Value: []byte{},
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.3.2.3",
+				Type:  gosnmp.OctetString,
+				Value: []byte(""),
+			},
+			{
+				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.4.2.3",
+				Type:  gosnmp.OctetString,
+				Value: []byte{},
+			},
+			{
 				Name:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5.2.3",
 				Type:  gosnmp.OctetString,
 				Value: []byte(""),
@@ -1929,6 +1969,26 @@ profiles:
 				Value: []byte("GE0/2"),
 			},
 			// third iteration
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 			{
 				Name:  "9", // exit table
 				Type:  gosnmp.Integer,
