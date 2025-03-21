@@ -44,7 +44,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi/sdk/v3 v3.143.0
+	github.com/pulumi/pulumi/sdk/v3 v3.137.0
 	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.10.0
@@ -124,7 +124,7 @@ require (
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/glog v1.2.2 // indirect
+	github.com/golang/glog v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -136,7 +136,7 @@ require (
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/hcl/v2 v2.22.0 // indirect
+	github.com/hashicorp/hcl/v2 v2.20.1 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -213,14 +213,14 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/oauth2 v0.22.0 // indirect
+	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.23.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
-	google.golang.org/grpc v1.67.1 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
+	google.golang.org/grpc v1.63.2 // indirect
+	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -241,9 +241,9 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.5
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
 )
 
 require (
@@ -259,4 +259,5 @@ require (
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	google.golang.org/appengine v1.6.8 // indirect
 )
