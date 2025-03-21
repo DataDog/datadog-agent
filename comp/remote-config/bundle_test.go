@@ -18,5 +18,5 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), core.MockBundle(), settingsimpl.MockModule(), fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }))
+	fxutil.TestBundle(t, Bundle(), core.MockBundle(), settingsimpl.MockModule(), fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }))
 }

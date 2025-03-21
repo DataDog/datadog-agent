@@ -62,8 +62,8 @@ if (![string]::IsNullOrEmpty($VersionOverride)) {
 }
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
-$releasePattern = "^(\d+\.\d+\.\d+)$"
-$releaseCandidatePattern = "^(\d+\.\d+\.\d+)-rc\.(\d+)$"
+$releasePattern = "(\d+\.\d+\.\d+)"
+$releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
 $develPattern = "^(\d+\.\d+\.\d+)-devel\.git\.\d+\.(.+)"
 
 # Build the package in a temporary directory

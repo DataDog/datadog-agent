@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -21,7 +21,7 @@ import (
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
 // the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
-	streamHandlers      map[streamKey]*StreamHandler   // streamHandlers contains the map of active stream handlers.
+	streamHandlers      *streamCollection              // streamHandlers contains the map of active stream handlers.
 	lastGenerationKTime int64                          // lastGenerationTime is the kernel time of the last stats generation.
 	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
@@ -36,7 +36,7 @@ type statsGeneratorTelemetry struct {
 	aggregators telemetry.Gauge
 }
 
-func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler, tm telemetry.Component) *statsGenerator {
+func newStatsGenerator(sysCtx *systemContext, streamHandlers *streamCollection, tm telemetry.Component) *statsGenerator {
 	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
@@ -62,10 +62,10 @@ func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
-	for key, handler := range g.streamHandlers {
-		aggr, err := g.getOrCreateAggregator(key)
+	for handler := range g.streamHandlers.allStreams() {
+		aggr, err := g.getOrCreateAggregator(handler.metadata)
 		if err != nil {
-			log.Errorf("Error getting or creating aggregator for key %v: %s", key, err)
+			log.Errorf("Error getting or creating aggregator for handler metadata %v: %s", handler.metadata, err)
 			continue
 		}
 
@@ -127,7 +127,7 @@ func (g *statsGenerator) getDeviceCores(deviceUUID string) (uint64, error) {
 	return uint64(maxThreads), nil
 }
 
-func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, error) {
+func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator, error) {
 	aggKey := model.StatsKey{
 		PID:         sKey.pid,
 		DeviceUUID:  sKey.gpuUUID,

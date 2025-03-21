@@ -64,7 +64,7 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
         return true;
     }
 
-    bpf_map_update_elem(&connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
+    bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
     return false;
 }
 

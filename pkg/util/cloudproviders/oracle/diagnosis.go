@@ -9,11 +9,11 @@ package oracle
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("OracleCloud Metadata availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("OracleCloud Metadata availability", diagnose)
 }
 
 // diagnose the oraclecloud metadata API availability

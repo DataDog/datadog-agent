@@ -381,18 +381,18 @@ var structCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_embedded_struct": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{"b": {Type: "struct", Fields: fieldMap{
-				"aBool":  capturedValue("bool", "true"),
-				"aInt16": capturedValue("int16", "42"),
-				"aInt32": capturedValue("int32", "31"),
-				"nested": {Type: "struct", Fields: fieldMap{
-					"aBool":   capturedValue("bool", "true"),
-					"aString": capturedValue("string", "one"),
-					"aNumber": capturedValue("int", "2"),
-					"nested": {Type: "struct", Fields: fieldMap{
-						"anotherInt":    capturedValue("int", "3"),
-						"anotherString": capturedValue("string", "four"),
+				"arg_0": capturedValue("int16", "42"),
+				"arg_1": {Type: "struct", Fields: fieldMap{
+					"arg_0": capturedValue("bool", "true"),
+					"arg_1": capturedValue("string", "one"),
+					"arg_2": capturedValue("int", "2"),
+					"arg_3": {Type: "struct", Fields: fieldMap{
+						"arg_0": capturedValue("int", "3"),
+						"arg_1": capturedValue("string", "four"),
 					}},
 				}},
+				"arg_2": capturedValue("bool", "true"),
+				"arg_3": capturedValue("int32", "31"),
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},

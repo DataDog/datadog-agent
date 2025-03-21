@@ -6,91 +6,20 @@
 package agent
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	// component dependencies
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-
-	// package dependencies
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	// third-party dependencies
 	"github.com/gorilla/mux"
-	"go.uber.org/fx"
 )
 
-type handlerdeps struct {
-	fx.In
-
-	Wmeta          workloadmeta.Component
-	LogsAgent      option.Option[logsAgent.Component]
-	HostMetadata   host.Component
-	SecretResolver secrets.Component
-	Demux          demultiplexer.Component
-	Collector      option.Option[collector.Component]
-	Ac             autodiscovery.Mock
-	Tagger         taggermock.Mock
-}
-
-func getComponentDeps(t *testing.T) handlerdeps {
-	return fxutil.Test[handlerdeps](
-		t,
-		fx.Supply(context.Background()),
-		hostnameinterface.MockModule(),
-		fx.Provide(func() option.Option[logsAgent.Component] {
-			return option.None[logsAgent.Component]()
-		}),
-		hostimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		secretsimpl.MockModule(),
-		fx.Provide(func() option.Option[collector.Component] {
-			return option.None[collector.Component]()
-		}),
-		taggerfxmock.MockModule(),
-		fx.Options(
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-			autodiscoveryimpl.MockModule(),
-		),
-		config.MockModule(),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		telemetryimpl.MockModule(),
-	)
-}
-
-func setupRoutes(t *testing.T) *mux.Router {
-	deps := getComponentDeps(t)
-	sender := aggregator.NewNoOpSenderManager()
-
+func setupRoutes() *mux.Router {
 	apiProviders := []api.EndpointProvider{
 		api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("OK"))
@@ -100,13 +29,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.Wmeta,
-		sender,
-		deps.SecretResolver,
-		deps.Collector,
-		deps.Ac,
 		apiProviders,
-		deps.Tagger,
 	)
 
 	return router
@@ -124,7 +47,7 @@ func TestSetupHandlers(t *testing.T) {
 			wantCode: 200,
 		},
 	}
-	router := setupRoutes(t)
+	router := setupRoutes()
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
