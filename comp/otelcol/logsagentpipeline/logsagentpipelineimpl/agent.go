@@ -214,7 +214,9 @@ func (a *Agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor,
+		&diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints,
+		destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

@@ -27,7 +27,7 @@ func TestStreamStrategy(t *testing.T) {
 	input <- message1
 
 	payload := <-output
-	assert.Equal(t, message1, payload.Messages[0])
+	assert.Equal(t, &message1.MessageMetadata, payload.MessageMetas[0])
 	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 
@@ -36,7 +36,7 @@ func TestStreamStrategy(t *testing.T) {
 	input <- message2
 
 	payload = <-output
-	assert.Equal(t, message2, payload.Messages[0])
+	assert.Equal(t, &message2.MessageMetadata, payload.MessageMetas[0])
 	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 	s.Stop()
