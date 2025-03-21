@@ -134,7 +134,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
 	s.Require().ErrorContains(err, "could not get package")
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
