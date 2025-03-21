@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -194,7 +194,7 @@ func (a *registryAuditor) run() {
 				return
 			}
 			// update the registry with the new entry
-			for _, msg := range payload.Messages {
+			for _, msg := range payload.MessageMetas {
 				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
 			}
 		case <-cleanUpTicker.C:

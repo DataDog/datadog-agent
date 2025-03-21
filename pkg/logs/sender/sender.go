@@ -114,7 +114,7 @@ func (s *Sender) run() {
 			if !destSender.lastSendSucceeded {
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
+					tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
 				}
 			}
 		}
@@ -123,7 +123,7 @@ func (s *Sender) run() {
 		for i, destSender := range unreliableDestinations {
 			if !destSender.NonBlockingSend(payload) {
 				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
+				tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
 				if s.senderDoneChan != nil {
 					senderDoneWg.Add(1)
 					s.senderDoneChan <- senderDoneWg
