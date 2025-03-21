@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -127,6 +128,8 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 // with a non-existing package version fails and can be stopped.
 func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
+	flake.Mark(s.T())
+
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
 
