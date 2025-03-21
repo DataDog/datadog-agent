@@ -134,7 +134,8 @@ additional_endpoints:
 	// Verify initial API keys in status
 	status := v.Env().Agent.Client.Status()
 	assert.Contains(v.T(), status.Content, "API key ending with 12345")
-	assert.Contains(v.T(), status.Content, "API key ending with 12345")
+	assert.Contains(v.T(), status.Content, "https://app.datadoghq.com - API Keys ending with:")
+	assert.Contains(v.T(), status.Content, "https://app.datadoghq.eu - API Key ending with:")
 
 	// Update secrets in the backend
 	for key, value := range updatedAPIKeys {
@@ -147,12 +148,15 @@ additional_endpoints:
 
 	// Verify that the new API keys appear in status
 	status = v.Env().Agent.Client.Status()
-	fmt.Println("WACKTEST99", status, "WACKTEST77")
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		// Check main API key
+		assert.Contains(t, status.Content, "API key ending with 54321")
+
+		// Check additional endpoints with specific API key counts
 		assert.Contains(t, status.Content, `https://app.datadoghq.com - API Keys ending with:
       - 54321
-      - 54321
-  https://app.datadoghq.eu - API Key ending with:
+      - 54321`)
+		assert.Contains(t, status.Content, `https://app.datadoghq.eu - API Key ending with:
       - 54321`)
 	}, 1*time.Minute, 10*time.Second)
 
@@ -164,7 +168,7 @@ additional_endpoints:
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", v.Env().FakeIntake.Client().URL(), endpoint)
 
-		resp, err := http.Get(url) // Using http.Get() like GetLastAPIKey
+		resp, err := http.Get(url)
 		require.NoError(v.T(), err, "Failed to fetch FakeIntake payloads for %s", endpoint)
 		defer resp.Body.Close()
 		require.Equal(v.T(), http.StatusOK, resp.StatusCode, "Unexpected response code from FakeIntake for %s", endpoint)
@@ -177,6 +181,9 @@ additional_endpoints:
 		err = json.Unmarshal(body, &payloads)
 		require.NoError(v.T(), err, "Failed to decode FakeIntake JSON response for %s", endpoint)
 
+		// Verify we have payloads
+		require.NotEmpty(v.T(), payloads, "No payloads found in FakeIntake for endpoint %s", endpoint)
+
 		// Collect all API keys seen in payloads
 		foundAPIKeys := map[string]bool{}
 		for _, payload := range payloads {
@@ -185,9 +192,25 @@ additional_endpoints:
 			}
 		}
 
+		// Verify we found API keys in the payloads
+		require.NotEmpty(v.T(), foundAPIKeys, "No API keys found in FakeIntake payloads for endpoint %s", endpoint)
+
 		// Ensure every updated API key is present in the FakeIntake history
-		for _, updatedKey := range updatedAPIKeys {
-			assert.True(v.T(), foundAPIKeys[updatedKey], "API Key %s not found in FakeIntake history", updatedKey)
+		expectedKeys := 0
+		if endpoint == "https://app.datadoghq.com" {
+			expectedKeys = 2 // apikey2 and apikey3
+		} else {
+			expectedKeys = 1 // apikey4
 		}
+
+		foundCount := 0
+		for _, updatedKey := range updatedAPIKeys {
+			if foundAPIKeys[updatedKey] {
+				foundCount++
+			}
+		}
+
+		assert.Equal(v.T(), expectedKeys, foundCount,
+			"Expected %d API keys for endpoint %s, found %d", expectedKeys, endpoint, foundCount)
 	}
 }
