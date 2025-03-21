@@ -341,10 +341,11 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
+		pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
 			&command.Args{
-				Create: pulumi.Sprintf("docker pull %s", image),
+				Create: pulumi.Sprintf("/bin/bash -c \"%s\"", pullCmd),
 			},
 			utils.PulumiDependsOn(dependsOn...),
 		)
@@ -368,18 +369,19 @@ func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn
 	)
 }
 
+func makeRetryCommand(cmd string, maxRetries int) string {
+	return fmt.Sprintf("counter=0; while ! %s && [ $counter -lt %d ]; do echo failed to pull, retrying ; sleep 1; counter=$((counter+1)); done", cmd, maxRetries)
+}
+
 func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremote.Host, kindCluster *nvidia.KindCluster, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		// This pull can fail, so we retry it a few times just in case
-		// Build the comand
-		pullCmd := fmt.Sprintf("crictl pull %s", image)
-		retryWrappedCmd := fmt.Sprintf("counter=0; while ! %s && [ $counter -lt %d ]; do echo failed to pull, retrying ; sleep 1; counter=$((counter+1)); done", pullCmd, dockerPullMaxRetries)
+		pullCmd := makeRetryCommand(fmt.Sprintf("crictl pull %s", image), dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{
-				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c \"%s\"", kindCluster.ClusterName, image, retryWrappedCmd),
+				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c \"%s\"", kindCluster.ClusterName, image, pullCmd),
 			},
 			utils.PulumiDependsOn(dependsOn...),
 		)
