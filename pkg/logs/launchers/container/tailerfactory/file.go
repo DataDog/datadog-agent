@@ -178,17 +178,15 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	}
 }
 
-// makeK8sFileSource makes a LogSource with Config.Type="file" for a container in a K8s pod.
-func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
-	containerID := source.Config.Identifier
-
+func (tf *factory) getPodAndContainer(containerID string) (*workloadmeta.OrchestratorContainer, *workloadmeta.KubernetesPod, error) {
 	wmeta, ok := tf.workloadmetaStore.Get()
 	if !ok {
-		return nil, errors.New("workloadmeta store is not initialized")
+		return nil, nil, errors.New("workloadmeta store is not initialized")
 	}
+
 	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
+		return nil, nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
 	}
 
 	var container *workloadmeta.OrchestratorContainer
@@ -202,7 +200,19 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	if container == nil {
 		// this failure is impossible, as GetKubernetesPodForContainer found
 		// the pod by searching for this container
-		return nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
+		return nil, nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
+	}
+
+	return container, pod, nil
+}
+
+// makeK8sFileSource makes a LogSource with Config.Type="file" for a container in a K8s pod.
+func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
+	containerID := source.Config.Identifier
+
+	container, pod, err := tf.getPodAndContainer(containerID)
+	if err != nil {
+		return nil, err
 	}
 
 	// get the path for the discovered pod and container

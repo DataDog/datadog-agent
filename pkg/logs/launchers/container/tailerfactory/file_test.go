@@ -331,35 +331,6 @@ func TestMakeK8sSource(t *testing.T) {
 	}
 }
 
-func TestMakeK8sSource_pod_not_found(t *testing.T) {
-	fileTestSetup(t)
-
-	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
-
-	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	tf := &factory{
-		pipelineProvider:  pipeline.NewMockProvider(),
-		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
-		workloadmetaStore: workloadmetaStore,
-	}
-	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:       "docker",
-		Identifier: "abc",
-	})
-	child, err := tf.makeK8sFileSource(source)
-	require.Nil(t, child)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot find pod for container")
-}
-
 func TestFindK8sLogPath(t *testing.T) {
 	fileTestSetup(t)
 
@@ -384,4 +355,31 @@ func TestFindK8sLogPath(t *testing.T) {
 			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}
+}
+
+func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
+	tf := &factory{}
+	container, pod, err := tf.getPodAndContainer("abc")
+
+	require.Nil(t, container)
+	require.Nil(t, pod)
+	require.ErrorContains(t, err, "workloadmeta store is not initialized")
+
+}
+
+func TestGetPodAndContainer_pod_not_found(t *testing.T) {
+	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		compConfig.MockModule(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tf := &factory{workloadmetaStore: workloadmetaStore}
+
+	container, pod, err := tf.getPodAndContainer("abc")
+
+	require.Nil(t, container)
+	require.Nil(t, pod)
+	require.ErrorContains(t, err, "cannot find pod for container")
 }

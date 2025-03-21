@@ -10,10 +10,8 @@ package tailerfactory
 // This file handles creating API tailers which access logs by querying the Kubelet's API
 
 import (
-	"errors"
 	"fmt"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
@@ -30,27 +28,9 @@ var kubeUtilGet kubeUtilGetter = kubelet.GetKubeUtil
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	containerID := source.Config.Identifier
 
-	wmeta, ok := tf.workloadmetaStore.Get()
-	if !ok {
-		return nil, errors.New("workloadmeta store is not initialized")
-	}
-	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
+	container, pod, err := tf.getPodAndContainer(containerID)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
-	}
-
-	var container *workloadmeta.OrchestratorContainer
-	for _, pc := range pod.GetAllContainers() {
-		if pc.ID == containerID {
-			container = &pc
-			break
-		}
-	}
-
-	if container == nil {
-		// this failure is impossible, as GetKubernetesPodForContainer found
-		// the pod by searching for this container
-		return nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
+		return nil, err
 	}
 
 	ku, err := kubeUtilGet()

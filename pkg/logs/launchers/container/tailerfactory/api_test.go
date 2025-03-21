@@ -35,31 +35,6 @@ type kubeUtilMock struct {
 	mock.Mock
 }
 
-func TestMakeAPITailer_container_wmeta_not_initialized(t *testing.T) {
-	tf := &factory{}
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	_, err := tf.makeAPITailer(source)
-	require.ErrorContains(t, err, "workloadmeta store is not initialize")
-}
-
-func TestMakeAPITailer_wmeta_pod_not_found(t *testing.T) {
-	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	tf := &factory{
-		workloadmetaStore: workloadmetaStore,
-	}
-	source := sources.NewLogSource("test", &config.LogsConfig{
-		Identifier: "abc",
-	})
-	_, err := tf.makeAPITailer(source)
-	require.ErrorContains(t, err, "cannot find pod for container")
-}
-
 func TestMakeAPITailer_get_kubeutil_fails(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
