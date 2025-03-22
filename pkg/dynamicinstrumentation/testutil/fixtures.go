@@ -277,15 +277,15 @@ var sliceCaptures = fixtures{
 				"xs": {
 					Type: "[]struct",
 					Fields: fieldMap{
-						"[0]struct": &ditypes.CapturedValue{
-							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+						"[0]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings": &ditypes.CapturedValue{
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings",
 							Fields: fieldMap{
 								"aUint8": capturedValue("uint8", "42"),
 								"aBool":  capturedValue("bool", "true"),
 							},
 						},
-						"[1]struct": &ditypes.CapturedValue{
-							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+						"[1]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings": &ditypes.CapturedValue{
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings",
 							Fields: fieldMap{
 								"aUint8": capturedValue("uint8", "24"),
 								"aBool":  capturedValue("bool", "true"),
