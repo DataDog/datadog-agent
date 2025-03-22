@@ -20,7 +20,7 @@ instances:
 
     ## @param ticket_id - string - optional - default: ""
     ## Set to a valid ticket ID. When a flare is generated, it will be sent to the ticket ID specified here.
-    ## If no ticket ID is specified or the flare fails to send to the specified ticket, it will attempt to be stored locally.
+    ## If no ticket ID is specified or the flare fails to send to the specified ticket, the Agent will attempt to store the flare locally.
     #
     # ticket_id: ""
 
