@@ -54,6 +54,7 @@ const (
 const (
 	procResolveMaxDepth              = 16
 	maxParallelArgsEnvs              = 512 // == number of parallel starting processes
+	cgroupToContainerIDCacheSize     = 1024
 	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
@@ -102,7 +103,8 @@ type EBPFResolver struct {
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
 	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
-	processCacheEntryPool *Pool
+	processCacheEntryPool    *Pool
+	cgroupToContainerIDCache *simplelru.LRU[containerutils.CGroupID, containerutils.ContainerID]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -1513,11 +1515,25 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 	pce.Process.CGroup = *cgroupContext
 	pce.CGroup = *cgroupContext
 	if cgroupContext.CGroupFlags.IsContainer() {
-		containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+		containerID := p.getContainerIDFromCgroupID(cgroupContext.CGroupID)
 		pce.ContainerID = containerID
 		pce.Process.ContainerID = containerID
 	}
 	return true
+}
+
+func (p *EBPFResolver) getContainerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
+	if cgroupID == "" {
+		return ""
+	}
+
+	if containerID, exists := p.cgroupToContainerIDCache.Get(cgroupID); exists {
+		return containerID
+	}
+
+	cid, _ := containerutils.FindContainerID(cgroupID)
+	p.cgroupToContainerIDCache.Add(cgroupID, cid)
+	return cid
 }
 
 // NewEBPFResolver returns a new process resolver
@@ -1526,6 +1542,10 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	if err != nil {
+		return nil, err
+	}
+	cgroupToContainerIDCache, err := simplelru.NewLRU[containerutils.CGroupID, containerutils.ContainerID](cgroupToContainerIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1561,6 +1581,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
+		cgroupToContainerIDCache:  cgroupToContainerIDCache,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
