@@ -10,7 +10,8 @@ import (
 
 	"go.uber.org/fx"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -32,7 +33,7 @@ func TestBundleDependencies(t *testing.T) {
 			return option.None[agent.Component]()
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		authtokenimpl.Module(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		haagentmock.Module(),
 	)
 

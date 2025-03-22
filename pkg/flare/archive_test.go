@@ -23,7 +23,8 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -36,7 +37,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -100,7 +100,7 @@ func setupProcessAPIServer(t *testing.T, port int) {
 		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		createandfetchimpl.Module(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
 	))
 }
@@ -310,11 +310,9 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewUnstartedServer(http.HandlerFunc(handler))
-		srv.TLS = apiutil.GetTLSServerConfig()
-		srv.StartTLS()
-		defer srv.Close()
+		at := authtokenmock.New(t)
 
+		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)

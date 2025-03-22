@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -70,7 +70,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		hostnameimpl.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fetchonlyimpl.MockModule(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Supply(context.Background()),
 		taggerfxmock.MockModule(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
@@ -105,7 +105,7 @@ func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, t
 		hostnameimpl.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fetchonlyimpl.MockModule(),
+		fx.Provide(func(t *testing.T) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Supply(context.Background()),
 		taggerfxmock.MockModule(),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),

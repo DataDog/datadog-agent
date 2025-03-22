@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -105,7 +105,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fetchonlyimpl.MockModule(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		),
 	)
 	// Missing params
@@ -124,7 +124,7 @@ func TestRCClientCreate(t *testing.T) {
 				},
 			),
 			settingsimpl.MockModule(),
-			fetchonlyimpl.MockModule(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		),
 	)
 	assert.NoError(t, err)
@@ -159,7 +159,7 @@ func TestAgentConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fetchonlyimpl.MockModule(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 			fx.Populate(&at),
 		),
 	)
@@ -262,7 +262,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fetchonlyimpl.MockModule(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 			fx.Populate(&at),
 		),
 	)
