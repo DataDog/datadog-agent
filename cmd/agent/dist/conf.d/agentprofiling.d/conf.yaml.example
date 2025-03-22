@@ -1,0 +1,31 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `conf.yaml` and make your changes on that file.
+
+init_config: {}
+instances:
+  - 
+
+    ## @param memory_threshold - integer - required - default: 0
+    ## Set to a value in bytes. When this check runs, it will check if the Core Agent's memory usage is above this threshold.
+    ## If the threshold is exceeded, the check will generate a flare with memory and CPU profiles.
+    #
+    # memory_threshold: 0
+
+    ## @param user_email - string - optional - default: 0
+    ## Set to a value in percent. When this check runs, it will check if the Core Agent's CPU usage is above this threshold.
+    ## If the threshold is exceeded, the check will generate a flare with memory and CPU profiles.
+    #
+    # cpu_threshold: 0
+
+    ## @param ticket_id - string - optional - default: ""
+    ## Set to a valid ticket ID. When a flare is generated, it will be sent to the ticket ID specified here.
+    ## If no ticket ID is specified or the flare fails to send to the specified ticket, the Agent will attempt to store the flare locally.
+    #
+    # ticket_id: ""
+
+    ## @param user_email - string - optional - default: ""
+    ## Set to the email address associated with the ticket. 
+    ## If no email address is specified, the Agent will be unable to send the flare to the ticket. 
+    #
+    # user_email: ""
