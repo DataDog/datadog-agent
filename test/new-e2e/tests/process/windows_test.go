@@ -61,20 +61,18 @@ func (s *windowsTestSuite) SetupSuite() {
 func (s *windowsTestSuite) TestAPIKeyRefresh() {
 	t := s.T()
 
-	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "C:/TestFolder")
+	secretClient.AllowExecGroup()
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
-
-	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithSkipAPIKeyInConfig(),
-		agentparams.WithAgentConfig(processAgentWinRefreshStr),
-	}
-	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", true)...)
+	config := processAgentWinRefreshStr + secretClient.GetAgentConfiguration()
 
 	s.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(
-				agentParams...,
+				agentparams.WithSkipAPIKeyInConfig(),
+				secretClient.WithSecretExecutable(),
+				agentparams.WithAgentConfig(config),
 			),
 		),
 	)
