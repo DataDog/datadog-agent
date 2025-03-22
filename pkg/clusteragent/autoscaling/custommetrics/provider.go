@@ -116,10 +116,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			if p.isServing {
 				currentBackoff = externalMetricsBaseBackoff
 			} else {
-				currentBackoff = currentBackoff * 2
-				if currentBackoff > externalMetricsMaxBackoff {
-					currentBackoff = externalMetricsMaxBackoff
-				}
+				currentBackoff = min(currentBackoff*2, externalMetricsMaxBackoff)
 				log.Infof("Retrying externalMetricsSetter with backoff %.0f seconds", currentBackoff.Seconds())
 			}
 			time.Sleep(currentBackoff)

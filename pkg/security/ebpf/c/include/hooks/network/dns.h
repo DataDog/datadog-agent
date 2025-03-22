@@ -134,8 +134,8 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     int len = pkt->payload_len;
 
-    if (len > DNS_MAX_LENGTH) {
-        len = DNS_MAX_LENGTH;
+    if (len > DNS_RECEIVE_MAX_LENGTH) {
+        len = DNS_RECEIVE_MAX_LENGTH;
     }
 
     struct dns_response_event_t evt = {0};

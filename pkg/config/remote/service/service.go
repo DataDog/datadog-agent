@@ -17,29 +17,28 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
+	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"go.etcd.io/bbolt"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -1005,9 +1004,7 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
 
-	for targetName, targetHash := range state.TargetFilenames {
-		response.TargetFilenames[targetName] = targetHash
-	}
+	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
 	return response, nil
 }

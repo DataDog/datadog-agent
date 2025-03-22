@@ -52,9 +52,12 @@ var supportedDeviceTypes = map[string]bool{
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, origMetricTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := utils.CopyStrings(origTags)
 	tags = sortutil.UniqInPlace(tags)
+
+	metricTags := utils.CopyStrings(origMetricTags)
+	metricTags = sortutil.UniqInPlace(metricTags)
 
 	metadataStore := buildMetadataStore(profile.Metadata, store)
 
@@ -91,7 +94,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		if interfaceStatus.Alias != "" {
 			interfaceTags = append(interfaceTags, "interface_alias:"+interfaceStatus.Alias)
 		}
-		interfaceTags = append(interfaceTags, tags...)
+		interfaceTags = append(interfaceTags, metricTags...)
 
 		// append user's custom interface tags
 		interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, interfaceIndex, interfaceTags)
@@ -100,7 +103,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
-		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
+		ms.sender.Gauge(interfaceStatusMetric, 1, ms.hostname, interfaceTags)
 	}
 }
 

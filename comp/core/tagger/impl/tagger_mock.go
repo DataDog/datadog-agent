@@ -6,7 +6,6 @@
 package taggerimpl
 
 import (
-	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -105,16 +104,6 @@ func (f *fakeTagger) GetTagStore() *tagstore.TagStore {
 }
 
 // Tagger methods
-
-// Start calls tagger.Start().
-func (f *fakeTagger) Start(ctx context.Context) error {
-	return f.tagger.Start(ctx)
-}
-
-// Stop calls tagger.Stop().
-func (f *fakeTagger) Stop() error {
-	return f.tagger.Stop()
-}
 
 // GetTaggerTelemetryStore calls tagger.GetTaggerTelemetryStore().
 func (f *fakeTagger) GetTaggerTelemetryStore() *telemetry.Store {

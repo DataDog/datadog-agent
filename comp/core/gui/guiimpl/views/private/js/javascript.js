@@ -15,7 +15,7 @@ if (!String.prototype.endsWith) {
 // Sends a message to the GUI server with the correct authorization/format
 function sendMessage(endpoint, data, method, callback, callbackErr){
   $.ajax({
-    url: window.location.href + endpoint,
+    url: window.location.origin + '/' + endpoint.replace(/^\//, ''),
     type: method,
     data: data,
     success: function(data, status, xhr) {

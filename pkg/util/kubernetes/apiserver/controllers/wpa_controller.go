@@ -10,6 +10,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"time"
 
@@ -220,10 +221,7 @@ func (h *autoscalersController) syncWPA(key interface{}) error {
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
-		for metric, value := range newMetrics {
-			// We should only insert placeholders in the local cache.
-			h.toStore.data[metric] = value
-		}
+		maps.Copy(h.toStore.data, newMetrics)
 		h.toStore.m.Unlock()
 
 		log.Tracef("Local batch cache of WPA is %v", h.toStore.data)
