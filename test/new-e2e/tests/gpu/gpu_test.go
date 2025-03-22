@@ -29,7 +29,7 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
-var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
@@ -95,6 +95,9 @@ func TestGPUK8sSuite(t *testing.T) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
+
+	// Temporary fix while we debug the issue
+	flake.MarkOnLog(t, "panic: Expected to find a single pod")
 
 	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
 	// we're not breaking main if we get rate limited

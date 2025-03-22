@@ -10,8 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -21,13 +20,8 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(w io.Writer, url string, withInsecureClient bool) error {
-	var c *http.Client
-	if withInsecureClient {
-		c = util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
-	} else {
-		c = util.GetClient()
-	}
+func GetTaggerList(w io.Writer, url string) error {
+	c := util.GetClient()
 
 	// get the tagger-list from server
 	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
@@ -60,9 +54,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 		}
 
 		// sort sources for deterministic output
-		sort.Slice(sources, func(i, j int) bool {
-			return sources[i] < sources[j]
-		})
+		slices.Sort(sources)
 
 		for _, source := range sources {
 			fmt.Fprintf(w, "== Source %s =\n=", source)
@@ -71,9 +63,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 
 			// sort tags for easy comparison
 			tags := tagItem.Tags[source]
-			sort.Slice(tags, func(i, j int) bool {
-				return tags[i] < tags[j]
-			})
+			slices.Sort(tags)
 
 			for i, tag := range tags {
 				tagInfo := strings.Split(tag, ":")

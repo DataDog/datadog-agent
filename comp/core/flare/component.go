@@ -26,7 +26,7 @@ type Component interface {
 	// Create creates a new flare locally and returns the path to the flare file.
 	//
 	// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error)
+	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// CreateWithArgs creates a new flare locally and returns the path to the flare file.
 	// This function is used to create a flare with specific arguments.
 	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -48,7 +49,7 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 		}
 
 		// kube_cluster_name
-		clusterTagNamePrefix := "kube_cluster_name:"
+		clusterTagNamePrefix := taggertags.KubeClusterName + ":"
 		var tag string
 		var found bool
 		for _, tag = range tags {
@@ -66,6 +67,10 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) []stri
 			} else {
 				tags = append(tags, clusterTagNamePrefix+cluster)
 			}
+		}
+		clusterIDValue, _ := clustername.GetClusterID()
+		if clusterIDValue != "" {
+			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
 		}
 	}
 
