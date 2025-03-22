@@ -22,6 +22,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -47,13 +48,14 @@ type processor struct {
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
 	hostSBOM              bool
+	procfsSBOM            bool
 	hostname              string
 	hostCache             string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, procfsSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -86,6 +88,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
+		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
@@ -135,6 +138,12 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 				continue
 			}
 			p.registerContainer(container)
+
+			if p.procfsSBOM {
+				if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
+					p.triggerProcfsScan(container)
+				}
+			}
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
@@ -257,6 +266,59 @@ func (p *processor) triggerHostScan() {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
 		return
 	}
+}
+
+func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
+	log.Debugf("Triggering procfs SBOM scan : %s", ctr.ID)
+
+	scanRequest := procfs.NewScanRequest(ctr.ID)
+	if err := p.sbomScanner.Scan(scanRequest); err != nil {
+		log.Errorf("Failed to trigger SBOM generation for procfs: %s", err)
+	}
+}
+
+func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
+	log.Debugf("processing procfs scanresult: %v", result)
+	sbom := &model.SBOMEntity{
+		Status:             model.SBOMStatus_SUCCESS,
+		Id:                 result.RequestID,
+		Type:               model.SBOMSourceType_HOST_IMAGE, //Change this to SBOMSourceType_CONTAINER_FILE_SYSTEM once BE is ready
+		InUse:              true,
+		GeneratedAt:        timestamppb.New(result.CreatedAt),
+		GenerationDuration: convertDuration(result.Duration),
+	}
+
+	if result.Error != nil {
+		if result.Error == procfs.ErrNotFound {
+			return
+		}
+
+		log.Errorf("Scan error: %v", result.Error)
+		sbom.Sbom = &model.SBOMEntity_Error{
+			Error: result.Error.Error(),
+		}
+		sbom.Status = model.SBOMStatus_FAILED
+	} else {
+		log.Infof("Successfully generated SBOM for procfs: %v, %v", result.CreatedAt, result.Duration)
+		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+			sbom.Heartbeat = true
+		} else {
+			report, err := result.Report.ToCycloneDX()
+			if err != nil {
+				log.Errorf("Failed to extract SBOM from report: %s", err)
+				sbom.Sbom = &model.SBOMEntity_Error{
+					Error: err.Error(),
+				}
+				sbom.Status = model.SBOMStatus_FAILED
+			} else {
+				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+					Cyclonedx: convertBOM(report),
+				}
+			}
+		}
+	}
+
+	p.queue <- sbom
 }
 
 func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {

@@ -60,4 +60,5 @@ type ScanResult struct {
 	CreatedAt time.Time
 	Duration  time.Duration
 	ImgMeta   *workloadmeta.ContainerImageMetadata
+	RequestID string
 }
