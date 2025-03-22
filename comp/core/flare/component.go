@@ -29,7 +29,7 @@ type Component interface {
 	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// CreateWithArgs creates a new flare locally and returns the path to the flare file.
 	// This function is used to create a flare with specific arguments.
-	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error)
+	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// Send sends a flare archive to Datadog.
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
 }

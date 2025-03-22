@@ -55,7 +55,7 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 }
 
 // CreateWithArgs mocks the flare create with args function
-func (fc *MockFlare) CreateWithArgs(_ flaretypes.FlareArgs, _ time.Duration, _ error) (string, error) {
+func (fc *MockFlare) CreateWithArgs(_ flaretypes.FlareArgs, _ time.Duration, _ error, _ []byte) (string, error) {
 	return "a string", nil
 }
 

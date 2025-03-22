@@ -153,7 +153,7 @@ func (m *AgentProfilingCheck) generateFlare() error {
 	}
 
 	// Create an instance of the flare struct
-	flarePath, err := m.flareComponent.CreateWithArgs(flareArgs, providerTimeout, nil)
+	flarePath, err := m.flareComponent.CreateWithArgs(flareArgs, providerTimeout, nil, []byte{})
 	if err != nil {
 		return fmt.Errorf("Failed to create flare: %w", err)
 	}
