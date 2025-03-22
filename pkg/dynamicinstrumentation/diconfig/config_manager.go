@@ -12,7 +12,6 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/google/uuid"
@@ -127,7 +126,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
-	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
+	procInfo.ProbesByID.Set(configProbe.ID, &svcConfigProbe)
 
 	log.Infof("Installing config probe for service: %s", svcConfigProbe.ServiceName)
 	procInfo.TypeMap = &ditypes.TypeMap{
@@ -226,14 +225,13 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			StringMaxSize:     ditypes.StringMaxSize,
 			MaxReferenceDepth: conf.Capture.MaxReferenceDepth,
 			MaxFieldCount:     conf.Capture.MaxFieldCount,
-			NumCPUs:           runtime.NumCPU(),
 		}
 
-		probe, probeExists := procInfo.ProbesByID[configPath.ProbeUUID.String()]
-		if !probeExists {
+		probe := procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
+		if probe == nil {
 			cm.diProcs.SetProbe(procInfo.PID, procInfo.ServiceName, conf.Where.TypeName, conf.Where.MethodName, configPath.ProbeUUID, runtimeID, opts)
 			diagnostics.Diagnostics.SetStatus(procInfo.ServiceName, runtimeID.String(), configPath.ProbeUUID.String(), ditypes.StatusReceived)
-			probe = procInfo.ProbesByID[configPath.ProbeUUID.String()]
+			probe = procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
 		}
 
 		// Check hash to see if the configuration changed
@@ -303,7 +301,6 @@ func newConfigProbe() *ditypes.Probe {
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
 				MaxReferenceDepth: 8,
 				CaptureParameters: true,
-				NumCPUs:           runtime.NumCPU(),
 			},
 		},
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),

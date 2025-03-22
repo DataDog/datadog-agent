@@ -14,13 +14,13 @@ typedef struct event {
 // expression_context contains state that is meant to be shared across location expressions
 // during execution of the full bpf program.
 typedef struct expression_context {
-    __u64 output_offset;    // current offset within the output buffer to write to
-    __u8 stack_counter;     // current size of the bpf parameter stack, used for emptying stack
+    __u64 output_offset; // current offset within the output buffer to write to
+    __u8 stack_counter;  // current size of the bpf parameter stack, used for emptying stack
     struct pt_regs *ctx;
-    event_t *event;         // output event allocated on ringbuffer
-    __u64 *temp_storage;    // temporary storage array on heap used by some location expressions
-    char *zero_string;      // array of zero's used to zero out buffers
-    void *param_stack;      // a pointer to the `param_stack` map of the cpu currently executing the bpf program
+    event_t *event;  // output event allocated on ringbuffer
+    __u64 *temp_storage;  // temporary storage array on heap used by some location expressions
+    char *zero_string;    // array of zero's used to zero out buffers
+    struct bpf_map* param_stack;
 } expression_context_t;
 
 #endif
