@@ -34,7 +34,7 @@ network_path:
 
 runtime_security_config:
   ## Set to true to enable CWS
-  enabled: true
+  enabled: false
 
 cluster_checks:
   enabled: true

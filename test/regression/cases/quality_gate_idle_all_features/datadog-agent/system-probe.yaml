@@ -2,7 +2,11 @@
 
 runtime_security_config:
   # Set to true to enable CWS
-  enabled: true
+  enabled: false
+  activity_dump:
+    enabled: false
+  security_profile:
+    enabled: false
 
 system_probe_config:
   debug_port: 7654
@@ -10,22 +14,22 @@ system_probe_config:
   enable_oom_kill: true
   enable_tcp_queue_length: true
   process_config:
-    enabled: true
+    enabled: false
 
 dynamic_instrumentation:
-  enabled: true
+  enabled: false
 
 service_monitoring_config:
-  enabled: true
+  enabled: false
 
 network_config:
-  enabled: true
+  enabled: false
 
 discovery:
-  enabled: true
+  enabled: false
 
 ping:
   enabled: true
 
 traceroute:
-  enabled: true
+  enabled: false
