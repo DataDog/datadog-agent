@@ -25,7 +25,7 @@ instances:
     # ticket_id: ""
 
     ## @param user_email - string - optional - default: ""
-    ## Set to the email address associated with the ticket associated with parameter ticket_id. 
+    ## Set to the email address associated with the ticket. 
     ## If no email address is specified, the Agent will be unable to send the flare to the ticket. 
     #
     # user_email: ""
