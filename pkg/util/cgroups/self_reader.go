@@ -9,9 +9,8 @@ package cgroups
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
-
-	"github.com/karrick/godirwalk"
 )
 
 // SelfCgroupIdentifier is the identifier to be used to get self cgroup
@@ -29,7 +28,7 @@ func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 	// If we run in a container, /sys/fs/cgroup directly contains the values for our own container
 	if inContainer {
 		f.readerFilter = func(_, _ string) (string, error) {
-			return SelfCgroupIdentifier, godirwalk.SkipThis
+			return SelfCgroupIdentifier, filepath.SkipDir
 		}
 
 		return nil
@@ -46,7 +45,7 @@ func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 
 	f.readerFilter = func(path, _ string) (string, error) {
 		if strings.HasSuffix(path, relativePath) {
-			return SelfCgroupIdentifier, godirwalk.SkipThis
+			return SelfCgroupIdentifier, filepath.SkipDir
 		}
 
 		return "", nil
