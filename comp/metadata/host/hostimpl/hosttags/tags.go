@@ -12,13 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -54,7 +56,7 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	if conf.GetBool("collect_ec2_tags") {
 		// WARNING: if this config is enabled on a non-ec2 host, then its
 		// retries may time out, causing a 3s delay
-		providers["ec2"] = &providerDef{10, ec2.GetTags}
+		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
 	if env.IsFeaturePresent(env.Kubernetes) {
@@ -122,15 +124,24 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
+	gpuTags := conf.GetBool("collect_gpu_tags")
+	if gpuTags {
+		hostTags = appendToHostTags(hostTags, gpu.GetTags())
+	}
+
 	hname, _ := hostname.Get(ctx)
 	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
 	if clusterName != "" {
-		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
+		clusterNameTags := []string{tags.KubeClusterName + ":" + clusterName}
 		if !conf.GetBool("disable_cluster_name_tag_key") {
-			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
+			clusterNameTags = append(clusterNameTags, tags.ClusterName+":"+clusterName)
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
+	}
+
+	if clusterID, err := clustername.GetClusterID(); err == nil && clusterID != "" {
+		hostTags = appendToHostTags(hostTags, []string{tags.OrchClusterID + ":" + clusterID})
 	}
 
 	gceTags := []string{}

@@ -169,7 +169,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLS(c *config.Config) (protocols.Protocol, error) {
+func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableGoTLSSupport {
 		return nil, nil
 	}
@@ -191,6 +191,7 @@ func newGoTLS(c *config.Config) (protocols.Protocol, error) {
 		binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 		binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 		registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
+		manager:            mgr,
 	}, nil
 }
 
@@ -205,7 +206,7 @@ func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
+func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -213,11 +214,10 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 }
 
 // PreStart launches the goTLS main goroutine to handle events.
-func (p *goTLSProgram) PreStart(m *manager.Manager) error {
-	p.manager = m
+func (p *goTLSProgram) PreStart() error {
 	var err error
 
-	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
@@ -277,7 +277,7 @@ func (p *goTLSProgram) sync() {
 }
 
 // PostStart registers the goTLS program to the attacher list.
-func (p *goTLSProgram) PostStart(*manager.Manager) error {
+func (p *goTLSProgram) PostStart() error {
 	utils.AddAttacher(consts.USMModuleName, p.Name(), p)
 	return nil
 }
@@ -291,7 +291,7 @@ func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(*manager.Manager) {
+func (p *goTLSProgram) Stop() {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()

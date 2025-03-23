@@ -50,7 +50,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
         return NULL;
     }
 
-    if (!(parse_ethhdr(&c, &pkt->eth))) {
+    if (!(parse_ethhdr(skb, &c, &pkt->eth))) {
         return NULL;
     }
 
@@ -60,7 +60,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     switch (pkt->ns_flow.flow.l3_protocol) {
     case ETH_P_IP:
         // parse IPv4 header
-        if (!(parse_iphdr(&c, &pkt->ipv4))) {
+        if (!(parse_iphdr(skb, &c, &pkt->ipv4))) {
             return NULL;
         }
 
@@ -80,7 +80,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     case ETH_P_IPV6:
         // parse IPv6 header
         // TODO: handle multiple IPv6 extension headers
-        if (!(parse_ipv6hdr(&c, &pkt->ipv6))) {
+        if (!(parse_ipv6hdr(skb, &c, &pkt->ipv6))) {
             return NULL;
         }
 
@@ -99,7 +99,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
     switch (pkt->ns_flow.flow.l4_protocol) {
     case IPPROTO_TCP:
         // parse TCP header
-        if (!(parse_tcphdr(&c, &pkt->tcp))) {
+        if (!(parse_tcphdr(skb, &c, &pkt->tcp))) {
             return NULL;
         }
 
@@ -115,7 +115,7 @@ __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *
 
     case IPPROTO_UDP:
         // parse UDP header
-        if (!(parse_udphdr(&c, &pkt->udp))) {
+        if (!(parse_udphdr(skb, &c, &pkt->udp))) {
             return NULL;
         }
 

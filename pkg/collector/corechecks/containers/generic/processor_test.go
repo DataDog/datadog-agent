@@ -11,14 +11,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
@@ -89,7 +89,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -28,15 +28,13 @@ const noSmVersion uint32 = 0
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	pid            uint32
+	metadata       streamMetadata
 	kernelLaunches []enrichedKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*kernelSpan
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
-	containerID    string
-	smVersion      uint32 // The SM version of the GPU this stream is running on, for kernel data attaching
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -47,12 +45,23 @@ type enrichedKernelLaunch struct {
 	kernel *cuda.CubinKernel
 }
 
-// streamKey is a unique identifier for a CUDA stream
-type streamKey struct {
-	pid         uint32
-	stream      uint64
-	gpuUUID     string
+// streamMetadata contains metadata about a CUDA stream
+type streamMetadata struct {
+	// pid is the PID of the process that is running this stream
+	pid uint32
+
+	// streamID is the ID of the CUDA stream
+	streamID uint64
+
+	// gpuUUID is the UUID of the GPU this stream is running on
+	gpuUUID string
+
+	// containerID is the container ID of the process that is running this stream. Might be empty if the container ID is not available
+	// or if the process is not running inside a container
 	containerID string
+
+	// smVersion is the SM version of the GPU this stream is running on, for kernel data attaching
+	smVersion uint32
 }
 
 // streamData contains kernel spans and allocations for a stream
@@ -117,13 +126,11 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, containerID string, smVersion uint32, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(metadata streamMetadata, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
-		pid:            pid,
 		sysCtx:         sysCtx,
-		containerID:    containerID,
-		smVersion:      smVersion,
+		metadata:       metadata,
 	}
 }
 
@@ -137,7 +144,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	err := sh.tryAttachKernelData(enrichedLaunch)
 	if err != nil {
 		if logLimitErrorAttach.ShouldLog() {
-			log.Warnf("Error attaching kernel data for PID %d: %v", sh.pid, err)
+			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}
 	}
 
@@ -155,13 +162,13 @@ func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil || sh.smVersion == noSmVersion {
+	if sh.sysCtx == nil || !sh.sysCtx.fatbinParsingEnabled || sh.metadata.smVersion == noSmVersion {
 		// No system context or we don't have a SM version to use,
 		// kernel data attaching is disabled
 		return nil
 	}
 
-	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.pid))
+	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.metadata.pid))
 	if err != nil {
 		return fmt.Errorf("error reading process memory maps: %w", err)
 	}
@@ -173,7 +180,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
 
-	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.pid)), "root", entry.Pathname)
+	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.metadata.pid)), "root", entry.Pathname)
 	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
 	if err != nil {
 		return fmt.Errorf("error getting file %s data: %w", binaryPath, err)
@@ -184,7 +191,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("could not find symbol for address 0x%x in file %s", event.Kernel_addr, binaryPath)
 	}
 
-	kern := fileData.Fatbin.GetKernel(symbol, sh.smVersion)
+	kern := fileData.Fatbin.GetKernel(symbol, sh.metadata.smVersion)
 	if kern == nil {
 		return fmt.Errorf("could not find kernel for symbol %s in file %s", symbol, binaryPath)
 	}
@@ -374,7 +381,7 @@ func (sh *StreamHandler) markEnd() error {
 		sh.allocations = append(sh.allocations, &data)
 	}
 
-	sh.sysCtx.removeProcess(int(sh.pid))
+	sh.sysCtx.removeProcess(int(sh.metadata.pid))
 
 	return nil
 }

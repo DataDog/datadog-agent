@@ -185,12 +185,6 @@ class CompilerImage:
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
-        # Install requirements only for building in CI (not libvirt)
-        self.exec(
-            f"pip install -r {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements-ci.txt",
-            user="compiler",
-        )
-
         self.prepare_for_cross_compile()
 
     def ensure_ready_for_cross_compile(self):

@@ -54,7 +54,6 @@ func (server *apiServer) startServers() error {
 	if err := server.startCMDServer(
 		apiAddr,
 		tmf,
-		server.cfg,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

@@ -110,7 +110,7 @@ func writeError(log log.Component, w io.Writer, e error) {
 }
 
 func fetchStatus(statusURL string) ([]byte, error) {
-	httpClient := apiutil.GetClient(false)
+	httpClient := apiutil.GetClient()
 	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)
