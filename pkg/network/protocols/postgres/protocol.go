@@ -259,7 +259,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024, InFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return

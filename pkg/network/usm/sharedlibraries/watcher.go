@@ -71,13 +71,15 @@ type Watcher struct {
 	// telemetry
 	libHits    *telemetry.Counter
 	libMatches *telemetry.Counter
+
+	mapsCleaner func(map[uint32]struct{})
 }
 
 // Validate that Watcher implements the Attacher interface.
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
+func NewWatcher(cfg *config.Config, libset Libset, mapsCleaner func(map[uint32]struct{}), rules ...Rule) (*Watcher, error) {
 	ebpfProgram := GetEBPFProgram(&cfg.Config)
 	err := ebpfProgram.InitWithLibsets(libset)
 	if err != nil {
@@ -95,8 +97,10 @@ func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, err
 		registry:       utils.NewFileRegistry(consts.USMModuleName, "shared_libraries"),
 		scannedPIDs:    make(map[uint32]int),
 
-		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
-		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
+		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptStatsd),
+		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptStatsd),
+
+		mapsCleaner: mapsCleaner,
 	}, nil
 }
 
@@ -346,5 +350,9 @@ func (w *Watcher) sync() {
 
 	for pid := range deletionCandidates {
 		_ = w.registry.Unregister(pid)
+	}
+
+	if w.mapsCleaner != nil {
+		w.mapsCleaner(alivePIDs)
 	}
 }

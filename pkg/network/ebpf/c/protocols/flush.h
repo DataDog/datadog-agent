@@ -12,7 +12,7 @@
 // flush all batched events to userspace for all protocols.
 // because perf events can't be sent from socket filter programs.
 static __always_inline void flush(void *ctx) {
-    http_batch_flush(ctx);
+    http_batch_flush_with_telemetry(ctx);
     http2_batch_flush(ctx);
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);

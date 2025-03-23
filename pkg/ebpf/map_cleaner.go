@@ -40,6 +40,9 @@ type MapCleaner[K any, V any] struct {
 	emap      *maps.GenericMap[K, V]
 	batchSize uint32
 
+	// useBatchAPI determines whether the cleaner will use the batch API for iteration and deletion.
+	useBatchAPI bool
+
 	once sync.Once
 
 	// termination
@@ -53,7 +56,9 @@ type MapCleaner[K any, V any] struct {
 	elapsed       telemetry.SimpleHistogram
 }
 
-// NewMapCleaner instantiates a new MapCleaner. Due to incident-34000, batch size is ignored and the single-item iterator is always used.
+// NewMapCleaner instantiates a new MapCleaner. defaultBatchSize controls the
+// batch size for iteration of the map. If it is set to 1, the batch API will
+// not be used for iteration nor for deletion.
 func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, module string) (*MapCleaner[K, V], error) {
 	batchSize := defaultBatchSize
 	if defaultBatchSize > emap.MaxEntries() {
@@ -68,9 +73,14 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 		return nil, err
 	}
 
+	useBatchAPI := batchSize > 1 && m.CanUseBatchAPI()
+
 	singleTags := map[string]string{"map_name": name, "module": module, "api": "single"}
 	batchTags := map[string]string{"map_name": name, "module": module, "api": "batch"}
 	tags := singleTags
+	if useBatchAPI {
+		tags = batchTags
+	}
 	return &MapCleaner[K, V]{
 		emap:          m,
 		batchSize:     batchSize,
@@ -80,6 +90,7 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 		batchDeleted:  mapCleanerTelemetry.deleted.WithTags(batchTags),
 		aborts:        mapCleanerTelemetry.aborts.WithTags(tags),
 		elapsed:       mapCleanerTelemetry.elapsed.WithTags(tags),
+		useBatchAPI:   useBatchAPI,
 	}, nil
 }
 
@@ -102,6 +113,9 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 		// of a version comparison because some distros have backported this API), and fallback to
 		// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
 		cleaner := mc.cleanWithoutBatches
+		if mc.useBatchAPI {
+			cleaner = mc.cleanWithBatches
+		}
 		ticker := time.NewTicker(interval)
 		go func() {
 			defer ticker.Stop()

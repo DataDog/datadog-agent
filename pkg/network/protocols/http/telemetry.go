@@ -53,7 +53,7 @@ func NewTelemetry(protocol string) *Telemetry {
 	return &Telemetry{
 		protocol:     protocol,
 		metricGroup:  metricGroup,
-		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
+		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptStatsd),
 
 		// these metrics are also exported as statsd metrics
 		hits1XX:                NewTLSCounter(metricGroup, "total_hits", "status:1xx", libtelemetry.OptStatsd),
@@ -69,11 +69,11 @@ func NewTelemetry(protocol string) *Telemetry {
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
 
 		joiner: telemetryJoiner{
-			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),
-			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptPrometheus),
-			responsesDropped: metricGroupJoiner.NewCounter("responses_dropped", libtelemetry.OptPrometheus),
-			requestJoined:    metricGroupJoiner.NewCounter("joined", libtelemetry.OptPrometheus),
-			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptPrometheus),
+			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptStatsd),
+			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptStatsd),
+			responsesDropped: metricGroupJoiner.NewCounter("responses_dropped", libtelemetry.OptStatsd),
+			requestJoined:    metricGroupJoiner.NewCounter("joined", libtelemetry.OptStatsd),
+			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptStatsd),
 		},
 	}
 }

@@ -78,7 +78,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -117,7 +117,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -155,7 +155,7 @@ func (s *SharedLibrarySuite) TestLongPath() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -217,7 +217,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 
 	registerCallback := registerRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re: regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: func(fp utils.FilePath) error {
@@ -312,7 +312,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 		return nil
 	}
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB:   callback,
@@ -361,7 +361,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -402,7 +402,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -468,7 +468,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerCB := registerRecorder.Callback()
 	unregisterCB := unregisterRecorder.Callback()
 
-	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	watcher, err := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -538,7 +538,7 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 }
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
-	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto,
+	w, _ := NewWatcher(utils.NewUSMEmptyConfig(), LibsetCrypto, nil,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},

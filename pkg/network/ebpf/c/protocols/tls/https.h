@@ -34,6 +34,13 @@
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/tls-maps.h"
 
+// Helper function to check if process is Nginx
+static __always_inline bool is_nginx_process() {
+    char comm[16] = {};
+    bpf_get_current_comm(comm, sizeof(comm));
+    return bpf_memcmp(comm, "nginx", 5) == 0;
+}
+
 static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
