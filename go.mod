@@ -26,8 +26,6 @@ retract (
 replace (
 	// avoid using reflect.Type.Method with non-constant argument
 	github.com/google/go-cmp => github.com/pgimalac/go-cmp v0.6.1-0.20241226143757-a715dfd9338b
-	// reflect2 has a type which wraps reflect.Type, which makes the linker consider that Method and MethodByName are reachable. This fix shadows both methods to make them explicitly unreachable.
-	github.com/modern-go/reflect2 => github.com/pgimalac/reflect2 v0.0.0-20241226135511-3c6e286be18b
 	// comment out uses of text/template
 	github.com/open-policy-agent/opa => github.com/pgimalac/opa v0.0.0-20241226172958-398772fbb5c0
 	// comment out a use of text/template
@@ -355,7 +353,7 @@ require (
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/montanaflynn/stats v0.7.0 // indirect
 	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
