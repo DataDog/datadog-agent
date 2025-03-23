@@ -157,6 +157,7 @@ PROCESS_AGENT_TAGS = {
     "ec2",
     "docker",
     "fargateprocess",
+    "grpcnotrace",
     "kubelet",
     "netcgo",
     "podman",
