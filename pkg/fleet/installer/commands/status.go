@@ -15,10 +15,11 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func statusCommand() *cobra.Command {
@@ -100,10 +101,11 @@ func status(debug bool, jsonOutput bool) error {
 	}
 
 	if !jsonOutput {
-		err = tmpl.Execute(os.Stdout, status)
-		if err != nil {
-			return fmt.Errorf("error executing status template: %w", err)
-		}
+		_ = tmpl
+		// err = tmpl.Execute(os.Stdout, status)
+		// if err != nil {
+		// 	return fmt.Errorf("error executing status template: %w", err)
+		// }
 	} else {
 		rawResult, err := json.Marshal(status)
 		if err != nil {
