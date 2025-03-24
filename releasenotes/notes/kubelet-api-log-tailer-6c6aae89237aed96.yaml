@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    adds the ability for the Agent to tail logs via the kubelet on EKS Fargate clusters.
+    adds the ability for the Agent to tail logs via the kubelet's API.
 
