@@ -18,7 +18,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fatih/color"
 	"gopkg.in/yaml.v2"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
@@ -27,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -37,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
@@ -46,7 +44,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFiller {
+func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component]) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -65,8 +63,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
-		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
-		flaretypes.NewFiller(provideContainers(diagnoseDeps)),
+		flaretypes.NewFiller(provideContainers(workloadmeta)),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -90,13 +87,13 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFi
 	return providers
 }
 
-func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
+func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
 	return func(fb flaretypes.FlareBuilder) error {
-		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                          //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                           //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                               //nolint:errcheck
-		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                       //nolint:errcheck
-		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) }) //nolint:errcheck
+		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                               //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                    //nolint:errcheck
+		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                            //nolint:errcheck
+		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(workloadmeta) }) //nolint:errcheck
 
 		return nil
 	}
@@ -105,13 +102,6 @@ func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.Flar
 func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 	return nil
-}
-
-func provideDiagnoses(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
-	return func(fb flaretypes.FlareBuilder) error {
-		fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), diagnoseDeps)) //nolint:errcheck
-		return nil
-	}
 }
 
 func provideInstallInfo(fb flaretypes.FlareBuilder) error {
@@ -261,45 +251,6 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 	getCheck("process", "process_config.process_collection.enabled")
 	getCheck("container", "process_config.container_collection.enabled")
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
-}
-
-func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, error) {
-	fct := func(w io.Writer) error {
-		// Run diagnose always "local" (in the host process that is)
-		diagCfg := diagnosis.Config{
-			Verbose:  true,
-			RunLocal: true,
-		}
-
-		// ... but when running within Agent some diagnose suites need to know
-		// that to run more optimally/differently by using existing in-memory objects
-		collector, ok := deps.Collector.Get()
-		if !isFlareLocal && ok {
-			diagnoses, err := diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
-			if err != nil {
-				return err
-			}
-			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
-		}
-
-		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
-		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-		if err != nil && !diagCfg.RunLocal {
-			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-			diagCfg.RunLocal = true
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-			if err != nil {
-				fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-				return err
-			}
-		}
-		return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
-
-	}
-
-	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
 }
 
 func getAgentTaggerList() ([]byte, error) {

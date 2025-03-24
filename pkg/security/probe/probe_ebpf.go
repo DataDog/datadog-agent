@@ -749,7 +749,10 @@ var dnsLayer = new(layers.DNS)
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
 	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
-		seclog.Errorf("failed to decode DNS response: %s", err)
+		// this is currently pretty common, so only trace log it for now
+		if seclog.DefaultLogger.IsTracing() {
+			seclog.Tracef("failed to decode DNS response: %s", err)
+		}
 		return
 	}
 

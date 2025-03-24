@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"text/tabwriter"
 
@@ -34,7 +35,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())
@@ -121,7 +122,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		color.NoColor = true
 	}
 
-	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 
 	// Set session token
 	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
@@ -154,10 +155,5 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
-		if provider == names.KubeEndpointsRegisterName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers"), names.KubeEndpointsRegisterName)
 }

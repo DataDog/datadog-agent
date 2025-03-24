@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -83,9 +84,7 @@ func (rc *RemoteConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 
 	errors := make(map[string]ErrorMsgSet, len(rc.configErrors))
 
-	for entity, errset := range rc.configErrors {
-		errors[entity] = errset
-	}
+	maps.Copy(errors, rc.configErrors)
 
 	return errors
 }
