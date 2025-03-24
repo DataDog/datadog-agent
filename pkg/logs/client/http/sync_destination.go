@@ -83,8 +83,8 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 			senderDoneWg.Done()
 		}
 
-		metrics.LogsSent.Add(int64(len(p.Messages)))
-		metrics.TlmLogsSent.Add(float64(len(p.Messages)))
+		metrics.LogsSent.Add(p.Count())
+		metrics.TlmLogsSent.Add(float64(p.Count()))
 		output <- p
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
