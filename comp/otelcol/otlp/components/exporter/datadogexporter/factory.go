@@ -31,6 +31,7 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/featuregate"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"go.uber.org/zap"
@@ -238,8 +239,17 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 							csp.TracerVersion = tracerVersion
 						}
 					}
+					// Marshal stats payload to the json format
+
+					jsonstr, err := protojson.Marshal(sp)
+					if err != nil {
+						logger.Error("failed to marshal stats payload", zap.Error(err))
+						continue
+					}
+					fmt.Printf("jsonstr: %s\n", jsonstr)
 					// The DD Connector doesn't set the agent version, so we'll set it here
 					sp.AgentVersion = agentVersion
+
 					f.traceagentcmp.SendStatsPayload(sp)
 				}
 			}

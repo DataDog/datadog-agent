@@ -89,7 +89,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 					fmt.Println("******** Failed ********")
 					log.Debugf("Failed to get container tags for container %q: %v", cid, err)
 				} else {
-					fmt.Println("******** success ********")
+					fmt.Printf("******** Success ********  tags: %v\n", tags)
 					log.Tracef("Getting container tags for ID %q: %v", cid, tags)
 					ctags = append(ctags, tags...)
 				}
