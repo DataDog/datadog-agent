@@ -98,6 +98,7 @@
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
   variables:
     LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
 
@@ -107,6 +108,8 @@
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
+    - agent_deb-x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
   variables:
     LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
 
