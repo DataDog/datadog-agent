@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer contains code for the E2E tests for the Datadog installer on Windows
 package installer
 
 import (
@@ -129,7 +128,7 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
-// SetCatalog configures the catalog for the Datadog Installer daemon
+// SetCatalog configures the catalog for the Datadog Installer daemon.
 func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
@@ -143,7 +142,7 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
 }
 
-// StartExperiment will use the Datadog Installer service to start an experiment
+// StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
@@ -153,20 +152,21 @@ func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageV
 	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }
 
-// PromoteExperiment will use the Datadog Installer service to promote an experiment
+// PromoteExperiment will use the Datadog Installer service to promote an experiment.
 func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon promote-experiment '%s'", packageName))
 }
 
-// StopExperiment will use the Datadog Installer service to stop an experiment
+// StopExperiment will use the Datadog Installer service to stop an experiment.
 func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
-// version: A function that returns the version of the package to install. By default, it will install
-// the package matching the current pipeline. This is a function so that it can be combined with
-// Note that this command is a direct command and won't go through the Daemon.
+//
+// By default, it will use the package artifact from the current pipeline.
+//
+// Note: This command is a direct call to the installer and does not use the daemon.
 func (d *DatadogInstaller) InstallPackage(packageName string, opts ...installer.PackageOption) (string, error) {
 	return d.runCommand("install", packageName, opts...)
 }
@@ -191,7 +191,7 @@ func (d *DatadogInstaller) Status() (string, error) {
 	return d.execute("status")
 }
 
-// Purge runs the purge command, removing all packages
+// Purge runs the purge command, removing all packages.
 func (d *DatadogInstaller) Purge() (string, error) {
 	// executeFromCopy is used here because the installer will remove itself
 	// if purge is run from the install directory it may cause an uninstall failure due
@@ -199,16 +199,10 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
-// GarbageCollect runs the garbage-collect command, removing unused packages
+// GarbageCollect runs the garbage-collect command, removing unused packages.
 func (d *DatadogInstaller) GarbageCollect() (string, error) {
 	return d.execute("garbage-collect")
 }
-
-// func (d *DatadogInstaller) createInstallerFolders() {
-// 	for _, p := range consts.InstallerConfigPaths {
-// 		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
-// 	}
-// }
 
 // Install will attempt to install the Datadog Agent on the remote host.
 // By default, it will use the installer from the current pipeline.
@@ -221,9 +215,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	if err != nil {
 		return err
 	}
-	// if params.createInstallerFolders {
-	// 	d.createInstallerFolders()
-	// }
+
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
 	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists || strings.HasPrefix(msiPath, "file://") {

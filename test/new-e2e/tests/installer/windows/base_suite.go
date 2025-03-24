@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer contains code for the E2E tests for the Datadog installer on Windows
 package installer
 
 import (
@@ -29,7 +28,6 @@ import (
 // To run the test suites locally, pick a pipeline and define the following environment variables:
 // E2E_PIPELINE_ID: the ID of the pipeline
 // CURRENT_AGENT_VERSION: pull it from one of the jobs that builds the Agent
-// STABLE_INSTALLER_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/installer-package | sort | tail -n 2 | head -n 1`
 // STABLE_AGENT_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/agent-package | sort | tail -n 2 | head -n 1`
 // or pick any other version from that registry.
 //
@@ -38,7 +36,6 @@ import (
 //	CI_COMMIT_SHA=ac2acaffab7b039f8c2524df8ae82f9f5fd04d5d;
 //	E2E_PIPELINE_ID=40537701;
 //	CURRENT_AGENT_VERSION=7.57.0-devel+git.370.d429ae3;
-//	STABLE_INSTALLER_VERSION_PACKAGE=7.56.0-installer-0.4.6-1-1
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
