@@ -43,12 +43,15 @@ func (s secretsStatus) populateStatus(stats map[string]interface{}) {
 
 	stats["executable"] = r.backendCommand
 
+	correctPermission := true
 	permissionMsg := "OK, the executable has the correct permissions"
 	err := checkRights(r.backendCommand, r.commandAllowGroupExec)
 	if err != nil {
+		correctPermission = false
 		permissionMsg = fmt.Sprintf("error: %s", err)
 	}
-	stats["executable_permissions"] = permissionMsg
+	stats["executable_correct_permissions"] = correctPermission
+	stats["executable_permissions_message"] = permissionMsg
 
 	handleMap := make(map[string][][]string)
 	orderedHandles := make([]string, 0, len(r.origin))

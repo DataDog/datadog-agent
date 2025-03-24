@@ -195,16 +195,19 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 	stats := make(map[string]interface{})
 	err := provider.JSON(false, stats)
 	require.NoError(err)
-	require.Contains(stats, "executable_permissions")
-	require.Equal("OK, the executable has the correct permissions", stats["executable_permissions"])
+	require.Contains(stats, "executable_correct_permissions")
+	require.Contains(stats, "executable_permissions_message")
+	require.Equal(true, stats["executable_correct_permissions"])
+	require.Equal("OK, the executable has the correct permissions", stats["executable_permissions_message"])
 
 	mockResolver.permissionError = errors.New("permission denied")
 
 	statsWithError := make(map[string]interface{})
 	err = provider.JSON(false, statsWithError)
 	require.NoError(err)
-	require.Contains(statsWithError, "executable_permissions")
-	require.Equal("error: permission denied", statsWithError["executable_permissions"])
+	require.Contains(statsWithError, "executable_permissions_message")
+	require.Equal(false, statsWithError["executable_correct_permissions"])
+	require.Equal("error: permission denied", statsWithError["executable_permissions_message"])
 }
 
 type testSecretsStatus struct {
@@ -235,11 +238,14 @@ func (s *testSecretsStatus) populateStatus(stats map[string]interface{}) {
 
 	stats["executable"] = r.backendCommand
 
+	correctPermission := true
 	permissionMsg := "OK, the executable has the correct permissions"
 	if r.permissionError != nil {
+		correctPermission = false
 		permissionMsg = "error: " + r.permissionError.Error()
 	}
-	stats["executable_permissions"] = permissionMsg
+	stats["executable_correct_permissions"] = correctPermission
+	stats["executable_permissions_message"] = permissionMsg
 
 	handleMap := make(map[string][][]string)
 	orderedHandles := make([]string, 0, len(r.origin))
