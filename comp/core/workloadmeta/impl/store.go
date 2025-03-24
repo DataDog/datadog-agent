@@ -8,6 +8,7 @@ package workloadmetaimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -179,7 +180,7 @@ func (w *workloadmeta) Unsubscribe(ch chan wmdef.EventBundle) {
 
 	for i, sub := range w.subscribers {
 		if sub.ch == ch {
-			w.subscribers = append(w.subscribers[:i], w.subscribers[i+1:]...)
+			w.subscribers = slices.Delete(w.subscribers, i, i+1)
 			telemetry.Subscribers.Dec()
 			close(ch)
 			return

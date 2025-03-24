@@ -6,7 +6,10 @@
 package defaultforwarder
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -16,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var (
@@ -38,6 +42,7 @@ type domainForwarder struct {
 	requeuedTransaction       chan transaction.Transaction
 	stopRetry                 chan bool
 	stopConnectionReset       chan bool
+	Client                    *SharedConnection
 	workers                   []*Worker
 	retryQueue                *retry.TransactionRetryQueue
 	connectionResetInterval   time.Duration
@@ -73,6 +78,7 @@ func newDomainForwarder(
 		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
+		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config),
 	}
 }
 
@@ -176,9 +182,7 @@ func (f *domainForwarder) scheduleConnectionResets() {
 		select {
 		case <-ticker.C:
 			f.log.Debugf("Scheduling reset of connections used for domain: %q", f.domain)
-			for _, worker := range f.workers {
-				worker.ScheduleConnectionReset()
-			}
+			f.resetConnections()
 		case <-f.stopConnectionReset:
 			ticker.Stop()
 			return
@@ -213,7 +217,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.isLocal)
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -224,6 +228,56 @@ func (f *domainForwarder) Start() error {
 
 	f.internalState = Started
 	return nil
+}
+
+// resetConnections resets the connections by replacing the HTTP client used by
+// the worker, in order to create new connections when the next transactions are processed.
+// It must not be called while a transaction is being processed.
+func (f *domainForwarder) resetConnections() {
+	f.Client.ResetClient()
+}
+
+func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   1 * time.Second,
+				KeepAlive: 20 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     false,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			TLSHandshakeTimeout:   5 * time.Second,
+			MaxConnsPerHost:       numberOfWorkers,
+			MaxIdleConnsPerHost:   1,
+			IdleConnTimeout:       60 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ResponseHeaderTimeout: 3 * time.Second,
+		},
+		Timeout: 10 * time.Second,
+	}
+}
+
+// NewHTTPClient creates a new http.Client
+func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Component) *http.Client {
+	var transport *http.Transport
+
+	transportConfig := config.Get("forwarder_http_protocol")
+
+	switch transportConfig {
+	case "http1":
+		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers))
+	case "auto":
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
+	default:
+		log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
+	}
+
+	return &http.Client{
+		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
+		Transport: transport,
+	}
 }
 
 // Stop stops a domainForwarder, all transactions not yet flushed will be lost.

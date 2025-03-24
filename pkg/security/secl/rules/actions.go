@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -35,11 +36,20 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 		}
 
 		if a.Set.Name == "" {
-			return errors.New("action name is empty")
+			return errors.New("variable name is empty")
 		}
 
-		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-			return errors.New("either 'value' or 'field' must be specified")
+		if a.Set.DefaultValue != nil {
+			if defaultValueType, valueType := reflect.TypeOf(a.Set.DefaultValue), reflect.TypeOf(a.Set.Value); valueType != nil && defaultValueType != valueType {
+				return fmt.Errorf("'default_value' and 'value' must be of the same type (%s != %s)", defaultValueType, valueType)
+			}
+		}
+
+		if (a.Set.Value == nil && a.Set.Expression == "" && a.Set.Field == "") ||
+			(a.Set.Expression != "" && a.Set.Field != "") ||
+			(a.Set.Field != "" && a.Set.Value != nil) ||
+			(a.Set.Value != nil && a.Set.Expression != "") {
+			return errors.New("either 'value', 'field' or 'expression' must be specified")
 		}
 	} else if a.Kill != nil {
 		if opts.DisableEnforcement {

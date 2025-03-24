@@ -106,40 +106,68 @@ func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
 
 func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
-	for idx, capture := range captures {
-		if capture == nil {
-			continue
-		}
-		var (
-			argName   string
-			defPieces []*ditypes.Parameter
-		)
-		if idx < len(defs) {
-			argName = defs[idx].Name
-		}
+
+	for idx, def := range defs {
+		argName := def.Name
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
-		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(capture)
-			continue
+
+		var capture *ditypes.Param
+		if idx < len(captures) {
+			capture = captures[idx]
 		}
+
 		if capture == nil {
+			// No capture for this def, check for not capture reason
+			args[argName] = &ditypes.CapturedValue{
+				Type: def.Type,
+			}
+			if def.DoNotCapture && def.NotCaptureReason != 0 {
+				args[argName].NotCapturedReason = def.NotCaptureReason.String()
+			}
 			continue
 		}
-		cv := &ditypes.CapturedValue{Type: capture.Type}
+
+		cv := &ditypes.CapturedValue{
+			Type: def.Type,
+		}
+
 		if capture.ValueStr != "" || capture.Type == "string" {
-			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if idx < len(defs) {
-			defPieces = defs[idx].ParameterPieces
+
+		// Handle nested fields if both def and capture have them
+		if capture.Fields != nil && def.ParameterPieces != nil {
+			// For slice types, use convertSlice helper which already exists
+			if uint(capture.Kind) == uint(reflect.Slice) {
+				args[argName] = convertSlice(capture)
+			} else {
+				// For struct types, recursively process fields
+				cv.Fields = convertArgs(def.ParameterPieces, capture.Fields)
+				args[argName] = cv
+			}
+		} else {
+			// No nested fields or already handled above
+			args[argName] = cv
 		}
-		if capture.Fields != nil {
-			cv.Fields = convertArgs(defPieces, capture.Fields)
+	}
+
+	// Handle extra captures not in defs
+	for idx, capture := range captures {
+		if idx >= len(defs) && capture != nil {
+			argName := fmt.Sprintf("arg_%d", idx)
+			cv := &ditypes.CapturedValue{
+				Type: capture.Type,
+			}
+			if capture.ValueStr != "" || capture.Type == "string" {
+				valueCopy := capture.ValueStr
+				cv.Value = &valueCopy
+			}
+			// Don't recursively process fields for captures not in defs
+			args[argName] = cv
 		}
-		args[argName] = cv
 	}
 	return args
 }

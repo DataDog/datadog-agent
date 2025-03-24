@@ -29,7 +29,7 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
-var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]

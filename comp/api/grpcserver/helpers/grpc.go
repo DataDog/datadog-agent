@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package grpc
+// Package helpers provides utility functions for gRPC servers.
+package helpers
 
 import (
 	"context"
@@ -15,16 +16,20 @@ import (
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
-	"google.golang.org/grpc"
 
 	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 )
 
 // NewMuxedGRPCServer returns an http.Server that multiplexes connections
 // between a gRPC server and an HTTP handler.
-func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Server, httpHandler http.Handler) *http.Server {
+func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer http.Handler, httpHandler http.Handler, timeout time.Duration) *http.Server {
 	// our gRPC clients do not handle protocol negotiation, so we need to force
 	// HTTP/2
+
+	if timeout > 0 {
+		httpHandler = TimeoutHandlerFunc(httpHandler, timeout)
+	}
+
 	var handler http.Handler
 	// when HTTP/2 traffic that is not TLS being sent we need to create a new handler which
 	// is able to handle the pre fix magic sent
@@ -62,7 +67,7 @@ func TimeoutHandlerFunc(httpHandler http.Handler, timeout time.Duration) http.Ha
 // handlerWithFallback returns an http.Handler that delegates to grpcServer on
 // incoming gRPC connections or httpServer otherwise. Copied from
 // cockroachdb.
-func handlerWithFallback(grpcServer *grpc.Server, httpServer http.Handler) http.Handler {
+func handlerWithFallback(grpcServer http.Handler, httpServer http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// This is a partial recreation of gRPC's internal checks
 		// https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
