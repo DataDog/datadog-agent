@@ -1,5 +1,12 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.1.14 / 2025-03-24
+
+* [Fix] Work around Azure issue 39434 & support escaped json strings
+* [Documentation] Add permission needed to use aws parameter store
+* [CI] Add generate licenses tasks and run them on each PR
+* [CI] Running copyrights linter on each PR
+
 ## 0.1.13 / 2024-11-19
 
 * Repo ownership transitioned from RapDev to Datadog.
@@ -23,4 +30,3 @@
 
 * [Added] zerolog logger, replacing logrus.
 * [Fixed] documentation, adding usage of aws.ssm and aws.secrets backends.
-
