@@ -8,7 +8,6 @@
 package tags
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 
@@ -17,7 +16,7 @@ import (
 )
 
 // GetTags returns a slice of tags indicating GPU presence
-func GetTags(ctx context.Context) []string {
+func GetTags() []string {
 	// Get the host's proc directory path
 	procPath := kernel.ProcFSRoot()
 	nvidiaPath := filepath.Join(procPath, "driver", "nvidia", "gpus")
