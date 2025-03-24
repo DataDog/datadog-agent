@@ -49,6 +49,9 @@ def generate_model(_):
 def ask_reviews(_, pr_id):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
+    if 'backport' in pr.title.casefold():
+        print("This is a backport PR, we don't need to ask for reviews.")
+        return
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
