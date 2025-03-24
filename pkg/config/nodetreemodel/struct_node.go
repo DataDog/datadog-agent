@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -38,12 +39,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 
 func (n *structNodeImpl) HasChild(name string) bool {
 	names := n.ChildrenKeys()
-	for _, n := range names {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(names, name)
 }
 
 func (n *structNodeImpl) Merge(InnerNode) error {

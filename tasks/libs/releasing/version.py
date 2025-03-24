@@ -115,7 +115,7 @@ def current_version_for_release_branch(ctx, release_branch) -> Version:
     assert match, f"Invalid release branch name: {release_branch} (should be X.YY.x)"
 
     # Get all the versions for this release X.YY
-    cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?$'"
+    cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?(-devel)?$'"
     res = ctx.run(cmd, hide=True, warn=True)
     res = res.stdout.strip().split('\n') if res else []
 

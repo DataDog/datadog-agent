@@ -70,6 +70,36 @@ instances:
     #
     # min_collection_interval: 60
 
+    ## @param collect_hardware_metrics - boolean - optional - default: true
+    ## This enable collecting hardware metrics (CPU/Memory/Disk...).
+    #
+    # collect_hardware_metrics: true
+
+    ## @param collect_interface_metrics - boolean - optional - default: true
+    ## This enable collecting interface metrics.
+    #
+    # collect_interface_metrics: true
+
+    ## @param collect_tunnel_metrics - boolean - optional - default: true
+    ## This enable collecting SD-WAN tunnel metrics.
+    #
+    # collect_tunnel_metrics: true
+
+    ## @param collect_control_connection_metrics - boolean - optional - default: true
+    ## This enable collecting control connections metrics.
+    #
+    # collect_control_connection_metrics: true
+
+    ## @param collect_omp_peer_metrics - boolean - optional - default: true
+    ## This enable collecting OMP Peer metrics.
+    #
+    # collect_omp_peer_metrics: true
+
+    ## @param collect_device_counters_metrics - boolean - optional - default: true
+    ## This enable collecting device counters metrics (Crash/Reboot count).
+    #
+    # collect_device_counters_metrics: true
+
     ## @param collect_bfd_session_status - boolean - optional - default: false
     ## This enable collecting BFD session status metrics.
     ## Enabling this may significantly impact the check run duration, as well as adding load
@@ -81,3 +111,13 @@ instances:
     ## This enable collecting hardware status metrics.
     #
     # collect_hardware_status: true
+
+    ## @param collect_cloud_applications_metrics - boolean - optional - default: false
+    ## This enable collecting cloud application metrics (Latency/Loss/...).
+    #
+    # collect_cloud_applications_metrics: true
+
+    ## @param collect_bgp_neighbor_states - boolean - optional - default: false
+    ## This enable collecting BGP neighbor metrics.
+    #
+    # collect_bgp_neighbor_states: true

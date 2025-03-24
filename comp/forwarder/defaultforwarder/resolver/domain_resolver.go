@@ -9,6 +9,7 @@
 package resolver
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -197,10 +198,8 @@ func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwar
 		dType:  dType,
 	}
 	r.overrides[forwarderName] = d
-	for _, alternateDomain := range r.alternateDomainList {
-		if alternateDomain == domain {
-			return
-		}
+	if slices.Contains(r.alternateDomainList, domain) {
+		return
 	}
 	r.alternateDomainList = append(r.alternateDomainList, domain)
 }
