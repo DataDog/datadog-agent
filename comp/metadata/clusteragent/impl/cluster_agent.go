@@ -45,7 +45,6 @@ var (
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname    string                 `json:"hostname"`
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`
 	Timestamp   int64                  `json:"timestamp"`
@@ -76,7 +75,6 @@ type datadogclusteragent struct {
 	util.InventoryPayload
 	log          log.Component
 	conf         config.Component
-	hostname     string
 	clustername  string
 	clusterid    string
 	clusteridErr string
@@ -91,13 +89,15 @@ type Provides struct {
 
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, err := hostname.Get(context.Background())
+	if err != nil {
+		hname = ""
+	}
 	clname := clustername.GetClusterName(context.Background(), hname)
 	clid, clidErr := getClusterID()
 	dca := &datadogclusteragent{
 		log:          deps.Log,
 		conf:         deps.Config,
-		hostname:     hname,
 		clustername:  clname,
 		clusterid:    clid,
 		clusteridErr: "",
@@ -121,7 +121,6 @@ func NewComponent(deps Requires) Provides {
 func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
 
 	return &Payload{
-		Hostname:    dca.hostname,
 		Clustername: dca.clustername,
 		ClusterID:   dca.clusterid,
 		Timestamp:   time.Now().UnixNano(),
