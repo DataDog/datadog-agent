@@ -475,7 +475,7 @@ require (
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/shirou/gopsutil/v4 v4.25.2
-	go.opentelemetry.io/collector/component/componenttest v0.121.0
+	go.opentelemetry.io/collector/component/componenttest v0.122.1
 	modernc.org/sqlite v1.36.1
 )
 
