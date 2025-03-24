@@ -16,6 +16,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 type nvmlCache struct {
@@ -24,12 +25,8 @@ type nvmlCache struct {
 	mu            sync.Mutex
 }
 
-type nvmlCacheInitOpts struct {
-	nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface
-}
-
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
-func (c *nvmlCache) ensureInitWithOpts(opts nvmlCacheInitOpts) error {
+func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) error {
 	// If the library is already initialized, return nil without locking
 	if c.isInitialized {
 		return nil
@@ -54,7 +51,7 @@ func (c *nvmlCache) ensureInitWithOpts(opts nvmlCacheInitOpts) error {
 			libpath = cfg.GetString("nvml_lib_path")
 		}
 
-		c.lib = opts.nvmlNewFunc(nvml.WithLibraryPath(libpath))
+		c.lib = nvmlNewFunc(nvml.WithLibraryPath(libpath))
 	}
 
 	ret := c.lib.Init()
@@ -69,7 +66,7 @@ func (c *nvmlCache) ensureInitWithOpts(opts nvmlCacheInitOpts) error {
 
 // ensureInit initializes the NVML library with the default options.
 func (c *nvmlCache) ensureInit() error {
-	return c.ensureInitWithOpts(nvmlCacheInitOpts{nvmlNewFunc: nvml.New})
+	return c.ensureInitWithOpts(nvml.New)
 }
 
 var singleton nvmlCache
