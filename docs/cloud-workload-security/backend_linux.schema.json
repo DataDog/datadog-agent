@@ -862,13 +862,15 @@
         },
         "length": {
           "type": "integer"
-        }
+        },
+        "value": true
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "offset",
-        "length"
+        "length",
+        "value"
       ],
       "description": "MatchingSubExprs serializes matching sub expression to JSON"
     },
@@ -1516,6 +1518,9 @@
             "$ref": "#/$defs/MatchingSubExpr"
           },
           "type": "array"
+        },
+        "expression": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
