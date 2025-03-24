@@ -107,7 +107,7 @@ func TestGetTags(t *testing.T) {
 					t.Fatalf("Setup failed: %v", err)
 				}
 			}
-			gotTags := GetTags(nil)
+			gotTags := GetTags()
 			assert.Equal(t, tt.wantTags, gotTags)
 		})
 	}
