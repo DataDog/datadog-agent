@@ -167,7 +167,9 @@ additional_endpoints:
 
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", v.Env().FakeIntake.Client().URL(), endpoint)
+		v.T().Logf("Checking FakeIntake payloads for endpoint: %s", endpoint)
 
+		// First check if we have any payloads
 		resp, err := http.Get(url)
 		require.NoError(v.T(), err, "Failed to fetch FakeIntake payloads for %s", endpoint)
 		defer resp.Body.Close()
@@ -175,25 +177,32 @@ additional_endpoints:
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(v.T(), err, "Failed to read FakeIntake response body for %s", endpoint)
+		v.T().Logf("Raw response body for %s: %s", endpoint, string(body))
 
 		// Parse JSON response into a slice of payloads
 		var payloads []map[string]interface{}
 		err = json.Unmarshal(body, &payloads)
 		require.NoError(v.T(), err, "Failed to decode FakeIntake JSON response for %s", endpoint)
+		v.T().Logf("Number of payloads found for %s: %d", endpoint, len(payloads))
 
 		// Verify we have payloads
 		require.NotEmpty(v.T(), payloads, "No payloads found in FakeIntake for endpoint %s", endpoint)
 
 		// Collect all API keys seen in payloads
 		foundAPIKeys := map[string]bool{}
-		for _, payload := range payloads {
+		for i, payload := range payloads {
+			v.T().Logf("Payload %d for %s: %+v", i, endpoint, payload)
 			if apiKey, exists := payload["api_key"].(string); exists {
 				foundAPIKeys[strings.TrimSpace(apiKey)] = true
+				v.T().Logf("Found API key in payload %d: %s", i, apiKey)
+			} else {
+				v.T().Logf("No API key found in payload %d", i)
 			}
 		}
 
 		// Verify we found API keys in the payloads
 		require.NotEmpty(v.T(), foundAPIKeys, "No API keys found in FakeIntake payloads for endpoint %s", endpoint)
+		v.T().Logf("Found API keys for %s: %v", endpoint, foundAPIKeys)
 
 		// Ensure every updated API key is present in the FakeIntake history
 		expectedKeys := 0
@@ -207,6 +216,9 @@ additional_endpoints:
 		for _, updatedKey := range updatedAPIKeys {
 			if foundAPIKeys[updatedKey] {
 				foundCount++
+				v.T().Logf("Found expected API key: %s", updatedKey)
+			} else {
+				v.T().Logf("Missing expected API key: %s", updatedKey)
 			}
 		}
 
