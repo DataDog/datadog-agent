@@ -413,6 +413,10 @@ func isRetryableNetworkError(err error) bool {
 		}
 	}
 
+	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
 	return isStreamResetError(err)
 }
 
