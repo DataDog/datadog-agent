@@ -173,7 +173,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceFound := false
 	for i, authentication := range job.subnet.config.Authentications {
 		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
-		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
+		params, err := authentication.BuildSNMPParams(deviceIP, job.subnet.config.Port)
 		if err != nil {
 			log.Errorf("Error building params for device %s: %v", deviceIP, err)
 			continue
