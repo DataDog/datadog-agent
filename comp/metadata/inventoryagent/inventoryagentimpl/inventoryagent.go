@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -423,14 +422,9 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
-	provided, err := yaml.Marshal(data)
+	scrubbed, err := ia.flareScrubber.ScrubYamlObject(data)
 	if err != nil {
-		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
-	}
-
-	scrubbed, err := ia.flareScrubber.ScrubYaml(provided)
-	if err != nil {
-		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
+		return "", ia.log.Errorf("could not scrub agent configuration: %s", err)
 	}
 
 	return string(scrubbed), nil

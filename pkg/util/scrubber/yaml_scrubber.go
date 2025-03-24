@@ -124,3 +124,19 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 	}
 	return c.ScrubBytes(input)
 }
+
+// ScrubYamlObject scrubs credentials from the given object, serializes to YAML and scrubs the final buffer.
+func (c *Scrubber) ScrubYamlObject(data interface{}) ([]byte, error) {
+	// if we can't load the yaml run the default scrubber on the input
+	c.ScrubDataObj(&data)
+
+	var buffer bytes.Buffer
+	encoder := yaml.NewEncoder(&buffer)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(&data); err != nil {
+		return nil, fmt.Errorf("error encoding YAML: %w", err)
+	}
+	encoder.Close()
+
+	return c.ScrubBytes(buffer.Bytes())
+}
