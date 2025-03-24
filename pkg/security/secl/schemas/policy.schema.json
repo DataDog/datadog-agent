@@ -135,16 +135,18 @@
           ]
         },
         "disable_container_disarmer": {
-            "type": "boolean",
+          "type": "boolean"
         },
         "disable_executable_disarmer": {
-            "type": "boolean",
-        },
+          "type": "boolean"
+        }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "signal"
+        "signal",
+        "disable_container_disarmer",
+        "disable_executable_disarmer"
       ],
       "description": "KillDefinition describes the 'kill' section of a rule action"
     },
