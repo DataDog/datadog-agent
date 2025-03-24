@@ -2015,6 +2015,9 @@ core,github.com/yashtewari/glob-intersection,Apache-2.0,Copyright (c) 2018 Yash 
 core,github.com/youmark/pkcs8,MIT,Copyright (c) 2014 youmark
 core,github.com/yusufpapurcu/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,go.etcd.io/bbolt,MIT,Copyright 2016 The etcd Authors
+core,go.etcd.io/bbolt/errors,MIT,Copyright 2016 The etcd Authors
+core,go.etcd.io/bbolt/internal/common,MIT,Copyright 2016 The etcd Authors
+core,go.etcd.io/bbolt/internal/freelist,MIT,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/api/v3/authpb,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/api/v3/etcdserverpb,Apache-2.0,Copyright 2016 The etcd Authors
 core,go.etcd.io/etcd/api/v3/membershippb,Apache-2.0,Copyright 2016 The etcd Authors
