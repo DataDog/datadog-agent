@@ -65,18 +65,37 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 }
 
 func TestAttachPidExcludesContainerdTmp(t *testing.T) {
-	exe := "/foo/tmpmounts/containerd-mount/bar"
+	tmpdir := t.TempDir()
+
+	// Create a tmpdir/tmpmounts/containerd-mount/bar directory with a file in
+	// it to simulate a containerd tmp mount. It needs to exist so that the code
+	// will be able to read that file
+	exe := filepath.Join(tmpdir, "tmpmounts/containerd-mount/bar")
+	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
+
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := AttacherConfig{
-		ExcludeTargets: ExcludeContainerdTmp,
-		ProcRoot:       procRoot,
+		ExcludeTargets:        ExcludeContainerdTmp,
+		ProcRoot:              procRoot,
+		EnableDetailedLogging: true,
+		Rules: []*AttachRule{
+			{Targets: AttachToExecutable},
+		},
 	}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+
+	// Cleanup should be called anyways, even if the attach fails
+	inspector := &MockBinaryInspector{}
+	inspector.On("Cleanup", mock.Anything).Return(nil)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
 	err = ua.AttachPIDWithOptions(1, false)
 	require.ErrorIs(t, err, utils.ErrEnvironment)
+
+	inspector.AssertExpectations(t)
 }
 
 func TestAttachPidReadsSharedLibraries(t *testing.T) {
