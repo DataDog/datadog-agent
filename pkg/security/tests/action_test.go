@@ -616,20 +616,6 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 				{
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
-						Disarmer: &rules.KillDisarmerDefinition{
-							Executable: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerExecutablePeriod,
-								},
-							},
-							Container: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerContainerPeriod,
-								},
-							},
-						},
 					},
 				},
 			},
@@ -641,20 +627,6 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 				{
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
-						Disarmer: &rules.KillDisarmerDefinition{
-							Executable: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerExecutablePeriod,
-								},
-							},
-							Container: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerContainerPeriod,
-								},
-							},
-						},
 					},
 				},
 			},

@@ -382,7 +382,6 @@ func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int,
 func (p *ProcessKiller) Reset(rs *rules.RuleSet) {
 	if p.cfg.RuntimeSecurity.EnforcementEnabled {
 		var ruleSetHasKillAction bool
-		var rulesetHasKillDisarmer bool
 
 	rules:
 		for _, rule := range rs.GetRules() {
@@ -394,15 +393,12 @@ func (p *ProcessKiller) Reset(rs *rules.RuleSet) {
 					continue
 				}
 				ruleSetHasKillAction = true
-				if action.Def.Kill.Disarmer != nil && (action.Def.Kill.Disarmer.Container != nil || action.Def.Kill.Disarmer.Executable != nil) {
-					rulesetHasKillDisarmer = true
-					break rules
-				}
+				break rules
 			}
 		}
 
 		configHasKillDisarmer := p.cfg.RuntimeSecurity.EnforcementDisarmerContainerEnabled || p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableEnabled
-		if ruleSetHasKillAction && (configHasKillDisarmer || rulesetHasKillDisarmer) {
+		if ruleSetHasKillAction && configHasKillDisarmer {
 			p.useDisarmers.Store(true)
 			p.disarmerStateCh <- running
 			p.disableKillQueueAlarm()
@@ -575,21 +571,13 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmerParams, *disarmerParams) {
 	var containerParams, executableParams disarmerParams
 
-	if kill.Disarmer != nil && kill.Disarmer.Container != nil && kill.Disarmer.Container.MaxAllowed > 0 {
-		containerParams.enabled = true
-		containerParams.capacity = uint64(kill.Disarmer.Container.MaxAllowed)
-		containerParams.period = kill.Disarmer.Container.Period.GetDuration()
-	} else if p.cfg.RuntimeSecurity.EnforcementDisarmerContainerEnabled {
+	if !kill.DisableContainerDisarmer && p.cfg.RuntimeSecurity.EnforcementDisarmerContainerEnabled {
 		containerParams.enabled = true
 		containerParams.capacity = uint64(p.cfg.RuntimeSecurity.EnforcementDisarmerContainerMaxAllowed)
 		containerParams.period = p.cfg.RuntimeSecurity.EnforcementDisarmerContainerPeriod
 	}
 
-	if kill.Disarmer != nil && kill.Disarmer.Executable != nil && kill.Disarmer.Executable.MaxAllowed > 0 {
-		executableParams.enabled = true
-		executableParams.capacity = uint64(kill.Disarmer.Executable.MaxAllowed)
-		executableParams.period = kill.Disarmer.Executable.Period.GetDuration()
-	} else if p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableEnabled {
+	if !kill.DisableExecutableDisarmer && p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableEnabled {
 		executableParams.enabled = true
 		executableParams.capacity = uint64(p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableMaxAllowed)
 		executableParams.period = p.cfg.RuntimeSecurity.EnforcementDisarmerExecutablePeriod
