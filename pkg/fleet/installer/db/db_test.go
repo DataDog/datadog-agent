@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
+	bbolterr "go.etcd.io/bbolt/errors"
 )
 
 func newTestDB(t *testing.T) *PackagesDB {
@@ -111,6 +111,6 @@ func TestTimeout(t *testing.T) {
 
 	before := time.Now()
 	_, err = New(dbFile, WithTimeout(time.Second))
-	assert.ErrorIs(t, err, bbolt.ErrTimeout)
+	assert.ErrorIs(t, err, bbolterr.ErrTimeout)
 	assert.GreaterOrEqual(t, time.Since(before), time.Second-100*time.Millisecond) // bbolt timeout can be shorter by up to 50ms
 }
