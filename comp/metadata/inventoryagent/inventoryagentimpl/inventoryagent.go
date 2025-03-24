@@ -182,12 +182,6 @@ func (ia *inventoryagent) initData() {
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
-	if val, err := fips.Enabled(); err == nil {
-		ia.data["fips_mode"] = val
-	} else {
-		ia.data["fips_mode"] = false
-		ia.log.Warnf("could not check if fips is enabled: %s", err)
-	}
 }
 
 type configGetter interface {
@@ -258,6 +252,14 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_eks_fargate"] = eksFargate
 	if eksFargate {
 		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
+	}
+
+	// FIPS mode
+	if val, err := fips.Enabled(); err == nil {
+		ia.data["fips_mode"] = val
+	} else {
+		ia.data["fips_mode"] = false
+		ia.log.Warnf("could not check if fips is enabled: %s", err)
 	}
 }
 
