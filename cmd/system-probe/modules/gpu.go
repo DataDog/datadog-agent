@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -66,18 +65,9 @@ var GPUMonitoring = module.Factory{
 			configureCgroupPermissions()
 		}
 
-		probeDeps := gpu.ProbeDependencies{
-			Telemetry: deps.Telemetry,
-			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
-			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
-			NvmlLib:        nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
-			ProcessMonitor: processEventConsumer,
-			WorkloadMeta:   deps.WMeta,
-		}
-
-		ret := probeDeps.NvmlLib.Init()
-		if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-			return nil, fmt.Errorf("unable to initialize NVML library: %v", ret)
+		probeDeps, err := gpu.NewProbeDependencies(c, deps.Telemetry, processEventConsumer, deps.WMeta)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
 		}
 
 		p, err := gpu.NewProbe(c, probeDeps)

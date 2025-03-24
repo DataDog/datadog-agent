@@ -180,6 +180,15 @@ func (agent *agentCommandRunner) JMX(commandArgs ...agentclient.AgentArgsOption)
 	}, err
 }
 
+// WorkloadList runs the workload-list command and returns the output
+func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
+	status, err := agent.executeCommandWithError("workload-list")
+
+	return &agentclient.Status{
+		Content: status,
+	}, err
+}
+
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.

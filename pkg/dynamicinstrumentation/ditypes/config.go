@@ -270,6 +270,7 @@ type InstrumentationOptions struct {
 	MaxReferenceDepth int
 	MaxFieldCount     int
 	SliceMaxLength    int
+	NumCPUs           int
 }
 
 // Probe represents a location in a GoProgram that can be instrumented

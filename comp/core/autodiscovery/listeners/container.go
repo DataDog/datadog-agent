@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"errors"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -151,9 +152,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 
 		hosts := make(map[string]string)
-		for host, ip := range container.NetworkIPs {
-			hosts[host] = ip
-		}
+		maps.Copy(hosts, container.NetworkIPs)
 
 		if rancherIP, ok := docker.FindRancherIPInLabels(container.Labels); ok {
 			hosts["rancher"] = rancherIP

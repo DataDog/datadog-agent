@@ -54,7 +54,7 @@ var (
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
+var emptyJsonPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -274,8 +274,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(int64(len(payload.Messages)))
-		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
+		metrics.LogsSent.Add(payload.Count())
+		metrics.TlmLogsSent.Add(float64(payload.Count()))
 		output <- payload
 		return
 	}
@@ -316,7 +316,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
-	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.Messages), 10))
+	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.MessageMetas), 10))
 	then := time.Now()
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
@@ -449,7 +449,7 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func getMessageTimestamp(messages []*message.Message) int64 {
+func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 	timestampNanos := int64(-1)
 	if len(messages) > 0 {
 		timestampNanos = messages[len(messages)-1].IngestionTimestamp

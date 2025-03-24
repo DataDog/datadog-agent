@@ -11,6 +11,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -26,7 +27,7 @@ import (
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := paths.CreateInstallerDataDir()
+	err := paths.EnsureInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
 	}
@@ -56,8 +57,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
 	}
-	if downloadedPackage.Name != InstallerPackage {
-		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, InstallerPackage)
+	if downloadedPackage.Name != AgentPackage {
+		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, AgentPackage)
 	}
 
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
@@ -75,18 +76,37 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer-*-1-x86_64.msi"))
+	installPath, err := getInstallerPath(tmpDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
-	if len(msis) > 1 {
-		return nil, fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return nil, fmt.Errorf("no MSIs in package")
+
+	return iexec.NewInstallerExec(env, installPath), nil
+}
+
+func getInstallerPath(tmpDir string) (string, error) {
+	installPath, msiErr := getInstallerFromMSI(tmpDir)
+	if msiErr != nil {
+		var err error
+		installPath, err = getInstallerFromOCI(tmpDir)
+		if err != nil {
+			return "", fmt.Errorf("%w, %w ", err, msiErr)
+		}
+	}
+	return installPath, nil
+}
+
+func getInstallerFromMSI(tmpDir string) (string, error) {
+	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
+	if err != nil {
+		return "", err
+	}
+
+	if len(msis) != 1 {
+		return "", fmt.Errorf("inncorect number of MSIs found %d in %s", len(msis), tmpDir)
 	}
 
 	adminInstallDir := path.Join(tmpDir, "datadog-installer")
-
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
@@ -98,7 +118,27 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
+		return "", fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, path.Join(adminInstallDir, "ProgramFiles64Folder", "Datadog", "Datadog Installer", "datadog-installer.exe")), nil
+	return paths.GetAdminInstallerBinaryPath(adminInstallDir), nil
+
+}
+
+func getInstallerFromOCI(tmpDir string) (string, error) {
+	installers, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer.exe"))
+	if err != nil {
+		return "", err
+	}
+	if len(installers) == 0 {
+		return "", fmt.Errorf("no installer found in %s: %w", tmpDir, fs.ErrNotExist)
+	}
+	return installers[0], nil
+}
+
+func getInstallerOCI(_ context.Context, env *env.Env) string {
+	version := "latest"
+	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[AgentPackage]
+	}
+	return oci.PackageURL(env, AgentPackage, version)
 }

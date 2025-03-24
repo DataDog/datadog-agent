@@ -12,6 +12,7 @@ on:
       - 'go.mod'
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
+  workflow_dispatch:
 
 permissions: {}
 

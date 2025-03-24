@@ -156,16 +156,9 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		SetStopWithSigtermExit0("core-agent").
 		SetStopWithSigtermExit0("trace-agent")
 
-	// assert timeout is already set
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "50min")
-
 	// shorten timeout for tests
-	s.host.Run("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d/")
-	defer s.host.Run("sudo rm -rf /etc/systemd/system/datadog-agent-exp.service.d/")
-	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=15" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+	s.host.Run(`sudo sed -i 's/3000s/15s/' /etc/systemd/system/datadog-agent-exp.service`)
 	s.host.Run(`sudo systemctl daemon-reload`)
-
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "15s")
 
 	timestamp := s.host.LastJournaldTimestamp()
 	s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
@@ -181,16 +174,15 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 
 		// start experiment dependency
 		Unordered(host.SystemdEvents().
-			Starting(agentUnitXP).
+			Started(agentUnitXP).
 			Started(traceUnitXP).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
 		// timeout
-		Timed(agentUnitXP).
 		Unordered(host.SystemdEvents().
-			Stopped(agentUnitXP).
+			Failed(agentUnitXP).
 			Stopped(traceUnitXP),
 		).
 
@@ -198,7 +190,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
+			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -214,16 +206,17 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("core-agent").
 		SetStopWithSigkill("trace-agent")
 
+	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
+
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
+		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1min 30s")
 		s.host.Run(fmt.Sprintf("sudo mkdir -p /etc/systemd/system/%s.d/", unit))
-		defer s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/", unit))
-		if unit != agentUnitXP {
-			s.host.Run(fmt.Sprintf(`echo -e "[Service]\nTimeoutStopSec=1" | sudo tee /etc/systemd/system/%s.d/override.conf > /dev/null`, unit))
-		} else {
-			// using timeout on core agent to trigger the kill
-			s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=5\n[Service]\nTimeoutStopSec=1" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+		s.host.Run(fmt.Sprintf(`echo -e "[Service]\nTimeoutStopSec=1" | sudo tee /etc/systemd/system/%s.d/override.conf > /dev/null`, unit))
+		if unit == agentUnitXP {
+			// Override the timeout for the agent unit
+			s.host.Run(`sudo sed -i 's/3000s/5s/' /etc/systemd/system/datadog-agent-exp.service`)
 		}
 		s.host.Run(`sudo systemctl daemon-reload`)
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1s")
@@ -243,20 +236,19 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 
 		// start experiment dependency
 		Unordered(host.SystemdEvents().
-			Starting(agentUnitXP).
+			Started(agentUnitXP).
 			Started(traceUnitXP).
 			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
 		// timeout
-		Timed(agentUnitXP).
 		Unordered(host.SystemdEvents().
-			SigtermTimed(agentUnitXP).
+			// No agent XP sigterm because the timeout is done with /usr/bin/timeout
 			SigtermTimed(traceUnitXP).
 			Sigkill(agentUnitXP).
 			Sigkill(traceUnitXP).
-			Stopped(agentUnitXP).
+			Failed(agentUnitXP).
 			Stopped(traceUnitXP),
 		).
 
@@ -264,7 +256,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
+			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -300,15 +292,15 @@ func (s *packageAgentSuite) TestExperimentExits() {
 
 			// start experiment dependency
 			Unordered(host.SystemdEvents().
-				Starting(agentUnitXP).
+				Started(agentUnitXP).
 				Started(traceUnitXP).
 				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnitXP),
 			).
 
 			// failed agent XP unit
-			Failed(agentUnitXP).
 			Unordered(host.SystemdEvents().
+				Failed(agentUnitXP).
 				Stopped(traceUnitXP),
 			).
 
@@ -316,7 +308,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
+				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)

@@ -28,6 +28,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -174,11 +175,14 @@ func TestInitData(t *testing.T) {
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
+	isFips, err := fips.Enabled()
+	assert.Nil(t, err)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",
@@ -190,7 +194,6 @@ func TestInitData(t *testing.T) {
 		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
-		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
 		"feature_cspm_host_benchmarks_enabled":       true,

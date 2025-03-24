@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"syscall"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -98,6 +99,10 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		WalkerOption: walker.Option{
 			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				if errors.Is(err, syscall.ESRCH) {
+					// ignore "no such process" errors when walking /proc/<pid>
 					return nil
 				}
 				return err

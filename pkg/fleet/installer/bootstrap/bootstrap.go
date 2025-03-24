@@ -15,6 +15,8 @@ import (
 const (
 	// InstallerPackage is the name of the Datadog Installer OCI package
 	InstallerPackage = "datadog-installer"
+	// AgentPackage is the name of the Datadog Agent OCI package
+	AgentPackage     = "datadog-agent"
 	installerBinPath = "bin/installer/installer"
 )
 
