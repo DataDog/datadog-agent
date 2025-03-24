@@ -614,6 +614,64 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.True(t, set)
 }
 
+func TestActionSetEmptyScope(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  "bar",
+						Size:   1,
+						Scope:  "process",
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	opts := rs.evalOpts
+
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	ctx := eval.NewContext(event)
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set := stringArrayScopedVar.GetValue(ctx)
+	assert.Nil(t, value)
+	assert.False(t, set)
+}
+
 func TestActionSetVariableConflict(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
