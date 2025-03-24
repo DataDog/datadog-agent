@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -104,11 +105,10 @@ type ProbeDependencies struct {
 }
 
 // NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib := nvml.New()
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
+func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
+	nvmlLib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return ProbeDependencies{}, fmt.Errorf("unable to get NVML library: %w", err)
 	}
 
 	return ProbeDependencies{

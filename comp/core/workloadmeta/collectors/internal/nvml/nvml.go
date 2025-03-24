@@ -19,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -245,22 +246,6 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-func (c *collector) getNVML() (nvml.Interface, error) {
-	if c.nvmlLib != nil {
-		return c.nvmlLib, nil
-	}
-
-	// TODO: Add configuration option for NVML library path
-	nvmlLib := nvml.New()
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return nil, fmt.Errorf("failed to initialize NVML library: %v", nvml.ErrorString(ret))
-	}
-
-	c.nvmlLib = nvmlLib
-	return nvmlLib, nil
-}
-
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
@@ -274,7 +259,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(_ context.Context) error {
-	nvmlLib, err := c.getNVML()
+	nvmlLib, err := ddnvml.GetNvmlLib()
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library: %w", err)
 	}

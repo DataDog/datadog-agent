@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -113,13 +114,9 @@ func (c *Check) ensureInitNVML() error {
 		return nil
 	}
 
-	// Initialize NVML library. if the config parameter doesn't exist or is
-	// empty string, the default value is used as defined in go-nvml library
-	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
+	nvmlLib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return fmt.Errorf("failed to get NVML library: %w", err)
 	}
 
 	c.nvmlLib = nvmlLib
