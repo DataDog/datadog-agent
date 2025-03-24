@@ -6,26 +6,42 @@
 package clusteragent
 
 import (
-	"io"
+	"bufio"
+	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 )
 
-// GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer) error {
-	// Verbose:  true - to show details like if was done a while ago
-	// RunLocal: true - do not attept to run in actual running agent but
-	//                  may need to implement it in future
-	// Include: connectivity-datadog-autodiscovery - limit to a single
-	//                  diagnose suite as it was done in this agent for
-	//                  a while. Most likely need to relax or add more
-	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{Verbose: true, RunLocal: true}
-	diagnoses, err := diagnose.RunLocalCheck(diagCfg, diagnose.RegisterConnectivityAutodiscovery)
-	if err != nil {
-		return err
-	}
-	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+// GetClusterAgentDiagnose dumps the diagnose checks to the writer
+func GetClusterAgentDiagnose(diagnoseComp diagnose.Component) ([]byte, error) {
+	return diagnoseComp.RunSuites("text", true)
+}
 
+// GetLocalClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
+func GetLocalClusterAgentDiagnose(diagnoseComp diagnose.Component) ([]byte, error) {
+	suite := diagnose.Suites{
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+		},
+	}
+
+	config := diagnose.Config{Verbose: true}
+
+	result, err := diagnoseComp.RunLocalSuite(suite, config)
+
+	if err != nil {
+		return nil, err
+	}
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
+	err = format.Text(writer, config, result)
+
+	if err != nil {
+		return nil, err
+	}
+	writer.Flush()
+	return b.Bytes(), nil
 }

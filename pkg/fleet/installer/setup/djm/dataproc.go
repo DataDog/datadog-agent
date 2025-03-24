@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	dataprocInjectorVersion   = "0.34.0-1"
+	dataprocInjectorVersion   = "0.35.0-1"
 	dataprocJavaTracerVersion = "1.46.1-1"
 	dataprocAgentVersion      = "7.63.3-1"
 )
@@ -62,6 +62,14 @@ func SetupDataproc(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigDataproc, debugLogs)
+	}
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDataproc
 
 	// Ensure tags are always attached with the metrics

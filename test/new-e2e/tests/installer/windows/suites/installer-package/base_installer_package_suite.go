@@ -7,6 +7,7 @@ package installertests
 
 import (
 	"embed"
+
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -54,9 +55,6 @@ func (s *baseInstallerPackageSuite) requireNotRunning() {
 		WithStatus("Stopped").
 		// no named pipe when service is not running
 		HasNoNamedPipe(consts.NamedPipe)
-	// no status when service is not running (no daemon/named pipe)
-	_, err := s.Installer().Status()
-	s.Require().Error(err)
 }
 
 func (s *baseInstallerPackageSuite) requireInstalled() {

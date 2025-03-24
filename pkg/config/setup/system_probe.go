@@ -437,6 +437,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

@@ -55,6 +55,18 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
+	id, err := UnmarshalString(data, ContainerIDLen)
+	if err != nil {
+		return 0, err
+	}
+
+	e.ContainerID = containerutils.ContainerID(id)
+
+	return ContainerIDLen, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
@@ -953,11 +965,17 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.CGroupContext)
+	read, err := UnmarshalBinary(data, &e.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
+
+	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {

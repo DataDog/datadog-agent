@@ -74,7 +74,7 @@ func (s *packageInstallerSuite) TestInstall() {
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-installer.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-installer.service")
 
 	state := s.host.State()
 	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")

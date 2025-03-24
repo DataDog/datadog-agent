@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.34.0-1"
+	emrInjectorVersion   = "0.35.0-1"
 	emrJavaTracerVersion = "1.46.1-1"
 	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
@@ -85,7 +85,6 @@ func SetupEmr(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
@@ -93,9 +92,17 @@ func SetupEmr(s *common.Setup) error {
 			Key:   "DD_DATA_STREAMS_ENABLED",
 			Value: "true",
 		}
-		s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = append(tracerEnvConfigEmr, DSMEnabled)
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, DSMEnabled)
 	}
-
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, debugLogs)
+	}
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)

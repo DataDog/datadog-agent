@@ -61,7 +61,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 // DirectScan performs a scan on a specific path
 func (c *Collector) DirectScan(ctx context.Context, path string) (sbom.Report, error) {
-	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts)
+	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
 }
 
 // NewCollectorForCWS creates a new host collector, specifically for CWS

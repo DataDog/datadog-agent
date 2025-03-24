@@ -25,6 +25,8 @@ type collectorConfigs struct {
 	reverseDNSTimeout            time.Duration
 	disableIntraVPCCollection    bool
 	networkDevicesNamespace      string
+	sourceExcludedConns          map[string][]string
+	destExcludedConns            map[string][]string
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -46,6 +48,8 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		reverseDNSEnabled:         agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
 		reverseDNSTimeout:         agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
 		disableIntraVPCCollection: agentConfig.GetBool("network_path.collector.disable_intra_vpc_collection"),
+		sourceExcludedConns:       agentConfig.GetStringMapStringSlice("network_path.collector.source_excludes"),
+		destExcludedConns:         agentConfig.GetStringMapStringSlice("network_path.collector.dest_excludes"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }

@@ -864,6 +864,7 @@ profiles:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -1529,6 +1530,7 @@ tags:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -1677,6 +1679,7 @@ tags:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.5",
@@ -1993,6 +1996,7 @@ metric_tags:
 {
   "subnet": "10.10.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "%s",

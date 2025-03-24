@@ -32,6 +32,7 @@ The payload is a JSON dict with the following fields
   - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
+  - `fips_mode` - **bool**: True if the Datadog Agent is in FIPS mode.
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
   - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
   - `config_site` - **string**: the configuration value `site` (scrubbed)
@@ -49,7 +50,6 @@ The payload is a JSON dict with the following fields
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
   - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
     enabled, otherwise the field is omitted.
-  - `feature_fips_enabled` - **bool**: True if the Datadog Agent is in FIPS mode (see: `fips.enabled` config option).
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
     config option).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled

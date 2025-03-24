@@ -72,6 +72,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
+            if ((old_entry->container.container_id[0] != '\0') && old_entry->container.cgroup_context.cgroup_flags && (old_entry->container.cgroup_context.cgroup_flags != CGROUP_MANAGER_SYSTEMD)) {
+                return 0;
+            }
+
             // copy cache data
             copy_proc_cache(old_entry, &new_entry);
         }
@@ -184,6 +188,8 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         } else if (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e') {
             cgroup_flags = CGROUP_MANAGER_SYSTEMD | CGROUP_SYSTEMD_SCOPE;
         }
+    } else {
+        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
     }
 
     new_entry.container.cgroup_context.cgroup_flags = cgroup_flags;

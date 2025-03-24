@@ -66,8 +66,6 @@ notify-slack:
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    # NOTE: The following command is a workaround to avoid this error due to conda when installing requirements: "ModuleNotFoundError: No module named '_distutils_hack'"
-    - python3 -m pip install -U setuptools -c https://github.com/DataDog/datadog-agent-buildimages/raw/refs/heads/main/requirements/constraints.txt
     - dda self dep sync -f legacy-tasks -f legacy-notifications
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

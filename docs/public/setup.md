@@ -92,7 +92,8 @@ pip install dda
 ```
 
 !!! warning
-    This method modifies the Python environment in which you choose to install.
+    - This method modifies the Python environment in which you choose to install.
+    - Python 3.12.x is required.
 
 ## Windows
 

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -39,13 +40,23 @@ var systemProbeNPMConfigStr string
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
 
+//go:embed config/process_agent_refresh_nix.yaml
+var processAgentRefreshStr string
+
+//go:embed config/core_agent_refresh_nix.yaml
+var coreAgentRefreshStr string
+
+//go:embed config/process_agent_refresh_win.yaml
+var processAgentWinRefreshStr string
+
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {
 	ProcessAgentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 		Error string `json:"error"`
@@ -53,8 +64,9 @@ type AgentStatus struct {
 	ProcessComponentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 	} `json:"processComponentStatus"`
@@ -367,4 +379,22 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string, process strin
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+}
+
+func assertAPIKey(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, fakeIntakeClient *fakeintakeclient.Client, coreAgent bool) {
+	// Assert that the status has the correct API key
+	statusMap := getAgentStatus(collect, agentClient)
+	endpoints := statusMap.ProcessAgentStatus.Expvars.Map.Endpoints
+	if coreAgent {
+		endpoints = statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
+	}
+	for _, key := range endpoints {
+		// Original key is obfuscated to the last 5 characters
+		assert.Equal(collect, key[0], apiKey[len(apiKey)-5:])
+	}
+
+	// Assert that the last received payload has the correct API key
+	lastAPIKey, err := fakeIntakeClient.GetLastProcessPayloadAPIKey()
+	require.NoError(collect, err)
+	assert.Equal(collect, apiKey, lastAPIKey)
 }

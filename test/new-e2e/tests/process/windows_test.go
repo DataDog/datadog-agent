@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type windowsTestSuite struct {
@@ -56,6 +58,41 @@ func (s *windowsTestSuite) SetupSuite() {
 	}
 }
 
+func (s *windowsTestSuite) TestAPIKeyRefresh() {
+	t := s.T()
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, `C:\TestFolder`)
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithSkipAPIKeyInConfig(),
+		agentparams.WithAgentConfig(processAgentWinRefreshStr),
+	}
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", true)...)
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithAgentOptions(
+				agentParams...,
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
+	}, 2*time.Minute, 10*time.Second)
+}
+
 func assertProcessCheck(t *testing.T, env *environments.Host) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, false)
@@ -75,6 +112,10 @@ func assertProcessCheck(t *testing.T, env *environments.Host) {
 }
 
 func (s *windowsTestSuite) TestProcessCheck() {
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
+	))
 	assertProcessCheck(s.T(), s.Env())
 }
 

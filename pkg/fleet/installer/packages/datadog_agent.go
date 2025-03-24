@@ -12,10 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -23,8 +26,12 @@ import (
 )
 
 const (
-	agentPackage       = "datadog-agent"
-	agentSymlink       = "/usr/bin/datadog-agent"
+	agentPackage = "datadog-agent"
+
+	agentSymlink   = "/usr/bin/datadog-agent"
+	stablePath     = "/opt/datadog-packages/datadog-agent/stable"
+	experimentPath = "/opt/datadog-packages/datadog-agent/experiment"
+
 	agentUnit          = "datadog-agent.service"
 	installerAgentUnit = "datadog-agent-installer.service"
 	traceAgentUnit     = "datadog-agent-trace.service"
@@ -73,7 +80,9 @@ var (
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "system-probe.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "system-probe.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 		{Path: "security-agent.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "security-agent.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
 	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
@@ -113,28 +122,12 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		span.Finish(err)
 	}()
 
-	// 1. Ensure the dd-agent user and group exist
-	if err = user.EnsureAgentUserAndGroup(ctx); err != nil {
-		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	err = PostInstallAgent(ctx, stablePath, "installer")
+	if err != nil {
+		return err
 	}
-	// 2. Add install info metadata if it doesn't exist
-	if err = installinfo.WriteInstallInfo("manual_update"); err != nil {
-		return fmt.Errorf("failed to write install info: %v", err)
-	}
-	// 3. Ensure config/log/package directories are created and have the correct permissions
-	if err = agentDirectories.Ensure(); err != nil {
-		return fmt.Errorf("failed to create directories: %v", err)
-	}
-	if err = agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
-		return fmt.Errorf("failed to set package ownerships: %v", err)
-	}
-	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to set config ownerships: %v", err)
-	}
-	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
-		return fmt.Errorf("failed to create symlink: %v", err)
-	}
-	// 4. Install the agent systemd units
+
+	// Install the agent systemd units
 	for _, unit := range stableUnits {
 		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
@@ -163,6 +156,62 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 			return err
 		}
 	}
+	return nil
+}
+
+// PostInstallAgent performs post-installation steps for the agent
+func PostInstallAgent(ctx context.Context, installPath string, caller string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "post_install_agent")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// 1. Ensure the dd-agent user and group exist
+	userHomePath := installPath
+	if installPath == stablePath || installPath == experimentPath {
+		userHomePath = "/opt/datadog-packages"
+	}
+	if err = user.EnsureAgentUserAndGroup(ctx, userHomePath); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+
+	// 2. Ensure config/log/package directories are created and have the correct permissions
+	if err = agentDirectories.Ensure(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
+	}
+	if err = agentPackagePermissions.Ensure(installPath); err != nil {
+		return fmt.Errorf("failed to set package ownerships: %v", err)
+	}
+	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+
+	// 3. Create symlink to the agent binary
+	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
+		return fmt.Errorf("failed to create symlink: %v", err)
+	}
+
+	// 4. Set up SELinux permissions
+	if err = selinux.SetAgentPermissions("/etc/datadog-agent", installPath); err != nil {
+		log.Warnf("failed to set SELinux permissions: %v", err)
+	}
+
+	// 5. Handle install info
+	if err = installinfo.WriteInstallInfo(caller); err != nil {
+		return fmt.Errorf("failed to write install info: %v", err)
+	}
+
+	// 6. Call post.py for integration persistence. Allowed to fail.
+	// XXX: We should port this to Go
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
+		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("failed to run integration persistence in post.py: %s\n", err.Error())
+		}
+	}
+
 	return nil
 }
 
@@ -214,8 +263,8 @@ func RemoveAgent(ctx context.Context) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	if err := agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
-		return fmt.Errorf("failed to set package ownerships: %v", err)
+	if err := PostInstallAgent(ctx, experimentPath, "installer"); err != nil {
+		return err
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
@@ -224,6 +273,9 @@ func StartAgentExperiment(ctx context.Context) error {
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
+	if err := PostInstallAgent(ctx, stablePath, "installer"); err != nil {
+		return err
+	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
 	return systemd.StartUnit(ctx, agentUnit, "--no-block")
