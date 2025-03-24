@@ -223,7 +223,7 @@ func enableEmrLogs(s *common.Setup) {
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
 			LogProcessingRules: []common.LogProcessingRule{
-				{Type: "multi_line", Name: "dataframe_header_log", Pattern: "\\|[\\sa-zA-Z-_.\\|]+\\|$\n"},
+				{Type: "multi_line", Name: "dataframe_header_log", Pattern: "`\\|[\\sa-zA-Z-_.\\|]+\\|$`gm"},
 			},
 		},
 		{
