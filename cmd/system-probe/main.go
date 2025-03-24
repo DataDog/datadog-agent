@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func main() {
