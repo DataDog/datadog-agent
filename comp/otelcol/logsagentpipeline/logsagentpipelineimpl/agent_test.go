@@ -17,7 +17,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
