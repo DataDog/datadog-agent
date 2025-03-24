@@ -31,11 +31,12 @@ import (
 )
 
 const (
-	defaultKillActionFlushDelay = 2 * time.Second
-	disarmerCacheFlushInterval  = 5 * time.Second
+	disarmerCacheFlushInterval = 5 * time.Second
 	// killActionDisarmerMaxPeriod represents the maximum disarmer period
 	killActionDisarmerMaxPeriod = time.Second * 60
 	killQueueTicker             = time.Millisecond * 250
+	killActionFlushDelay        = 2 * time.Second
+	killActionQueuedFlushDelay  = killActionDisarmerMaxPeriod + killActionFlushDelay
 )
 
 // ProcessKiller defines a process killer structure
@@ -155,10 +156,20 @@ func (p *ProcessKiller) FlushPendingReports() {
 		report.Lock()
 		defer report.Unlock()
 
-		if time.Now().After(report.KilledAt.Add(defaultKillActionFlushDelay)) {
+		now := time.Now()
+
+		// for kills that are performed, we wait for 2sec until we send the event with report
+		if report.Status == KillActionStatusPerformed && now.After(report.KilledAt.Add(killActionFlushDelay)) {
 			report.resolved = true
 			return true
 		}
+
+		// for kills that were enqueued, we wait for 1 min (the max default period of any disarmer) + 2sec before sending the event with report
+		if report.Status == KillActionStatusQueued && now.After(report.DetectedAt.Add(killActionQueuedFlushDelay)) {
+			report.resolved = true
+			return true
+		}
+
 		return false
 	})
 }
