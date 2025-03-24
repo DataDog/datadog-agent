@@ -94,12 +94,15 @@ func (cm *ReaderConfigManager) update() error {
 		for pid, procInfo := range cm.state {
 			// cleanup dead procs
 			if _, running := updatedState[pid]; !running {
+				procInfo.Lock()
 				procInfo.CloseAllUprobeLinks()
 				delete(cm.state, pid)
+				procInfo.Unlock()
 			}
 		}
 
 		for pid, procInfo := range updatedState {
+			procInfo.Lock()
 			if _, tracked := cm.state[pid]; !tracked {
 				for _, probe := range procInfo.GetProbes() {
 					// install all probes from new process
@@ -114,6 +117,7 @@ func (cm *ReaderConfigManager) update() error {
 					cm.callback(procInfo, updatedProbe)
 				}
 			}
+			procInfo.Unlock()
 		}
 		cm.state = updatedState
 	}
@@ -204,7 +208,7 @@ func (r *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
 }
 
 func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) *ditypes.ProbesByID {
-	probesByID := &ditypes.ProbesByID{}
+	probesByID := ditypes.NewProbesByID()
 	for id, config := range configsByID {
 		probesByID.Set(id, config.toProbe(service))
 	}

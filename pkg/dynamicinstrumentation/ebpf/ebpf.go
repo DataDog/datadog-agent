@@ -123,7 +123,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	}
 
 	if procInfo.InstrumentationObjects == nil {
-		procInfo.InstrumentationObjects = &ditypes.InstrumentationObjectsMap{}
+		procInfo.InstrumentationObjects = ditypes.NewInstrumentationObjectsMap()
 	}
 	procInfo.InstrumentationObjects.Set(probe.ID, bpfObject)
 

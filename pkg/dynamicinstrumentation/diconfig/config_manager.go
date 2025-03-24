@@ -199,9 +199,12 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
+		procInfo.Lock()
+
 		// An empty config means that this probe has been removed for this process
 		if configEventParams[2].ValueStr == "" {
 			cm.diProcs.DeleteProbe(procInfo.PID, configPath.ProbeUUID.String())
+			procInfo.Unlock()
 			continue
 		}
 
@@ -210,6 +213,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		if err != nil {
 			diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, configPath.ProbeUUID.String(), "ATTACH_ERROR", err.Error())
 			log.Errorf("could not unmarshal configuration, cannot apply: %v (Probe-ID: %s)\n", err, configPath.ProbeUUID)
+			procInfo.Unlock()
 			continue
 		}
 
@@ -239,11 +243,13 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			err := AnalyzeBinary(procInfo)
 			if err != nil {
 				log.Errorf("couldn't inspect binary: %v\n", err)
+				procInfo.Unlock()
 				continue
 			}
 
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
+			procInfo.Unlock()
 		}
 	}
 }

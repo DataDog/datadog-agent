@@ -61,7 +61,7 @@ func TestAnalyzeBinary(t *testing.T) {
 			procInfo := ditypes.ProcessInfo{
 				BinaryPath: binPath,
 				ProbesByID: func() *ditypes.ProbesByID {
-					p := &ditypes.ProbesByID{}
+					p := ditypes.NewProbesByID()
 					p.Set(testCases[i].FuncName, &ditypes.Probe{
 						ServiceName: "sample",
 						FuncName:    testCases[i].FuncName,

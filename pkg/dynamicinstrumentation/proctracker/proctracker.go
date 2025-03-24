@@ -247,6 +247,9 @@ func (pt *ProcessTracker) currentState() map[ditypes.PID]*ditypes.ProcessInfo {
 			PID:         pid,
 			BinaryPath:  bin.binaryPath,
 			ServiceName: bin.serviceName,
+			ProbesByID:  ditypes.NewProbesByID(),
+			InstrumentationUprobes: ditypes.NewInstrumentationUprobesMap(),
+			InstrumentationObjects: ditypes.NewInstrumentationObjectsMap(),
 		}
 	}
 	return state

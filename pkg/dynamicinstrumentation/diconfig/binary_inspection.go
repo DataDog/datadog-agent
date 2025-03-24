@@ -25,12 +25,14 @@ func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
 	var inspectedAtLeastOneBinary bool
 	for i := range configEvent {
+		configEvent[i].Lock()
 		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
 			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
 		} else {
 			inspectedAtLeastOneBinary = true
 		}
+		configEvent[i].Unlock()
 	}
 
 	if !inspectedAtLeastOneBinary {

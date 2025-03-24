@@ -71,44 +71,63 @@ func (procs DIProcs) GetProbe(pid PID, probeID ProbeID) *Probe {
 	return procInfo.GetProbe(probeID)
 }
 
-// ProbesByID maps probe IDs with probes using a thread-safe map
+// ProbesByID maps probe IDs with probes
 type ProbesByID struct {
-	sync.Map
+	probes map[ProbeID]*Probe
+}
+
+// NewProbesByID creates a new ProbesByID map
+func NewProbesByID() *ProbesByID {
+	return &ProbesByID{
+		probes: make(map[ProbeID]*Probe),
+	}
 }
 
 // Get returns a probe by ID
 func (p *ProbesByID) Get(id ProbeID) *Probe {
-	if value, ok := p.Load(id); ok {
-		return value.(*Probe)
+	if p == nil || p.probes == nil {
+		return nil
 	}
-	return nil
+	return p.probes[id]
 }
 
 // Set stores a probe by ID
 func (p *ProbesByID) Set(id ProbeID, probe *Probe) {
-	p.Store(id, probe)
+	if p == nil {
+		return
+	}
+	if p.probes == nil {
+		p.probes = make(map[ProbeID]*Probe)
+	}
+	p.probes[id] = probe
 }
 
 // Delete removes a probe by ID
 func (p *ProbesByID) Delete(id ProbeID) {
-	p.Map.Delete(id)
+	if p == nil || p.probes == nil {
+		return
+	}
+	delete(p.probes, id)
 }
 
 // Range calls f sequentially for each key and value present in the map
 func (p *ProbesByID) Range(f func(id ProbeID, probe *Probe) bool) {
-	p.Map.Range(func(key, value any) bool {
-		return f(key.(ProbeID), value.(*Probe))
-	})
+	if p == nil || p.probes == nil {
+		return
+	}
+	for id, probe := range p.probes {
+		if !f(id, probe) {
+			break
+		}
+	}
 }
 
 // Len returns the number of items in the map
 func (p *ProbesByID) Len() int {
-	count := 0
-	p.Range(func(_ ProbeID, _ *Probe) bool {
-		count++
-		return true
-	})
-	return count
+	if p == nil || p.probes == nil {
+		return 0
+	}
+	return len(p.probes)
 }
 
 // SetProbe associates instrumentation information with a probe for a specific process
@@ -125,7 +144,7 @@ func (procs DIProcs) SetProbe(pid PID, service, typeName, method string, probeID
 	}
 
 	if procInfo.ProbesByID == nil {
-		procInfo.ProbesByID = &ProbesByID{}
+		procInfo.ProbesByID = NewProbesByID()
 	}
 	procInfo.ProbesByID.Set(probeID.String(), probe)
 	// TODO: remove this from here
@@ -168,64 +187,106 @@ func (procs DIProcs) SetRuntimeID(pid PID, runtimeID string) {
 	proc.RuntimeID = runtimeID
 }
 
-// InstrumentationUprobesMap is a thread-safe map for storing uprobe links
+// InstrumentationUprobesMap is a map for storing uprobe links
 type InstrumentationUprobesMap struct {
-	sync.Map
+	uprobes map[ProbeID]*link.Link
+}
+
+// NewInstrumentationUprobesMap creates a new InstrumentationUprobesMap
+func NewInstrumentationUprobesMap() *InstrumentationUprobesMap {
+	return &InstrumentationUprobesMap{
+		uprobes: make(map[ProbeID]*link.Link),
+	}
 }
 
 // Get returns an uprobe link by ID
 func (p *InstrumentationUprobesMap) Get(id ProbeID) *link.Link {
-	if value, ok := p.Load(id); ok {
-		return value.(*link.Link)
+	if p == nil || p.uprobes == nil {
+		return nil
 	}
-	return nil
+	return p.uprobes[id]
 }
 
 // Set stores an uprobe link by ID
 func (p *InstrumentationUprobesMap) Set(id ProbeID, l *link.Link) {
-	p.Store(id, l)
+	if p == nil {
+		return
+	}
+	if p.uprobes == nil {
+		p.uprobes = make(map[ProbeID]*link.Link)
+	}
+	p.uprobes[id] = l
 }
 
 // Delete removes an uprobe link by ID
 func (p *InstrumentationUprobesMap) Delete(id ProbeID) {
-	p.Map.Delete(id)
+	if p == nil || p.uprobes == nil {
+		return
+	}
+	delete(p.uprobes, id)
 }
 
 // Range calls f sequentially for each key and value present in the map
 func (p *InstrumentationUprobesMap) Range(f func(id ProbeID, l *link.Link) bool) {
-	p.Map.Range(func(key, value any) bool {
-		return f(key.(ProbeID), value.(*link.Link))
-	})
+	if p == nil || p.uprobes == nil {
+		return
+	}
+	for id, l := range p.uprobes {
+		if !f(id, l) {
+			break
+		}
+	}
 }
 
-// InstrumentationObjectsMap is a thread-safe map for storing eBPF collections
+// InstrumentationObjectsMap is a map for storing eBPF collections
 type InstrumentationObjectsMap struct {
-	sync.Map
+	objects map[ProbeID]*ebpf.Collection
+}
+
+// NewInstrumentationObjectsMap creates a new InstrumentationObjectsMap
+func NewInstrumentationObjectsMap() *InstrumentationObjectsMap {
+	return &InstrumentationObjectsMap{
+		objects: make(map[ProbeID]*ebpf.Collection),
+	}
 }
 
 // Get returns an eBPF collection by ID
 func (p *InstrumentationObjectsMap) Get(id ProbeID) *ebpf.Collection {
-	if value, ok := p.Load(id); ok {
-		return value.(*ebpf.Collection)
+	if p == nil || p.objects == nil {
+		return nil
 	}
-	return nil
+	return p.objects[id]
 }
 
 // Set stores an eBPF collection by ID
 func (p *InstrumentationObjectsMap) Set(id ProbeID, c *ebpf.Collection) {
-	p.Store(id, c)
+	if p == nil {
+		return
+	}
+	if p.objects == nil {
+		p.objects = make(map[ProbeID]*ebpf.Collection)
+	}
+	p.objects[id] = c
 }
 
 // Delete removes an eBPF collection by ID
 func (p *InstrumentationObjectsMap) Delete(id ProbeID) {
-	p.Map.Delete(id)
+	if p == nil || p.objects == nil {
+		return
+	}
+	delete(p.objects, id)
 }
 
 // Range calls f sequentially for each key and value present in the map
 func (p *InstrumentationObjectsMap) Range(f func(id ProbeID, c *ebpf.Collection) bool) {
-	p.Map.Range(func(key, value any) bool {
-		return f(key.(ProbeID), value.(*ebpf.Collection))
-	})
+	if p == nil || p.objects == nil {
+		return
+	}
+	for id, c := range p.objects {
+		if !f(id, c) {
+			break
+		}
+	}
 }
 
 // ProcessInfo represents a process, it contains the information relevant to
@@ -238,6 +299,7 @@ type ProcessInfo struct {
 
 	TypeMap *TypeMap
 
+	sync.RWMutex
 	ConfigurationUprobe    *link.Link
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
@@ -246,6 +308,9 @@ type ProcessInfo struct {
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
+	if pi == nil {
+		return nil, fmt.Errorf("process info is nil")
+	}
 	if pi.ProbesByID == nil {
 		return nil, fmt.Errorf("probes map not initialized for process %s", pi.ServiceName)
 	}
@@ -280,17 +345,20 @@ func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
 
 // CloseConfigUprobe closes the uprobe connection for the configuration probe
 func (pi *ProcessInfo) CloseConfigUprobe() error {
-	if pi.ConfigurationUprobe != nil {
-		return (*pi.ConfigurationUprobe).Close()
+	if pi == nil || pi.ConfigurationUprobe == nil {
+		return nil
 	}
-	return nil
+	return (*pi.ConfigurationUprobe).Close()
 }
 
 // SetUprobeLink associates the uprobe link with the specified probe
 // in the tracked process
 func (pi *ProcessInfo) SetUprobeLink(probeID ProbeID, l *link.Link) {
+	if pi == nil {
+		return
+	}
 	if pi.InstrumentationUprobes == nil {
-		pi.InstrumentationUprobes = &InstrumentationUprobesMap{}
+		pi.InstrumentationUprobes = NewInstrumentationUprobesMap()
 	}
 	pi.InstrumentationUprobes.Set(probeID, l)
 }
@@ -298,7 +366,7 @@ func (pi *ProcessInfo) SetUprobeLink(probeID ProbeID, l *link.Link) {
 // CloseUprobeLink closes the probe and deletes the link for the probe
 // in the tracked process
 func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
-	if pi.InstrumentationUprobes == nil {
+	if pi == nil || pi.InstrumentationUprobes == nil {
 		return nil
 	}
 	if l := pi.InstrumentationUprobes.Get(probeID); l != nil {
@@ -312,7 +380,7 @@ func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
 // CloseAllUprobeLinks closes all probes and deletes their links for all probes
 // in the tracked process
 func (pi *ProcessInfo) CloseAllUprobeLinks() {
-	if pi.InstrumentationUprobes == nil {
+	if pi == nil || pi.InstrumentationUprobes == nil {
 		return
 	}
 	pi.InstrumentationUprobes.Range(func(id ProbeID, _ *link.Link) bool {
@@ -329,7 +397,7 @@ func (pi *ProcessInfo) CloseAllUprobeLinks() {
 
 // GetProbes returns references to each probe in the associated process
 func (pi *ProcessInfo) GetProbes() []*Probe {
-	if pi.ProbesByID == nil {
+	if pi == nil || pi.ProbesByID == nil {
 		return nil
 	}
 	probes := make([]*Probe, 0, pi.ProbesByID.Len())
@@ -342,7 +410,7 @@ func (pi *ProcessInfo) GetProbes() []*Probe {
 
 // GetProbe returns a reference to the specified probe in the associated process
 func (pi *ProcessInfo) GetProbe(probeID ProbeID) *Probe {
-	if pi.ProbesByID == nil {
+	if pi == nil || pi.ProbesByID == nil {
 		return nil
 	}
 	return pi.ProbesByID.Get(probeID)
@@ -350,6 +418,9 @@ func (pi *ProcessInfo) GetProbe(probeID ProbeID) *Probe {
 
 // DeleteProbe closes the uprobe link and disassociates the probe in the associated process
 func (pi *ProcessInfo) DeleteProbe(probeID ProbeID) {
+	if pi == nil {
+		return
+	}
 	err := pi.CloseUprobeLink(probeID)
 	if err != nil {
 		log.Infof("could not close uprobe link: %s", err)
