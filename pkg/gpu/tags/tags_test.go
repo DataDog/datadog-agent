@@ -13,8 +13,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestGetTags(t *testing.T) {
