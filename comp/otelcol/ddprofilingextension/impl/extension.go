@@ -118,16 +118,16 @@ func (e *ddExtension) startForOCB() error {
 
 	var tags strings.Builder
 	// agent_version is required by profiling backend. Use version of comp/trace/agent/def, and fallback to 7.64.0.
-	agent_version := "7.64.0"
+	agentVersion := "7.64.0"
 	buildInfo, ok := debug.ReadBuildInfo()
 	if ok {
 		for _, module := range buildInfo.Deps {
 			if module.Path == "github.com/DataDog/datadog-agent/comp/trace/agent/def" {
-				agent_version = module.Version
+				agentVersion = module.Version
 			}
 		}
 	}
-	tags.WriteString(fmt.Sprintf("agent_version:%s", agent_version))
+	tags.WriteString(fmt.Sprintf("agent_version:%s", agentVersion))
 	if e.cfg.ProfilerOptions.Env != "" {
 		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
 	}

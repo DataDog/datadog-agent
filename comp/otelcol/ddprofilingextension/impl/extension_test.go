@@ -183,7 +183,7 @@ func TestOSSExtension(t *testing.T) {
 
 type fargateSourceProvider struct{}
 
-func (*fargateSourceProvider) Source(ctx context.Context) (source.Source, error) {
+func (*fargateSourceProvider) Source(_ context.Context) (source.Source, error) {
 	return source.Source{
 		Kind:       "task_arn",
 		Identifier: "arn:aws:ecs:us-east-1:123456789012:cluster/default",
@@ -242,7 +242,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 
 type hostSourceProvider struct{}
 
-func (*hostSourceProvider) Source(ctx context.Context) (source.Source, error) {
+func (*hostSourceProvider) Source(_ context.Context) (source.Source, error) {
 	return source.Source{
 		Kind:       "host",
 		Identifier: "i-123456789",
