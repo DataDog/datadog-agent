@@ -14,7 +14,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type nvmlCache struct {
@@ -44,8 +45,16 @@ func (c *nvmlCache) ensureInitWithOpts(opts nvmlCacheInitOpts) error {
 	}
 
 	if c.lib == nil {
-		config := gpuconfig.New()
-		c.lib = opts.nvmlNewFunc(nvml.WithLibraryPath(config.NVMLLibraryPath))
+		var libpath string
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			cfg := pkgconfigsetup.SystemProbe()
+			libpath = cfg.GetString(sysconfig.GpuNS("nvml_lib_path"))
+		} else {
+			cfg := pkgconfigsetup.Datadog()
+			libpath = cfg.GetString("nvml_lib_path")
+		}
+
+		c.lib = opts.nvmlNewFunc(nvml.WithLibraryPath(libpath))
 	}
 
 	ret := c.lib.Init()

@@ -30,8 +30,6 @@ type Config struct {
 	ScanProcessesInterval time.Duration
 	// InitialProcessSync indicates whether the probe should sync the process list on startup.
 	InitialProcessSync bool
-	// NVMLLibraryPath is the path of the native libnvidia-ml.so library
-	NVMLLibraryPath string
 	// ConfigureCgroupPerms indicates whether the probe should configure cgroup permissions for GPU monitoring
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
@@ -45,7 +43,6 @@ func New() *Config {
 		Config:                *ebpf.NewConfig(),
 		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
-		NVMLLibraryPath:       spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
 		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
 		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
