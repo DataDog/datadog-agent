@@ -49,7 +49,7 @@ python.toolchain(
 ##################
 
 # Patch to properly handle Windows "response files".
-# TODO: Upstream fix and remove patch.
+# TODO: Remove patch when updating to 0.54.0 as that will include the fix
 single_version_override(
     module_name = "rules_go",
     patches = [
