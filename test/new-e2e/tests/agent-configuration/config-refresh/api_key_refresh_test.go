@@ -133,6 +133,8 @@ additional_endpoints:
 
 	// Verify initial API keys in status
 	status := v.Env().Agent.Client.Status()
+	v.T().Logf("WACKTEST1 status.Content", status.Content)
+
 	assert.Contains(v.T(), status.Content, "API key ending with 12345")
 	assert.Contains(v.T(), status.Content, "https://app.datadoghq.com - API Keys ending with:")
 	assert.Contains(v.T(), status.Content, "https://app.datadoghq.eu - API Key ending with:")
@@ -167,7 +169,7 @@ additional_endpoints:
 
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", v.Env().FakeIntake.Client().URL(), endpoint)
-		v.T().Logf("Checking FakeIntake payloads for endpoint: %s", endpoint)
+		v.T().Logf("WACKTEST2 Checking FakeIntake payloads for endpoint: %s", endpoint)
 
 		// First check if we have any payloads
 		resp, err := http.Get(url)
@@ -177,13 +179,13 @@ additional_endpoints:
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(v.T(), err, "Failed to read FakeIntake response body for %s", endpoint)
-		v.T().Logf("Raw response body for %s: %s", endpoint, string(body))
+		v.T().Logf("WACKTEST3 Raw response body for %s: %s", endpoint, string(body))
 
 		// Parse JSON response into a slice of payloads
 		var payloads []map[string]interface{}
 		err = json.Unmarshal(body, &payloads)
 		require.NoError(v.T(), err, "Failed to decode FakeIntake JSON response for %s", endpoint)
-		v.T().Logf("Number of payloads found for %s: %d", endpoint, len(payloads))
+		v.T().Logf("WACKTEST4 Number of payloads found for %s: %d", endpoint, len(payloads))
 
 		// Verify we have payloads
 		require.NotEmpty(v.T(), payloads, "No payloads found in FakeIntake for endpoint %s", endpoint)
@@ -191,12 +193,12 @@ additional_endpoints:
 		// Collect all API keys seen in payloads
 		foundAPIKeys := map[string]bool{}
 		for i, payload := range payloads {
-			v.T().Logf("Payload %d for %s: %+v", i, endpoint, payload)
+			v.T().Logf("WACKTEST5 Payload %d for %s: %+v", i, endpoint, payload)
 			if apiKey, exists := payload["api_key"].(string); exists {
 				foundAPIKeys[strings.TrimSpace(apiKey)] = true
-				v.T().Logf("Found API key in payload %d: %s", i, apiKey)
+				v.T().Logf("WACKTEST6 Found API key in payload %d: %s", i, apiKey)
 			} else {
-				v.T().Logf("No API key found in payload %d", i)
+				v.T().Logf("WACKTEST7 No API key found in payload %d", i)
 			}
 		}
 
@@ -216,9 +218,9 @@ additional_endpoints:
 		for _, updatedKey := range updatedAPIKeys {
 			if foundAPIKeys[updatedKey] {
 				foundCount++
-				v.T().Logf("Found expected API key: %s", updatedKey)
+				v.T().Logf("WACKTEST8 Found expected API key: %s", updatedKey)
 			} else {
-				v.T().Logf("Missing expected API key: %s", updatedKey)
+				v.T().Logf("WACKTEST9 Missing expected API key: %s", updatedKey)
 			}
 		}
 
