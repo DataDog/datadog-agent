@@ -123,9 +123,9 @@ new-agent_dmg-x64-a7:
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
 
-    - brew list | grep gettext
-    - brew uses gettext --installed
-    - ls /usr/local/opt/gettext || true
+    # - brew list | grep gettext
+    # - brew uses gettext --installed
+    # - ls /usr/local/opt/gettext || true
 
     # - |
     #   if [ -n "$CUSTOM_HOMEBREW" ]; then
