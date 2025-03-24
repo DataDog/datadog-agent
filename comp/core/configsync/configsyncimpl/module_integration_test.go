@@ -50,7 +50,7 @@ func TestOptionalModule(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fetchonlyimpl.Module(),
+		fetchonlyimpl.MockModule(),
 		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),

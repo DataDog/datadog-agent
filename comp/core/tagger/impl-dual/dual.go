@@ -60,11 +60,11 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 
 	localRequires := local.Requires{
-		Config:    req.Config,
-		Telemetry: req.Telemetry,
-		Wmeta:     req.Wmeta,
-		Lc:        req.Lc,
-		Log:       req.Log,
+		Config:       req.Config,
+		Telemetry:    req.Telemetry,
+		WorkloadMeta: req.Wmeta,
+		Lc:           req.Lc,
+		Log:          req.Log,
 	}
 	provide, err := local.NewComponent(localRequires)
 

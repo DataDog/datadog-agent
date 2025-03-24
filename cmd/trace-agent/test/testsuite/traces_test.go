@@ -7,6 +7,7 @@ package testsuite
 
 import (
 	_ "embed"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -101,7 +102,7 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			payloadsEqual(t, append(p[:2], p[3:]...), v)
+			payloadsEqual(t, slices.Delete(p, 2, 3), v)
 		})
 	})
 

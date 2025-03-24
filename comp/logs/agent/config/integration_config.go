@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Logs source types
@@ -306,6 +307,33 @@ func (c *LogsConfig) validateTailingMode() error {
 	return nil
 }
 
+// LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
+// for compatibility reasons.
+func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
+
+	// Handle explicit user initiated fallback to V1
+	if coreConfig.GetBool("logs_config.force_auto_multi_line_detection_v1") {
+		log.Info("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the force_auto_multi_line_detection_v1 is set to true.")
+		return c.AutoMultiLineEnabled(coreConfig)
+	}
+
+	// Handle transparent fallback if V1 was explicitly configured.
+	if c.AutoMultiLineSampleSize != 0 || coreConfig.IsConfigured("logs_config.auto_multi_line_default_sample_size") {
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the sample size has been set to a non-default value.")
+		return c.AutoMultiLineEnabled(coreConfig)
+	}
+	if c.AutoMultiLineMatchThreshold != 0 || coreConfig.IsConfigured("logs_config.auto_multi_line_default_match_threshold") {
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match threshold has been set to a non-default value.")
+		return c.AutoMultiLineEnabled(coreConfig)
+	}
+
+	if coreConfig.IsConfigured("logs_config.auto_multi_line_default_match_timeout") {
+		log.Warn("Auto multi line detection falling back to legacy mode for log source:", c.Source, "because the match timeout has been set to a non-default value.")
+		return c.AutoMultiLineEnabled(coreConfig)
+	}
+	return false
+}
+
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
@@ -313,22 +341,11 @@ func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
 	}
+	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
+		return true
+	}
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
-}
-
-// ExperimentalAutoMultiLineEnabled determines whether experimental auto multi line detection is enabled for this config.
-// NOTE - this setting is subject to change as the feature is still experimental and being tested.
-// If logs_config.experimental_auto_multi_line_detection, but the log source has AutoMultiLine explicitly set to false,
-// disable the feature.
-func (c *LogsConfig) ExperimentalAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	if !coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
-		return false
-	}
-
-	if c.AutoMultiLine != nil && !*c.AutoMultiLine {
-		return false
-	}
-	return true
 }
 
 // ShouldProcessRawMessage returns if the raw message should be processed instead

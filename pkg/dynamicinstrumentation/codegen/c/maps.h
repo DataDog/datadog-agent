@@ -25,7 +25,10 @@ BPF_PERCPU_ARRAY_MAP(temp_storage_array, __u64[4000], 1);
 // when reading the values in the collection.
 BPF_HASH_MAP(collection_limits, char[6], __u16, 1024);
 
-// The param_stack map is used as a stack for the location expressions
-// to operate on values and addresses.
-BPF_STACK_MAP(param_stack, __u64, 2048);
+// The param_stack_cpu_<i> map is used as a stack for the location expressions
+// to operate on values and addresses. We use templating to create per-cpu map
+{{- range $i, $val := until .InstrumentationInfo.InstrumentationOptions.NumCPUs }}
+BPF_STACK_MAP(param_stack_cpu_{{$i}}, __u64, 2048);
+{{- end }}
+
 #endif

@@ -96,6 +96,10 @@ func identityValFunc(s string) envValFunc {
 	return func(string) string { return s }
 }
 
+func trueValFunc() envValFunc {
+	return identityValFunc("true")
+}
+
 func joinValFunc(value string, separator string) envValFunc {
 	return func(predefinedVal string) string {
 		if predefinedVal == "" {
