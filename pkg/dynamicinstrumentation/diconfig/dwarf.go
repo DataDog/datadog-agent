@@ -53,7 +53,6 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 
 entryLoop:
 	for {
-
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
@@ -174,13 +173,11 @@ entryLoop:
 
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
-
 				typeReader.Seek(entry.Field[i].Val.(dwarf.Offset))
 				typeEntry, err := typeReader.Next()
 				if err != nil {
 					return nil, err
 				}
-
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
@@ -527,25 +524,6 @@ func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dw
 	return outerType, nil
 }
 
-func correctStructSizes(params []*ditypes.Parameter) {
-	for i := range params {
-		correctStructSize(params[i])
-	}
-}
-
-// correctStructSize sets the size of structs to the number of fields in the struct
-func correctStructSize(param *ditypes.Parameter) {
-	if param == nil || len(param.ParameterPieces) == 0 {
-		return
-	}
-	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
-		param.TotalSize = int64(len(param.ParameterPieces))
-	}
-	for i := range param.ParameterPieces {
-		correctStructSize(param.ParameterPieces[i])
-	}
-}
-
 func copyTree(dst, src *[]*ditypes.Parameter) {
 	if dst == nil || src == nil || len(*src) == 0 {
 		return
@@ -565,7 +543,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 func kindIsSupported(k reflect.Kind) bool {
 	if k == reflect.Map ||
 		k == reflect.UnsafePointer ||
-		k == reflect.Chan {
+		k == reflect.Chan ||
+		k == reflect.Float32 ||
+		k == reflect.Float64 ||
+		k == reflect.Interface {
 		return false
 	}
 	return true
@@ -612,8 +593,9 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 		kind = uint(reflect.UnsafePointer)
 	}
 	return &ditypes.Parameter{
-		Type:             fmt.Sprintf("unsupported-%s", reflect.Kind(kind).String()),
+		Type:             reflect.Kind(kind).String(),
 		Kind:             kind,
 		NotCaptureReason: ditypes.Unsupported,
+		DoNotCapture:     true,
 	}
 }

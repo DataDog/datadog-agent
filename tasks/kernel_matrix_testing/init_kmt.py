@@ -36,7 +36,7 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
             raise Exit("Aborted by user")
 
     if is_installed("dda"):
-        ctx.run("dda self dep sync -f legacy-kernel-matrix-testing")
+        ctx.run("dda inv --feat legacy-kernel-matrix-testing")
     else:
         reqs_file = Path(__file__).parent / "requirements.txt"
         ctx.run(f"pip3 install -r {reqs_file.absolute()}")

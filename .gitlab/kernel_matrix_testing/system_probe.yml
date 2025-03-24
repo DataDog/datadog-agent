@@ -27,10 +27,7 @@ upload_dependencies_sysprobe_arm64:
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - !reference [.login_to_docker_readonly_crane]
     # Pull base images
     - mkdir $KMT_DOCKERS
     - dda inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
@@ -231,6 +228,7 @@ kmt_run_sysprobe_tests_x64:
           - "centos_7.9"
           - "centos_8"
           - "rocky_9.4"
+          - "rocky_8.4"
         TEST_SET: ["only_usm", "no_usm"]
   after_script:
     - !reference [.collect_outcomes_kmt]

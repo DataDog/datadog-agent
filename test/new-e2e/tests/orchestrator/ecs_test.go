@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -17,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 )
 
@@ -25,9 +29,15 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
+	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsecs.Provisioner(
-			awsecs.WithTestingWorkload(),
+			awsecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				return cpustress.EcsAppDefinition(e, clusterArn)
+			}),
+			awsecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+			}),
 			awsecs.WithECSOptions(
 				ecs.WithFargateCapacityProvider(),
 				ecs.WithLinuxNodeGroup(),
@@ -41,8 +51,7 @@ func (suite *ecsSuite) TestECSEC2Task() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			commonTest(suite.T(), payload)
-			return payload.ECSTask.LaunchType == "ec2"
+			return commonTest(payload) && payload.ECSTask.LaunchType == "ec2"
 		},
 		message: "receive ecs ec2 task payload",
 		timeout: 20 * time.Minute,
@@ -53,31 +62,33 @@ func (suite *ecsSuite) TestECSFargateTask() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			commonTest(suite.T(), payload)
-			return payload.ECSTask.LaunchType == "fargate"
+			return commonTest(payload) && payload.ECSTask.LaunchType == "fargate"
 		},
 		message: "receive ecs fargate task payload",
 		timeout: 20 * time.Minute,
 	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
-func commonTest(t *testing.T, payload *aggregator.OrchestratorPayload) {
-	require.NotNil(t, payload)
-	require.NotNil(t, payload.ECSTaskParentCollector)
-	require.NotNil(t, payload.ECSTask)
+func commonTest(payload *aggregator.OrchestratorPayload) bool {
+	if payload == nil || payload.ECSTaskParentCollector == nil || payload.ECSTask == nil {
+		return false
+	}
 
-	require.NotEmpty(t, payload.Name)
-	require.NotEmpty(t, payload.UID)
-	require.NotEmpty(t, payload.ECSTask.Arn)
-	require.NotEmpty(t, payload.ECSTask.Family)
-	require.NotEmpty(t, payload.ECSTask.Version)
-	require.NotEmpty(t, payload.ECSTask.Containers)
+	if payload.Name == "" || payload.UID == "" ||
+		payload.ECSTask.Arn == "" || payload.ECSTask.Family == "" ||
+		payload.ECSTask.Version == "" || len(payload.ECSTask.Containers) == 0 {
+		return false
+	}
 
-	require.Equal(t, process.MessageType(process.TypeCollectorECSTask), payload.Type)
+	if payload.Type != process.MessageType(process.TypeCollectorECSTask) {
+		return false
+	}
 
 	for _, container := range payload.ECSTask.Containers {
-		require.NotEmpty(t, container.DockerID)
-		require.NotEmpty(t, container.DockerName)
-		require.NotEmpty(t, container.Image)
+		if container.DockerID == "" || container.DockerName == "" || container.Image == "" {
+			return false
+		}
 	}
+
+	return true
 }

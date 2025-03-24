@@ -6,7 +6,6 @@
 package remoteimpl
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -27,62 +26,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-func TestStart(t *testing.T) {
+// TestNewComponent tests that the Remote Tagger can be instantiated and started.
+func TestNewComponent(t *testing.T) {
+	// Skip this test if not running in CI, as it may conflict with another Agent.
 	if os.Getenv("CI") != "true" {
-		t.Skip("Not run this test locally because it fails when there is already a running Agent")
+		t.Skip("Skipping test as it is not running in CI.")
+	}
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping test on macOS runners with an existing Agent.")
 	}
 
-	if runtime.GOOS == "darwin" {
-		t.Skip("TestStart is known to fail on the macOS Gitlab runners because of the already running Agent")
-	}
-	grpcServer, authToken, err := grpc.NewMockGrpcSecureServer("5001")
-	require.NoError(t, err)
+	// Start a mock gRPC server.
+	grpcServer, authToken, grpcErr := grpc.NewMockGrpcSecureServer("5001")
+	require.NoError(t, grpcErr)
 	defer grpcServer.Stop()
 
-	params := tagger.RemoteParams{
-		RemoteFilter: types.NewMatchAllFilter(),
-		RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-		RemoteTokenFetcher: func(config.Component) func() (string, error) {
-			return func() (string, error) {
-				return authToken, nil
-			}
+	// Instantiate the component.
+	req := Requires{
+		Lc:     compdef.NewTestLifecycle(t),
+		Config: configmock.New(t),
+		Log:    logmock.New(t),
+		Params: tagger.RemoteParams{
+			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
+			RemoteTokenFetcher: func(config.Component) func() (string, error) {
+				return func() (string, error) {
+					return authToken, nil
+				}
+			},
 		},
+		Telemetry: nooptelemetry.GetCompatComponent(),
 	}
-
-	cfg := configmock.New(t)
-	log := logmock.New(t)
-	telemetry := nooptelemetry.GetCompatComponent()
-
-	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
+	_, err := NewComponent(req)
 	require.NoError(t, err)
-	err = remoteTagger.Start(context.TODO())
-	require.NoError(t, err)
-	remoteTagger.Stop()
 }
 
-func TestStartDoNotBlockIfServerIsNotAvailable(t *testing.T) {
-	params := tagger.RemoteParams{
-		RemoteFilter: types.NewMatchAllFilter(),
-		RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-		RemoteTokenFetcher: func(config.Component) func() (string, error) {
-			return func() (string, error) {
-				return "something", nil
-			}
+// TestNewComponentNonBlocking tests that the Remote Tagger instantiation does not block when the gRPC server is not available.
+func TestNewComponentNonBlocking(t *testing.T) {
+	// Instantiate the component.
+	req := Requires{
+		Lc:     compdef.NewTestLifecycle(t),
+		Config: configmock.New(t),
+		Log:    logmock.New(t),
+		Params: tagger.RemoteParams{
+			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
+			RemoteTokenFetcher: func(config.Component) func() (string, error) {
+				return func() (string, error) {
+					return "", nil
+				}
+			},
 		},
+		Telemetry: nooptelemetry.GetCompatComponent(),
 	}
-
-	cfg := configmock.New(t)
-	log := logmock.New(t)
-	telemetry := nooptelemetry.GetCompatComponent()
-
-	remoteTagger, err := newRemoteTagger(params, cfg, log, telemetry)
+	_, err := NewComponent(req)
 	require.NoError(t, err)
-	err = remoteTagger.Start(context.TODO())
-	require.NoError(t, err)
-	remoteTagger.Stop()
 }
 
+// TestNewComponentSetsTaggerListEndpoint tests the Remote Tagger tagger-list endpoint.
 func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
+	// Instantiate the component.
 	req := Requires{
 		Lc:     compdef.NewTestLifecycle(t),
 		Config: configmock.New(t),

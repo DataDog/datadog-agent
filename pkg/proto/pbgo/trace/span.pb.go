@@ -220,15 +220,16 @@ func (x *SpanLink) GetFlags() uint32 {
 
 type SpanEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// time is the number of nanoseconds between the Unix epoch and this event.
-	TimeUnixNano uint64 `protobuf:"fixed64,1,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano,omitempty"`
-	// name is this event's name.
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// @gotags: json:"time_unix_nano" msg:"time_unix_nano"
+	TimeUnixNano uint64 `protobuf:"fixed64,1,opt,name=time_unix_nano,json=timeUnixNano,proto3" json:"time_unix_nano" msg:"time_unix_nano"` // time is the number of nanoseconds between the Unix epoch and this event.
+	// @gotags: json:"name" msg:"name"
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name" msg:"name"` // name is this event's name.
 	// attributes is a mapping from attribute key string to any value.
 	// The order of attributes should be preserved in the key/value map.
 	// The supported values match the OpenTelemetry attributes specification:
 	// https://github.com/open-telemetry/opentelemetry-proto/blob/a8f08fc49d60538f97ffabcc7feac92f832976dd/opentelemetry/proto/common/v1/common.proto
-	Attributes    map[string]*AttributeAnyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// @gotags: json:"attributes" msg:"attributes"
+	Attributes    map[string]*AttributeAnyValue `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value" msg:"attributes"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -293,12 +294,18 @@ type AttributeAnyValue struct {
 	// Protobuf `oneof` unions: https://github.com/tinylib/msgp/issues/184
 	// Despite this, the format represented here is binary compatible with `oneof`, if we choose
 	// to migrate to that in the future.
-	Type          AttributeAnyValue_AttributeAnyValueType `protobuf:"varint,1,opt,name=type,proto3,enum=datadog.trace.AttributeAnyValue_AttributeAnyValueType" json:"type,omitempty"`
-	StringValue   string                                  `protobuf:"bytes,2,opt,name=string_value,json=stringValue,proto3" json:"string_value,omitempty"`
-	BoolValue     bool                                    `protobuf:"varint,3,opt,name=bool_value,json=boolValue,proto3" json:"bool_value,omitempty"`
-	IntValue      int64                                   `protobuf:"varint,4,opt,name=int_value,json=intValue,proto3" json:"int_value,omitempty"`
-	DoubleValue   float64                                 `protobuf:"fixed64,5,opt,name=double_value,json=doubleValue,proto3" json:"double_value,omitempty"`
-	ArrayValue    *AttributeArray                         `protobuf:"bytes,6,opt,name=array_value,json=arrayValue,proto3" json:"array_value,omitempty"`
+	// @gotags: json:"type" msg:"type"
+	Type AttributeAnyValue_AttributeAnyValueType `protobuf:"varint,1,opt,name=type,proto3,enum=datadog.trace.AttributeAnyValue_AttributeAnyValueType" json:"type" msg:"type"`
+	// @gotags: json:"string_value" msg:"string_value"
+	StringValue string `protobuf:"bytes,2,opt,name=string_value,json=stringValue,proto3" json:"string_value" msg:"string_value"`
+	// @gotags: json:"bool_value" msg:"bool_value"
+	BoolValue bool `protobuf:"varint,3,opt,name=bool_value,json=boolValue,proto3" json:"bool_value" msg:"bool_value"`
+	// @gotags: json:"int_value" msg:"int_value"
+	IntValue int64 `protobuf:"varint,4,opt,name=int_value,json=intValue,proto3" json:"int_value" msg:"int_value"`
+	// @gotags: json:"double_value" msg:"double_value"
+	DoubleValue float64 `protobuf:"fixed64,5,opt,name=double_value,json=doubleValue,proto3" json:"double_value" msg:"double_value"`
+	// @gotags: json:"array_value" msg:"array_value"
+	ArrayValue    *AttributeArray `protobuf:"bytes,6,opt,name=array_value,json=arrayValue,proto3" json:"array_value" msg:"array_value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -379,7 +386,8 @@ func (x *AttributeAnyValue) GetArrayValue() *AttributeArray {
 type AttributeArray struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Array of values. The array may be empty (contain 0 elements).
-	Values        []*AttributeArrayValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	// @gotags: json:"values" msg:"values"
+	Values        []*AttributeArrayValue `protobuf:"bytes,1,rep,name=values,proto3" json:"values" msg:"values"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -429,11 +437,16 @@ type AttributeArrayValue struct {
 	// Protobuf `oneof` unions: https://github.com/tinylib/msgp/issues/184
 	// Despite this, the format represented here is binary compatible with `oneof`, if we choose
 	// to migrate to that in the future.
-	Type          AttributeArrayValue_AttributeArrayValueType `protobuf:"varint,1,opt,name=type,proto3,enum=datadog.trace.AttributeArrayValue_AttributeArrayValueType" json:"type,omitempty"`
-	StringValue   string                                      `protobuf:"bytes,2,opt,name=string_value,json=stringValue,proto3" json:"string_value,omitempty"`
-	BoolValue     bool                                        `protobuf:"varint,3,opt,name=bool_value,json=boolValue,proto3" json:"bool_value,omitempty"`
-	IntValue      int64                                       `protobuf:"varint,4,opt,name=int_value,json=intValue,proto3" json:"int_value,omitempty"`
-	DoubleValue   float64                                     `protobuf:"fixed64,5,opt,name=double_value,json=doubleValue,proto3" json:"double_value,omitempty"`
+	// @gotags: json:"type" msg:"type"
+	Type AttributeArrayValue_AttributeArrayValueType `protobuf:"varint,1,opt,name=type,proto3,enum=datadog.trace.AttributeArrayValue_AttributeArrayValueType" json:"type" msg:"type"`
+	// @gotags: json:"string_value" msg:"string_value"
+	StringValue string `protobuf:"bytes,2,opt,name=string_value,json=stringValue,proto3" json:"string_value" msg:"string_value"`
+	// @gotags: json:"bool_value" msg:"bool_value"
+	BoolValue bool `protobuf:"varint,3,opt,name=bool_value,json=boolValue,proto3" json:"bool_value" msg:"bool_value"`
+	// @gotags: json:"int_value" msg:"int_value"
+	IntValue int64 `protobuf:"varint,4,opt,name=int_value,json=intValue,proto3" json:"int_value" msg:"int_value"`
+	// @gotags: json:"double_value" msg:"double_value"
+	DoubleValue   float64 `protobuf:"fixed64,5,opt,name=double_value,json=doubleValue,proto3" json:"double_value" msg:"double_value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

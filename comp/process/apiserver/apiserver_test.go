@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -36,6 +36,7 @@ func TestLifecycle(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -49,9 +50,7 @@ func TestLifecycle(t *testing.T) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
@@ -63,7 +62,7 @@ func TestLifecycle(t *testing.T) {
 		req, err := http.NewRequest("GET", url, nil)
 		require.NoError(c, err)
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
-		res, err := util.GetClient(false).Do(req)
+		res, err := util.GetClient().Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
 		assert.Equal(c, http.StatusOK, res.StatusCode)
@@ -74,6 +73,7 @@ func TestPostAuthentication(t *testing.T) {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -87,9 +87,7 @@ func TestPostAuthentication(t *testing.T) {
 				PythonVersionGetFunc: func() string { return "n/a" },
 			},
 		),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
 		createandfetchimpl.Module(),
@@ -102,7 +100,7 @@ func TestPostAuthentication(t *testing.T) {
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
 		log.Infof("Issuing unauthenticated test request to url: %s", url)
-		res, err := util.GetClient(false).Do(req)
+		res, err := util.GetClient().Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
 		log.Info("Received unauthenticated test response")
@@ -111,7 +109,7 @@ func TestPostAuthentication(t *testing.T) {
 		// With authentication
 		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
 		log.Infof("Issuing authenticated test request to url: %s", url)
-		res, err = util.GetClient(false).Do(req)
+		res, err = util.GetClient().Do(req)
 		require.NoError(c, err)
 		defer res.Body.Close()
 		log.Info("Received authenticated test response")

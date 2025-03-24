@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvidia
 
@@ -11,8 +11,9 @@ import (
 	"errors"
 	"testing"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
@@ -96,9 +97,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return getBasicNvmlDeviceMock(index), nvml.SUCCESS
 					},
 				}
-				fakeTagger := taggermock.SetupFakeTagger(t)
-				fakeTagger.SetTags(types.NewEntityID(types.GPU, "GPU-123"), "foo", []string{"gpu_uuid=GPU-123", "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
-				fakeTagger.SetTags(types.NewEntityID(types.GPU, "GPU-456"), "foo", []string{"gpu_uuid=GPU-456", "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
+				fakeTagger := taggerfxmock.SetupFakeTagger(t)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-123"), "foo", []string{"gpu_uuid=GPU-123", "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-456"), "foo", []string{"gpu_uuid=GPU-456", "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
@@ -120,7 +121,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return 0, nvml.ERROR_UNKNOWN
 					},
 				}
-				fakeTagger := taggermock.SetupFakeTagger(t)
+				fakeTagger := taggerfxmock.SetupFakeTagger(t)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
@@ -139,8 +140,8 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return getBasicNvmlDeviceMock(index + 1), nvml.SUCCESS
 					},
 				}
-				fakeTagger := taggermock.SetupFakeTagger(t)
-				fakeTagger.SetTags(types.NewEntityID(types.GPU, "GPU-456"), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-456"}, nil, nil, nil)
+				fakeTagger := taggerfxmock.SetupFakeTagger(t)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-456"), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-456"}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {

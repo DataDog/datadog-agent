@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.34.0-1"
+	databricksInjectorVersion   = "0.35.0-1"
 	databricksJavaTracerVersion = "1.46.1-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
@@ -106,7 +106,7 @@ func SetupDatabricks(s *common.Setup) error {
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
-	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") != "true" {
+	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
 		installMethod = "managed"
 	}
 	s.Span.SetTag("install_method", installMethod)
@@ -127,13 +127,16 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
+
+	// duplicated for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
-	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 
-	// dupes for backward compatibility
+	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
+	setIfExists(s, "DATABRICKS_WORKSPACE", "workspace", nil)
+
 	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
@@ -156,7 +159,7 @@ func getJobAndRunIDs() (jobID, runID string, ok bool) {
 		return "", "", false
 	}
 	parts := strings.Split(clusterName, "-")
-	if len(parts) != 4 {
+	if len(parts) < 4 {
 		return "", "", false
 	}
 	if parts[0] != "job" || parts[2] != "run" {

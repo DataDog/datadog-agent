@@ -11,6 +11,14 @@ package sample
 
 //nolint:all
 //go:noinline
+func test_over_limit_parameters(
+	a, b, c, d, e, f, g,
+	h, i, j, k, l, m, n,
+	o, p, q, r, s, t, u byte) {
+}
+
+//nolint:all
+//go:noinline
 func test_combined_byte(w byte, x byte, y float32) {}
 
 //nolint:all
@@ -103,4 +111,8 @@ func ExecuteMultiParamFuncs() {
 	test_combined_uint16(2, 1216, 3.0)
 	test_combined_uint32(2, 1232, 3.0)
 	test_combined_uint64(2, 1264, 3.0)
+	test_over_limit_parameters(1, 2, 3, 4, 5, 6, 7,
+		8, 9, 10, 11, 12, 13, 14,
+		15, 16, 17, 18, 19, 20, 21)
+
 }

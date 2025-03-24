@@ -265,6 +265,14 @@
       "os_version": "9.4",
       "image": "rocky-9.4-x86_64.qcow2.xz",
       "image_version": "20241209_f6a14db0"
+    },
+    "rocky_8.4": {
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "kernel": "4.18.0-305.3.1.el8_4",
+      "os_version": "8.4",
+      "image": "rocky-8.4-x86_64.qcow2.xz",
+      "image_version": "20250320_7cf8bbf7"
     }
   },
   "arm64": {

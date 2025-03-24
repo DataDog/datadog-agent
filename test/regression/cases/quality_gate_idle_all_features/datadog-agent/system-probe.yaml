@@ -5,6 +5,8 @@ runtime_security_config:
   enabled: true
 
 system_probe_config:
+  debug_port: 7654
+  telemetry_enabled: true
   enable_oom_kill: true
   enable_tcp_queue_length: true
   process_config:

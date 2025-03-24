@@ -46,7 +46,12 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
 
 __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {
     u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
-    return bpf_map_lookup_elem(&cgroup_tracing_event_gen, &key);
+    struct cgroup_tracing_event_t *evt = bpf_map_lookup_elem(&cgroup_tracing_event_gen, &key);
+    if (evt == NULL) {
+        return 0;
+    }
+    evt->container.container_id[0] = 0;
+    return evt;
 }
 
 __attribute__((always_inline)) u32 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
@@ -108,6 +113,11 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
         return 0;
     }
 
+    if ((container->cgroup_context.cgroup_flags&CGROUP_MANAGER_MASK) != CGROUP_MANAGER_SYSTEMD) {
+        copy_container_id(container->container_id, evt->container.container_id);
+    } else {
+        evt->container.container_id[0] = '\0';
+    }
     evt->container.cgroup_context = container->cgroup_context;
     evt->cookie = cookie;
     evt->config = config;

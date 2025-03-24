@@ -2,6 +2,7 @@
 installer namespaced tasks
 """
 
+import glob
 import hashlib
 from os import makedirs, path
 
@@ -91,3 +92,100 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)
+
+
+@task
+def generate_experiment_units(ctx, check=False):
+    '''
+    Generates systemd units for the experiment service.
+    '''
+
+    # Get paths to all stable service files (not the generated experiment ones)
+    stable_paths = [
+        f
+        for f in glob.glob('./pkg/fleet/installer/packages/embedded/*.service')
+        if not f.endswith('-exp.service') and 'datadog-installer' not in f
+    ]
+    for stable_path in stable_paths:
+        experiment_path = stable_path.replace(".service", "-exp.service")
+        experiment_file = ""
+        with open(stable_path) as f:
+            # Special handling for datadog-agent.service, which is the main service
+            if "datadog-agent.service" in stable_path:
+                experiment_file = generate_core_agent_experiment_unit(f)
+            else:
+                experiment_file = generate_subprocess_experiment_unit(f)
+
+        if not check:
+            with open(experiment_path, 'w') as f:
+                f.write(experiment_file)
+        else:
+            try:
+                with open(experiment_path) as f:
+                    if f.read() != experiment_file:
+                        raise Exception(
+                            f"File {experiment_path} is not up to date, please run `dda inv -e installer.generate-experiment-units`"
+                        )
+            except FileNotFoundError:
+                raise Exception(
+                    f"File {experiment_path} does not exist but is expected to, please run `dda inv -e installer.generate-experiment-units`"
+                ) from None
+
+
+def generate_subprocess_experiment_unit(f):
+    """
+    Generates subprocesses experiment unit file.
+    """
+
+    experiment_file = ""
+    for line in f:
+        if "Before=" in line:
+            continue  # Skip line
+        if "After=" in line:
+            after_no_agent = line.split("After=")[1].replace("datadog-agent.service", "").strip()
+            if len(after_no_agent) == 0:
+                continue  # Skip line
+            line = "After=" + after_no_agent + "\n"
+        if "BindsTo=" in line:
+            line = line.replace(".service", "-exp.service")
+
+        if "Alias=" in line:
+            line = line.replace(".service", "-exp.service")
+        if "Description=" in line:
+            line = line.replace("\n", "") + " Experiment\n"
+        line = line.replace("stable", "experiment")
+        experiment_file += line
+    return experiment_file
+
+
+def generate_core_agent_experiment_unit(f):
+    """
+    Generates the core agent experiment unit file.
+    """
+
+    experiment_file = ""
+    for line in f:
+        if "After=" in line:
+            line += "OnFailure=datadog-agent.service\n"
+            line += "JobTimeoutSec=3000\n"
+        if "Wants=" in line:
+            line = line.replace(".service", "-exp.service")
+        if "Type=" in line:
+            line = "Type=oneshot\n"
+        if "Conflicts=" in line:
+            line = "Conflicts=datadog-agent.service\n"
+        if "Before=" in line:
+            line = "Before=datadog-agent.service\n"
+        if "Restart=" in line or "# " in line or "StartLimitInterval=" in line or "StartLimitBurst=" in line:
+            continue  # Skip line
+        if "ExecStart=" in line:
+            line += "ExecStart=/bin/false\n"
+            line += "ExecStop=/bin/false\n"
+
+        if "Alias=" in line:
+            line = line.replace(".service", "-exp.service")
+        if "Description=" in line:
+            line = line.replace("\n", "") + " Experiment\n"
+        line = line.replace("stable", "experiment")
+        experiment_file += line
+    return experiment_file
