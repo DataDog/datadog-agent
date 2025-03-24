@@ -617,7 +617,7 @@ func mergeMaps(maps ...fixtures) fixtures {
 var expectedCaptures = mergeMaps(
 	basicCaptures,
 	stringCaptures,
-	// arrayCaptures,
+	arrayCaptures,
 	structCaptures,
 	sliceCaptures,
 	pointerCaptures,
