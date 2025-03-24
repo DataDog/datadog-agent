@@ -28,7 +28,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.144 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.145 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -205,6 +205,7 @@ require (
 	go.opentelemetry.io/collector/consumer/consumererror v0.121.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.121.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

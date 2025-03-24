@@ -60,6 +60,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction SendFlare { get; }
 
+        public ManagedAction InstallOciPackages { get; }
+
+        public ManagedAction RollbackOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -466,6 +470,39 @@ namespace WixSetup.Datadog_Agent
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
+
+            InstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(InstallOciPackages)),
+                    CustomActions.InstallOciPackages,
+                    Return.check,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
+                           "APIKEY=[APIKEY]," +
+                           "SITE=[SITE]," +
+                           "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
+                           "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
+                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+
+            RollbackOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackOciPackages)),
+                    CustomActions.RollbackOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    new Step(InstallOciPackages.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

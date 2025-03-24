@@ -1248,6 +1248,9 @@ func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPCon
 	c, err = net.DialUDP(udpnet, laddr, raddr)
 	require.NoError(t, err)
 
+	err = tracertestutil.SetTestDeadline(c)
+	require.NoError(t, err)
+
 	return ln, c
 }
 
@@ -2695,7 +2698,7 @@ func (s *TracerSuite) TestTLSClassification() {
 					tracertestutil.SetTestDeadline(conn)
 					_, err := io.Copy(conn, conn)
 					if err != nil {
-						fmt.Printf("Failed to echo data: %v\n", err)
+						t.Logf("Failed to echo data: %v\n", err)
 						return
 					}
 				}, scenario)
@@ -2913,7 +2916,7 @@ func sendMessage(t *testing.T, conn net.Conn, message []byte) []byte {
 	return response
 }
 
-func (s *TracerSuite) TestRawTLSClient() {
+func (s *TracerSuite) TestTLSRawClient() {
 	t := s.T()
 	cfg := testConfig()
 
@@ -2942,6 +2945,7 @@ func (s *TracerSuite) TestRawTLSClient() {
 		require.NoError(t, err)
 		defer conn.Close()
 
+		// First send the TLS handshake, which should be classified as TLS
 		sendMessage(t, conn, handshake)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -2973,7 +2977,7 @@ func (s *TracerSuite) TestRawTLSClient() {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Now send HTTP traffic, which should not be classified as TLS was already detected
+		// First send HTTP traffic, which should be classified as HTTP
 		sendMessage(t, conn, []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"))
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -2985,6 +2989,7 @@ func (s *TracerSuite) TestRawTLSClient() {
 			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
 		}, time.Second*5, time.Millisecond*200)
 
+		// Now send the TLS handshake, which should not be classified as HTTP was already detected
 		sendMessage(t, conn, handshake)
 
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {

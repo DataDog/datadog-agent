@@ -34,7 +34,10 @@ type BoolEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
-	return b.EvalFnc(ctx)
+	if b.EvalFnc != nil {
+		return b.EvalFnc(ctx)
+	}
+	return b.Value
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -68,7 +71,10 @@ type IntEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
-	return i.EvalFnc(ctx)
+	if i.EvalFnc != nil {
+		return i.EvalFnc(ctx)
+	}
+	return i.Value
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -102,7 +108,10 @@ type StringEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (s *StringEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+	if s.EvalFnc != nil {
+		return s.EvalFnc(ctx)
+	}
+	return s.Value
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -156,7 +165,10 @@ type StringArrayEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+	if s.EvalFnc != nil {
+		return s.EvalFnc(ctx)
+	}
+	return s.Values
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -191,7 +203,10 @@ type StringValuesEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+	if s.EvalFnc != nil {
+		return s.EvalFnc(ctx)
+	}
+	return s.Values
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -257,7 +272,10 @@ type IntArrayEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (i *IntArrayEvaluator) Eval(ctx *Context) interface{} {
-	return i.EvalFnc(ctx)
+	if i.EvalFnc != nil {
+		return i.EvalFnc(ctx)
+	}
+	return i.Values
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -294,7 +312,10 @@ type BoolArrayEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
-	return b.EvalFnc(ctx)
+	if b.EvalFnc != nil {
+		return b.EvalFnc(ctx)
+	}
+	return b.Values
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -363,7 +384,10 @@ type CIDRValuesEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+	if s.EvalFnc != nil {
+		s.EvalFnc(ctx)
+	}
+	return s.Value
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
@@ -396,7 +420,10 @@ type CIDRArrayEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (s *CIDRArrayEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+	if s.EvalFnc != nil {
+		return s.EvalFnc(ctx)
+	}
+	return s.Value
 }
 
 // IsDeterministicFor returns whether the evaluator is partial

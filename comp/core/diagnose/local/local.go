@@ -55,7 +55,7 @@ func Run(
 			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 		},
 		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
-			return connectivity.Diagnose(diagCfg)
+			return connectivity.Diagnose(diagCfg, log)
 		},
 	}
 

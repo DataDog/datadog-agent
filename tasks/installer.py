@@ -139,18 +139,10 @@ def generate_subprocess_experiment_unit(f):
 
     experiment_file = ""
     for line in f:
-        if "Before=" in line:
-            continue  # Skip line
-        if "After=" in line:
-            after_no_agent = line.split("After=")[1].replace("datadog-agent.service", "").strip()
-            if len(after_no_agent) == 0:
-                continue  # Skip line
-            line = "After=" + after_no_agent + "\n"
         if "BindsTo=" in line:
             line = line.replace(".service", "-exp.service")
-
-        if "Alias=" in line:
-            line = line.replace(".service", "-exp.service")
+        if "Conflicts=" in line:
+            line = line.replace("-exp.service", ".service")
         if "Description=" in line:
             line = line.replace("\n", "") + " Experiment\n"
         line = line.replace("stable", "experiment")
@@ -162,30 +154,29 @@ def generate_core_agent_experiment_unit(f):
     """
     Generates the core agent experiment unit file.
     """
+    experiment_timeout = "3000s"
+    experiment_kill_timeout = "15s"
 
     experiment_file = ""
     for line in f:
-        if "After=" in line:
-            line += "OnFailure=datadog-agent.service\n"
-            line += "JobTimeoutSec=3000\n"
         if "Wants=" in line:
             line = line.replace(".service", "-exp.service")
-        if "Type=" in line:
-            line = "Type=oneshot\n"
-        if "Conflicts=" in line:
-            line = "Conflicts=datadog-agent.service\n"
-        if "Before=" in line:
-            line = "Before=datadog-agent.service\n"
-        if "Restart=" in line or "# " in line or "StartLimitInterval=" in line or "StartLimitBurst=" in line:
+            line += "OnFailure=datadog-agent.service\n"
+            line += "Before=datadog-agent.service\n"
+        if line == "[Install]\n" or "WantedBy=" in line:
             continue  # Skip line
-        if "ExecStart=" in line:
-            line += "ExecStart=/bin/false\n"
-            line += "ExecStop=/bin/false\n"
-
-        if "Alias=" in line:
-            line = line.replace(".service", "-exp.service")
+        if "Restart=" in line:
+            line = "Restart=no\n"
         if "Description=" in line:
             line = line.replace("\n", "") + " Experiment\n"
+        if "Conflicts=" in line:
+            line = "Conflicts=datadog-agent.service\n"
+        if "ExecStart=" in line:
+            line = f"ExecStart=/usr/bin/timeout --kill-after={experiment_kill_timeout} {experiment_timeout} {line.replace('ExecStart=', '')[:-1]}\nExecStopPost=/bin/false\n"
         line = line.replace("stable", "experiment")
         experiment_file += line
+
+    # Remove additional trailing new lines
+    experiment_file = experiment_file.rstrip("\n") + "\n"
+
     return experiment_file

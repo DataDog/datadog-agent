@@ -14,8 +14,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	stdLog "log"
@@ -34,6 +32,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -41,7 +41,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -57,7 +56,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, diagnoseComponent diagnose.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, authToken authtoken.Component, diagnoseComponent diagnose.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -86,34 +85,13 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		// no way we can recover from this error
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
-	// Internal token
-	util.CreateAndSetAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// DCA client token
 	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
-	// create cert
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
+	tlsConfig := authToken.GetTLSServerConfig()
 
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	tlsConfig.MinVersion = tls.VersionTLS13
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
@@ -146,11 +124,12 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
-	srv := grpcutil.NewMuxedGRPCServer(
+	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		grpcutil.TimeoutHandlerFunc(router, timeout),
+		router,
+		timeout,
 	)
 	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 
