@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package tags provides gpu host tags to the host payload
 package tags
 
 import (
