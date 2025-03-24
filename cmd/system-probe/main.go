@@ -17,6 +17,7 @@ import (
 )
 
 func main() {
+	flavor.SetFlavor(flavor.SystemProbe)
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
 	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
