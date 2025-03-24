@@ -56,21 +56,21 @@ func TestEnsureinit(t *testing.T) {
 
 	t.Run("library absent, second call succeeds", func(t *testing.T) {
 		var cache nvmlCache
-		failOpts := nvmlCacheInitOpts{
+		alreadyCalled := false
+		opts := nvmlCacheInitOpts{
 			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
 				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
+					InitFunc: func() nvml.Return {
+						if alreadyCalled {
+							return nvml.SUCCESS
+						}
+						alreadyCalled = true
+						return nvml.ERROR_LIBRARY_NOT_FOUND
+					},
 				}
 			},
 		}
-		successOpts := nvmlCacheInitOpts{
-			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
-				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return { return nvml.SUCCESS },
-				}
-			},
-		}
-		require.Error(t, cache.ensureInitWithOpts(failOpts))
-		require.NoError(t, cache.ensureInitWithOpts(successOpts))
+		require.Error(t, cache.ensureInitWithOpts(opts))
+		require.NoError(t, cache.ensureInitWithOpts(opts))
 	})
 }
