@@ -65,8 +65,8 @@ type ProcessKiller struct {
 type processKillerStats struct {
 	processesKilledDirectly     int64
 	processesKilledAfterQueue   int64
-	queuedKill                  int64
-	queuedKillDiscardedByDisarm int64
+	killQueued                  int64
+	killQueuedDiscardedByDisarm int64
 }
 
 // NewProcessKiller returns a new ProcessKiller
@@ -230,7 +230,7 @@ func (p *ProcessKiller) updateKillQueueAlarmOnDisarm(disarmer *ruleDisarmer) {
 	if len(disarmer.killQueue) > 0 {
 		p.perRuleStatsLock.Lock()
 		stats := p.getRuleStats(disarmer.ruleID)
-		stats.queuedKillDiscardedByDisarm++
+		stats.killQueuedDiscardedByDisarm++
 		p.perRuleStatsLock.Unlock()
 	}
 }
@@ -349,7 +349,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		ev.ActionReports = append(ev.ActionReports, report)
 		p.perRuleStatsLock.Lock()
 		stats := p.getRuleStats(rule.ID)
-		stats.queuedKill++
+		stats.killQueued++
 		p.perRuleStatsLock.Unlock()
 		return false
 	}
@@ -438,6 +438,14 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 		}
 		if stats.processesKilledAfterQueue > 0 {
 			_ = statsd.Count(metrics.MetricEnforcementProcessKilled, stats.processesKilledAfterQueue, []string{ruleIDTag, "queued:true"}, 1)
+			stats.processesKilledAfterQueue = 0
+		}
+		if stats.killQueued > 0 {
+			_ = statsd.Count(metrics.MetricEnforcementKillQueued, stats.killQueued, []string{ruleIDTag}, 1)
+			stats.processesKilledAfterQueue = 0
+		}
+		if stats.killQueuedDiscardedByDisarm > 0 {
+			_ = statsd.Count(metrics.MetricEnforcementKillQueuedDiscarded, stats.killQueuedDiscardedByDisarm, []string{ruleIDTag}, 1)
 			stats.processesKilledAfterQueue = 0
 		}
 	}
