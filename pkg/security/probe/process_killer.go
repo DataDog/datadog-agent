@@ -345,7 +345,6 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {
 		log.Warnf("rule %s triggered on first period, putting pids to kill on wait list", rule.ID)
 		report.Status = KillActionStatusQueued
-		report.resolved = true
 		ev.ActionReports = append(ev.ActionReports, report)
 		p.perRuleStatsLock.Lock()
 		stats := p.getRuleStats(rule.ID)
