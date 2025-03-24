@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -53,26 +54,21 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
+	outerMapSpec := spec.Maps["param_stacks"]
+	outerMapSpec.MaxEntries = uint32(runtime.NumCPU())
+
 	inner := &ebpf.MapSpec{
 		Type:       ebpf.Stack,
 		MaxEntries: 2048,
 		ValueSize:  8,
 	}
 
-	outer := &ebpf.MapSpec{
-		Name:       "param_stacks",
-		InnerMap:   inner,
-		Type:       ebpf.ArrayOfMaps,
-		MaxEntries: uint32(32), // we arbitrarily set this to support 32 CPUs
-		KeySize:    4,
-	}
-
-	for i := range outer.MaxEntries {
+	for i := range outerMapSpec.MaxEntries {
 		innerMap, err := ebpf.NewMap(inner)
 		if err != nil {
 			return fmt.Errorf("could not create bpf map for reading memory content: %w", err)
 		}
-		outer.Contents = append(outer.Contents,
+		outerMapSpec.Contents = append(outerMapSpec.Contents,
 			ebpf.MapKV{
 				Key:   uint32(i),
 				Value: innerMap,
@@ -80,15 +76,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		)
 	}
 
-	paramStacks, err := ebpf.NewMap(outer)
-	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", "could not create bpf map for reading memory content")
-		return fmt.Errorf("could not create bpf map for reading memory content: %w", err)
-	}
-
-	mapReplacements := map[string]*ebpf.Map{
-		"param_stacks": paramStacks,
-	}
+	mapReplacements := map[string]*ebpf.Map{}
 
 	if probe.ID != ditypes.ConfigBPFProbeID {
 		// config probe is special and should not be on the same ringbuffer

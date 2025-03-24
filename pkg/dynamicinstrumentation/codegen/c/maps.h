@@ -22,7 +22,7 @@ struct inner_param_stack {
 // The param_stacks map is to set up a unique stack for each CPU.
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY_OF_MAPS);
-    __uint(max_entries, 32); // we arbitrarily set this to support 32 CPUs
+    __uint(max_entries, 0);
     __uint(key_size, sizeof(__u32));
     __array(values, struct inner_param_stack);
 } param_stacks SEC(".maps");
