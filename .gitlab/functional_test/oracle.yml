@@ -21,3 +21,5 @@ oracle:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv oracle.test
+    - sleep 3600
+
