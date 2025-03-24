@@ -1,0 +1,24 @@
+# This file is used to configure the security-agent required tests.
+# It is used to specify the tests that are required to pass for each KMT test runner.
+# Tags are used to match the test runner tags, and required_tests are regex patterns for the tests that are required to pass.
+# If the tags of a specific config are a subset of the test runner tags then the set of required tests is used as required tests for the runner.
+# Multiple runner configs are allowed to match the same test runner tags.
+# List of supported tags
+#   - test_set (set of tests that the runner runs: cws_host, cws_docker, cws_ad, cws_el, cws_el_ns, cws_req, cws_peds)
+#   - arch (architecture of the test runner: x86_64, arm64)
+#   - os (operating system of the test runner: ubuntu_24.10, amazon_2023, etc.)
+runners:
+  - tags: "test_set:cws_host"
+    required_tests:
+  - tags: "test_set:cws_docker"
+    required_tests:
+  - tags: "test_set:cws_ad"
+    required_tests:
+  - tags: "test_set:cws_el"
+    required_tests:
+  - tags: "test_set:cws_el_ns"
+    required_tests:
+  - tags: "test_set:cws_req"
+    required_tests:
+  - tags: "test_set:cws_peds"
+    required_tests:

@@ -959,6 +959,11 @@ def _prepare(
             ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
+        if component == "security-agent":
+            copy_static_files["pkg/security/tests/required-tests.yaml"] = (
+                paths.dependencies / "security-agent-required-tests.yaml"
+            )
+
         for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:

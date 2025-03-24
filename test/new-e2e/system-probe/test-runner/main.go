@@ -47,6 +47,9 @@ type testConfig struct {
 	verbose      bool
 	testDirRoot  string
 	testingTools string
+	testSet      string // set of tests that the runner runs (e.g. cws_host, cws_docker, cws_ad, cws_el, cws_el_ns, cws_req, cws_peds)
+	testArch     string // architecture of the test runner (e.g. x86_64, arm64)
+	testTag      string // tag of the test runner (e.g. ubuntu_24.10, amazon_2023, etc.)
 	extraParams  string
 	extraEnv     string
 }
@@ -149,6 +152,13 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
+
+	if pkg == "pkg/security" {
+		args = append(args, "-required-tests-cfg", filepath.Join(testConfig.testingTools, "security-agent-required-tests.yaml"))
+		args = append(args, "-test-runner-tags", "test_set:"+testConfig.testSet)
+		args = append(args, "-test-runner-tags", "arch:"+testConfig.testArch)
+		args = append(args, "-test-runner-tags", "os:"+testConfig.testTag)
+	}
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -326,6 +336,9 @@ func buildTestConfiguration() (*testConfig, error) {
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
+	testSet := flag.String("test-set", "", "set of tests that the runner runs")
+	testArch := flag.String("test-arch", "", "architecture of the test runner (e.g. x86_64, arm64)")
+	testTag := flag.String("test-tag", "", "tag of the test runner (e.g. ubuntu_24.10, amazon_2023, etc.)")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
@@ -364,6 +377,9 @@ func buildTestConfiguration() (*testConfig, error) {
 		retryCount:         *retryPtr,
 		testDirRoot:        root,
 		testingTools:       tools,
+		testSet:            *testSet,
+		testArch:           *testArch,
+		testTag:            *testTag,
 		extraParams:        *extraParams,
 		extraEnv:           *extraEnv,
 	}, nil
