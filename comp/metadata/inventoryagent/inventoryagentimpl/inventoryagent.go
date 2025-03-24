@@ -99,6 +99,8 @@ type inventoryagent struct {
 	data         agentMetadata
 	hostname     string
 	authToken    authtoken.Component
+
+	flareScrubber *scrubber.Scrubber
 }
 
 type dependencies struct {
@@ -124,12 +126,13 @@ type provides struct {
 func newInventoryAgentProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	ia := &inventoryagent{
-		conf:         deps.Config,
-		sysprobeConf: deps.SysProbeConfig,
-		log:          deps.Log,
-		hostname:     hname,
-		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		conf:          deps.Config,
+		sysprobeConf:  deps.SysProbeConfig,
+		log:           deps.Log,
+		hostname:      hname,
+		data:          make(agentMetadata),
+		authToken:     deps.AuthToken,
+		flareScrubber: scrubber.NewWithDefaults(),
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -420,14 +423,12 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
-	flareScrubber := scrubber.NewWithDefaults()
-
 	provided, err := yaml.Marshal(data)
 	if err != nil {
 		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
 	}
 
-	scrubbed, err := flareScrubber.ScrubYaml(provided)
+	scrubbed, err := ia.flareScrubber.ScrubYaml(provided)
 	if err != nil {
 		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
 	}
