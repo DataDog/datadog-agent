@@ -222,6 +222,9 @@ type AttacherConfig struct {
 
 	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
 	// the set of alive PIDs in the system.
+	// This function will not be called in the same goroutine as the attacher code, so it will not block process creation/deletion
+	// events from happening. However, if it takes too long it can delay the next sync. In any case, synchronizations are
+	// usually performed every 30 seconds by default (ScanProcessesInterval), so it shouldn't be a problem.
 	OnSyncCallback func(map[uint32]struct{})
 }
 
