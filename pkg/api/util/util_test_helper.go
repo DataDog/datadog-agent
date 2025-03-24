@@ -56,13 +56,11 @@ func SetAuthTokenInMemory(t testing.TB) {
 
 	if initSource != uninitialized {
 		if initSource != setAuthTokenInMemory {
-			t.Fatal("the auth stack have been initialized by un underlying part of the code")
+			t.Fatal("the auth stack have been initialized by an underlying part of the code")
 		}
 		t.Log("the auth stack have been initialized in a previous call to SetAuthTokenInMemory, no need to generate new values")
 		return
 	}
-
-	t.Log("generating random token, clientTLSConfig and serverTLSConfig for test")
 
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
