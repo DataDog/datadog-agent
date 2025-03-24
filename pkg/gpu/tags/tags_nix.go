@@ -22,6 +22,11 @@ var nvmlLibrary nvml.Interface
 var mtx sync.Mutex
 
 func ensureNvmlLibrary(getLibrary func(opts ...nvml.LibraryOption) nvml.Interface) error {
+	// if the library is already initialized, return directly to avoid unnecessary locking
+	if nvmlLibrary != nil {
+		return nil
+	}
+
 	mtx.Lock()
 	defer mtx.Unlock()
 
