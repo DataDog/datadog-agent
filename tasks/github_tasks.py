@@ -5,6 +5,7 @@ import os
 import re
 import time
 from collections import Counter, defaultdict
+from enum import Enum
 from functools import lru_cache
 
 from invoke.context import Context
@@ -32,6 +33,11 @@ from tasks.libs.releasing.version import current_version
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
+
+
+class PermissionCheck(Enum):
+    REPO = 'repo'
+    TEAM = 'team'
 
 
 @lru_cache(maxsize=None)
@@ -692,25 +698,36 @@ query {
 
 
 @task
-def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
+def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-help"):
     """
-    Check the permissions on a given repository
-    - list members without any contribution in the last 6 months
-    - list teams with not any contributors
+    Check the permissions on a given repository or team.
+      - list contributing teams on the repository or subteams
+      - list teams with not any contributors
+      - list members without any contribution in the last period
+
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
-    gh = GithubAPI(f"datadog/{repo}")
-    all_teams = gh.find_all_teams(
-        gh._repository,
-        exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
+    if check == PermissionCheck.TEAM:
+        gh = GithubAPI()
+        root = gh.get_team(name)
+        depth = None
+    else:
+        gh = GithubAPI(f"datadog/{name}")
+        root = gh._repository
+        depth = 1
+
+    all_teams = gh.find_teams(
+        root,
+        # exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
         exclude_permissions=['pull'],
+        depth=depth,
     )
     print(f"Found {len(all_teams)} teams")
     idle_teams = []
     idle_contributors = defaultdict(set)
     active_users = gh.get_active_users(duration_days=90)
-    print(f"Checking permissions for {repo}, {len(active_users)} active users")
+    print(f"Checking permissions for {name}, {len(active_users)} active users")
     for team in all_teams:
         members = gh.get_direct_team_members(team.slug)
         has_contributors = False
@@ -727,7 +744,7 @@ def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
         from slack_sdk import WebClient
 
         client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
-        header = f":github: {repo} permissions check\n"
+        header = f":github: {name} permissions check\n"
         blocks = [
             {
                 "type": "header",
@@ -767,7 +784,7 @@ def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"Please check the `{repo}` <https://github.com/DataDog/{repo}/settings/access|settings>.",
+                    "text": f"Please check the `{name}` <https://github.com/DataDog/{name}/settings/access|settings>.",
                 },
             }
         )

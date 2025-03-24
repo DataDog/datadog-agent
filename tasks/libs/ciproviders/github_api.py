@@ -469,6 +469,13 @@ class GithubAPI:
         team = org.get_team_by_slug(team_slug)
         return team.get_members()
 
+    def get_team(self, team_slug: str):
+        """
+        Get the team object.
+        """
+        assert self._organization
+        return self._organization.get_team_by_slug(team_slug)
+
     def search_issues(self, query: str):
         """
         Search for issues with the given query.
@@ -612,9 +619,11 @@ class GithubAPI:
             return 'long review'
         return 'medium review'
 
-    def find_all_teams(self, obj, exclude_teams=None, exclude_permissions=None):
-        """Get all the repositories teams, including the nested ones."""
+    def find_teams(self, obj, exclude_teams=None, exclude_permissions=None, depth=None):
+        """Get teams from a Github object (repository or team)"""
         teams = []
+        if depth is not None:
+            depth -= 1
         for team in obj.get_teams():
             if (
                 exclude_teams
@@ -624,7 +633,8 @@ class GithubAPI:
             ):
                 continue
             teams.append(team)
-            teams.extend(self.find_all_teams(team))
+            if depth is None or depth > 0:
+                teams.extend(self.find_teams(team, depth=depth))
         return teams
 
     def get_active_users(self, duration_days=183):
