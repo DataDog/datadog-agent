@@ -77,6 +77,8 @@ api_key: ENC[api_key]
 
 	// Assert that the fakeIntake has received the API Key
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
+	fakeIntakeURL := v.Env().FakeIntake.Client().URL()
+	v.T().Logf("WACKTEST88 FAKEINTAKE URL IS : %s", fakeIntakeURL)
 	assert.NoError(v.T(), err)
 	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
 }
@@ -167,7 +169,7 @@ additional_endpoints:
 		"https://app.datadoghq.eu",
 	}
 	fakeIntakeURL := v.Env().FakeIntake.Client().URL()
-	v.T().Logf("WACKTEST0 FAKEINTAKE URL IS : %s", fakeIntakeURL)
+	v.T().Logf("WACKTEST99 FAKEINTAKE URL IS : %s", fakeIntakeURL)
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", fakeIntakeURL, endpoint)
 		v.T().Logf("WACKTEST2 Checking FakeIntake payloads for endpoint: %s", endpoint)
