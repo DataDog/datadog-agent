@@ -35,6 +35,7 @@ const (
 	disarmerCacheFlushInterval  = 5 * time.Second
 	// killActionDisarmerMaxPeriod represents the maximum disarmer period
 	killActionDisarmerMaxPeriod = time.Second * 60
+	killQueueTicker             = time.Millisecond * 250
 )
 
 // ProcessKiller defines a process killer structure
@@ -56,9 +57,8 @@ type ProcessKiller struct {
 	perRuleStatsLock sync.Mutex
 	perRuleStats     map[rules.RuleID]*processKillerStats
 
-	disableKillQueue      chan struct{}
-	setKillQueue          chan time.Time
-	currentKillQueueAlarm *time.Time
+	currentKillQueueAlarmLock sync.Mutex
+	currentKillQueueAlarm     *time.Time
 }
 
 type processKillerStats struct {
@@ -71,15 +71,13 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 	p := &ProcessKiller{
-		cfg:              cfg,
-		enabled:          true,
-		useDisarmers:     atomic.NewBool(false),
-		disarmerStateCh:  make(chan disarmerState, 1),
-		ruleDisarmers:    make(map[rules.RuleID]*ruleDisarmer),
-		sourceAllowed:    cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
-		perRuleStats:     make(map[rules.RuleID]*processKillerStats),
-		disableKillQueue: make(chan struct{}, 1),
-		setKillQueue:     make(chan time.Time, 1),
+		cfg:             cfg,
+		enabled:         true,
+		useDisarmers:    atomic.NewBool(false),
+		disarmerStateCh: make(chan disarmerState, 1),
+		ruleDisarmers:   make(map[rules.RuleID]*ruleDisarmer),
+		sourceAllowed:   cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
+		perRuleStats:    make(map[rules.RuleID]*processKillerStats),
 	}
 
 	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
@@ -106,8 +104,8 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 	return stats
 }
 
-// KillQueuedPidsAndGetNextAlarm performs all pending kills and returns the next alarm (or nil when on empty kill queue)
-func (p *ProcessKiller) KillQueuedPidsAndGetNextAlarm() *time.Time {
+// KillQueuedPidsAndSetNextAlarm performs all pending kills and sets the next alarm if any
+func (p *ProcessKiller) KillQueuedPidsAndSetNextAlarm() {
 	p.ruleDisarmersLock.Lock()
 	defer p.ruleDisarmersLock.Unlock()
 
@@ -125,7 +123,11 @@ func (p *ProcessKiller) KillQueuedPidsAndGetNextAlarm() *time.Time {
 			}
 		}
 	}
-	return nextAlarm
+	if nextAlarm != nil {
+		p.setKillQueueAlarm(nextAlarm)
+	} else {
+		p.disableKillQueueAlarm()
+	}
 }
 
 // SetState sets the state - enabled or disabled - for the process killer
@@ -206,15 +208,12 @@ func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
 }
 
 // called once a rule got disarmed
-func (p *ProcessKiller) updateKillQueueAlarm(disarmer *ruleDisarmer) {
+func (p *ProcessKiller) updateKillQueueAlarmOnDisarm(disarmer *ruleDisarmer) {
 	// check if we have another rule with queued kills and reset the alarm to
 	// the correct value. Disable the alarm otherwise.
-	// NB: we should not kill anything, but if we do it's ok
-	if alarm := p.KillQueuedPidsAndGetNextAlarm(); alarm != nil {
-		p.setKillQueueAlarm(alarm)
-	} else {
-		p.disableKillQueueAlarm()
-	}
+	// NB: we should not kill anything, except if there is a race between a rule
+	//     disarmament and a kill queue alarm
+	p.KillQueuedPidsAndSetNextAlarm()
 
 	// update stats
 	if len(disarmer.killQueue) > 0 {
@@ -283,7 +282,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 						disarmer.disarmedCount[containerDisarmerType]++
 						seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
 					}
-					p.updateKillQueueAlarm(disarmer)
+					p.updateKillQueueAlarmOnDisarm(disarmer)
 				}) {
 					onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
 					return false
@@ -301,7 +300,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 					disarmer.disarmedCount[executableDisarmerType]++
 					seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
 				}
-				p.updateKillQueueAlarm(disarmer)
+				p.updateKillQueueAlarmOnDisarm(disarmer)
 			}) {
 				onActionBlockedByDisarmer(executableDisarmerType, disarmer.dismantled)
 				return false
@@ -463,14 +462,25 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 	p.ruleDisarmersLock.Unlock()
 }
 
+func (p *ProcessKiller) getKillQueueAlarm() *time.Time {
+	p.currentKillQueueAlarmLock.Lock()
+	defer p.currentKillQueueAlarmLock.Unlock()
+
+	return p.currentKillQueueAlarm
+}
+
 func (p *ProcessKiller) disableKillQueueAlarm() {
-	p.disableKillQueue <- struct{}{}
+	p.currentKillQueueAlarmLock.Lock()
+	defer p.currentKillQueueAlarmLock.Unlock()
+
 	p.currentKillQueueAlarm = nil
 }
 
 func (p *ProcessKiller) setKillQueueAlarm(alarm *time.Time) {
+	p.currentKillQueueAlarmLock.Lock()
+	defer p.currentKillQueueAlarmLock.Unlock()
+
 	if p.currentKillQueueAlarm == nil || alarm.Before(*p.currentKillQueueAlarm) {
-		p.setKillQueue <- *alarm
 		p.currentKillQueueAlarm = alarm
 		return
 	}
@@ -486,9 +496,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		ticker := time.NewTicker(disarmerCacheFlushInterval)
-
-		var killQueueAlarm *time.Ticker
-		var killQueueChan <-chan time.Time // this will be nil when no alarm is set
+		killQueue := time.NewTicker(killQueueTicker)
 
 		defer ticker.Stop()
 		state := stopped
@@ -506,31 +514,10 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 				}
 			case running:
 				select {
-				case nextKillAlarm := <-p.setKillQueue:
-					if killQueueAlarm != nil {
-						killQueueAlarm.Stop()
-					}
-					killQueueAlarm = time.NewTicker(time.Until(nextKillAlarm))
-					killQueueChan = killQueueAlarm.C // enable the ticker by setting its channel
-					break
-
-				case <-p.disableKillQueue:
-					if killQueueAlarm != nil {
-						killQueueAlarm.Stop()
-						killQueueAlarm = nil
-					}
-					killQueueChan = nil
-					p.currentKillQueueAlarm = nil
-					break
-
-				case <-killQueueChan:
-					nextAlarm := p.KillQueuedPidsAndGetNextAlarm()
-					if nextAlarm != nil {
-						p.setKillQueueAlarm(nextAlarm)
-					} else {
-						killQueueAlarm.Stop()
-						killQueueAlarm = nil
-						p.currentKillQueueAlarm = nil
+				case <-killQueue.C:
+					killQueueAlarm := p.getKillQueueAlarm()
+					if killQueueAlarm != nil && time.Now().After(*killQueueAlarm) {
+						p.KillQueuedPidsAndSetNextAlarm()
 					}
 					break
 
