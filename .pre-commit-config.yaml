@@ -93,7 +93,7 @@ repos:
     - id: go-test
       name: go-test
       description: run go test on modified packages
-      entry: 'dda inv test --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
       language: system
       require_serial: true
       always_run: true
@@ -102,7 +102,7 @@ repos:
     - id: go-linter
       name: go-linter
       description: run go linter on modified packages
-      entry: 'dda inv linter.go --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
       language: system
       require_serial: true
       always_run: true
