@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 )
@@ -60,7 +61,7 @@ type helperData struct {
 }
 
 func generateHelperDefines(availableFns []string, allFns []string, _ io.Writer) error {
-	/*tmpl, err := template.New("helperexist").Funcs(map[string]any{
+	_, err := template.New("helperexist").Funcs(map[string]any{
 		"mapexists": func(k string, m map[string]struct{}) bool {
 			_, ok := m[k]
 			return ok
@@ -68,7 +69,7 @@ func generateHelperDefines(availableFns []string, allFns []string, _ io.Writer) 
 	}).Parse(defineTemplate)
 	if err != nil {
 		return fmt.Errorf("helper define template parse: %w", err)
-	}*/
+	}
 
 	data := &helperData{
 		AllFuncs:       allFns,
@@ -78,6 +79,7 @@ func generateHelperDefines(availableFns []string, allFns []string, _ io.Writer) 
 	for _, f := range availableFns {
 		data.AvailableFuncs[f] = struct{}{}
 	}
+	_ = data
 	return nil //tmpl.Execute(out, data)
 }
 
