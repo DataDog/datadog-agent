@@ -817,6 +817,11 @@ def _prepare(
             ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
+        if component == "security-agent":
+            copy_static_files["pkg/security/tests/flake-matrix.yaml"] = (
+                paths.dependencies / "security-agent-flakes.yaml"
+            )
+
         for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:

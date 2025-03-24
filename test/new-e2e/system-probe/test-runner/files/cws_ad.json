@@ -9,6 +9,7 @@
 		}
 	},
 	"additional_env_vars": [
+		"GO_TEST_SKIP_FLAKE=false",
 		"DEDICATED_ACTIVITY_DUMP_NODE=1"
 	]
 }
