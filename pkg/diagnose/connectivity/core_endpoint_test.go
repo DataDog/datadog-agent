@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -46,7 +47,8 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
-	client := defaultforwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	log := logmock.New(t)
+	client := defaultforwarder.NewHTTPClient(pkgconfigsetup.Datadog(), 1, log)
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)

@@ -82,7 +82,8 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
 	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
+		_, err := security.FetchOrCreateAuthToken(context.Background(), pkgconfigsetup.Datadog())
+		require.NoError(t, err)
 		defer func() {
 			// cleanup
 			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
@@ -257,7 +258,8 @@ func TestCollection(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			overrides := map[string]interface{}{
-				"language_detection.enabled": true,
+				"language_detection.enabled":               true,
+				"process_config.run_in_core_agent.enabled": false,
 			}
 
 			// We do not inject any collectors here; we instantiate

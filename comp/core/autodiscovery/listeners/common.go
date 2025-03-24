@@ -11,6 +11,7 @@ package listeners
 import (
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -116,9 +117,7 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 			log.Errorf("Couldn't init check configuration: %v", err)
 			continue
 		}
-		for k, v := range check.AD.GetIncludeAnnotations() {
-			annotations[k] = v
-		}
+		maps.Copy(annotations, check.AD.GetIncludeAnnotations())
 	}
 	return annotations
 }

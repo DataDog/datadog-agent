@@ -74,9 +74,6 @@ else
     dependency 'datadog-agent-finalize'
   end
 
-  # version manifest file
-  dependency 'version-manifest'
-
   do_package = false
 end
 
@@ -88,7 +85,7 @@ end
 
 if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
   COMPRESSION_LEVEL = ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'].to_i
-elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5

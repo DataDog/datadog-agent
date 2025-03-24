@@ -64,7 +64,7 @@ func test_struct_pointer(x *nStruct) {}
 
 //nolint:all
 //go:noinline
-func test_nil_struct_pointer(x *nStruct) {}
+func test_nil_struct_pointer(z uint, x *nStruct, a int) {}
 
 //nolint:all
 //go:noinline
@@ -92,7 +92,11 @@ func test_string_slice_pointer(a *[]string) {}
 
 //nolint:all
 //go:noinline
-func test_nil_pointer(z *bool) {}
+func test_nil_pointer(z *bool, a uint) {}
+
+//nolint:all
+//go:noinline
+func test_pointer_to_pointer(u **int) {}
 
 //nolint:all
 func ExecutePointerFuncs() {
@@ -108,7 +112,7 @@ func ExecutePointerFuncs() {
 
 	n := nStruct{true, 1, 2}
 	test_struct_pointer(&n)
-	test_nil_struct_pointer(nil)
+	test_nil_struct_pointer(4, nil, 5)
 	ssaw := swsp{
 		a: 1,
 		b: &n,
@@ -148,5 +152,10 @@ func ExecutePointerFuncs() {
 	stringSlice := []string{"aaa", "bbb", "ccc", "ddd"}
 	test_string_slice_pointer(&stringSlice)
 
-	test_nil_pointer(nil)
+	test_nil_pointer(nil, 1)
+
+	u := 9
+	up := &u
+	upp := &up
+	test_pointer_to_pointer(upp)
 }

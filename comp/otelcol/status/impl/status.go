@@ -71,7 +71,7 @@ type prometheusRuntimeConfig struct {
 func NewComponent(reqs Requires) Provides {
 	comp := statusProvider{
 		Config:    reqs.Config,
-		client:    apiutil.GetClient(false),
+		client:    apiutil.GetClient(),
 		authToken: reqs.Authtoken,
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,

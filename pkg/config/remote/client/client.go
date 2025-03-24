@@ -13,17 +13,16 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -51,6 +50,7 @@ type ConfigFetcher interface {
 type Listener interface {
 	OnUpdate(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 	OnStateChange(bool)
+	ShouldIgnoreSignatureExpiration() bool
 }
 
 // fetchConfigs defines the function that an agent client uses to get config updates
@@ -335,13 +335,7 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	defer c.m.Unlock()
 
 	// Make sure the product belongs to the list of requested product
-	knownProduct := false
-	for _, p := range c.products {
-		if p == product {
-			knownProduct = true
-			break
-		}
-	}
+	knownProduct := slices.Contains(c.products, product)
 	if !knownProduct {
 		c.products = append(c.products, product)
 	}
@@ -352,6 +346,11 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 // Subscribe subscribes to config updates of a product.
 func (c *Client) Subscribe(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	c.SubscribeAll(product, NewUpdateListener(cb))
+}
+
+// SubscribeIgnoreExpiration subscribes to config updates of a product, but ignores the case when signatures have expired.
+func (c *Client) SubscribeIgnoreExpiration(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.SubscribeAll(product, NewUpdateListenerIgnoreExpiration(cb))
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -498,7 +497,10 @@ func (c *Client) update() error {
 	for product, productListeners := range c.listeners {
 		if containsProduct(changedProducts, product) {
 			for _, listener := range productListeners {
-				listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
+				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
+					!listener.ShouldIgnoreSignatureExpiration() {
+					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
+				}
 			}
 		}
 	}
@@ -506,13 +508,7 @@ func (c *Client) update() error {
 }
 
 func containsProduct(products []string, product string) bool {
-	for _, p := range products {
-		if product == p {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(products, product)
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
@@ -620,8 +616,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 }
 
 type listener struct {
-	onUpdate      func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
-	onStateChange func(bool)
+	onUpdate               func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	onStateChange          func(bool)
+	shouldIgnoreExpiration bool
 }
 
 func (l *listener) OnUpdate(configs map[string]state.RawConfig, cb func(cfgPath string, status state.ApplyStatus)) {
@@ -636,9 +633,18 @@ func (l *listener) OnStateChange(state bool) {
 	}
 }
 
+func (l *listener) ShouldIgnoreSignatureExpiration() bool {
+	return l.shouldIgnoreExpiration
+}
+
 // NewUpdateListener creates a remote config listener from a update callback
 func NewUpdateListener(onUpdate func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) Listener {
 	return &listener{onUpdate: onUpdate}
+}
+
+// NewUpdateListenerIgnoreExpiration creates a remote config listener that ignores signature expiration
+func NewUpdateListenerIgnoreExpiration(onUpdate func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) Listener {
+	return &listener{onUpdate: onUpdate, shouldIgnoreExpiration: true}
 }
 
 // NewListener creates a remote config listener from a couple of update and state change callbacks

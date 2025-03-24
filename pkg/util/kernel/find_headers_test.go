@@ -21,7 +21,7 @@ func TestGetKernelHeaders(t *testing.T) {
 	}
 
 	opts := HeaderOptions{}
-	dirs := GetKernelHeaders(opts, nil)
+	dirs := GetKernelHeaders(opts)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
 

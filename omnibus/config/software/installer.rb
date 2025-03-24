@@ -36,7 +36,7 @@ build do
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
-    command "inv -e installer.build --install-path=#{install_dir}", env: env
+    command "dda inv -e installer.build --install-path=#{install_dir}", env: env
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 

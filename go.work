@@ -1,10 +1,19 @@
-go 1.23.6
+go 1.23.5
+
+toolchain go1.23.6
+
+// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+// This was causing errors with AWS Network Firewall
+// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
+// This will be revisited once we update to 1.24.x
+godebug tlskyber=0
 
 use (
 	.
 	comp/api/api/def
 	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -31,7 +40,6 @@ use (
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
-	comp/logs/auditor/def
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
@@ -51,6 +59,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
+	comp/otelcol/status/def
+	comp/otelcol/status/impl
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def
@@ -75,10 +85,13 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
+	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
@@ -128,7 +141,9 @@ use (
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
+	pkg/util/otel
 	pkg/util/pointer
+	pkg/util/prometheus
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

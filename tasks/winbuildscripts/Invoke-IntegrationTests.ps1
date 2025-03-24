@@ -35,7 +35,7 @@ Invoke-BuildScript `
 
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
-    & inv -e integration-tests
+    & dda inv -e integration-tests
     $err = $LASTEXITCODE
     if($err -ne 0){
         Write-Host -ForegroundColor Red "test failed $err"

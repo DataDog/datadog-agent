@@ -20,6 +20,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	sendPacketFunc    = sendPacket    // for testing
+	listenPacketsFunc = listenPackets // for testing
+)
+
+type (
+	rawConnWrapper interface {
+		SetReadDeadline(t time.Time) error
+		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
+		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+	}
+)
+
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
@@ -99,24 +112,24 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
+func (t *TCPv4) sendAndReceive(rawIcmpConn rawConnWrapper, rawTCPConn rawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
 	tcpHeader, tcpPacket, err := t.createRawTCPSyn(seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
 	}
 
-	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
+	err = sendPacketFunc(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
 		log.Errorf("failed to send TCP SYN: %s", err.Error())
 		return nil, err
 	}
 
 	start := time.Now()
-	resp := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	resp := listenPacketsFunc(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if resp.Err != nil {
 		log.Errorf("failed to listen for packets: %s", resp.Err.Error())
-		return nil, err
+		return nil, resp.Err
 	}
 
 	rtt := time.Duration(0)

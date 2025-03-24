@@ -73,8 +73,8 @@ Invoke-BuildScript `
         $inv_args += "--build-upgrade"
     }
 
-    Write-Host "inv -e winbuild.agent-package $inv_args"
-    inv -e winbuild.agent-package @inv_args
+    Write-Host "dda inv -e winbuild.agent-package $inv_args"
+    dda inv -e winbuild.agent-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1

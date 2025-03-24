@@ -7,6 +7,7 @@
 package usm
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"io"
@@ -207,6 +208,24 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
+// VerifiedZipReader returns a reader for a zip file after ensuring that the
+// file is a regular file.
+func VerifiedZipReader(file fs.File) (*zip.Reader, error) {
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	reader, err := zip.NewReader(file.(io.ReaderAt), fi.Size())
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
+}
+
 // Map languages to their context detectors
 var languageDetectors = map[language.Language]detectorCreatorFn{
 	language.Python: newPythonDetector,
@@ -228,10 +247,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 func serviceNameInjected(envs envs.Variables) bool {
 	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		values := strings.Split(env, ",")
-		for _, v := range values {
-			if v == "service_name" {
-				return true
-			}
+		if slices.Contains(values, "service_name") {
+			return true
 		}
 	}
 	return false

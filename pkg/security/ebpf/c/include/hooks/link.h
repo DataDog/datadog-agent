@@ -133,13 +133,14 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     }
 
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
+        syscall->retval = retval;
+
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
         syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
-        syscall->resolver.sysretval = retval;
 
         resolve_dentry(ctx, dr_type);
     }
@@ -176,7 +177,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
         return 0;
     }
 
-    s64 retval = syscall->resolver.sysretval;
+    s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;

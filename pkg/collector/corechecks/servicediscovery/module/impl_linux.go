@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
@@ -568,13 +568,15 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.Pid = int(proc.Pid)
 	ctx.ContextMap = contextMap
 
-	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx)
 
 	name := nameMeta.DDService
 	if name == "" {
 		name = nameMeta.Name
 	}
+
+	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &serviceInfo{
 		name:                     name,
@@ -585,7 +587,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  sanitizeCmdLine(s.scrubber, cmdline),
+		cmdLine:                  truncateCmdline(lang, cmdline),
 		startTimeMilli:           uint64(createTime),
 	}, nil
 }
@@ -889,15 +891,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	service.ContainerID = id
-
-	// We checked the container tags before, no need to do it again.
-	if service.CheckedContainerData {
+	container, ok := containers[id]
+	if !ok {
 		return
 	}
 
-	container, ok := containers[id]
-	if !ok {
+	service.ContainerID = id
+	service.ContainerTags = container.Tags
+
+	// We checked the container tags before, no need to do it again.
+	if service.CheckedContainerData {
 		return
 	}
 

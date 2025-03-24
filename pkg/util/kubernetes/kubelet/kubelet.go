@@ -52,19 +52,15 @@ type KubeUtil struct {
 	kubeletClient          *kubeletClient
 	rawConnectionInfo      map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration   time.Duration
-	filter                 *containers.Filter
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
 	podResourcesClient     *PodResourcesClient
+
+	useAPIServer bool
 }
 
 func (ku *KubeUtil) init() error {
 	var err error
-	ku.filter, err = containers.GetSharedMetricFilter()
-	if err != nil {
-		return err
-	}
-
 	ku.kubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
 		return err
@@ -89,6 +85,14 @@ func (ku *KubeUtil) init() error {
 		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
 		if err != nil {
 			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+		ku.useAPIServer = true
+		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
+		if err != nil {
+			return err
 		}
 	}
 
@@ -174,6 +178,16 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	if ku.useAPIServer {
+		if ku.kubeletClient.config.nodeName != "" {
+			return ku.kubeletClient.config.nodeName, nil
+		}
+		stats, err := ku.GetLocalStatsSummary(ctx)
+		if err == nil && stats.Node.NodeName != "" {
+			return stats.Node.NodeName, nil
+		}
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
+	}
 	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)

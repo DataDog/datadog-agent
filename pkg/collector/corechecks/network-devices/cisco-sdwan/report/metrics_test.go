@@ -70,7 +70,7 @@ func TestSendDeviceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"memory.usage", float64(0.56)*100, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"disk.usage", 30, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"device_metrics:test:tag,test2:tag2": 11000,
+		"device_metrics:10.0.0.1": 11000,
 	}, sender.lastTimeSent)
 
 	devices = append(devices, client.DeviceStatistics{
@@ -95,7 +95,7 @@ func TestSendDeviceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"memory.usage", float64(0.75)*100, "", expectedTags, 15)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"disk.usage", 35, "", expectedTags, 15)
 	require.Equal(t, map[string]float64{
-		"device_metrics:test:tag,test2:tag2": 15000,
+		"device_metrics:10.0.0.1": 15000,
 	}, sender.lastTimeSent)
 }
 
@@ -167,7 +167,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_drops", 65, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_drops", 2, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
+		"interface_metrics:10.0.0.1,interface-1": 10000,
 	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
@@ -178,7 +178,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
+		"interface_metrics:10.0.0.1,interface-1": 10000,
 	}, sender.lastTimeSent)
 }
 
@@ -368,7 +368,7 @@ func TestSendApplicationAwareRoutingMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"tunnel.rx_packets", 512, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"tunnel.tx_packets", 203, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"tunnel_metrics:test:tag,test2:tag2,remote_test3:tag3,remote_test4:tag4,local_color:mpls,remote_color:public-internet,state:Up": 10000,
+		"tunnel_metrics:10.0.0.1,10.0.0.2,mpls,public-internet": 10000,
 	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
@@ -379,7 +379,7 @@ func TestSendApplicationAwareRoutingMetrics(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
 	require.Equal(t, map[string]float64{
-		"tunnel_metrics:test:tag,test2:tag2,remote_test3:tag3,remote_test4:tag4,local_color:mpls,remote_color:public-internet,state:Up": 10000,
+		"tunnel_metrics:10.0.0.1,10.0.0.2,mpls,public-internet": 10000,
 	}, sender.lastTimeSent)
 }
 
@@ -1241,7 +1241,7 @@ func TestSendCloudApplicationMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.loss", 0.01, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", 8, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+		"application_metrics:10.0.0.1,10.0.0.2,mpls,public-internet,test-app": 10000,
 	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
@@ -1252,7 +1252,7 @@ func TestSendCloudApplicationMetrics(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
 	require.Equal(t, map[string]float64{
-		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+		"application_metrics:10.0.0.1,10.0.0.2,mpls,public-internet,test-app": 10000,
 	}, sender.lastTimeSent)
 }
 

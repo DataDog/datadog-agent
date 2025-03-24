@@ -5,8 +5,8 @@
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
-    - !reference [.lint_linux_packages]
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - !reference [.create_signature_and_lint_linux_packages]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -34,12 +34,8 @@
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
 
-.package_deb_agent_7:
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_7
-
 agent_deb-x64-a7:
-  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -48,7 +44,7 @@ agent_deb-x64-a7:
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -57,7 +53,7 @@ agent_deb-arm64-a7:
     DD_PROJECT: "agent"
 
 agent_deb-x64-a7-fips:
-  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -67,7 +63,7 @@ agent_deb-x64-a7-fips:
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7-fips:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -82,29 +78,29 @@ agent_deb-arm64-a7-fips:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
-    - !reference [.lint_linux_packages]
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
+    - !reference [.create_signature_and_lint_linux_packages]
 
 ot_agent_deb-x64-a7:
-  extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
+  extends: [.package_ot_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-ot-agent-7-x64"]
+  needs: ["datadog-agent-7-x64", "datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: "agent"
 
 ot_agent_deb-arm64-a7:
-  extends: [.package_ot_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  extends: [.package_ot_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-ot-agent-7-arm64"]
+  needs: ["datadog-agent-7-arm64", "datadog-otel-agent-arm64"]
   variables:
     DD_PROJECT: "agent"
 
 installer_deb-amd64:
-  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -116,7 +112,7 @@ installer_deb-amd64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-arm64:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -126,7 +122,6 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
-  extends: [.package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -135,8 +130,8 @@ installer_deb-arm64:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
-    - !reference [.lint_linux_packages]
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - !reference [.create_signature_and_lint_linux_packages]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -169,7 +164,7 @@ iot_agent_deb-armhf:
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
 dogstatsd_deb-x64:
-  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -179,7 +174,7 @@ dogstatsd_deb-x64:
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 
 dogstatsd_deb-arm64:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -187,4 +182,3 @@ dogstatsd_deb-arm64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
-

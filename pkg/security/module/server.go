@@ -545,6 +545,11 @@ func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
 	}
 }
 
+// GetSECLVariables returns the SECL variables and their value
+func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
+	return a.cwsConsumer.ruleEngine.GetSECLVariables()
+}
+
 // Stop stops the API server
 func (a *APIServer) Stop() {
 	a.stopper.Stop()

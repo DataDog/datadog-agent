@@ -42,6 +42,7 @@ type PlatformProbe interface {
 	Stop()
 	SendStats() error
 	Snapshot() error
+	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
@@ -55,7 +56,6 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
-	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
 
@@ -221,6 +221,11 @@ func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	return p.PlatformProbe.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
+	p.PlatformProbe.Walk(cb)
 }
 
 // OnNewDiscarder is called when a new discarder is found
@@ -412,6 +417,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

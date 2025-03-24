@@ -18,3 +18,7 @@ func TestLoadWheelCheck(t *testing.T) {
 func TestLoadCustomCheck(t *testing.T) {
 	testLoadCustomCheck(t)
 }
+
+func TestLoadHACheck(t *testing.T) {
+	testLoadHACheck(t)
+}

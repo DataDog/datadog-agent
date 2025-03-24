@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
@@ -46,7 +45,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(4, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compression)
+	pipelineProvider := pipeline.NewProvider(4, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, &common.NoopStatusProvider{}, hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compression)
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(

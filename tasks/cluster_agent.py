@@ -35,13 +35,13 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly-a7",
+    release_version="nightly",
 ):
     """
     Build Cluster Agent
 
      Example invokation:
-        inv cluster-agent.build
+        dda inv cluster-agent.build
     """
     build_common(
         ctx,

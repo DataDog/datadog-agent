@@ -561,7 +561,7 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	a.sender.sendEventPayload(ss, eventInfo, eventPayloadJSON)
 	err = a.sender.flushSession(ss)
 	if err != nil {
-		a.logComp.Errorf("failed to flush sent payload: %w", err)
+		a.logComp.Errorf("failed to flush sent payload: %v", err)
 		return err
 	}
 

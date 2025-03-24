@@ -13,11 +13,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,10 +28,11 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *ContainerCheck {
+func NewContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component, statsd statsd.ClientInterface) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
 		wmeta:  wmeta,
+		statsd: statsd,
 	}
 }
 
@@ -52,6 +53,7 @@ type ContainerCheck struct {
 	wmeta        workloadmeta.Component
 
 	sysprobeClient *http.Client
+	statsd         statsd.ClientInterface
 }
 
 // Init initializes a ContainerCheck instance.
@@ -153,7 +155,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	numContainers := float64(len(containers))
 	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1) //nolint:errcheck
+	_ = c.statsd.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1)
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }

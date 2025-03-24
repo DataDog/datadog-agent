@@ -13,6 +13,7 @@ package oomkill
 
 import (
 	"fmt"
+
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,7 +75,7 @@ func loadOOMKillCOREProbe() (*Probe, error) {
 }
 
 func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*Probe, error) {
-	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg))
 	if err != nil {
 		return nil, err
 	}

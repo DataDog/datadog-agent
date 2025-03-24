@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot("TRACE", "OFF", false),
+					LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 				}),
 				core.Bundle(),
 				fetchonlyimpl.Module(),

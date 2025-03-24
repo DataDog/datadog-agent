@@ -53,7 +53,7 @@ __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *sk
 
     return ACT_OK;
 }
- 
+
 __attribute__((always_inline)) int is_raw_packet_enabled() {
     u32 key = 0;
     u32 *enabled = bpf_map_lookup_elem(&raw_packet_enabled, &key);

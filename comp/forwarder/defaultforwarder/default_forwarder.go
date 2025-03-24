@@ -188,7 +188,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		if domain, err := utils.GetClusterAgentEndpoint(); err != nil {
 			log.Errorf("Could not get cluster agent endpoint for autoscaling failover metrics: %s", err)
 		} else if authToken, err := security.GetClusterAgentAuthToken(config); err != nil {
-			log.Errorf("Failed to get cluster agent auth token: ", err)
+			log.Error("Failed to get cluster agent auth token: ", err)
 		} else {
 			log.Infof("Setting cluster agent domain resolver: %s", domain)
 			option.DomainResolvers[domain] = pkgresolver.NewLocalDomainResolver(domain, authToken)
@@ -335,6 +335,10 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
+			numberOfWorkers := options.NumberOfWorkers
+			if isLocal {
+				numberOfWorkers = 1 // Local domain resolver should only have one worker
+			}
 			fwd := newDomainForwarder(
 				config,
 				log,
@@ -342,7 +346,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				isMRF,
 				isLocal,
 				transactionContainer,
-				options.NumberOfWorkers,
+				numberOfWorkers,
 				options.ConnectionResetInterval,
 				domainForwarderSort,
 				pointCountTelemetry)

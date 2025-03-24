@@ -299,3 +299,30 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	}
 	return false, nil
 }
+
+// GetCgroup2MountPoint checks if cgroup v2 is available and returns its mount point
+func GetCgroup2MountPoint() (string, error) {
+	file, err := os.Open(kernel.HostProc("/1/mountinfo"))
+	if err != nil {
+		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: failed to open /proc/self/mountinfo: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+
+		// The cgroup2 mount entry will have "cgroup2" as the filesystem type
+		if len(fields) >= 10 && fields[len(fields)-3] == "cgroup2" {
+			// The 5th field is the mount point
+			return filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(fields[4], "/sys")), nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: error reading mountinfo: %w", err)
+	}
+
+	return "", fmt.Errorf("cgroup v2 not found")
+}

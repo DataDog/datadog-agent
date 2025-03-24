@@ -10,11 +10,11 @@
 package ditypes
 
 import (
-	"debug/dwarf"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -133,17 +133,20 @@ type ProcessInfo struct {
 	RuntimeID   string
 	BinaryPath  string
 
-	TypeMap   *TypeMap
-	DwarfData *dwarf.Data
+	TypeMap *TypeMap
 
 	ConfigurationUprobe    *link.Link
 	ProbesByID             ProbesByID
 	InstrumentationUprobes map[ProbeID]*link.Link
 	InstrumentationObjects map[ProbeID]*ebpf.Collection
+	mu                     sync.RWMutex
 }
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	configProbe, ok := pi.ProbesByID[ConfigBPFProbeID]
 	if !ok {
 		return nil, fmt.Errorf("config probe was not set for process %s", pi.ServiceName)
@@ -174,12 +177,16 @@ func (pi *ProcessInfo) CloseConfigUprobe() error {
 // SetUprobeLink associates the uprobe link with the specified probe
 // in the tracked process
 func (pi *ProcessInfo) SetUprobeLink(probeID ProbeID, l *link.Link) {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
 	pi.InstrumentationUprobes[probeID] = l
 }
 
 // CloseUprobeLink closes the probe and deletes the link for the probe
 // in the tracked process
 func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
 	if l, ok := pi.InstrumentationUprobes[probeID]; ok {
 		err := (*l).Close()
 		delete(pi.InstrumentationUprobes, probeID)
@@ -191,6 +198,9 @@ func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
 // CloseAllUprobeLinks closes all probes and deletes their links for all probes
 // in the tracked process
 func (pi *ProcessInfo) CloseAllUprobeLinks() {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+
 	for probeID := range pi.InstrumentationUprobes {
 		if err := pi.CloseUprobeLink(probeID); err != nil {
 			log.Info("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, probeID, err)
@@ -260,6 +270,7 @@ type InstrumentationOptions struct {
 	MaxReferenceDepth int
 	MaxFieldCount     int
 	SliceMaxLength    int
+	NumCPUs           int
 }
 
 // Probe represents a location in a GoProgram that can be instrumented

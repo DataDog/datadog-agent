@@ -188,7 +188,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	family, _ := config.GetFamilyAddress(socketPath)
+	family := config.GetFamilyAddress(socketPath)
 	if runtime.GOOS == "windows" && family == "unix" {
 		return nil, fmt.Errorf("unix sockets are not supported on Windows")
 	}

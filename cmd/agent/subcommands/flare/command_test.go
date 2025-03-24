@@ -146,6 +146,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	if runtime.GOOS != "darwin" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
 	}
 
 	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
@@ -214,6 +215,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
 
 	profiler := getProfiler(t, mockConfig, mockSysProbeConfig)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })

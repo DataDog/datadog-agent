@@ -43,12 +43,12 @@ func (tp *TracePayload) GetCollectedTime() time.Time {
 
 // ParseTracePayload parses an api.Payload into a list of TracePayload
 func ParseTracePayload(payload api.Payload) ([]*TracePayload, error) {
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	var p pb.AgentPayload
-	if err := proto.Unmarshal(enflated, &p); err != nil {
+	if err := proto.Unmarshal(inflated, &p); err != nil {
 		return nil, err
 	}
 	return []*TracePayload{{AgentPayload: &p, collectedTime: payload.Timestamp}}, nil

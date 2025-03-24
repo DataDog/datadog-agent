@@ -7,6 +7,7 @@ package util
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net/http"
@@ -32,11 +33,13 @@ type ReqOptions struct {
 	Authtoken string
 }
 
+// ClientOption is a function type that takes an *http.Client as input and returns an *http.Client.
+// It can be used to modify or configure an HTTP client.
+type ClientOption func(*http.Client) *http.Client
+
 // GetClient is a convenience function returning an http client
-// `GetClient(false)` must be used only for HTTP requests whose destination is
-// localhost (ie, for Agent commands).
-func GetClient(verify bool) *http.Client {
-	return GetClientWithTimeout(0, verify)
+func GetClient(opts ...ClientOption) *http.Client {
+	return GetClientWithTimeout(0, opts...)
 }
 
 // ipcRoundTripper is an implementation of http.RoundTripper interface
@@ -57,19 +60,38 @@ func (i *ipcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return i.tr.RoundTrip(req)
 }
 
+// WithInsecureTransport modifies the provided HTTP client to use an insecure
+// transport configuration. Specifically, it sets the TLSClientConfig to skip
+// verification of the server's certificate.
+// TODO IPC: remove this function
+func WithInsecureTransport(c *http.Client) *http.Client {
+	c.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	return c
+}
+
 // GetClientWithTimeout is a convenience function returning an http client
 // Arguments correspond to the request timeout duration, and a boolean to
 // verify the server TLS client (false should only be used on localhost
 // trusted endpoints).
-func GetClientWithTimeout(to time.Duration, _ bool) *http.Client {
+func GetClientWithTimeout(to time.Duration, opts ...ClientOption) *http.Client {
 	transport := ipcRoundTripper{
 		tr: http.Transport{},
 	}
 
-	return &http.Client{
+	c := &http.Client{
 		Transport: &transport,
 		Timeout:   to,
 	}
+
+	for _, opt := range opts {
+		c = opt(c)
+	}
+
+	return c
 }
 
 // DoGet is a wrapper around performing HTTP GET requests

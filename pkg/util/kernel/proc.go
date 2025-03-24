@@ -127,6 +127,15 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 	}
 	defer file.Close()
 
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !fileInfo.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: not a regular file", memFdFileName)
+	}
+
 	data, err := io.ReadAll(io.LimitReader(file, int64(memFdMaxSize+1)))
 	if err != nil {
 		return nil, err

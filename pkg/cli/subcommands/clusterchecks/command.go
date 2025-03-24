@@ -129,7 +129,7 @@ func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
 func rebalance(_ log.Component, config config.Component, cliParams *cliParams) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
@@ -179,7 +179,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 }
 
 func isolate(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}

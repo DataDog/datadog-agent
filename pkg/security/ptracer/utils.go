@@ -46,18 +46,13 @@ type controlGroup struct {
 	path string
 }
 
-func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+func getProcControlGroupsFromData(data []byte) ([]controlGroup, error) {
 	var cgroups []controlGroup
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		t := scanner.Text()
 		parts := strings.Split(t, ":")
-		var ID int
-		ID, err = strconv.Atoi(parts[0])
+		ID, err := strconv.Atoi(parts[0])
 		if err != nil {
 			continue
 		}
@@ -69,17 +64,25 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 		cgroups = append(cgroups, c)
 	}
 	return cgroups, nil
-
 }
 
-func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, error) {
-	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
+func getContainerIDFromCgroupData(data []byte) (containerutils.ContainerID, error) {
+	cgroups, err := getProcControlGroupsFromData(data)
 	if err != nil {
 		return "", err
 	}
 
 	for _, cgroup := range cgroups {
-		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
+		str := cgroup.path
+		if strings.Contains(cgroup.path, "kubepods") {
+			els := strings.Split(str, "/")
+			if len(els) > 0 {
+				str = els[len(els)-1]
+			}
+		}
+		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
+			return cid, nil
+		} else if cid, _ = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
 			return cid, nil
 		}
 	}
@@ -87,11 +90,19 @@ func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, er
 }
 
 func getCurrentProcContainerID() (containerutils.ContainerID, error) {
-	return getContainerIDFromProcFS("/proc/self/cgroup")
+	data, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return "", err
+	}
+	return getContainerIDFromCgroupData(data)
 }
 
 func getProcContainerID(pid int) (containerutils.ContainerID, error) {
-	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
+	if err != nil {
+		return "", err
+	}
+	return getContainerIDFromCgroupData(data)
 }
 
 func getNSID() uint64 {

@@ -14,7 +14,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	registryMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -62,7 +62,7 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 func newTestLauncher(t *testing.T) *Launcher {
 	t.Helper()
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), registryMock.Mock(), tailers.NewTailerTracker())

@@ -16,17 +16,16 @@ import (
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -248,15 +247,15 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 }
 
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
-func Diagnose() []diagnosis.Diagnosis {
-	var diagnoses []diagnosis.Diagnosis
+func Diagnose() []diagnose.Diagnosis {
+	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
@@ -268,15 +267,15 @@ func Diagnose() []diagnosis.Diagnosis {
 		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:    diagnosis.DiagnosisSuccess,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:    diagnose.DiagnosisSuccess,
 				Category:  desc.category,
 				Name:      name,
 				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
 			})
 		} else {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Category:    desc.category,
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
@@ -356,7 +355,7 @@ type passthroughPipeline struct {
 	sender                *sender.Sender
 	strategy              sender.Strategy
 	in                    chan *message.Message
-	auditor               auditor.Component
+	auditor               auditor.Auditor
 	eventPlatformReceiver eventplatformreceiver.Component
 }
 
@@ -376,9 +375,24 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compressor logscompression.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
-	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+func newHTTPPassthroughPipeline(
+	coreConfig model.Reader,
+	eventPlatformReceiver eventplatformreceiver.Component,
+	compressor logscompression.Component,
+	desc passthroughPipelineDesc,
+	destinationsContext *client.DestinationsContext,
+	pipelineID int,
+) (p *passthroughPipeline, err error) {
+
+	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(
+		coreConfig,
+		configKeys,
+		desc.hostnameEndpointPrefix,
+		desc.intakeTrackType,
+		config.DefaultIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +453,7 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 			pipelineMonitor)
 	}
 
-	a := auditornoop.NewAuditor()
+	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{

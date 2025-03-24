@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -123,11 +124,10 @@ type DatadogConfig struct {
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
-	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
+	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
-	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 }
@@ -252,9 +252,7 @@ func mergeConfig(base interface{}, override interface{}) (interface{}, error) {
 
 func mergeMap(base, override map[string]interface{}) (map[string]interface{}, error) {
 	merged := make(map[string]interface{})
-	for k, v := range base {
-		merged[k] = v
-	}
+	maps.Copy(merged, base)
 	for k := range override {
 		v, err := mergeConfig(base[k], override[k])
 		if err != nil {

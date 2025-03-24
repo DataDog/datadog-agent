@@ -193,7 +193,7 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 
 	// Ensure both namespace names and labels are not set together.
 	for _, target := range cfg.Targets {
-		if len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
+		if target.NamespaceSelector != nil && len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
 			return nil, fmt.Errorf("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
 		}
 	}
@@ -206,23 +206,23 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 type Target struct {
 	// Name is the name of the target. It will be appended to the pod annotations to identify the target that was used.
 	// Full config key: apm_config.instrumentation.targets[].name
-	Name string `mapstructure:"name" json:"name"`
+	Name string `mapstructure:"name" json:"name,omitempty"`
 	// PodSelector is the pod selector to match the pods to apply the auto instrumentation to. It will be used in
 	// conjunction with the NamespaceSelector to match the pods. Full config key:
 	// apm_config.instrumentation.targets[].selector
-	PodSelector PodSelector `mapstructure:"podSelector" json:"podSelector"`
+	PodSelector *PodSelector `mapstructure:"podSelector" json:"podSelector,omitempty"`
 	// NamespaceSelector is the namespace selector to match the namespaces to apply the auto instrumentation to. It will
 	// be used in conjunction with the Selector to match the pods. Full config key:
 	// apm_config.instrumentation.targets[].namespaceSelector
-	NamespaceSelector NamespaceSelector `mapstructure:"namespaceSelector" json:"namespaceSelector"`
+	NamespaceSelector *NamespaceSelector `mapstructure:"namespaceSelector" json:"namespaceSelector,omitempty"`
 	// TracerVersions is a map of tracer versions to inject for workloads that match the target. The key is the tracer
 	// name and the value is the version to inject. Full config key:
 	// apm_config.instrumentation.targets[].ddTraceVersions
-	TracerVersions map[string]string `mapstructure:"ddTraceVersions" json:"ddTraceVersions"`
+	TracerVersions map[string]string `mapstructure:"ddTraceVersions" json:"ddTraceVersions,omitempty"`
 	// TracerConfigs is a list of configuration options to use for the installed tracers. These options will be added
 	// as environment variables in addition to the injected tracer. Full config key:
 	// apm_config.instrumentation.targets[].ddTraceConfigs
-	TracerConfigs []TracerConfig `mapstructure:"ddTraceConfigs" json:"ddTraceConfigs"`
+	TracerConfigs []TracerConfig `mapstructure:"ddTraceConfigs" json:"ddTraceConfigs,omitempty"`
 }
 
 // PodSelector is a reconstruction of the metav1.LabelSelector struct to be able to unmarshal the configuration. It
@@ -231,10 +231,10 @@ type Target struct {
 type PodSelector struct {
 	// MatchLabels is a map of key-value pairs to match the labels of the pod. The labels and expressions are ANDed.
 	// Full config key: apm_config.instrumentation.targets[].podSelector.matchLabels
-	MatchLabels map[string]string `mapstructure:"matchLabels" json:"matchLabels"`
+	MatchLabels map[string]string `mapstructure:"matchLabels" json:"matchLabels,omitempty"`
 	// MatchExpressions is a list of label selector requirements to match the labels of the pod. The labels and
 	// expressions are ANDed. Full config key: apm_config.instrumentation.targets[].podSelector.matchExpressions
-	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions" json:"matchExpressions"`
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions" json:"matchExpressions,omitempty"`
 }
 
 // AsLabelSelector converts the PodSelector to a labels.Selector. It returns an error if the conversion fails.
@@ -258,12 +258,12 @@ func (p PodSelector) AsLabelSelector() (labels.Selector, error) {
 // the configuration.
 type SelectorMatchExpression struct {
 	// Key is the key of the label to match.
-	Key string `mapstructure:"key" json:"key"`
+	Key string `mapstructure:"key" json:"key,omitempty"`
 	// Operator is the operator to use to match the label. Valid values are In, NotIn, Exists, DoesNotExist.
-	Operator metav1.LabelSelectorOperator `mapstructure:"operator" json:"operator"`
+	Operator metav1.LabelSelectorOperator `mapstructure:"operator" json:"operator,omitempty"`
 	// Values is a list of values to match the label against. If the operator is Exists or DoesNotExist, the values
 	// should be empty. If the operator is In or NotIn, the values should be non-empty.
-	Values []string `mapstructure:"values" json:"values"`
+	Values []string `mapstructure:"values" json:"values,omitempty"`
 }
 
 // NamespaceSelector is a struct to store the configuration for the namespace selector. It can be used to match the
@@ -272,15 +272,15 @@ type SelectorMatchExpression struct {
 type NamespaceSelector struct {
 	// MatchNames is a list of namespace names to match. If empty, all namespaces are matched. Full config key:
 	// apm_config.instrumentation.targets[].namespaceSelector.matchNames
-	MatchNames []string `mapstructure:"matchNames" json:"matchNames"`
+	MatchNames []string `mapstructure:"matchNames" json:"matchNames,omitempty"`
 	// MatchLabels is a map of key-value pairs to match the labels of the namespace. The labels and expressions are
 	// ANDed. This cannot be used with MatchNames. Full config key:
 	// apm_config.instrumentation.targets[].namespaceSelector.matchLabels
-	MatchLabels map[string]string `mapstructure:"matchLabels" json:"matchLabels"`
+	MatchLabels map[string]string `mapstructure:"matchLabels" json:"matchLabels,omitempty"`
 	// MatchExpressions is a list of label selector requirements to match the labels of the namespace. The labels and
 	// expressions are ANDed. This cannot be used with MatchNames. Full config key:
 	// apm_config.instrumentation.targets[].selector.matchExpressions
-	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions" json:"matchExpressions"`
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions" json:"matchExpressions,omitempty"`
 }
 
 // AsLabelSelector converts the NamespaceSelector to a labels.Selector. It returns an error if the conversion fails.
@@ -346,10 +346,20 @@ func getOptionalStringValue(datadogConfig config.Component, key string) *string 
 	return value
 }
 
+type pinnedLibraries struct {
+	// libs are the pinned libraries themselves.
+	libs []libInfo
+	// areSetToDefaults is true when the libs coming from the configuration
+	// are equivalent to what would be set if there was no configuration at all.
+	areSetToDefaults bool
+}
+
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
-func getPinnedLibraries(libVersions map[string]string, registry string) []libInfo {
-	var res []libInfo
+func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
+	libs := []libInfo{}
+	allDefaults := true
+
 	for lang, version := range libVersions {
 		l := language(lang)
 		if !l.isSupported() {
@@ -357,16 +367,23 @@ func getPinnedLibraries(libVersions map[string]string, registry string) []libInf
 			continue
 		}
 
-		log.Infof("Library version %s is specified for language %s", version, lang)
-		res = append(res, l.libInfo("", l.libImageName(registry, version)))
+		info := l.libInfo("", l.libImageName(registry, version))
+		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
+		libs = append(libs, info)
+
+		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+			allDefaults = false
+		}
 	}
 
-	return res
+	return pinnedLibraries{
+		libs:             libs,
+		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
+	}
 }
 
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
-
-	var conf = initResourceRequirementConfiguration{}
+	conf := initResourceRequirementConfiguration{}
 
 	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))

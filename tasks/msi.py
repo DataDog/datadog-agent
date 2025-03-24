@@ -72,7 +72,7 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', release_version='nightly-a7', flavor=None):
+def _get_env(ctx, major_version='7', release_version='nightly', flavor=None):
     env = load_release_versions(ctx, release_version)
 
     if flavor is None:
@@ -292,7 +292,7 @@ def build(
     vstudio_root=None,
     arch="x64",
     major_version='7',
-    release_version='nightly-a7',
+    release_version='nightly',
     flavor=None,
     debug=False,
     build_upgrade=False,
@@ -399,7 +399,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly-a7', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
@@ -416,7 +416,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version=
 
     # Generate the config file
     if not ctx.run(
-        f'inv -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
@@ -535,7 +535,7 @@ def get_msm_info(ctx, release_version):
     iterable=['drivers'],
     help={
         'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
-        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+        'release_version': 'Release version to fetch drivers from (default: nightly)',
     },
 )
 def fetch_driver_msm(ctx, drivers=None, release_version=None):
@@ -546,7 +546,7 @@ def fetch_driver_msm(ctx, drivers=None, release_version=None):
     """
     ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
     if not release_version:
-        release_version = 'nightly-a7'
+        release_version = 'nightly'
 
     msm_info = get_msm_info(ctx, release_version)
     if not drivers:

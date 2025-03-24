@@ -229,7 +229,7 @@ class TestAlertsSendNotification(unittest.TestCase):
 
     @patch("tasks.libs.notify.alerts.send_metrics")
     @patch('slack_sdk.WebClient', autospec=True)
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
@@ -290,3 +290,32 @@ class TestAlertsSendNotification(unittest.TestCase):
         current_metrics = dict(current_metrics.items())
 
         self.assertDictEqual(current_metrics, expected_metrics)
+
+    @patch("tasks.libs.notify.alerts.send_metrics")
+    @patch('slack_sdk.WebClient', autospec=True)
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
+    @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
+    @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
+    @patch('tasks.libs.notify.alerts.CHANNEL_BROADCAST', '#channel-a')
+    def test_prevent_duplication(self, mock_slack: MagicMock, mock_metrics: MagicMock):
+        client_mock = MagicMock()
+        mock_slack.return_value = client_mock
+        consecutive = {
+            'tests_hello': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+            'tests_team_a_1': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+            'tests_letters_1': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+        }
+        cumulative = {
+            'tests_team_b_1': [
+                alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
+            ],
+            'tests_team_a_2': [
+                alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
+            ],
+        }
+
+        alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
+        alerts.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit_tests/testdata/jobowners.txt')
+        self.assertEqual(len(client_mock.chat_postMessage.call_args_list), 3)
+        mock_metrics.assert_called_once()

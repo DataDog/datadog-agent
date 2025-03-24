@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// team: opentelemetry opentelemetry-agent
+// team: opentelemetry-agent
 
 // Component is the component type.
 type Component interface {

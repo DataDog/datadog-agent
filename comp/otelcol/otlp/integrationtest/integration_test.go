@@ -43,7 +43,6 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -140,7 +139,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		orchestratorimpl.MockModule(),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 		noopsimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())

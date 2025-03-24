@@ -402,13 +402,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
+		BindHost:                   c.ReceiverHost,
+		GRPCPort:                   grpcPort,
+		MaxRequestBytes:            c.MaxRequestBytes,
+		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
+		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:       attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -636,6 +637,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
+	}
+	if k := "ol_proxy_config.enabled"; core.IsSet(k) {
+		c.OpenLineageProxy.Enabled = core.GetBool(k)
+	}
+	if k := "ol_proxy_config.dd_url"; core.IsSet(k) {
+		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if k := "ol_proxy_config.api_key"; core.IsSet(k) {
+		c.OpenLineageProxy.APIKey = core.GetString(k)
+	}
+	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
+		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

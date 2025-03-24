@@ -9,10 +9,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -135,13 +136,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	profile, err := config.BuildProfile("")
 	require.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -219,7 +221,7 @@ profiles:
 	profile, err := config.BuildProfile("")
 	require.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime,
+	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, nil, collectTime,
 		metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
 
 	// language=json
@@ -227,6 +229,7 @@ profiles:
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "my-ns:1.2.3.4",
@@ -283,7 +286,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
-		sender: sender,
+		hostname: "test",
+		sender:   sender,
 		interfaceConfigs: []snmpintegration.InterfaceConfig{
 			{
 				MatchField: "index",
@@ -362,18 +366,19 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, profile, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis)
+	ms.ReportNetworkDeviceMetadata(config, profile, storeWithIfName, []string{"tag1", "tag2"}, []string{"tag1", "tag2", "metric:tag"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis)
 
-	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
-	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
+	ifTags1 := []string{"tag1", "tag2", "metric:tag", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
+	ifTags2 := []string{"tag1", "tag2", "metric:tag", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
 
-	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
-	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "test", ifTags1)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "test", ifTags2)
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -479,13 +484,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -553,13 +559,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, 0, nil)
+	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, 0, nil)
 
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -626,13 +633,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -700,13 +708,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, profile, emptyMetadataStore, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
 
 	// language=json
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
