@@ -76,6 +76,7 @@ func (p *ProcessKiller) KillFromUserspace(sig uint32, pc *killContext) error {
 	return syscall.Kill(pc.pid, syscall.Signal(sig))
 }
 
+// TODO: do a better job than returning only the direct lineage
 func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
 	if entry.ContainerID != "" && scope == "container" {
 		pcs := []killContext{}
