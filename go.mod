@@ -25,7 +25,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/CycloneDX/cyclonedx-go v0.9.1
+	github.com/CycloneDX/cyclonedx-go v0.9.2
 	github.com/DataDog/appsec-internal-go v1.10.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
@@ -475,8 +475,8 @@ require (
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/shirou/gopsutil/v4 v4.25.2
-	go.opentelemetry.io/collector/component/componenttest v0.122.1
-	modernc.org/sqlite v1.34.1
+	go.opentelemetry.io/collector/component/componenttest v0.121.0
+	modernc.org/sqlite v1.36.1
 )
 
 require (
@@ -940,12 +940,9 @@ require (
 	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/kms v0.32.1 // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
-	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
-	modernc.org/libc v1.55.3 // indirect
-	modernc.org/mathutil v1.6.0 // indirect
-	modernc.org/memory v1.8.0 // indirect
-	modernc.org/strutil v1.2.0 // indirect
-	modernc.org/token v1.1.0 // indirect
+	modernc.org/libc v1.61.13 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.8.2 // indirect
 	rsc.io/binaryregexp v0.2.0 // indirect
 )
 
@@ -960,7 +957,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/container-artifact
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250228140618-161e65c03586
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250324160859-cfe8c0824c78
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 
