@@ -15,12 +15,14 @@ import (
 	"net/http"
 	"time"
 
+	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -33,14 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-)
-
-var (
-	fetchDatadogClusterAgentConfig = configFetcher.DatadogClusterAgentConfig
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -167,6 +164,44 @@ func (dca *datadogclusteragent) getFeatureConfigs() {
 	dca.metadata["feature_cluster_checks_advanced_dispatching_enabled"] = dca.conf.GetBool("cluster_checks.advanced_dispatching_enabled")
 }
 
+func (dca *datadogclusteragent) getConfigs(data map[string]interface{}) {
+	layers := dca.conf.AllSettingsBySource()
+	layersName := map[model.Source]string{
+		model.SourceFile:               "file_configuration",
+		model.SourceEnvVar:             "environment_variable_configuration",
+		model.SourceAgentRuntime:       "agent_runtime_configuration",
+		model.SourceLocalConfigProcess: "source_local_configuration",
+		model.SourceRC:                 "remote_configuration",
+		model.SourceFleetPolicies:      "fleet_policies_configuration",
+		model.SourceCLI:                "cli_configuration",
+		model.SourceProvided:           "provided_configuration",
+	}
+
+	for source, conf := range layers {
+		if layer, ok := layersName[source]; ok {
+			if yaml, err := dca.marshalAndScrub(conf); err == nil {
+				data[layer] = yaml
+			}
+		}
+	}
+	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettings()); err == nil {
+		data["full_configuration"] = yaml
+	}
+}
+
+func (dca *datadogclusteragent) marshalAndScrub(data interface{}) (string, error) {
+	flareScrubber := scrubber.NewWithDefaults()
+	provided, err := yaml.Marshal(data)
+	if err != nil {
+		return "", dca.log.Errorf("could not marshal cluster-agent configuration: %s", err)
+	}
+	scrubbed, err := flareScrubber.ScrubYaml(provided)
+	if err != nil {
+		return "", dca.log.Errorf("could not scrubb cluster-agent configuration: %s", err)
+	}
+	return string(scrubbed), nil
+}
+
 func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	dca.metadata["leader_election"] = dca.conf.GetBool("leader_election")
 	dca.metadata["is_leader"] = false
@@ -180,38 +215,8 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	if !dca.conf.GetBool("inventories_configuration_enabled") {
 		return dca.metadata
 	}
-	if fullConfig, rawLayers, err := fetchDatadogClusterAgentConfig(dca.conf); err == nil {
-		dca.metadata["full_configuration"] = fullConfig
-		configBySources := map[string]interface{}{}
-		if err := json.Unmarshal([]byte(rawLayers), &configBySources); err != nil {
-			dca.log.Debugf("error unmarshalling securityagent config by source: %s", err)
-			return dca.metadata
-		}
 
-		layersName := map[model.Source]string{
-			model.SourceFile:               "file_configuration",
-			model.SourceEnvVar:             "environment_variable_configuration",
-			model.SourceAgentRuntime:       "agent_runtime_configuration",
-			model.SourceLocalConfigProcess: "source_local_configuration",
-			model.SourceRC:                 "remote_configuration",
-			model.SourceFleetPolicies:      "fleet_policies_configuration",
-			model.SourceCLI:                "cli_configuration",
-			model.SourceProvided:           "provided_configuration",
-		}
-		for source, conf := range configBySources {
-			if layer, ok := layersName[model.Source(source)]; ok {
-				if yamlStr, err := yaml.Marshal(conf); err == nil {
-					dca.metadata[layer] = string(yamlStr)
-				} else {
-					dca.log.Debugf("error serializing cluster-agent '%s' config layer: %s", source, err)
-				}
-			} else {
-				dca.log.Debugf("error unknown config layer from cluster-agent '%s'", source)
-			}
-		}
-	} else {
-		dca.log.Debugf("error fetching datadog-cluster-agent config: %s", err)
-	}
+	dca.getConfigs(dca.metadata)
 	dca.getFeatureConfigs()
 	return dca.metadata
 }
