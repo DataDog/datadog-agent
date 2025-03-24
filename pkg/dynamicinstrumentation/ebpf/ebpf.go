@@ -13,13 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"runtime"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -54,8 +54,13 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 96
+		log.Error("unable to detect number of CPUs. assuming 96 cores")
+	}
 	outerMapSpec := spec.Maps["param_stacks"]
-	outerMapSpec.MaxEntries = uint32(runtime.NumCPU())
+	outerMapSpec.MaxEntries = uint32(numCPUs)
 
 	inner := &ebpf.MapSpec{
 		Type:       ebpf.Stack,
