@@ -279,20 +279,6 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }
 
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *localTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
-	if err != nil {
-		return nil, err
-	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
-}
-
 // Standard returns standard tags for a given entity
 // It triggers a tagger fetch if the no tags are found
 func (t *localTagger) Standard(entityID types.EntityID) ([]string, error) {
