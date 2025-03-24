@@ -168,9 +168,9 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
+	entityID := job.subnet.config.Digest(deviceIP)
 
 	deviceFound := false
-	var successfulAuthentication snmp.Authentication
 	for i, authentication := range job.subnet.config.Authentications {
 		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
 		params, err := job.subnet.config.BuildSNMPParams(deviceIP, i)
@@ -181,27 +181,25 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 		if deviceFound {
-			successfulAuthentication = authentication
+			config := job.subnet.config
+			config.Version = authentication.Version
+			config.Timeout = authentication.Timeout
+			config.Retries = authentication.Retries
+			config.Community = authentication.Community
+			config.User = authentication.User
+			config.AuthKey = authentication.AuthKey
+			config.AuthProtocol = authentication.AuthProtocol
+			config.PrivKey = authentication.PrivKey
+			config.PrivProtocol = authentication.PrivProtocol
+			config.ContextEngineID = authentication.ContextEngineID
+			config.ContextName = authentication.ContextName
+			l.createService(entityID, job.subnet, deviceIP, config, true)
+
 			break
 		}
 	}
-	entityID := job.subnet.config.Digest(deviceIP)
 	if !deviceFound {
 		l.deleteService(entityID, job.subnet)
-	} else {
-		config := job.subnet.config
-		config.Version = successfulAuthentication.Version
-		config.Timeout = successfulAuthentication.Timeout
-		config.Retries = successfulAuthentication.Retries
-		config.Community = successfulAuthentication.Community
-		config.User = successfulAuthentication.User
-		config.AuthKey = successfulAuthentication.AuthKey
-		config.AuthProtocol = successfulAuthentication.AuthProtocol
-		config.PrivKey = successfulAuthentication.PrivKey
-		config.PrivProtocol = successfulAuthentication.PrivProtocol
-		config.ContextEngineID = successfulAuthentication.ContextEngineID
-		config.ContextName = successfulAuthentication.ContextName
-		l.createService(entityID, job.subnet, deviceIP, config, true)
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
