@@ -350,13 +350,10 @@ echo "--- CC ---"
 echo "=> ls /usr/local/opt/gettext"
 ls /usr/local/opt/gettext || true
 echo "=> END ls /usr/local/opt/gettext"
-# TODO: Remove, do it inside a build dir
-rm -rf /tmp/celian
-mkdir -p /tmp/celian/bin /tmp/celian/config
 # echo "Old install dir: $INSTALL_DIR"
 # echo "Old config dir: $CONFIG_DIR"
-export INSTALL_DIR=/tmp/celian/bin
-export CONFIG_DIR=/tmp/celian/config
+export INSTALL_DIR="$PWD/datadog-agent-build/bin"
+export CONFIG_DIR="$PWD/datadog-agent-build/config"
 
 # Launch omnibus build
 # if [ "$SIGN" = "true" ]; then
@@ -375,11 +372,11 @@ else
     inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
 
-echo ls -la /tmp/celian/bin
-ls -la /tmp/celian/bin
-echo ls -la /tmp/celian/config
-ls -la /tmp/celian/config
-echo du /tmp/celian
-du /tmp/celian
+echo ls -la "$INSTALL_DIR"
+ls -la "$INSTALL_DIR"
+echo ls -la "$CONFIG_DIR"
+ls -la "$CONFIG_DIR"
+echo du "$INSTALL_DIR"
+du "$INSTALL_DIR"
 
 echo "--- CC END ---"
