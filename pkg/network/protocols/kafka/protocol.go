@@ -350,21 +350,15 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	return nil
 }
 
-// GetStats returns a map of Kafka stats and a callback to clean resources.
-// The format of the stats:
+// GetStats returns a map of Kafka stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
+func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
-	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.Kafka,
-			Stats: stats,
-		}, func() {
-			for _, s := range stats {
-				s.Close()
-			}
-		}
+		Type:  protocols.Kafka,
+		Stats: p.statkeeper.GetAndResetAllStats(),
+	}
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.

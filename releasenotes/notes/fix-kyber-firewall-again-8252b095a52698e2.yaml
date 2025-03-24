@@ -1,5 +1,5 @@
 # Each section from every release note are combined when the
-# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
 # it does not depend on any information only available in another
 # section. This may mean repeating some details, but each section
 # must be readable independently of the other.
@@ -8,6 +8,5 @@
 ---
 fixes:
   - |
-    Fixed issue in KSM check causing resources with irregular plural name
-    (such as `ingresses` and `storageclasses`) to miss tags configured in 
-    `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags`.
+    Disable the X25519Kyber768Draft00 key exchange mechanism to avoid issues with
+    firewalls not supporting it, in particular AWS Network Firewall.

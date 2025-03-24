@@ -63,6 +63,7 @@ from tasks.libs.releasing.json import (
     _save_release_json,
     generate_repo_data,
     load_release_json,
+    set_current_milestone,
     set_new_release_branch,
     update_release_json,
 )
@@ -303,6 +304,14 @@ def finish(ctx, release_branch, upstream="origin"):
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
+
+        next_milestone = next_final_version(ctx, release_branch, True)
+        next_milestone = next_milestone.next_version(bump_patch=True)
+        print(f"Creating the {next_milestone} milestone...")
+
+        gh = GithubAPI()
+        gh.create_milestone(str(next_milestone), exist_ok=True)
+        set_current_milestone(str(next_milestone))
 
         # Step 2: Update internal module dependencies
 
@@ -929,18 +938,14 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
                     f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                     hide='stdout',
                 )
-                for version in ['nightly', 'nightly-a7']:
-                    commit = _get_release_json_value(f'{version}::{release_json_field}')
-                    if (
-                        ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited
-                        != 0
-                    ):
-                        raise Exit(
-                            code=1,
-                            message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
-                        )
-                    else:
-                        print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+                commit = _get_release_json_value(f'nightly::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[nightly] Commit {commit} was found in {repo_name} branch {branch}')
 
         _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
         _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
@@ -1305,9 +1310,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
+        set_current_milestone(next)
         # Commit release.json
         ctx.run("git add release.json")
         ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
@@ -1387,8 +1390,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
 
     rj = load_release_json()
 
-    for nightly in ["nightly", "nightly-a7"]:
-        rj[nightly][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
+    rj["nightly"][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
 
     _save_release_json(rj)
 

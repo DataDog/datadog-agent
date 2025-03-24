@@ -287,8 +287,8 @@ func (p *goTLSProgram) PostStart(*manager.Manager) error {
 func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
 // GetStats is a no-op.
-func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
-	return nil, nil
+func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
+	return nil
 }
 
 // Stop terminates goTLS main goroutine.

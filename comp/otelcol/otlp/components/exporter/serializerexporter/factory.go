@@ -96,6 +96,11 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 
 // NewFactory creates a new factory for the serializer exporter.
 func NewFactory() exp.Factory {
+	return NewFactoryWithType(TypeStr)
+}
+
+// NewFactoryWithType creates a new factory for the serializer exporter with the given type string.
+func NewFactoryWithType(typeStr string) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithRemapping())
@@ -119,7 +124,7 @@ func NewFactory() exp.Factory {
 		},
 		options: options,
 	}
-	cfgType := component.MustNewType(TypeStr)
+	cfgType := component.MustNewType(typeStr)
 	return exp.NewFactory(
 		cfgType,
 		newDefaultConfig,

@@ -175,6 +175,8 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	for _, p := range w.payloads {
 		w.SendPayload(p)
 	}

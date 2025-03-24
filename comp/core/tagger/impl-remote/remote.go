@@ -202,7 +202,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 50 * time.Millisecond
 	expBackoff.MaxInterval = 500 * time.Millisecond
-	expBackoff.MaxElapsedTime = 5 * time.Second
+	expBackoff.MaxElapsedTime = 30 * time.Second
 	err = backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
@@ -508,6 +508,8 @@ func (t *remoteTagger) run() {
 			continue
 		}
 
+		t.log.Info("tagger stream successfully initialized")
+
 		t.telemetryStore.Receives.Inc()
 
 		err = t.processResponse(response)
@@ -603,11 +605,9 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 			Prefixes:    prefixes,
 		})
 		if err != nil {
-			t.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
-
-		t.log.Info("tagger stream established successfully")
 
 		return nil
 	}, expBackoff)
