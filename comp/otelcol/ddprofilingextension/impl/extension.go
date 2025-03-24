@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -116,9 +117,17 @@ func (e *ddExtension) startForOCB() error {
 	}
 
 	var tags strings.Builder
-	// hardcode agent version to 7.64.0. The backend requires this tag, but this path does not include agent,
-	// so hardcode value.
-	tags.WriteString("agent_version:7.64.0")
+	// agent_version is required by profiling backend. Use version of comp/trace/agent/def, and fallback to 7.64.0.
+	agent_version := "7.64.0"
+	buildInfo, ok := debug.ReadBuildInfo()
+	if ok {
+		for _, module := range buildInfo.Deps {
+			if module.Path == "github.com/DataDog/datadog-agent/comp/trace/agent/def" {
+				agent_version = module.Version
+			}
+		}
+	}
+	tags.WriteString(fmt.Sprintf("agent_version:%s", agent_version))
 	if e.cfg.ProfilerOptions.Env != "" {
 		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
 	}
