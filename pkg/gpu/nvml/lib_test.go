@@ -19,58 +19,50 @@ import (
 func TestEnsureinit(t *testing.T) {
 	t.Run("library present", func(t *testing.T) {
 		var cache nvmlCache
-		opts := nvmlCacheInitOpts{
-			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
-				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return { return nvml.SUCCESS },
-				}
-			},
+		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+			return &nvmlmock.Interface{
+				InitFunc: func() nvml.Return { return nvml.SUCCESS },
+			}
 		}
 
-		require.NoError(t, cache.ensureInitWithOpts(opts))
+		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
 	})
 	t.Run("library absent", func(t *testing.T) {
 		var cache nvmlCache
-		opts := nvmlCacheInitOpts{
-			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
-				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
-				}
-			},
+		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+			return &nvmlmock.Interface{
+				InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
+			}
 		}
-		require.Error(t, cache.ensureInitWithOpts(opts))
+		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
 	})
 
 	t.Run("library absent, second call fails too", func(t *testing.T) {
 		var cache nvmlCache
-		opts := nvmlCacheInitOpts{
-			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
-				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
-				}
-			},
+		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+			return &nvmlmock.Interface{
+				InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
+			}
 		}
-		require.Error(t, cache.ensureInitWithOpts(opts))
-		require.Error(t, cache.ensureInitWithOpts(opts))
+		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
 	})
 
 	t.Run("library absent, second call succeeds", func(t *testing.T) {
 		var cache nvmlCache
 		alreadyCalled := false
-		opts := nvmlCacheInitOpts{
-			nvmlNewFunc: func(_ ...nvml.LibraryOption) nvml.Interface {
-				return &nvmlmock.Interface{
-					InitFunc: func() nvml.Return {
-						if alreadyCalled {
-							return nvml.SUCCESS
-						}
-						alreadyCalled = true
-						return nvml.ERROR_LIBRARY_NOT_FOUND
-					},
-				}
-			},
+		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+			return &nvmlmock.Interface{
+				InitFunc: func() nvml.Return {
+					if alreadyCalled {
+						return nvml.SUCCESS
+					}
+					alreadyCalled = true
+					return nvml.ERROR_LIBRARY_NOT_FOUND
+				},
+			}
 		}
-		require.Error(t, cache.ensureInitWithOpts(opts))
-		require.NoError(t, cache.ensureInitWithOpts(opts))
+		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
 	})
 }
