@@ -157,3 +157,48 @@ Auto-discovery IDs:
 	launcher.Stop()
 	pipelineProvider.Stop()
 }
+
+func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
+	tempDir := "tmp"
+	defer os.RemoveAll(tempDir)
+	// Write config content to the temp file
+	logConfig := `test log`
+	// Create a temporary config file
+	tempLogFile := CreateTestFile(tempDir, "test.log", logConfig)
+	assert.NotNil(t, tempLogFile)
+	defer os.Remove(tempLogFile.Name()) // Cleanup the temp file after the test
+
+	invalidConfig := fmt.Sprintf(`logs:
+  - type: ""
+    path: %s
+    log_processing_rules:
+      - type: exclude_at_match
+        name: exclude_random
+        pattern: "datadog-agent"
+      
+`, tempLogFile.Name())
+	tempConfigFile := CreateTestFile(tempDir, "config.yaml", invalidConfig)
+	assert.NotNil(t, tempConfigFile)
+	defer os.Remove(tempConfigFile.Name())
+	// Write config content to the temp file
+	// Create a mock config
+	config := config.NewMock(t)
+
+	adsched := scheduler.NewController()
+	ac := fxutil.Test[autodiscovery.Mock](t,
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
+		secretsimpl.MockModule(),
+		autodiscoveryimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		core.MockBundle(),
+		taggerfxmock.MockModule(),
+	)
+
+	// Set CLI params
+	cliParams := &CliParams{
+		LogConfigPath:  tempConfigFile.Name(),
+		CoreConfigPath: tempConfigFile.Name(),
+	}
+	_, _, _, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	assert.Error(t, err)
+}

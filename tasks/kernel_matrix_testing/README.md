@@ -93,7 +93,7 @@ We can also configure the stack to launch VMs locally, i.e. on developer's machi
 dda inv -e kmt.gen-config --vms=amzn5.10-local-distro,fedora38-local-distro,debian9-local-distro --stack=demo-stack
 ```
 
-Refer to [Configuring the stack](#Configuring the stack) for more details on this command.
+Refer to [Configuring the stack](#configuring-the-stack) for more details on this command.
 
 
 #### Configuring stack from a failed CI pipeline
@@ -218,7 +218,7 @@ The arguments to this are:
 
 ### Configuring the stack
 
-Configuring the stack involves generating a configuration file which specifies the the VMs to launch. Henceforth, this file will be referred to as the `vmsets` file.
+Configuring the stack involves generating a configuration file which specifies the VMs to launch. Henceforth, this file will be referred to as the `vmsets` file.
 
 The `vmsets` file contains the list of one or more sets of VMs to launch. A set of VMs refers to a collection of VMs sharing some characteristic. The following is an exhaustive list of possible sets:
 

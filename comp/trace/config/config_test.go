@@ -31,6 +31,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -283,6 +284,7 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
+			fetchonlyimpl.MockModule(),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -2381,6 +2383,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
+		fetchonlyimpl.MockModule(),
 		MockModule(),
 	))
 	return c

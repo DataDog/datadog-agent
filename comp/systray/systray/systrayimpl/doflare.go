@@ -7,6 +7,7 @@
 package systrayimpl
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"regexp"
@@ -17,9 +18,14 @@ import (
 	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -170,7 +176,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
@@ -196,7 +202,9 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 		}
 		s.log.Debug("Initiating flare locally.")
 
-		filePath, e = s.flare.Create(nil, 0, e)
+		localDiagnose := runLocalDiagnose(s)
+
+		filePath, e = s.flare.Create(nil, 0, e, localDiagnose)
 		if e != nil {
 			s.log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return
@@ -213,4 +221,38 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 		return
 	}
 	return response, nil
+}
+
+func runLocalDiagnose(s *systrayImpl) []byte {
+	localSuite := diagnose.Suites{
+		diagnose.PortConflict: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return ports.DiagnosePortSuite()
+		},
+		diagnose.EventPlatformConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return eventplatformimpl.Diagnose()
+		},
+		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+		},
+		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+			return connectivity.Diagnose(diagCfg, s.log)
+		},
+	}
+
+	config := diagnose.Config{Verbose: true}
+
+	result, err := s.diagnose.RunLocalSuite(localSuite, config)
+	if err != nil {
+		return []byte(fmt.Sprintf("Error running diagnose: %s", err))
+	}
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
+	err = format.Text(writer, config, result)
+
+	if err != nil {
+		return []byte(fmt.Sprintf("Error parsing diagnose: %s", err))
+	}
+	writer.Flush()
+	return b.Bytes()
 }

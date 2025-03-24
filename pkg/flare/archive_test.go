@@ -36,6 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -309,7 +310,9 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(handler))
+		srv.TLS = apiutil.GetTLSServerConfig()
+		srv.StartTLS()
 		defer srv.Close()
 
 		setupIPCAddress(t, configmock.New(t), srv.URL)

@@ -9,6 +9,7 @@ package disk
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -153,12 +154,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 }
 
 func stringSliceContain(slice []string, x string) bool {
-	for _, e := range slice {
-		if e == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, x)
 }
 
 func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {

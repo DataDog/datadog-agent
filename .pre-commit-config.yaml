@@ -153,3 +153,10 @@ repos:
       language: system
       pass_filenames: false
       files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$
+    - id: experiment-systemd-units
+      name: validate-experiment-systemd-units
+      description: Validate that the generated systemd experimrent units are up to date
+      entry: 'dda inv installer.generate-experiment-units --check'
+      language: system
+      pass_filenames: false
+      files: ^pkg/fleet/installer/packages/embedded/.*\.service$

@@ -7,18 +7,18 @@ package fetch
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
@@ -34,9 +34,7 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch scalar oids: %s", err.Error())
 		}
-		for k, v := range results {
-			retValues[k] = v
-		}
+		maps.Copy(retValues, results)
 	}
 	return retValues, nil
 }
@@ -99,7 +97,7 @@ func doFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPack
 				if (zeroBaseIndex < 0) || (zeroBaseIndex > len(oids)-1) {
 					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
 				}
-				oids = append(oids[:zeroBaseIndex], oids[zeroBaseIndex+1:]...)
+				oids = slices.Delete(oids, zeroBaseIndex, zeroBaseIndex+1)
 				if len(oids) == 0 {
 					// If all oids are not found, return an empty packet with no variable and no error
 					return &gosnmp.SnmpPacket{}, nil

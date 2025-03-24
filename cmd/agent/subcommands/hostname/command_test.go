@@ -86,7 +86,12 @@ func TestGetHostname(t *testing.T) {
 				forceLocal:   tc.forceLocal,
 			}
 
-			server := httptest.NewTLSServer(hostnameHandler(tc.remoteHostname))
+			config.Set("auth_token_file_path", path.Join(t.TempDir(), "auth_token"), model.SourceFile)
+			apiutil.CreateAndSetAuthToken(config)
+
+			server := httptest.NewUnstartedServer(hostnameHandler(tc.remoteHostname))
+			server.TLS = apiutil.GetTLSServerConfig()
+			server.StartTLS()
 			t.Cleanup(server.Close)
 
 			serverURL, err := url.Parse(server.URL)
@@ -96,9 +101,6 @@ func TestGetHostname(t *testing.T) {
 			config.Set("hostname", localHostname, model.SourceFile)
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
-
-			config.Set("auth_token_file_path", path.Join(t.TempDir(), "auth_token"), model.SourceFile)
-			apiutil.CreateAndSetAuthToken(config)
 
 			hname, err := getHostname(config, cliParams)
 			require.NoError(t, err)

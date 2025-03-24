@@ -50,6 +50,7 @@ func osinit() {
 		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
 	}
 
 	// Process Agent
