@@ -46,11 +46,6 @@ target:
     DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
     DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
 
-    # ddprof options
-    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
-    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
-    DD_PROFILING_WAIT_PROFILE: true
-
 checks:
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
