@@ -131,6 +131,19 @@ tests_rpm-arm64-py3:
   variables:
     CONDA_ENV: ddpy3
 
+tests_serverless-init:
+  extends: .linux_x64
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
+
+
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
   stage: source_test

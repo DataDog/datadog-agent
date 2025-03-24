@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -68,13 +67,9 @@ type Runner struct {
 
 // New initializes a new traceroute runner
 func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Component) (*Runner, error) {
-	var err error
-	var networkID string
-	if ec2.IsRunningOn(context.TODO()) {
-		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
-		if err != nil {
-			log.Errorf("failed to get network ID: %s", err.Error())
-		}
+	networkID, err := retryGetNetworkID()
+	if err != nil {
+		log.Errorf("failed to get network ID: %s", err.Error())
 	}
 
 	gatewayLookup, nsIno, err := createGatewayLookup(telemetryComp)
@@ -281,4 +276,28 @@ func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.Ga
 
 func rootNsLookup() (netns.NsHandle, error) {
 	return netns.GetFromPid(os.Getpid())
+}
+
+// retryGetNetworkID attempts to get the network ID from the cloud provider or config with a few retries
+// as the endpoint is sometimes unavailable during host startup
+func retryGetNetworkID() (string, error) {
+	const maxRetries = 4
+	var err error
+	var networkID string
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
+		if err == nil {
+			return networkID, nil
+		}
+		log.Debugf(
+			"failed to fetch network ID (attempt %d/%d): %s",
+			attempt,
+			maxRetries,
+			err,
+		)
+		if attempt < maxRetries {
+			time.Sleep(time.Duration(250*attempt) * time.Millisecond)
+		}
+	}
+	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
 }
