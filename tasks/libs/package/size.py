@@ -77,7 +77,7 @@ def extract_dmg_archive(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
         ctx.run(f"dmg2img {package_path} -o dmg_image.img")
         ctx.run("7z x dmg_image.img")
-        ctx.run("./extracted_pkg")
+        ctx.run("mkdir ./extracted_pkg")
         package_path_pkg_format = package_path.replace("dmg", "pkg")
         ctx.run(f"xar -xr ./Agent/{package_path_pkg_format} -C ./extracted_pkg")
         ctx.run("mkdir image_content")
