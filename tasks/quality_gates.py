@@ -67,7 +67,7 @@ def display_pr_comment(
             body_error_footer += f"|{gate['name']}|{gate['error_type']}|{error_message}|\n"
             with_error = True
 
-    body_error_footer += "\n</details>\n"
+    body_error_footer += "\n</details>\nStatic quality gates prevent the PR to merge ! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance."
     body_info += "\n</details>\n"
     body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
@@ -151,7 +151,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
-    
+
     if final_state != "success":
         raise Exit(code=1)
 
