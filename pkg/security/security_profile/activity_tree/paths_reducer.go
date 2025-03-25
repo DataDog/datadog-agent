@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -142,13 +141,13 @@ func getPathsReducerPatterns() []PatternReducer {
 				ctx.replaceBy(start, end, "*")
 			},
 		},
-		{
+		/*{
 			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
 				ctx.replaceBy(start, end, "*")
 			},
-		},
+		},*/
 		{
 			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
 			Hint:    "devices",
