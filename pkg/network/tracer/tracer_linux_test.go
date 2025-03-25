@@ -30,7 +30,6 @@ import (
 	"testing"
 	"time"
 
-	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
@@ -62,12 +61,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
-var kv470 = ebpf2.VersionCode(4, 7, 0)
-var kv = ebpf2.MustHostVersion()
+var kv470 = ebpfutil.VersionCode(4, 7, 0)
+var kv = ebpfutil.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
@@ -2314,7 +2314,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	cfg := config.New()
-	if kv >= ebpf2.VersionCode(5, 18, 0) {
+	if kv >= ebpfutil.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 	t.Cleanup(func() {
@@ -2393,7 +2393,7 @@ func testConfig() *config.Config {
 	}
 
 	// prebuilt on 5.18+ does not support UDPv6
-	if isPrebuilt(cfg) && kv >= ebpf2.VersionCode(5, 18, 0) {
+	if isPrebuilt(cfg) && kv >= ebpfutil.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 
@@ -2407,8 +2407,8 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	// disable IPv6 via config to trigger logic in GuessSocketSK
 	cfg.CollectTCPv6Conns = false
 	cfg.CollectUDPv6Conns = false
-	kv, err := ebpf2.HostVersion()
-	kv470 := ebpf2.VersionCode(4, 7, 0)
+	kv, err := ebpfutil.HostVersion()
+	kv470 := ebpfutil.VersionCode(4, 7, 0)
 	require.NoError(t, err)
 	if kv >= kv470 {
 		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
@@ -2539,7 +2539,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 
 	checkSkipFailureConnectionsTests(t)
 	// TODO: remove this check when we fix this test on kernels < 4.19
-	if kv < ebpf2.VersionCode(4, 19, 0) {
+	if kv < ebpfutil.VersionCode(4, 19, 0) {
 		t.Skip("Skipping test on kernels < 4.19")
 	}
 

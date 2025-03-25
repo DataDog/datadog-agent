@@ -10,17 +10,17 @@ package usm
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 func TestHttpCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		currKernelVersion, err := ebpf.HostVersion()
+		currKernelVersion, err := ebpfutil.HostVersion()
 		require.NoError(t, err)
 		if currKernelVersion < usmconfig.MinimumKernelVersion {
 			t.Skip("USM Runtime compilation not supported on this kernel version")

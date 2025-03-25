@@ -10,12 +10,12 @@ package ebpf
 import (
 	"errors"
 
-	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,11 +28,11 @@ import (
 // this ensures that a newline is added. In newer ones it would mean that two newlines are
 // added, so this patcher removes that newline in those cases.
 func patchPrintkNewline(m *manager.Manager) error {
-	kernelVersion, err := ebpf2.HostVersion()
+	kernelVersion, err := ebpfutil.HostVersion()
 	if err != nil {
 		return err // can't detect kernel version, don't patch
 	}
-	if kernelVersion < ebpf2.VersionCode(5, 9, 0) {
+	if kernelVersion < ebpfutil.VersionCode(5, 9, 0) {
 		return nil // Do nothing in older kernels
 	}
 

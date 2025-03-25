@@ -69,10 +69,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ebpfutils "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
-var kv = ebpfutils.MustHostVersion()
+var kv = ebpfutil.MustHostVersion()
 
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
@@ -2636,7 +2636,7 @@ var (
 	httpURL = "http://" + httpServerAddr + "/200/request-0"
 )
 
-func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion ebpfutils.Version) {
+func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion ebpfutil.Version) {
 	if kv < minimalKernelVersion {
 		t.Skipf("skipping test, kernel version %s is not supported", kv)
 	}
