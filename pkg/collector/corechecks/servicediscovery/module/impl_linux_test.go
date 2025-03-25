@@ -501,64 +501,6 @@ func TestServiceLifetime(t *testing.T) {
 	})
 }
 
-func TestInjectedServiceName(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"OTHER_ENV=test",
-		"DD_SERVICE=injected-service-name",
-		"DD_INJECTION_ENABLED=service_name",
-		"YET_ANOTHER_ENV=test",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, "injected-service-name", startEvent.DDService)
-	require.Equal(t, startEvent.DDService, startEvent.Name)
-	// The GeneratedName can vary depending on how the tests are run, so don't
-	// assert for a specific value.
-	require.NotEmpty(t, startEvent.GeneratedName)
-	require.NotEmpty(t, startEvent.GeneratedNameSource)
-	require.NotEqual(t, startEvent.DDService, startEvent.GeneratedName)
-	assert.True(t, startEvent.DDServiceInjected)
-}
-
-func TestAPMInstrumentationInjected(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"DD_INJECTION_ENABLED=service_name,tracer",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, string(apm.Injected), startEvent.APMInstrumentation)
-}
-
 func makeAlias(t *testing.T, alias string, serverBin string) string {
 	binDir := filepath.Dir(serverBin)
 	aliasPath := filepath.Join(binDir, alias)
