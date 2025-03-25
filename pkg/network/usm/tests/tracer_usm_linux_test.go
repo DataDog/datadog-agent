@@ -43,6 +43,7 @@ import (
 
 	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	network "github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -2854,4 +2855,154 @@ func (s *USMSuite) TestVerifySketches() {
 			tt.testFunc(s.T(), tr)
 		})
 	}
+}
+
+func (s *USMSuite) TestHTTPThroughDNAT() {
+	t := s.T()
+	cfg := tracertestutil.Config()
+	if !httpSupported() {
+		t.Skip("HTTP monitoring is not supported")
+	}
+
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.BypassEnabled = true
+	tr, err := tracer.NewTracer(cfg, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+	netlink.SetupDNAT(t)
+
+	// Start HTTP server on the destination address (1.1.1.1)
+	serverPort := 12345
+	require.NoError(t, err)
+	serverAddr := fmt.Sprintf("1.1.1.1:%d", serverPort)
+
+	httpServer := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(nethttp.StatusOK)
+			w.Write([]byte("Hello through NAT"))
+		}),
+	}
+
+	go func() {
+		// Ignore server errors on shutdown
+		_ = httpServer.ListenAndServe()
+	}()
+	t.Cleanup(func() {
+		_ = httpServer.Close()
+	})
+
+	// Wait for server to start
+	time.Sleep(1 * time.Second)
+
+	// Create HTTP client to connect through NAT (2.2.2.2)
+	natAddr := fmt.Sprintf("2.2.2.2:%d", serverPort)
+
+	// Test connection through NAT
+	t.Run("HTTP request through DNAT", func(t *testing.T) {
+		// Create a transport with DisableKeepAlives to ensure connection closure
+		// which is necessary for USM to properly capture HTTP statistics
+		client := &nethttp.Client{
+			Transport: &nethttp.Transport{
+				DisableKeepAlives: true,
+			},
+			Timeout: 5 * time.Second,
+		}
+
+		// Make HTTP request with connection closing
+		resp, err := client.Get(fmt.Sprintf("http://%s/test-path", natAddr))
+		require.NoError(t, err)
+
+		require.Equal(t, nethttp.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Hello through NAT", string(body))
+
+		// Explicitly close the response body to ensure connection closure
+		err = resp.Body.Close()
+		require.NoError(t, err)
+
+		// Wait for USM to process the closed connection
+		t.Log("Waiting for USM to process closed HTTP connection...")
+		time.Sleep(3 * time.Second)
+
+		connections, connectionsCleanup, err := tr.GetActiveConnections(clientID)
+		require.NoError(t, err)
+		defer connectionsCleanup()
+
+		// Print HTTP data from connections
+		t.Logf("Connections HTTP Data:")
+		if connections.HTTP != nil && len(connections.HTTP) > 0 {
+			t.Logf("Found %d HTTP entries in connections", len(connections.HTTP))
+			for key, requestStats := range connections.HTTP {
+				t.Logf("  HTTP Key: %+v", key)
+				t.Logf("  HTTP RequestStats: %+v", requestStats)
+
+				// Print detailed HTTP stats by status code
+				t.Logf("  Status codes tracked: %d", len(requestStats.Data))
+				for statusCode, stat := range requestStats.Data {
+					t.Logf("    Status Code: %d", statusCode)
+					t.Logf("    Count: %d", stat.Count)
+					if stat.StaticTags != 0 {
+						t.Logf("    Static Tags: %d", stat.StaticTags)
+					}
+					if len(stat.DynamicTags) > 0 {
+						t.Logf("    Dynamic Tags: %v", stat.DynamicTags)
+					}
+				}
+			}
+		} else {
+			t.Logf("No HTTP data found in connections")
+		}
+
+		// Log all connections for debugging
+		t.Logf("Found %d total connections", len(connections.Conns))
+		for i, conn := range connections.Conns {
+			t.Logf("Connection %d:", i)
+			t.Logf("  Source: %s:%d", conn.Source.String(), conn.SPort)
+			t.Logf("  Destination: %s:%d", conn.Dest.String(), conn.DPort)
+			t.Logf("  Protocol Stack: %+v", conn.ProtocolStack)
+			if conn.IPTranslation != nil {
+				t.Logf("  IP Translation:")
+				t.Logf("    ReplSrcIP: %s, ReplSrcPort: %d", conn.IPTranslation.ReplSrcIP.String(), conn.IPTranslation.ReplSrcPort)
+				t.Logf("    ReplDstIP: %s, ReplDstPort: %d", conn.IPTranslation.ReplDstIP.String(), conn.IPTranslation.ReplDstPort)
+			} else {
+				t.Logf("  No IP Translation")
+			}
+			t.Logf("  Direction: %s", conn.Direction)
+			t.Logf("  Type: %s", conn.Type)
+			t.Logf("  PID: %d", conn.Pid)
+		}
+
+		found := false
+		for _, conn := range connections.Conns {
+			// There are two connections we're interested in:
+			// 1. Outgoing: local machine (10.211.55.59) -> 2.2.2.2 (which gets NATed to 1.1.1.1)
+			// 2. Incoming: 1.1.1.1 -> local machine
+
+			// Check for the outgoing connection with NAT translation
+			outgoingConnection := conn.Dest.String() == "2.2.2.2" &&
+				conn.Direction == network.OUTGOING &&
+				conn.IPTranslation != nil &&
+				conn.IPTranslation.ReplSrcIP.String() == "1.1.1.1" &&
+				conn.ProtocolStack.Application == protocols.HTTP
+
+			// Check for the incoming connection
+			incomingConnection := conn.Source.String() == "1.1.1.1" &&
+				conn.Direction == network.INCOMING &&
+				conn.ProtocolStack.Application == protocols.HTTP
+
+			if outgoingConnection || incomingConnection {
+				t.Logf("Found HTTP connection through NAT: %+v", conn)
+				found = true
+				break
+
+			}
+		}
+		require.True(t, found, "HTTP connection through NAT was not found in tracked connections")
+	})
 }
