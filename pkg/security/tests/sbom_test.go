@@ -23,6 +23,7 @@ import (
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -59,6 +60,7 @@ func TestSBOM(t *testing.T) {
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
@@ -83,6 +85,7 @@ func TestSBOM(t *testing.T) {
 	})
 
 	t.Run("host", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {

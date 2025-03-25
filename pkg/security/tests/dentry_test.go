@@ -26,6 +26,7 @@ import (
 
 func TestDentryPathERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// generate a basename up to the current limit of the agent
 	var basename string
@@ -93,6 +94,7 @@ func TestDentryPathERPC(t *testing.T) {
 
 func TestDentryPathMap(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// generate a basename up to the current limit of the agent
 	var basename string
@@ -160,6 +162,7 @@ func TestDentryPathMap(t *testing.T) {
 
 func TestDentryName(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// generate a basename up to the current limit of the agent
 	var basename string

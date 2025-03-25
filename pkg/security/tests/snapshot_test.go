@@ -20,8 +20,10 @@ import (
 
 func TestSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	t.Run("host-event", func(t *testing.T) {
+		CheckFlakyTest(t)
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_snapshot_host",
@@ -59,6 +61,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("container-event", func(t *testing.T) {
+		CheckFlakyTest(t)
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_snapshot_container",

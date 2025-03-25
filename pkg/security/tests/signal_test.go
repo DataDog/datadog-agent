@@ -22,6 +22,7 @@ import (
 
 func TestSignalEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -46,6 +47,7 @@ func TestSignalEvent(t *testing.T) {
 	}
 
 	test.Run(t, "signal-sigusr1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"signal", "sigusr1"}
 		envs := []string{}
 
@@ -69,6 +71,7 @@ func TestSignalEvent(t *testing.T) {
 	})
 
 	test.Run(t, "signal-eperm", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"signal", "eperm"}
 		envs := []string{}
 

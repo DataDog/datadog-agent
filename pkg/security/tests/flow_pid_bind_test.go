@@ -168,8 +168,8 @@ func checkBindFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, ex
 
 func TestFlowPidBind(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -198,6 +198,7 @@ func TestFlowPidBind(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sock_ipv4_udp_bind_0.0.0.0:1234", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -230,6 +231,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_udp_bind_127.0.0.1:1235", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -263,6 +265,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_udp_bind_127.0.0.1:0", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -296,6 +299,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_udp_bind_[::]:1236", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -332,6 +336,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_udp_bind_[::1]:1237", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -369,6 +374,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_udp_bind_[::1]:0", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -406,6 +412,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_0.0.0.0:1234", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -438,6 +445,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_127.0.0.1:1235", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -471,6 +479,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_127.0.0.1:0", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -504,6 +513,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_tcp_bind_[::]:1236", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -540,6 +550,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_tcp_bind_[::1]:1237", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -577,6 +588,7 @@ func TestFlowPidBind(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_tcp_bind_[::1]:0", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -616,8 +628,8 @@ func TestFlowPidBind(t *testing.T) {
 
 func TestFlowPidBindLeak(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -646,6 +658,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sock_ipv4_udp_bind_99.99.99.99:2234", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -682,6 +695,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_99.99.99.99:2235", func(t *testing.T) {
+		CheckFlakyTest(t)
 		boundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -718,6 +732,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_udp_bind_[99*]:2236", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -759,6 +774,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	})
 
 	t.Run("test_sock_ipv6_tcp_bind_[99*]:2237", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}

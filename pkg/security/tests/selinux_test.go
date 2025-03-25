@@ -29,6 +29,7 @@ const TestBoolName2 = "httpd_enable_cgi"
 
 func TestSELinux(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleset := []*rules.RuleDefinition{
 		{
@@ -69,6 +70,7 @@ func TestSELinux(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setenforce", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if err := setEnforceStatus("permissive"); err != nil {
 				return fmt.Errorf("failed to run setenforce: %w", err)
@@ -84,6 +86,7 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("sel_disable", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, ">= 5.10 kernels", func(kv *kernel.Version) bool {
 			return kv.Code >= kernel.Kernel5_10
 		})
@@ -102,6 +105,7 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("setsebool_true_value", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)
@@ -118,6 +122,7 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("setsebool_false_value", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, false); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)
@@ -134,6 +139,7 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("setsebool_error_value", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/booleans/httpd_enable_cgi", "test_error", true); err != nil {
 				return fmt.Errorf("failed to write to selinuxfs: %w", err)
@@ -153,6 +159,7 @@ func TestSELinux(t *testing.T) {
 
 func TestSELinuxCommitBools(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
@@ -178,6 +185,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	defer setBoolValue(TestBoolName, savedBoolValue)
 
 	t.Run("sel_commit_bools", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)

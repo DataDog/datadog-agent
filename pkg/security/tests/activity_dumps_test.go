@@ -31,6 +31,7 @@ var testActivityDumpCleanupPeriod = 15 * time.Second
 
 func TestActivityDumps(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -74,6 +75,7 @@ func TestActivityDumps(t *testing.T) {
 	}
 
 	t.Run("activity-dump-cgroup-imds", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -120,6 +122,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -197,6 +200,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -237,6 +241,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-dns", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
@@ -278,6 +283,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -324,6 +330,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-syscalls", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -370,6 +377,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-rate-limiter", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -431,6 +439,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-timeout", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -447,6 +456,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-counts", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// first, stop all running activity dumps
 		err := test.StopAllActivityDumps()
 		if err != nil {
@@ -506,6 +516,7 @@ firstLoop:
 
 func TestActivityDumpsAutoSuppression(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -563,6 +574,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 
 	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
@@ -582,6 +594,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
@@ -603,6 +616,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 
 func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -672,6 +686,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 
 	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
@@ -691,6 +706,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})

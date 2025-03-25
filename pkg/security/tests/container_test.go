@@ -13,15 +13,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestContainerCreatedAt(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "OpenSUSE 15.3 kernel", func(kv *kernel.Version) bool {
 		// because of some strange btrfs subvolume error
@@ -62,6 +64,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -75,6 +78,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	})
 
 	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
 			if err := cmd.Run(); err != nil {
@@ -99,6 +103,7 @@ func TestContainerCreatedAt(t *testing.T) {
 
 func TestContainerFlagsDocker(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -125,6 +130,7 @@ func TestContainerFlagsDocker(t *testing.T) {
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -142,6 +148,7 @@ func TestContainerFlagsDocker(t *testing.T) {
 
 func TestContainerFlagsPodman(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -168,6 +175,7 @@ func TestContainerFlagsPodman(t *testing.T) {
 	defer podmanWrapper.stop()
 
 	podmanWrapper.Run(t, "container-runtime", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -185,6 +193,7 @@ func TestContainerFlagsPodman(t *testing.T) {
 
 func TestContainerVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -229,6 +238,7 @@ func TestContainerVariables(t *testing.T) {
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()

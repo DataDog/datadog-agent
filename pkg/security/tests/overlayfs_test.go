@@ -47,6 +47,7 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 
 func TestOverlayFS(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "Suse 12 kernels", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
@@ -197,6 +198,7 @@ func TestOverlayFS(t *testing.T) {
 	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
 	// perspective and equals
 	t.Run("read-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/read.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -218,6 +220,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("override-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/override.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -239,6 +242,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("create-upper", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -260,6 +264,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rename-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		oldFile, _, err := test.Path("bind/create.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -290,6 +295,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rename-parent", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/parent/child")
 		if err != nil {
 			t.Fatal(err)
@@ -332,6 +338,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rmdir-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testDir, _, err := test.Path("bind/dir")
 		if err != nil {
 			t.Fatal(err)
@@ -348,6 +355,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chmod-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/chmod.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -365,6 +373,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chmod-upper", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
 			// skip Oracle for now
 			return kv.IsOracleUEKKernel()
@@ -387,6 +396,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("mkdir-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/mkdir")
 		if err != nil {
 			t.Fatal(err)
@@ -404,6 +414,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("utimes-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/utimes.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -421,6 +432,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chown-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/chown.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -438,6 +450,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chown-upper", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
 			// skip Oracle for now
 			return kv.IsOracleUEKKernel()
@@ -460,6 +473,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("xattr-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, testFilePtr, err := test.Path("bind/xattr.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -488,6 +502,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("truncate-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/truncate.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -505,6 +520,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("truncate-upper", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
 			// skip Oracle for now
 			return kv.IsOracleUEKKernel()
@@ -527,6 +543,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("link-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testSrc, _, err := test.Path("bind/linked.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -546,6 +563,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("unlink-lower", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("bind/unlink.txt")
 		if err != nil {
 			t.Fatal(err)
@@ -562,6 +580,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rename-upper", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "Oracle kernels", func(kv *kernel.Version) bool {
 			// skip Oracle for now
 			return kv.IsOracleUEKKernel()

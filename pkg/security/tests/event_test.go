@@ -32,6 +32,7 @@ import (
 
 func TestEventRulesetLoaded(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
@@ -53,6 +54,7 @@ func TestEventRulesetLoaded(t *testing.T) {
 	test.statsdClient.Flush()
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
+		CheckFlakyTest(t)
 		count := test.statsdClient.Get(key)
 		assert.Zero(t, count)
 
@@ -74,6 +76,7 @@ func TestEventRulesetLoaded(t *testing.T) {
 
 func TestEventHeartbeatSent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
@@ -89,6 +92,7 @@ func TestEventHeartbeatSent(t *testing.T) {
 	test.cws.SendStats()
 
 	t.Run("heartbeat", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
@@ -103,6 +107,7 @@ func TestEventHeartbeatSent(t *testing.T) {
 
 func TestEventRaleLimiters(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -134,6 +139,7 @@ func TestEventRaleLimiters(t *testing.T) {
 	}
 
 	t.Run("token", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-unique-id")
 		if err != nil {
 			t.Fatal(err)
@@ -185,6 +191,7 @@ func TestEventRaleLimiters(t *testing.T) {
 	})
 
 	t.Run("std", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-std")
 		if err != nil {
 			t.Fatal(err)
@@ -224,6 +231,7 @@ func TestEventRaleLimiters(t *testing.T) {
 
 func TestEventIteratorRegister(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	pid1ExePath := utils.ProcExePath(1)
 	pid1Path, err := os.Readlink(pid1ExePath)
@@ -266,6 +274,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	}
 
 	t.Run("std", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
@@ -274,6 +283,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	})
 
 	t.Run("pid1", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			f, err := os.Create(testFile2)
 			if err != nil {
@@ -288,6 +298,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 func TestEventProductTags(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:          "event_product_tags",
@@ -307,6 +318,7 @@ func TestEventProductTags(t *testing.T) {
 	}
 
 	t.Run("product_tags", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.msgSender.flush()
 		err := test.GetEventSent(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
@@ -414,12 +426,15 @@ func cleanupABottomUp(path string) {
 
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	t.Run("map", func(t *testing.T) {
+		CheckFlakyTest(t)
 		truncatedParents(t, testOpts{disableERPCDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
 	})
 
 	t.Run("erpc", func(t *testing.T) {
+		CheckFlakyTest(t)
 		truncatedParents(t, testOpts{disableMapDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
 	})
 }

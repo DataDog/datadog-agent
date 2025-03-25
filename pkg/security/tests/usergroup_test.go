@@ -17,6 +17,7 @@ import (
 
 func TestUserGroup(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -127,6 +128,7 @@ func TestUserGroup(t *testing.T) {
 
 	for _, distroTest := range distroTests {
 		t.Run(distroTest.name, func(t *testing.T) {
+			CheckFlakyTest(t)
 			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name, "")
 			if err != nil {
 				t.Fatal(err)

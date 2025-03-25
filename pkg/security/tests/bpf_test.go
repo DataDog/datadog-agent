@@ -21,6 +21,7 @@ import (
 
 func TestBPFEventLoad(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
@@ -45,6 +46,7 @@ func TestBPFEventLoad(t *testing.T) {
 	}
 
 	t.Run("prog_load", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -58,6 +60,7 @@ func TestBPFEventLoad(t *testing.T) {
 
 func TestBPFEventMap(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
@@ -82,6 +85,7 @@ func TestBPFEventMap(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf", "-clone-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -95,6 +99,7 @@ func TestBPFEventMap(t *testing.T) {
 
 func TestBPFCwsMapConstant(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
@@ -119,6 +124,7 @@ func TestBPFCwsMapConstant(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {

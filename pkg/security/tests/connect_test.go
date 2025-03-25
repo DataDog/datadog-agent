@@ -11,9 +11,10 @@ package tests
 import (
 	"context"
 	"fmt"
-	"golang.org/x/net/nettest"
 	"net"
 	"testing"
+
+	"golang.org/x/net/nettest"
 
 	"golang.org/x/sys/unix"
 
@@ -25,6 +26,7 @@ import (
 
 func TestConnectEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -49,6 +51,7 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
+		CheckFlakyTest(t)
 		done := make(chan error)
 		started := make(chan struct{})
 		go bindAndAcceptConnection("tcp", ":4242", done, started)
@@ -75,6 +78,7 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
+		CheckFlakyTest(t)
 		done := make(chan error)
 		started := make(chan struct{})
 		go bindAndAcceptConnection("udp", ":4242", done, started)
@@ -100,6 +104,7 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-tcp-success", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
@@ -129,6 +134,7 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-udp-success", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}

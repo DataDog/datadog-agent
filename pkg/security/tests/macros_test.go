@@ -20,6 +20,7 @@ import (
 
 func TestMacros(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	macros := []*rules.MacroDefinition{
 		{

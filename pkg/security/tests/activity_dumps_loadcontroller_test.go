@@ -24,6 +24,7 @@ import (
 
 func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -90,6 +91,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 
 func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -170,6 +172,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			testName = "none"
 		}
 		t.Run(testName, func(t *testing.T) {
+			CheckFlakyTest(t)
 			// add all event types to the dump
 			test.addAllEventTypesOnDump(dockerInstance, syscallTester, goSyscallTester)
 			time.Sleep(time.Second * 3)
@@ -200,6 +203,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 
 func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {

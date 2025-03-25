@@ -22,6 +22,7 @@ import (
 
 func TestChown32(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
 		return kv.IsSuseKernel()
@@ -58,7 +59,7 @@ func TestChown32(t *testing.T) {
 	}
 
 	t.Run("chown", func(t *testing.T) {
-
+		CheckFlakyTest(t)
 		defer func() {
 			prevUID = 100
 			prevGID = 200
@@ -86,6 +87,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown", func(t *testing.T) {
+		CheckFlakyTest(t)
 		defer func() {
 			prevUID = 101
 			prevGID = 201
@@ -113,6 +115,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
+		CheckFlakyTest(t)
 		defer func() {
 			prevUID = 102
 			prevGID = 202
@@ -140,6 +143,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("lchown", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testSymlink, _, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -172,6 +176,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("lchown32", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testSymlink, _, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -204,7 +209,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
-
+		CheckFlakyTest(t)
 		defer func() {
 			prevUID = 105
 			prevGID = 205
@@ -232,6 +237,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("chown32", func(t *testing.T) {
+		CheckFlakyTest(t)
 		defer func() {
 			prevUID = 106
 			prevGID = 206
