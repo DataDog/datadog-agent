@@ -10,7 +10,6 @@ package module
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	kprobeconfig "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +32,7 @@ type eBPFNetworkCollector struct {
 }
 
 func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options manager.Options) error {
-	kv, err := ebpf.HostVersion()
+	kv, err := ebpfutil.HostVersion()
 	if err != nil {
 		return err
 	}
