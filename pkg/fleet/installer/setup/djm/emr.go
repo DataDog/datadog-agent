@@ -154,7 +154,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 
 	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
 	setHostTag(s, "cluster_name", clusterName, false)
-
+	addCustomHostTags(s)
 	return info.IsMaster, clusterName, nil
 }
 

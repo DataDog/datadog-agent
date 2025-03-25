@@ -112,6 +112,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 		return isMaster, clusterID, nil
 	}
 	setHostTag(s, "cluster_name", clusterName, false)
+	addCustomHostTags(s)
 
 	return isMaster, clusterName, nil
 }

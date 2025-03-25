@@ -156,6 +156,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "runid", runID, false)
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true", false)
+	addCustomHostTags(s)
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {
@@ -234,4 +235,22 @@ func setupDatabricksWorker(s *common.Setup) {
 		sparkIntegration.Logs = workerLogs
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+}
+
+func addCustomHostTags(s *common.Setup) {
+	tags := os.Getenv("DD_TAGS")
+	extraTags := os.Getenv("DD_EXTRA_TAGS")
+
+	allTags := strings.TrimSpace(strings.Join([]string{tags, extraTags}, " "))
+
+	// Split by comma or space because agent uses space and old script uses comma
+	tagsArray := strings.FieldsFunc(allTags, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+
+	for _, tag := range tagsArray {
+		if tag != "" {
+			s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tag)
+		}
+	}
 }
