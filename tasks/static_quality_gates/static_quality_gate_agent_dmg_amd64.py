@@ -1,9 +1,9 @@
-from tasks.static_quality_gates.lib.package_agent_lib import generic_package_agent_quality_gate
 import tempfile
 
 from tasks.libs.common.color import color_message
 from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_package_path, read_byte_input
+
 
 def entrypoint(**kwargs):
     arguments = argument_extractor(
@@ -30,11 +30,12 @@ def entrypoint(**kwargs):
     )
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
 
+
 def calculate_package_size(ctx, package_os, package_path, gate_name, metric_handler):
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
         package_on_wire_size = file_size(path=package_path)
-        package_on_disk_size = directory_size(ctx, path=extract_dir+"/datadog-agent-core.pkg")
+        package_on_disk_size = directory_size(ctx, path=extract_dir + "/datadog-agent-core.pkg")
 
         metric_handler.register_metric(gate_name, "current_on_wire_size", package_on_wire_size)
         metric_handler.register_metric(gate_name, "current_on_disk_size", package_on_disk_size)
