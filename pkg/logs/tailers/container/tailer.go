@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet
 
 package container
 
@@ -18,9 +18,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -44,10 +41,10 @@ type dockerContainerLogInterface interface {
 
 func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
 	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
-		options := &v1.PodLogOptions{
+		options := &kubelet.StreamLogOptions{
 			Follow:     true,
 			Timestamps: true,
-			SinceTime:  &metav1.Time{Time: since},
+			SinceTime:  since,
 		}
 		return client.StreamLogs(ctx, namespace, podName, containerName, options)
 	}

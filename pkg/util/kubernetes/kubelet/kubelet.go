@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	v1 "k8s.io/api/core/v1"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -45,6 +44,14 @@ var (
 	globalKubeUtil      *KubeUtil
 	globalKubeUtilMutex sync.Mutex
 )
+
+// StreamLogOptions is used to mirror the options we need from PodLogOptions in "k8s.io/api/core/v1"
+// without importing the entire package
+type StreamLogOptions struct {
+	SinceTime  time.Time
+	Follow     bool
+	Timestamps bool
+}
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
@@ -180,7 +187,7 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 }
 
 // StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
-func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *v1.PodLogOptions) (io.ReadCloser, error) {
+func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
 	if logOptions.SinceTime != nil {
 		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
