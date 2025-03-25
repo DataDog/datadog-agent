@@ -127,36 +127,8 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return err
 	}
 
-	// Install the agent systemd units
-	for _, unit := range stableUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to load %s: %v", unit, err)
-		}
-	}
-	for _, unit := range experimentalUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to load %s: %v", unit, err)
-		}
-	}
-	if err = systemd.Reload(ctx); err != nil {
-		return fmt.Errorf("failed to reload systemd daemon: %v", err)
-	}
-	// enabling the agentUnit only is enough as others are triggered by it
-	if err = systemd.EnableUnit(ctx, agentUnit); err != nil {
-		return fmt.Errorf("failed to enable %s: %v", agentUnit, err)
-	}
-	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
-	}
-	// this is expected during a fresh install with the install script / asible / chef / etc...
-	// the config is populated afterwards by the install method and the agent is restarted
-	if !os.IsNotExist(err) {
-		if err = systemd.StartUnit(ctx, agentUnit); err != nil {
-			return err
-		}
-	}
-	return nil
+	err = setupAndStartAgentUnits(ctx, false)
+	return err
 }
 
 // PostInstallAgent performs post-installation steps for the agent
@@ -268,7 +240,8 @@ func StartAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return systemd.StartUnit(ctx, agentExp, "--no-block")
+	err := setupAndStartAgentUnits(ctx, true)
+	return err
 }
 
 // StopAgentExperiment stops the agent experiment
@@ -278,12 +251,56 @@ func StopAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return systemd.StartUnit(ctx, agentUnit, "--no-block")
+	err := setupAndStartAgentUnits(ctx, false)
+	return err
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return StopAgentExperiment(ctx)
+	err := setupAndStartAgentUnits(ctx, false)
+	return err
+}
+
+func setupAndStartAgentUnits(ctx context.Context, experiment bool) error {
+	var units []string
+	var coreAgentUnit string
+	var startArgs []string
+	if experiment {
+		units = experimentalUnits
+		coreAgentUnit = agentExp
+		startArgs = []string{"--no-block"}
+	} else {
+		units = stableUnits
+		coreAgentUnit = agentUnit
+	}
+
+	for _, unit := range units {
+		if err := systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
+			return fmt.Errorf("failed to load %s: %v", unit, err)
+		}
+	}
+
+	if err := systemd.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload systemd daemon: %v", err)
+	}
+
+	// enabling the core agent unit only is enough as others are triggered by it
+	if err := systemd.EnableUnit(ctx, coreAgentUnit); err != nil {
+		return fmt.Errorf("failed to enable %s: %v", coreAgentUnit, err)
+	}
+
+	_, err := os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
+	} else if os.IsNotExist(err) {
+		// this is expected during a fresh install with the install script / ansible / chef / etc...
+		// the config is populated afterwards by the install method and the agent is restarted
+		return nil
+	}
+	if err = systemd.StartUnit(ctx, coreAgentUnit, startArgs...); err != nil {
+		return err
+	}
+	return nil
 }
