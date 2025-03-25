@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 // Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 // The main entry point is the BuildCollectors functions, which returns a set of collectors that will
@@ -137,7 +137,7 @@ func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[strin
 		}
 
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-		tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
+		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
 			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
 		}

@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/pkg/api v0.61.0
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.64.0-rc.3
 	github.com/google/go-cmp v0.7.0
@@ -46,7 +46,6 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.121.0
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v2 v2.4.0
-
 )
 
 require go.opentelemetry.io/collector/extension/extensiontest v0.121.0 // indirect
@@ -87,6 +86,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
@@ -103,6 +103,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
+	github.com/knadh/koanf/v2 v2.1.2 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
@@ -315,9 +316,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
-	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect; indirectq
-	github.com/knadh/koanf/v2 v2.1.2 // indirect
 	github.com/kolo/xmlrpc v0.0.0-20220921171641-a4b6fa1dd06b // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lightstep/go-expohisto v1.0.0 // indirect
@@ -351,7 +350,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.121.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/opencontainers/runtime-spec v1.2.0 // indirect
+	github.com/opencontainers/runtime-spec v1.2.1 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/ovh/go-ovh v1.6.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -362,7 +361,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
+	github.com/prometheus/client_golang v1.21.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect

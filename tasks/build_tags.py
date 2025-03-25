@@ -53,6 +53,7 @@ ALL_TAGS = {
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "sds",
     "serverless",
+    "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
     "test",  # used for unit-tests
     "trivy",

@@ -810,6 +810,9 @@ func (v *ScopedVariables) Len() int {
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
 		scope := v.scoper(ctx)
+		if scope == nil {
+			return nil
+		}
 		key := scope.Hash()
 		v := v.vars[key]
 		return v[name]

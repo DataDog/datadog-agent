@@ -263,22 +263,18 @@ func init() {
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
 	if envvar == "enable" {
-		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
+		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
 		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
 		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
-	} else {
-		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	}
 
-	if envvar == "enable" {
-		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if envvar == "tee" {
-		viperConfig := viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeConfig := nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		viperConfig = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
+		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
 		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
@@ -623,6 +619,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
+	// GPU
+	config.BindEnvAndSetDefault("collect_gpu_tags", false)
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
