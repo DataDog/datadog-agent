@@ -29,7 +29,7 @@ discovery:
   enabled: false
 
 ping:
-  enabled: true
+  enabled: false
 
 traceroute:
   enabled: false
