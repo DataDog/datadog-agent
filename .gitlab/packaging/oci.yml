@@ -47,7 +47,7 @@
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer"
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
