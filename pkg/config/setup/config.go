@@ -625,6 +625,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", false)
+	config.BindEnvAndSetDefault("nvml_lib_path", "")
+
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
@@ -1075,9 +1077,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-
-	// GPU monitoring and NVML access (used by more than the GPU check)
-	config.BindEnvAndSetDefault("nvml_lib_path", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {

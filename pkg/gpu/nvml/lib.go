@@ -45,6 +45,8 @@ func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOpti
 		var libpath string
 		if flavor.GetFlavor() == flavor.SystemProbe {
 			cfg := pkgconfigsetup.SystemProbe()
+			// Use the config directly here to avoid importing the entire gpu
+			// config package, which includes system-probe specific imports
 			libpath = cfg.GetString(sysconfig.GpuNS("nvml_lib_path"))
 		} else {
 			cfg := pkgconfigsetup.Datadog()

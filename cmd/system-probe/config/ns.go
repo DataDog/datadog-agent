@@ -73,6 +73,6 @@ func discoveryNS(k ...string) string {
 }
 
 // gpuNS adds `gpu_monitoring` namespace to config key
-func gpuNS(k ...string) string {
+func GpuNS(k ...string) string {
 	return NSkey("gpu_monitoring", k...)
 }
