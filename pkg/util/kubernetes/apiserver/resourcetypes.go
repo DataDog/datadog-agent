@@ -67,7 +67,11 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 	if cacheErr != nil {
 		return cacheErr
 	}
-	return initRetry.TriggerRetry()
+	err := initRetry.TriggerRetry()
+	if err != nil {
+		return err.Unwrap()
+	}
+	return nil
 }
 
 // GetResourceType retrieves the resource type for the given kind and group.
