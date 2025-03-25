@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package kernel
+package ebpf
 
 import (
 	"fmt"

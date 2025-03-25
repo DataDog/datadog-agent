@@ -15,12 +15,12 @@ import (
 	"math"
 	"sync"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -339,9 +339,9 @@ func eBPFHelperErrorKey(h hash.Hash64, name telemetryKey) uint64 {
 
 // EBPFTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
 func EBPFTelemetrySupported() (bool, error) {
-	kversion, err := kernel.HostVersion()
+	kversion, err := ebpf2.HostVersion()
 	if err != nil {
 		return false, err
 	}
-	return kversion >= kernel.VersionCode(4, 14, 0), nil
+	return kversion >= ebpf2.VersionCode(4, 14, 0), nil
 }

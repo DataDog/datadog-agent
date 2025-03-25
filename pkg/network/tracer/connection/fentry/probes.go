@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 const (
@@ -127,8 +127,8 @@ func enableProgram(enabled map[string]struct{}, name string) {
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
-	kv5190 := kernel.VersionCode(5, 19, 0)
-	kv, err := kernel.HostVersion()
+	kv5190 := ebpfutils.VersionCode(5, 19, 0)
+	kv, err := ebpfutils.HostVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 	return nil
 }
 
-func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {
+func selectVersionBasedProbe(kv ebpfutils.Version, dfault string, versioned string, reqVer ebpfutils.Version) string {
 	if kv < reqVer {
 		return versioned
 	}

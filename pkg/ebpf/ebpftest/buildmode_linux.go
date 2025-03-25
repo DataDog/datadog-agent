@@ -13,15 +13,15 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var hostPlatform string
-var kv = kernel.MustHostVersion()
+var kv = ebpfutil.MustHostVersion()
 
 func init() {
-	hostPlatform, _ = kernel.Platform()
+	hostPlatform, _ = ebpfutil.Platform()
 }
 
 // SupportedBuildModes returns the build modes supported on the current host

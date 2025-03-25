@@ -10,10 +10,10 @@ package testutil
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
-var kv = kernel.MustHostVersion()
+var kv = ebpfutil.MustHostVersion()
 
 // Config returns a network.Config setup for test purposes
 func Config() *config.Config {
@@ -23,7 +23,7 @@ func Config() *config.Config {
 		cfg.ProtocolClassificationEnabled = false
 	}
 	// prebuilt on 5.18+ does not support UDPv6
-	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
+	if isPrebuilt(cfg) && kv >= ebpfutil.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -140,12 +141,12 @@ func lockContentionCollectorSupported() bool {
 	}
 
 	var platform, version string
-	platform, err = kernel.Platform()
+	platform, err = ebpfutil.Platform()
 	if err != nil {
 		return false
 	}
 
-	version, err = kernel.PlatformVersion()
+	version, err = ebpfutil.PlatformVersion()
 	if err != nil {
 		return false
 	}

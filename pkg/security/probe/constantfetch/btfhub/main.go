@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 func main() {
@@ -344,7 +344,7 @@ func (c *treeWalkCollector) extractConstantsFromBTF(archivePath, distribution, d
 	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
 
 	releasePart := strings.Split(btfFileName, "-")[0]
-	kvCode, err := utilKernel.ParseReleaseString(releasePart)
+	kvCode, err := ebpfutils.ParseReleaseString(releasePart)
 	if err != nil {
 		return nil, err
 	}

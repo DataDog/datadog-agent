@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 const (
@@ -49,7 +49,7 @@ func uncompressModule(xzModulePath string) error {
 
 func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	var wasCompressed bool
-	release, err := kernel.Release()
+	release, err := ebpf.Release()
 	if err != nil {
 		t.Skipf("couldn't parse uname release: %v", err)
 	}

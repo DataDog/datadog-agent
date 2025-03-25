@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 const (
@@ -27,9 +27,9 @@ var fedoraUnsupportedVersions = []string{"35", "36", "37", "38"}
 // isFedora returns true if the current OS is Fedora.
 // go-tls does not work correctly on Fedora 35, 36, 37 and 38.
 func isFedora(t *testing.T) bool {
-	platform, err := kernel.Platform()
+	platform, err := ebpf.Platform()
 	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
+	platformVersion, err := ebpf.PlatformVersion()
 	require.NoError(t, err)
 
 	return platform == fedoraPlatform && slices.Contains(fedoraUnsupportedVersions, platformVersion)

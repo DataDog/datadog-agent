@@ -15,7 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +23,7 @@ import (
 var RuntimeArch string
 
 func resolveRuntimeArch() {
-	machine, err := utilkernel.Machine()
+	machine, err := ebpfutil.Machine()
 	if err != nil {
 		panic(err)
 	}
