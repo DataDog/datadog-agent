@@ -5,7 +5,7 @@
 
 //go:build linux && linux_bpf
 
-package kernel
+package headers
 
 import (
 	"bytes"
@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestGetKernelHeaders(t *testing.T) {
@@ -32,14 +34,14 @@ func TestGetKernelHeaders(t *testing.T) {
 func TestParseHeaderVersion(t *testing.T) {
 	cases := []struct {
 		body string
-		v    Version
+		v    kernel.Version
 		err  bool
 	}{
-		{"#define LINUX_VERSION_CODE 328769", Version(328769), false},
-		{"#define  LINUX_VERSION_CODE		123456", Version(123456), false},
-		{"#define LINUX_VERSION_CODE -1", Version(0), true},
-		{"#define LINUX_VERSION_CODE", Version(0), true},
-		{"", Version(0), true},
+		{"#define LINUX_VERSION_CODE 328769", kernel.Version(328769), false},
+		{"#define  LINUX_VERSION_CODE		123456", kernel.Version(123456), false},
+		{"#define LINUX_VERSION_CODE -1", kernel.Version(0), true},
+		{"#define LINUX_VERSION_CODE", kernel.Version(0), true},
+		{"", kernel.Version(0), true},
 	}
 
 	for _, c := range cases {
