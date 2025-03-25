@@ -100,7 +100,7 @@ require (
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
+	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/gorilla/mux v1.8.1
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -478,7 +478,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/shirou/gopsutil/v4 v4.25.2
 	go.opentelemetry.io/collector/component/componenttest v0.121.0
-	modernc.org/sqlite v1.36.1
+	modernc.org/sqlite v1.36.2
 )
 
 require (
