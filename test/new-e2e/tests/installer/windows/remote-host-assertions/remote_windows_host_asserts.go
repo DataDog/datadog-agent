@@ -210,3 +210,14 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *Remo
 			))
 	return r
 }
+
+// HasDatadogInstaller verifies that the Datadog Installer is installed on the remote host.
+func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstallerAssertions {
+	r.suite.T().Helper()
+
+	// TODO: custom install path
+	bin := r.HasBinary(consts.BinaryPath)
+	return &RemoteWindowsInstallerAssertions{
+		RemoteWindowsBinaryAssertions: bin,
+	}
+}

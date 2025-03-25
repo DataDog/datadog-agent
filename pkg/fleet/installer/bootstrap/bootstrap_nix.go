@@ -80,3 +80,11 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	installerBinPath := filepath.Join(tmpDir, installerBinPath)
 	return exec.NewInstallerExec(env, installerBinPath), nil
 }
+
+func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
+	version := "latest"
+	if env.DefaultPackagesVersionOverride[InstallerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[InstallerPackage]
+	}
+	return oci.PackageURL(env, InstallerPackage, version), nil
+}

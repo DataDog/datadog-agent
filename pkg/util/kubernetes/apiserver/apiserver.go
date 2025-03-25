@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -660,9 +661,7 @@ func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.Metada
 	if input == nil {
 		return output
 	}
-	for key, val := range input.Services {
-		output.Services[key] = val
-	}
+	maps.Copy(output.Services, input.Services)
 	return output
 }
 

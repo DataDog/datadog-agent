@@ -77,9 +77,9 @@ func (e *fakeLeaderEngine) get() (string, error) {
 
 func (e *fakeLeaderEngine) set(ip string, err error) {
 	e.Lock()
-	defer e.Unlock()
 	e.ip = ip
 	e.err = err
+	e.Unlock()
 	if e.subscriber != nil {
 		e.notify()
 	}

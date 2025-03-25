@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -103,6 +103,22 @@ type ProbeDependencies struct {
 	WorkloadMeta workloadmeta.Component
 }
 
+// NewProbeDependencies creates a new ProbeDependencies instance
+func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
+	nvmlLib := nvml.New(nvml.WithLibraryPath(cfg.NVMLLibraryPath))
+	ret := nvmlLib.Init()
+	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
+		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
+	}
+
+	return ProbeDependencies{
+		Telemetry:      telemetry,
+		NvmlLib:        nvmlLib,
+		ProcessMonitor: processMonitor,
+		WorkloadMeta:   workloadMeta,
+	}, nil
+}
+
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	m                *ddebpf.Manager
@@ -115,6 +131,7 @@ type Probe struct {
 	eventHandler     ddebpf.EventHandler
 	telemetry        *probeTelemetry
 	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
+	streamHandlers   *streamCollection
 }
 
 type probeTelemetry struct {
@@ -147,6 +164,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
+
+	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
 
 	p := &Probe{
 		cfg:       cfg,
@@ -184,9 +203,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	p.consumer = newCudaEventConsumer(sysCtx, p.eventHandler, p.cfg, deps.Telemetry)
-	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
-	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers, deps.Telemetry)
+	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
+	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
 		return nil, err
@@ -235,7 +254,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 func (p *Probe) cleanupFinished() {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.consumer.cleanFinishedHandlers()
+	p.streamHandlers.clean()
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {

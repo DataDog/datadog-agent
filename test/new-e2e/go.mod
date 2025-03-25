@@ -2,14 +2,14 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 
 go 1.23.1
 
-toolchain go1.23.6
+toolchain go1.23.7
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.144
+	github.com/DataDog/agent-payload/v5 v5.0.145
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3
@@ -23,7 +23,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250311104509-32b5503b4f3f
+	github.com/DataDog/test-infra-definitions v0.0.0-20250320141613-37219b27b29d
 	github.com/aws/aws-sdk-go-v2 v1.36.2
 	github.com/aws/aws-sdk-go-v2/config v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.204.0
@@ -41,7 +41,7 @@ require (
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
 	github.com/pulumi/pulumi/sdk/v3 v3.145.0
-	github.com/samber/lo v1.47.0
+	github.com/samber/lo v1.49.1
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/crypto v0.36.0
@@ -89,7 +89,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.15 // indirect
-	github.com/aws/smithy-go v1.22.2 // indirect
+	github.com/aws/smithy-go v1.22.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -225,7 +225,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.1 // indirect
-	k8s.io/component-base v0.31.2 // indirect
+	k8s.io/component-base v0.32.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
@@ -265,8 +265,11 @@ require (
 	github.com/creack/pty v1.1.21 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
+	github.com/onsi/gomega v1.36.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.81.0 // indirect
@@ -284,7 +287,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 )
 
-// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
+// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
@@ -412,6 +415,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
+	github.com/DataDog/datadog-agent/pkg/util/otel => ../../pkg/util/otel
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
