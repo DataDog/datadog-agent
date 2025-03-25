@@ -60,6 +60,9 @@ func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOpti
 		}
 
 		c.lib = nvmlNewFunc(nvml.WithLibraryPath(libpath))
+		if c.lib == nil {
+			return fmt.Errorf("failed to create NVML library")
+		}
 	}
 
 	ret := c.lib.Init()
