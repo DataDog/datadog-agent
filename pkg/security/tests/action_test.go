@@ -34,8 +34,8 @@ func TestActionKill(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if !ebpfLessEnabled {
-		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && env.IsContainerized()
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
 		})
 	}
 
@@ -199,8 +199,8 @@ func TestActionKill(t *testing.T) {
 func TestActionKillExcludeBinary(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
 	})
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -256,8 +256,8 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if !ebpfLessEnabled {
-		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && env.IsContainerized()
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
 		})
 	}
 
@@ -528,8 +528,8 @@ func TestActionKillDisarm(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
 	})
 
 	sleep := which(t, "sleep")
@@ -597,8 +597,8 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
 	})
 
 	sleep := which(t, "sleep")
@@ -616,20 +616,6 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 				{
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
-						Disarmer: &rules.KillDisarmerDefinition{
-							Executable: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerExecutablePeriod,
-								},
-							},
-							Container: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerContainerPeriod,
-								},
-							},
-						},
 					},
 				},
 			},
@@ -641,20 +627,6 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 				{
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
-						Disarmer: &rules.KillDisarmerDefinition{
-							Executable: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerExecutablePeriod,
-								},
-							},
-							Container: &rules.KillDisarmerParamsDefinition{
-								MaxAllowed: 1,
-								Period: &rules.HumanReadableDuration{
-									Duration: enforcementDisarmerContainerPeriod,
-								},
-							},
-						},
 					},
 				},
 			},
