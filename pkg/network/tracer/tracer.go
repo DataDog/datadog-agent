@@ -42,7 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -809,7 +809,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable
 	}
 	defer ns.Close()
 
-	rootNS, err := ns.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -833,7 +833,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 	defer ns.Close()
 
-	rootNS, err := ns.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -892,7 +892,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 // GetNetworkID retrieves the vpc_id (network_id) from IMDS
 func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	id := ""
-	err := ns.WithRootNS(kernel.ProcFSRoot(), func() error {
+	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
 		var err error
 		id, err = ec2.GetNetworkID(context)
 		return err
