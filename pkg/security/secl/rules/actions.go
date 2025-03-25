@@ -26,12 +26,12 @@ type Action struct {
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	if a.Set == nil && a.Kill == nil && a.Hash == nil && a.CoreDump == nil {
-		return errors.New("either 'set', 'kill', 'hash' or 'coredump' section of an action must be specified")
+	if a.Set == nil && a.Kill == nil && a.Hash == nil && a.CoreDump == nil && a.Log == nil {
+		return errors.New("either 'set', 'kill', 'hash', 'coredump' or 'log' section of an action must be specified")
 	}
 
 	if a.Set != nil {
-		if a.Kill != nil {
+		if a.Kill != nil || a.Hash != nil || a.CoreDump != nil || a.Log != nil {
 			return errors.New("only of 'set' or 'kill' section of an action can be specified")
 		}
 
@@ -63,6 +63,10 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 
 		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
 			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
+		}
+	} else if a.Log != nil {
+		if a.Log.Level == "" {
+			return errors.New("a valid log level must be specified to the the 'log' action")
 		}
 	}
 
