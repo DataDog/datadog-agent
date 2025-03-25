@@ -54,8 +54,8 @@ def display_pr_comment(
         def getMetric(metric_name, gate_name=gate['name']):
             try:
                 return metric_handler.get_formatted_metric(gate_name, metric_name)
-            except KeyError as e:
-                return f"DataNotFound({e})"
+            except KeyError:
+                return "DataNotFound"
 
         if gate["error_type"] is None:
             body_info += f"|{SUCCESS_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
