@@ -14,7 +14,6 @@ package tcpqueuelength
 import (
 	"fmt"
 
-	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -145,11 +145,11 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 }
 
 func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
-	kv, err := ebpf2.HostVersion()
+	kv, err := ebpfutil.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
-	if kv < ebpf2.VersionCode(4, 8, 0) {
+	if kv < ebpfutil.VersionCode(4, 8, 0) {
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 

@@ -15,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -23,12 +22,13 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 func TestConsumer(t *testing.T) {
-	kversion, err := ebpf2.HostVersion()
+	kversion, err := ebpfutil.HostVersion()
 	require.NoError(t, err)
-	if minVersion := ebpf2.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := ebpfutil.VersionCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 
@@ -75,9 +75,9 @@ func TestConsumer(t *testing.T) {
 }
 
 func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := ebpf2.HostVersion()
+	kversion, err := ebpfutil.HostVersion()
 	require.NoError(t, err)
-	if minVersion := ebpf2.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := ebpfutil.VersionCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 
