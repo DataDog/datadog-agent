@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
@@ -116,10 +116,10 @@ func TestNPMEnabled(t *testing.T) {
 }
 
 func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
-	family, err := ebpf.Family()
+	family, err := ebpfutil.Family()
 	require.NoError(t, err, "could not determine kernel family")
 
-	kv, err := ebpf.HostVersion()
+	kv, err := ebpfutil.HostVersion()
 	require.NoError(t, err, "could not determine kernel version")
 
 	deprecateVersion := prebuilt.DeprecatedKernelVersion

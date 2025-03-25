@@ -10,25 +10,25 @@ package tracer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUbuntuKernelsNotSupported(t *testing.T) {
 	for i := byte(114); i < byte(128); i++ {
-		ok, msg := verifyOSVersion(ebpf.VersionCode(4, 4, i), "ubuntu", nil)
+		ok, msg := verifyOSVersion(ebpfutil.VersionCode(4, 4, i), "ubuntu", nil)
 		assert.False(t, ok)
 		assert.NotEmpty(t, msg)
 	}
 
 	for i := byte(100); i < byte(114); i++ {
-		ok, msg := verifyOSVersion(ebpf.VersionCode(4, 4, i), "ubuntu", nil)
+		ok, msg := verifyOSVersion(ebpfutil.VersionCode(4, 4, i), "ubuntu", nil)
 		assert.True(t, ok)
 		assert.Empty(t, msg)
 	}
 
 	for i := byte(128); i < byte(255); i++ {
-		ok, msg := verifyOSVersion(ebpf.VersionCode(4, 4, i), "ubuntu", nil)
+		ok, msg := verifyOSVersion(ebpfutil.VersionCode(4, 4, i), "ubuntu", nil)
 		assert.True(t, ok)
 		assert.Empty(t, msg)
 	}
@@ -36,27 +36,27 @@ func TestUbuntuKernelsNotSupported(t *testing.T) {
 
 func TestExcludedKernelVersion(t *testing.T) {
 	exclusionList := []string{"5.5.1", "6.3.2"}
-	ok, msg := verifyOSVersion(ebpf.VersionCode(4, 4, 121), "ubuntu", exclusionList)
+	ok, msg := verifyOSVersion(ebpfutil.VersionCode(4, 4, 121), "ubuntu", exclusionList)
 	assert.False(t, ok)
 	assert.NotEmpty(t, msg)
 
-	ok, msg = verifyOSVersion(ebpf.VersionCode(5, 5, 1), "debian", exclusionList)
+	ok, msg = verifyOSVersion(ebpfutil.VersionCode(5, 5, 1), "debian", exclusionList)
 	assert.False(t, ok)
 	assert.NotEmpty(t, msg)
 
-	ok, msg = verifyOSVersion(ebpf.VersionCode(6, 3, 2), "debian", exclusionList)
+	ok, msg = verifyOSVersion(ebpfutil.VersionCode(6, 3, 2), "debian", exclusionList)
 	assert.False(t, ok)
 	assert.NotEmpty(t, msg)
 
-	ok, msg = verifyOSVersion(ebpf.VersionCode(6, 3, 1), "debian", exclusionList)
+	ok, msg = verifyOSVersion(ebpfutil.VersionCode(6, 3, 1), "debian", exclusionList)
 	assert.True(t, ok)
 	assert.Empty(t, msg)
 
-	ok, msg = verifyOSVersion(ebpf.VersionCode(5, 5, 2), "debian", exclusionList)
+	ok, msg = verifyOSVersion(ebpfutil.VersionCode(5, 5, 2), "debian", exclusionList)
 	assert.True(t, ok)
 	assert.Empty(t, msg)
 
-	ok, msg = verifyOSVersion(ebpf.VersionCode(3, 10, 0), "Linux-3.10.0-957.5.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core", exclusionList)
+	ok, msg = verifyOSVersion(ebpfutil.VersionCode(3, 10, 0), "Linux-3.10.0-957.5.1.el7.x86_64-x86_64-with-centos-7.6.1810-Core", exclusionList)
 	assert.True(t, ok)
 	assert.Empty(t, msg)
 }

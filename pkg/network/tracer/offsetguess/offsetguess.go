@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -135,11 +135,11 @@ func getIpv6Configuration(c *config.Config) (bool, bool) {
 		tcpv6Enabled = c.CollectTCPv6Conns
 		udpv6Enabled = c.CollectUDPv6Conns
 		if c.CollectUDPv6Conns {
-			kv, err := ebpf.HostVersion()
+			kv, err := ebpfutil.HostVersion()
 			if err != nil {
 				return
 			}
-			if kv >= ebpf.VersionCode(5, 18, 0) {
+			if kv >= ebpfutil.VersionCode(5, 18, 0) {
 				udpv6Enabled = false
 			}
 		}
