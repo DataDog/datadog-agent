@@ -107,10 +107,10 @@ secret_backend_arguments:
   - /tmp
 api_key: ENC[api_key]
 additional_endpoints:
-  "https://app.datadoghq.com":
+  "/intake":
     - ENC[apikey2]
     - ENC[apikey3]
-  "https://app.datadoghq.eu":
+  "/api/v2/series":
     - ENC[apikey4]
 `
 
@@ -165,14 +165,14 @@ additional_endpoints:
 
 	// Wait for the agent to send data to each endpoint and verify the API keys
 	endpoints := []string{
-		"https://app.datadoghq.com",
-		"https://app.datadoghq.eu",
+		"/intake",
+		"/api/v2/series",
 	}
 	fakeIntakeURL := v.Env().FakeIntake.Client().URL()
 	v.T().Logf("WACKTEST99 FAKEINTAKE URL IS : %s", fakeIntakeURL)
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", fakeIntakeURL, endpoint)
-		v.T().Logf("WACKTEST100 Checking FakeIntake payloads for URL: %s", url)
+		v.T().Logf("WACKTEST2 Checking FakeIntake payloads for endpoint: %s", endpoint)
 
 		// Wait for payloads to appear in FakeIntake
 		assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
@@ -212,13 +212,13 @@ additional_endpoints:
 			v.T().Logf("Found API keys for %s: %v", endpoint, foundAPIKeys)
 
 			// Check for expected API keys based on endpoint
-			if endpoint == "https://app.datadoghq.com" {
-				// For datadoghq.com, we expect both apikey2 and apikey3
-				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey2"]], "Expected apikey2 not found for datadoghq.com")
-				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey3"]], "Expected apikey3 not found for datadoghq.com")
+			if endpoint == "/intake" {
+				// For /intake, we expect both apikey2 and apikey3
+				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey2"]], "Expected apikey2 not found for /intake")
+				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey3"]], "Expected apikey3 not found for /intake")
 			} else {
-				// For datadoghq.eu, we expect apikey4
-				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey4"]], "Expected apikey4 not found for datadoghq.eu")
+				// For /api/v2/series, we expect apikey4
+				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey4"]], "Expected apikey4 not found for /api/v2/series")
 			}
 		}, 1*time.Minute, 10*time.Second)
 	}
