@@ -140,15 +140,18 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 
-	var devices []Device
+	var devices []struct {
+		IP        net.IP `json:"ip"`
+		AuthIndex int    `json:"auth_index"`
+	}
 	err = json.Unmarshal([]byte(cacheValue), &devices)
 	if err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
 	for _, device := range devices {
-		entityID := subnet.config.Digest(device.IP)
-		l.createService(entityID, subnet, device.IP, device.AuthIndex, false)
+		entityID := subnet.config.Digest(device.IP.String())
+		l.createService(entityID, subnet, device.IP.String(), device.AuthIndex, false)
 	}
 }
 
