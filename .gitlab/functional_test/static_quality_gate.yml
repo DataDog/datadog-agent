@@ -48,9 +48,9 @@ static_quality_gates:
     - iot_agent_rpm-armhf
     - iot_agent_suse-x64
     - windows_msi_and_bosh_zip_x64-a7
-    - job: agent_dmg-x64-a7
-      optional: True
-
+  #  - job: agent_dmg-x64-a7
+  #    optional: True
+  #
   # Static Quality Gates aren't enforced until Q1
   allow_failure: true
   script:
