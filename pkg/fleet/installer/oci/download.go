@@ -463,7 +463,8 @@ func writeBinary(r io.Reader, path string) error {
 	}
 	defer outFile.Close()
 
-	_, err = io.CopyN(outFile, r, layerMaxSize)
+	limitedReader := io.LimitReader(r, layerMaxSize)
+	_, err = io.Copy(outFile, limitedReader)
 	if err != nil {
 		return fmt.Errorf("could not write to file: %w", err)
 	}
