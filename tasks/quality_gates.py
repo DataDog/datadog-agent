@@ -13,7 +13,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
-BUFFER_SIZE = 10000000
+BUFFER_SIZE = 500000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 
