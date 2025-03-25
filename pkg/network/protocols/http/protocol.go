@@ -12,6 +12,7 @@ import (
 	"io"
 	"unsafe"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -114,7 +114,7 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 		return nil, nil
 	}
 
-	kversion, err := kernel.HostVersion()
+	kversion, err := ebpf2.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't determine current kernel version: %w", err)
 	}

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,6 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,7 +59,7 @@ const (
 
 var (
 	emptyBody = []byte(nil)
-	kv        = kernel.MustHostVersion()
+	kv        = ebpf2.MustHostVersion()
 )
 
 func TestMonitorProtocolFail(t *testing.T) {

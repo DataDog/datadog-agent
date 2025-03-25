@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/vishvananda/netns"
 
@@ -51,13 +52,13 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 		return nil, err
 	}
 
-	currKernelVersion, err := kernel.HostVersion()
+	currKernelVersion, err := ebpf.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 		currKernelVersion = math.MaxUint32
 	}
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < ebpf.VersionCode(4, 1, 0)
 
 	var p *ebpfProgram
 	if pre410Kernel || cfg.EnableEbpfless {

@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -138,9 +138,9 @@ func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
 	})
 
 	t.Run("map does not support batches", func(t *testing.T) {
-		kernelVersion, err := kernel.HostVersion()
+		kernelVersion, err := ebpf2.HostVersion()
 		require.NoError(t, err)
-		if kernelVersion < kernel.VersionCode(4, 6, 0) {
+		if kernelVersion < ebpf2.VersionCode(4, 6, 0) {
 			t.Skip("Kernel version does not support per-CPU maps")
 		}
 

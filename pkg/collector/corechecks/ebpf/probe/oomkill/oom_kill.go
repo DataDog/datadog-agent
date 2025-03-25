@@ -14,6 +14,7 @@ package oomkill
 import (
 	"fmt"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,11 +53,11 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 }
 
 func loadOOMKillCOREProbe() (*Probe, error) {
-	kv, err := kernel.HostVersion()
+	kv, err := ebpf2.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
-	if kv < kernel.VersionCode(4, 9, 0) {
+	if kv < ebpf2.VersionCode(4, 9, 0) {
 		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 

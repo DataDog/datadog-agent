@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ebpf"
 )
 
 type coreAssetLoader struct {
@@ -103,15 +103,15 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 	if err != nil {
 		return
 	}
-	platformVersion, err := kernel.PlatformVersion()
+	platformVersion, err := ebpf.PlatformVersion()
 	if err != nil {
 		return
 	}
-	kernelVersion, err := kernel.Release()
+	kernelVersion, err := ebpf.Release()
 	if err != nil {
 		return
 	}
-	arch, err := kernel.Machine()
+	arch, err := ebpf.Machine()
 	if err != nil {
 		return
 	}

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -47,11 +47,11 @@ func isCOREAsset(path string) bool {
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics, and a map of their detailed complexity info (only filled if DetailedComplexity is true)
 func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, error) {
-	kversion, err := kernel.HostVersion()
+	kversion, err := ebpfutils.HostVersion()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
 	}
-	if kversion < kernel.VersionCode(4, 15, 0) {
+	if kversion < ebpfutils.VersionCode(4, 15, 0) {
 		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
 	}
 
@@ -87,7 +87,7 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 
 func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
-		kversion, err := kernel.HostVersion()
+		kversion, err := ebpfutils.HostVersion()
 		if err != nil {
 			return fmt.Errorf("failed to get host kernel version: %w", err)
 		}
@@ -283,7 +283,7 @@ type structField struct {
 	value reflect.Value
 }
 
-func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics, error) {
+func unmarshalStatistics(output string, hostVersion ebpfutils.Version) (*Statistics, error) {
 	v := Statistics{
 		StackDepth:                 stat{parse: stackUsage},
 		InstructionsProcessed:      stat{parse: insnProcessed},
@@ -306,7 +306,7 @@ func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics
 		if version == "" {
 			return nil, fmt.Errorf("field %s not tagged with kernel version", field.Name)
 		}
-		if hostVersion < kernel.ParseVersion(version) {
+		if hostVersion < ebpfutils.ParseVersion(version) {
 			continue
 		}
 

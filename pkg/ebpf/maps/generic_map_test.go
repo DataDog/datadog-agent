@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
@@ -234,10 +235,10 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 }
 
 func TestIteratePerCPUMaps(t *testing.T) {
-	kernelVersion, err := kernel.HostVersion()
+	kernelVersion, err := ebpf2.HostVersion()
 	require.NoError(t, err)
 
-	if kernelVersion < kernel.VersionCode(4, 6, 0) {
+	if kernelVersion < ebpf2.VersionCode(4, 6, 0) {
 		t.Skip("Per CPU maps not supported on this kernel version")
 	}
 

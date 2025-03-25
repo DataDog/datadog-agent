@@ -24,6 +24,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	ebpfutils "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -259,7 +260,7 @@ func (s *Snapshot) snapshotKernelCmdline(ignoredBaseNames []string) error {
 }
 
 func (s *Snapshot) getKernelConfigPath() (string, error) {
-	kernelVersion, err := kernel.Release()
+	kernelVersion, err := ebpfutils.Release()
 	if err != nil {
 		return "", err
 	}
