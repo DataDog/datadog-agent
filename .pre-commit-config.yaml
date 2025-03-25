@@ -14,7 +14,7 @@ repos:
       args: [ --fix ]
     - id: ruff-format
 - repo: https://github.com/jendrikseipp/vulture
-  rev: 44aed44e226ec0e5660851462f764ec5d5da957c # v2.3
+  rev: e454d2ef39fc23e72549ff23a1a14e31c3a75605 # v2.14
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
@@ -93,7 +93,7 @@ repos:
     - id: go-test
       name: go-test
       description: run go test on modified packages
-      entry: 'dda inv test --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
       language: system
       require_serial: true
       always_run: true
@@ -102,7 +102,7 @@ repos:
     - id: go-linter
       name: go-linter
       description: run go linter on modified packages
-      entry: 'dda inv linter.go --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
       language: system
       require_serial: true
       always_run: true

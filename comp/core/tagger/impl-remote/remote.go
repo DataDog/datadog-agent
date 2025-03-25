@@ -255,6 +255,9 @@ func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.checksCardinality
+	}
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
@@ -424,10 +427,6 @@ func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.Origi
 	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
-}
-
-func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
-	return t.checksCardinality
 }
 
 // Subscribe currently returns a non-nil error indicating that the method is not supported
