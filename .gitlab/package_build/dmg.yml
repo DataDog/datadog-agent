@@ -96,7 +96,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -104,7 +104,8 @@ new-agent_dmg-x64-a7:
     expire_in: 2 weeks
     paths:
       - datadog-agent-build
-  # after_script:
+      - .
+    when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
@@ -122,6 +123,8 @@ new-agent_dmg-x64-a7:
   script:
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
+    # Adds one fix
+    - export OMNIBUS_RUBY_VERSION=celian/macos-build
 
     - brew uses gettext --installed || true
     - ls /usr/local/opt/gettext || true
