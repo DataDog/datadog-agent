@@ -76,13 +76,18 @@ type SNMPService struct {
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
+type Device struct {
+	IP        string `json:"ip"`
+	AuthIndex int    `json:"auth_index"`
+}
+
 type snmpSubnet struct {
 	adIdentifier          string
 	config                snmp.Config
 	startingIP            net.IP
 	network               net.IPNet
 	cacheKey              string
-	devices               map[string]string
+	devices               map[string]Device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
 }
@@ -123,20 +128,33 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	if cacheValue == "" {
 		return
 	}
-	var devices []net.IP
-	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
+
+	// Try to unmarshal with the old cache format
+	var deviceIPs []net.IP
+	err = json.Unmarshal([]byte(cacheValue), &deviceIPs)
+	if err == nil {
+		for _, deviceIP := range deviceIPs {
+			entityID := subnet.config.Digest(deviceIP.String())
+			l.createService(entityID, subnet, deviceIP.String(), 0, false)
+		}
+		return
+	}
+
+	var devices []Device
+	err = json.Unmarshal([]byte(cacheValue), &devices)
+	if err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
-	for _, deviceIP := range devices {
-		entityID := subnet.config.Digest(deviceIP.String())
-		l.createService(entityID, subnet, deviceIP.String(), subnet.config, false)
+	for _, device := range devices {
+		entityID := subnet.config.Digest(device.IP)
+		l.createService(entityID, subnet, device.IP, device.AuthIndex, false)
 	}
 }
 
 func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	// We don't lock the subnet for now, because the listener ought to be already locked
-	devices := make([]string, 0, len(subnet.devices))
+	devices := make([]Device, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
 		devices = append(devices, v)
 	}
@@ -171,8 +189,8 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	entityID := job.subnet.config.Digest(deviceIP)
 
 	deviceFound := false
-	for i, authentication := range job.subnet.config.Authentications {
-		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, i)
+	for authIndex, authentication := range job.subnet.config.Authentications {
+		log.Debugf("Building SNMP params for device %s for authentication at index %d", deviceIP, authIndex)
 		params, err := authentication.BuildSNMPParams(deviceIP, job.subnet.config.Port)
 		if err != nil {
 			log.Errorf("Error building params for device %s: %v", deviceIP, err)
@@ -181,20 +199,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 		if deviceFound {
-			config := job.subnet.config
-			config.Version = authentication.Version
-			config.Timeout = authentication.Timeout
-			config.Retries = authentication.Retries
-			config.Community = authentication.Community
-			config.User = authentication.User
-			config.AuthKey = authentication.AuthKey
-			config.AuthProtocol = authentication.AuthProtocol
-			config.PrivKey = authentication.PrivKey
-			config.PrivProtocol = authentication.PrivProtocol
-			config.ContextEngineID = authentication.ContextEngineID
-			config.ContextName = authentication.ContextName
-			l.createService(entityID, job.subnet, deviceIP, config, true)
-
+			l.createService(entityID, job.subnet, deviceIP, authIndex, true)
 			break
 		}
 	}
@@ -267,7 +272,7 @@ func (l *SNMPListener) checkDevices() {
 			startingIP:     startingIP,
 			network:        *ipNet,
 			cacheKey:       cacheKey,
-			devices:        map[string]string{},
+			devices:        map[string]Device{},
 			deviceFailures: map[string]int{},
 		}
 		subnets = append(subnets, subnet)
@@ -336,12 +341,27 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, config snmp.Config, writeCache bool) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, authIndex int, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
 		return
 	}
+
+	config := subnet.config
+	authentication := config.Authentications[authIndex]
+	config.Version = authentication.Version
+	config.Timeout = authentication.Timeout
+	config.Retries = authentication.Retries
+	config.Community = authentication.Community
+	config.User = authentication.User
+	config.AuthKey = authentication.AuthKey
+	config.AuthProtocol = authentication.AuthProtocol
+	config.PrivKey = authentication.PrivKey
+	config.PrivProtocol = authentication.PrivProtocol
+	config.ContextEngineID = authentication.ContextEngineID
+	config.ContextName = authentication.ContextName
+
 	svc := &SNMPService{
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
@@ -350,7 +370,10 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		subnet:       subnet,
 	}
 	l.services[entityID] = svc
-	subnet.devices[entityID] = deviceIP
+	subnet.devices[entityID] = Device{
+		IP:        deviceIP,
+		AuthIndex: authIndex,
+	}
 	subnet.deviceFailures[entityID] = 0
 	if writeCache {
 		l.writeCache(subnet)
