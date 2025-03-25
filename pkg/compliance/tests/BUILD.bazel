@@ -17,6 +17,7 @@ go_test(
     name = "tests_test",
     srcs = [
         "audit_test.go",
+        "badenv_test.go",
         "base_test.go",
         "data_test.go",
         "docker_test.go",

@@ -16,6 +16,7 @@ go_library(
         "host_tag_provider.go",
         "no_aggregation_stream_worker.go",
         "no_op_sender_manager.go",
+        "no_orchestrator.go",
         "orchestrator.go",
         "sender.go",
         "sketch_map.go",

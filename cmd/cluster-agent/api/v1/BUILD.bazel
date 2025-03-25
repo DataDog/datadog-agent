@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "api",
     srcs = [
+        "cloudfoundry_metadata_nocompile.go",
         "clusterchecks_nocompile.go",
         "endpointschecks_nocompile.go",
         "install.go",

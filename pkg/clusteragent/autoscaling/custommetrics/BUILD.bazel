@@ -6,6 +6,7 @@ go_library(
         "doc.go",
         "provider.go",
         "status.go",
+        "status_no_apiserver.go",
         "store.go",
         "store_configmap.go",
         "types.go",

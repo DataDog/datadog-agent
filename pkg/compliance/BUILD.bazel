@@ -10,6 +10,7 @@ go_library(
         "inputs_audits.go",
         "inputs_audits_nolinux.go",
         "inputs_docker.go",
+        "inputs_docker_nodocker.go",
         "packages.go",
         "reporter.go",
         "resolver.go",

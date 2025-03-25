@@ -7,6 +7,7 @@ go_library(
         "cluster_checks.go",
         "diagnose.go",
         "manifests.go",
+        "manifests_nocompile.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/flare/clusteragent",
     visibility = ["//visibility:public"],

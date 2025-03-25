@@ -9,6 +9,7 @@ go_library(
         "kubernetes_state_label_joins.go",
         "kubernetes_state_telemetry.go",
         "kubernetes_state_transformers.go",
+        "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm",
     visibility = ["//visibility:public"],

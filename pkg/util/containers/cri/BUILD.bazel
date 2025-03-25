@@ -6,6 +6,7 @@ go_library(
         "common.go",
         "diagnosis.go",
         "metadata.go",
+        "metadata_no_cri.go",
         "util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/cri",

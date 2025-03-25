@@ -6,6 +6,7 @@ go_library(
         "doc.go",
         "job.go",
         "series.go",
+        "series_nocompile.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series",
     visibility = ["//visibility:public"],

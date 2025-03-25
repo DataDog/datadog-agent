@@ -7,7 +7,7 @@ go_library(
         "common.go",
         "container.go",
         "dbm_aurora.go",
-        "dbm_aurora_nop.go",  # keep
+        "dbm_aurora_nop.go",
         "environment.go",
         "kube_endpoints_nop.go",
         "kube_services_nop.go",

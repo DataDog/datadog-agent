@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "agent.go",
         "agent_jmx.go",
+        "agent_nojmx.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent",
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],

@@ -4,6 +4,7 @@ go_library(
     name = "ecsfargate",
     srcs = [
         "ecsfargate.go",
+        "ecsfargate_nop.go",
         "stub.go",
         "v2parser.go",
         "v4parser.go",

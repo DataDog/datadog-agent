@@ -6,6 +6,7 @@ go_library(
         "collector_bundle.go",
         "manifest_buffer.go",
         "orchestrator.go",
+        "stub.go",
         "terminated_resource_bundle.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator",

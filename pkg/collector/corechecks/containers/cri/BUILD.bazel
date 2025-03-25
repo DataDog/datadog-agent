@@ -6,6 +6,7 @@ go_library(
         "adapter.go",
         "check.go",
         "check_metrics_extension.go",
+        "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri",
     visibility = ["//visibility:public"],

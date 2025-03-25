@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "container",
-    srcs = ["launcher.go"],
+    srcs = [
+        "launcher.go",
+        "launcher_nodocker.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container",
     visibility = ["//visibility:public"],
     deps = [

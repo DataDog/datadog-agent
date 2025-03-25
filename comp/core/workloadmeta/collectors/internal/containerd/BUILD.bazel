@@ -5,9 +5,10 @@ go_library(
     srcs = [
         "container_builder.go",
         "containerd.go",
+        "containerd_nop.go",
         "event_builder.go",
         "image.go",
-        "image_sbom_stub.go",  # keep
+        "image_sbom_stub.go",
         "image_sbom_trivy.go",
         "network_linux.go",
         "network_stub.go",

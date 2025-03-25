@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "orchestratorimpl",
     srcs = [
+        "forwarder_no_orchestrator.go",
         "forwarder_orchestrator.go",
         "forwarder_orchestrator_mock.go",
         "params.go",

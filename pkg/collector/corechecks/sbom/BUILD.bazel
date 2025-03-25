@@ -4,6 +4,7 @@ go_library(
     name = "sbom",
     srcs = [
         "check.go",
+        "check_no_trivy.go",
         "convert.go",
         "doc.go",
         "processor.go",

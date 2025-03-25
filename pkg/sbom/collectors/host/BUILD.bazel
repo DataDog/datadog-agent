@@ -6,7 +6,7 @@ go_library(
         "collector.go",
         "doc.go",
         "host.go",
-        "host_wmi.go",  # keep
+        "host_wmi.go",
         "request.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host",

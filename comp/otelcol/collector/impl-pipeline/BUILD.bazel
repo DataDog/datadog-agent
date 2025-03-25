@@ -4,6 +4,7 @@ go_library(
     name = "impl-pipeline",
     srcs = [
         "flare_filler.go",
+        "no_otlp.go",
         "pipeline.go",
         "status.go",
     ],

@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
-    srcs = ["config.go"],
+    srcs = [
+        "config.go",
+        "config_unsupported.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config",
     visibility = ["//visibility:public"],
     deps = [

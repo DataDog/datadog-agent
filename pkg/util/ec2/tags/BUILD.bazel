@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cluster_name.go",
         "docs.go",
+        "ec2_no_tags.go",
         "ec2_tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/ec2/tags",

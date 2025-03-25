@@ -5,7 +5,7 @@ go_library(
     srcs = [
         "apm.go",
         "config.go",
-        "config_accessor.go",  # keep
+        "config_accessor.go",
         "config_change_checker.go",
         "config_darwin.go",
         "config_init.go",

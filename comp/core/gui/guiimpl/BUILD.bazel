@@ -6,6 +6,7 @@ go_library(
         "agent.go",
         "auth.go",
         "checks.go",
+        "checks_nopy.go",
         "checks_python.go",
         "gui.go",
         "platform_darwin.go",

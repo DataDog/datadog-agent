@@ -4,7 +4,7 @@ go_library(
     name = "podman",
     srcs = [
         "podman.go",
-        "podman_nop.go",  # keep
+        "podman_nop.go",
         "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman",

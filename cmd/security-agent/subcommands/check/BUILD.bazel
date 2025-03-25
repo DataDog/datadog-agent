@@ -6,6 +6,7 @@ go_library(
         "command.go",
         "command_unsupported.go",
         "resolver_cluster_agent.go",
+        "resolver_security_agent.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check",
     visibility = ["//visibility:public"],

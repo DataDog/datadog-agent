@@ -28,6 +28,7 @@ go_library(
         "sql_wrappers.go",
         "statement_metrics_queries.go",
         "statements.go",
+        "stub.go",
         "sysmetrics.go",
         "tablespaces.go",
         "telemetry.go",

@@ -4,6 +4,7 @@ go_library(
     name = "integrations",
     srcs = [
         "command.go",
+        "command_nopython.go",
         "integrations_darwin.go",
         "integrations_nix.go",
         "integrations_nix_helpers.go",

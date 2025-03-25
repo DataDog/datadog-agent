@@ -4,7 +4,9 @@ go_library(
     name = "selector",
     srcs = [
         "fromconfig.go",
+        "no-zlib-no-zstd.go",
         "zlib-and-zstd.go",
+        "zlib-no-zstd.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/selector",
     visibility = ["//visibility:public"],

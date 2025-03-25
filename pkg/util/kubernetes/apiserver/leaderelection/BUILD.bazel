@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "leaderelection.go",
         "leaderelection_engine.go",
+        "leaderelection_stub.go",
         "status.go",
     ],
     embedsrcs = ["status_templates/leaderelection.tmpl"],

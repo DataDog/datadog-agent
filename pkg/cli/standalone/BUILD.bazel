@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "doc.go",
         "jmx.go",
+        "jmx_nojmx.go",
         "warnings.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/cli/standalone",

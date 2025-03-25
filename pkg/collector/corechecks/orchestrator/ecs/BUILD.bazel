@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "ecs",
-    srcs = ["ecs.go"],
+    srcs = [
+        "ecs.go",
+        "stub.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs",
     visibility = ["//visibility:public"],
     deps = [

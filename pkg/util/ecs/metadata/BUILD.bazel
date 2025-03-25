@@ -4,6 +4,7 @@ go_library(
     name = "metadata",
     srcs = [
         "clients.go",
+        "clients_nodocker.go",
         "detection.go",
         "doc.go",
     ],

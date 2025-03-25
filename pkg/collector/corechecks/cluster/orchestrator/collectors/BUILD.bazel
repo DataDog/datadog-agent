@@ -6,6 +6,7 @@ go_library(
         "collector.go",
         "errors.go",
         "k8scollector.go",
+        "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors",
     visibility = ["//visibility:public"],

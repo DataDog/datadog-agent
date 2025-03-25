@@ -8,6 +8,7 @@ go_library(
         "map_utils.go",
         "release.go",
         "releases_store.go",
+        "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm",
     visibility = ["//visibility:public"],

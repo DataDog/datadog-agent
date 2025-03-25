@@ -13,7 +13,9 @@ AGENT_BUILD_TAGS = [
     "jetson",
     "jmx",
     "kubeapiserver",
-    "kubelet",
+    # Currently this tag is uncompatible with kubeapiserver because it creates
+    # a circular dependency
+    #"kubelet",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "no_dynamic_plugins",
     "oracle",

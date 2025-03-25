@@ -6,6 +6,7 @@ go_library(
         "doc.go",
         "handler.go",
         "language_detection.go",
+        "language_detection_nocompile.go",
         "telemetry.go",
         "util.go",
     ],

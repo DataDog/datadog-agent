@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "orchestrator",
-    srcs = ["status.go"],
+    srcs = [
+        "status.go",
+        "status_no_apiserver.go",
+    ],
     embedsrcs = ["status_templates/orchestrator.tmpl"],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator",
     visibility = ["//visibility:public"],

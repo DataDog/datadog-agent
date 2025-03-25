@@ -4,6 +4,7 @@ go_library(
     name = "ecs",
     srcs = [
         "ecs.go",
+        "ecs_nop.go",
         "stub.go",
         "v1parser.go",
         "v4parser.go",

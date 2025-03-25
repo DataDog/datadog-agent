@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "deployments.go",
         "kubeapiserver.go",
+        "kubeapiserver_nop.go",
         "metadata.go",
         "pod.go",
         "reflector_store.go",
