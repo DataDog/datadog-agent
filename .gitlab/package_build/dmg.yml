@@ -104,7 +104,9 @@ new-agent_dmg-x64-a7:
     expire_in: 2 weeks
     paths:
       - datadog-agent-build
+      # TODO
       - /tmp/debug
+      - /Volumes/Agent
     when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
