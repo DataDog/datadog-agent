@@ -67,7 +67,7 @@ def display_pr_comment(
             body_error_footer += f"|{gate['name']}|{gate['error_type']}|{error_message}|\n"
             with_error = True
 
-    body_error_footer += "\n</details>\nStatic quality gates prevent the PR to merge ! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance.\n"
+    body_error_footer += "\n</details>\nStatic quality gates prevent the PR to merge ! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
     body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
