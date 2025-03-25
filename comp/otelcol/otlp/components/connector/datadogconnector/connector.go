@@ -125,6 +125,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 	oconf.Statsd = metricsClient
 	oconf.Redis.Enabled = true
 
+	// TODO(IbraheemA): When creating datadogconnector in otel-agent, use components (e.g. concentrator) from trace-agent instead of creating new ones
 	return &traceToMetricConnector{
 		logger:          set.Logger,
 		translator:      trans,

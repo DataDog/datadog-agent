@@ -15,24 +15,13 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/featuregate"
 )
 
 type factory struct {
 	tagger tagger.Component
 }
 
-const nativeIngestFeatureGateName = "connector.datadogconnector.NativeIngest"
-
-// NativeIngestFeatureGate is the feature gate that controls native OTel spans ingestion in Datadog APM stats
-var NativeIngestFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	nativeIngestFeatureGateName,
-	featuregate.StageBeta,
-	featuregate.WithRegisterDescription("When enabled, datadogconnector uses the native OTel API to ingest OTel spans and produce APM stats."),
-	featuregate.WithRegisterFromVersion("v0.104.0"),
-)
-
-// NewFactoryForAgent ... XXX
+// NewFactoryForAgent creates a factory for datadog connector for use in OTel agent
 func NewFactoryForAgent(tagger tagger.Component) connector.Factory {
 	f := &factory{
 		tagger: tagger,
