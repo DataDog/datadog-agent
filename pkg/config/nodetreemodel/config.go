@@ -67,7 +67,7 @@ type ntmConfig struct {
 	// - it's okay to read the config before its schema is built
 	// - it's okay to modify the config schema after it gets built
 	// - unknown keys can be assigned and retrieved
-	allowDynamicSchema bool
+	allowDynamicSchema *atomic.Bool
 
 	// defaults contains the settings with a default value
 	defaults InnerNode
@@ -176,7 +176,7 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 
 // SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
 func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
-	c.allowDynamicSchema = allow
+	c.allowDynamicSchema.Store(allow)
 }
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
@@ -190,7 +190,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	if !c.IsKnown(key) {
-		if c.allowDynamicSchema {
+		if c.allowDynamicSchema.Load() {
 			log.Errorf("set value for unknown key '%s'", key)
 		} else {
 			log.Errorf("could not set '%s' unknown key", key)
@@ -239,7 +239,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.isReady() && !c.allowDynamicSchema {
+	if c.isReady() && !c.allowDynamicSchema.Load() {
 		panic("cannot SetDefault() once the config has been marked as ready for use")
 	}
 	key = strings.ToLower(key)
@@ -350,7 +350,7 @@ func (c *ntmConfig) addToKnownKeys(key string) {
 func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
-	if c.isReady() && !c.allowDynamicSchema {
+	if c.isReady() && !c.allowDynamicSchema.Load() {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
 
@@ -373,7 +373,11 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 }
 
 func (c *ntmConfig) maybeRebuild() {
-	if c.allowDynamicSchema {
+	if c.allowDynamicSchema.Load() {
+		// building the schema may access data from the config, disable the dynamic schema
+		// flag to prevent recursive rebuilds
+		c.allowDynamicSchema.Store(false)
+		defer func() { c.allowDynamicSchema.Store(true) }()
 		c.buildSchema()
 	}
 }
@@ -552,7 +556,7 @@ func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return false
 	}
@@ -590,7 +594,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return false
 	}
@@ -643,7 +647,7 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr Node) Node {
 
 // GetNode returns a Node for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
 	pathParts := splitKey(key)
@@ -675,7 +679,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.isReady() && !c.allowDynamicSchema {
+	if c.isReady() && !c.allowDynamicSchema.Load() {
 		panic("cannot BindEnv() once the config has been marked as ready for use")
 	}
 	key = strings.ToLower(key)
@@ -700,7 +704,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
-	if c.isReady() && !c.allowDynamicSchema {
+	if c.isReady() && !c.allowDynamicSchema.Load() {
 		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
 	}
 	c.envKeyReplacer = r
@@ -720,7 +724,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return fmt.Errorf("attempt to MergeConfig before config is constructed")
 	}
 
@@ -908,6 +912,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
+		allowDynamicSchema: atomic.NewBool(false),
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},

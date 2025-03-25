@@ -33,7 +33,7 @@ func (c *ntmConfig) findConfigFile() {
 
 // ReadInConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadInConfig() error {
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
@@ -57,7 +57,7 @@ func (c *ntmConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
-	if !c.isReady() && !c.allowDynamicSchema {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
 
@@ -91,7 +91,7 @@ func (c *ntmConfig) readConfigurationContent(target InnerNode, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema, c.allowDynamicSchema)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.schema, c.allowDynamicSchema.Load())...)
 	return nil
 }
 
