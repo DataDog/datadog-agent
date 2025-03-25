@@ -19,12 +19,17 @@ import (
 // ExecutorWithRetry represents a type that can execute a command and return its output
 type ExecutorWithRetry interface {
 	ExecuteWithRetry(command string) (output string, err error)
+	InstallAgentFromLocalPackage(localPath string, flavor string) error
 }
 
 // Unix install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
 func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
 	params := installparams.NewParams(options...)
 	commandLine := ""
+
+	if params.LocalPath != "" {
+		client.InstallAgentFromLocalPackage(params.LocalPath, params.Flavor)
+	}
 
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}

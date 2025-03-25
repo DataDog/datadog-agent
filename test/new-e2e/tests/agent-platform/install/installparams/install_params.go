@@ -6,7 +6,13 @@
 // Package installparams implements function parameters for agent install functions
 package installparams
 
-import "os"
+import (
+	"fmt"
+	"os"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+)
 
 // Params defines the parameters for the Agent client.
 // The Params configuration uses the [Functional options pattern].
@@ -16,6 +22,7 @@ import "os"
 
 // Params struct containing install params
 type Params struct {
+	LocalPath    string
 	PipelineID   string
 	MajorVersion string
 	Arch         string
@@ -37,7 +44,14 @@ func NewParams(options ...Option) *Params {
 		majorVersion = defaultMajorVersion
 	}
 
+	localPathFromEnv, err := runner.GetProfile().ParamStore().Get(parameters.LocalPackagePath)
+	if err != nil {
+		fmt.Printf("Error getting local package path from env: %v", err)
+		localPathFromEnv = ""
+	}
+
 	p := &Params{
+		LocalPath:    localPathFromEnv,
 		PipelineID:   os.Getenv("E2E_PIPELINE_ID"),
 		MajorVersion: majorVersion,
 		Arch:         "x86_64",
@@ -91,5 +105,11 @@ func WithAPIKey(apiKey string) Option {
 func WithPipelineID(id string) Option {
 	return func(p *Params) {
 		p.PipelineID = id
+	}
+}
+
+func WithLocalPackagePath(localPath string) Option {
+	return func(p *Params) {
+		p.LocalPath = localPath
 	}
 }

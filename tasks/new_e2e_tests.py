@@ -134,7 +134,7 @@ def run(
         print("Using the following files for tests:", new_files)
 
     if local_package:
-        parsed_params["ddagent:localPackage"] = local_package
+        parsed_params["E2E_LOCAL_PACKAGE_PATH"] = local_package
 
     if agent_image:
         parsed_params["ddagent:fullImagePath"] = agent_image

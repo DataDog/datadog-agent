@@ -9,4 +9,5 @@ package pkgmanager
 // PackageManager generic interface
 type PackageManager interface {
 	Remove(pkg string) (string, error)
+	Install(pkg string) (string, error)
 }

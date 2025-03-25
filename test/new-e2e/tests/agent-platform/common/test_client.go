@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,20 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	return execWithRetry(func(cmd string) (string, error) { return c.Host.Execute(cmd) }, cmd)
 }
 
+func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor string) error {
+	packagePath, err := utils.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor)
+	if err != nil {
+		return err
+	}
+
+	c.Host.CopyFile(packagePath, "./")
+	_, err = c.PkgManager.Install(packagePath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // NewWindowsTestClient create a TestClient for Windows VM
 func NewWindowsTestClient(context common.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
@@ -314,6 +329,11 @@ func (c *DockerTestClient) Execute(command string) (output string, err error) {
 // ExecuteWithRetry execute the command with retry
 func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
 	return execWithRetry(c.Execute, cmd)
+}
+
+// InstallAgentFromLocalPackage installs the agent from a local package
+func (c *DockerTestClient) InstallAgentFromLocalPackage(localPath string) error {
+	panic("not implemented")
 }
 
 func execWithRetry(exec func(string) (string, error), cmd string) (string, error) {
