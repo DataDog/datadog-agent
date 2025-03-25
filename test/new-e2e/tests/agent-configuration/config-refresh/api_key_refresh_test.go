@@ -172,7 +172,7 @@ additional_endpoints:
 	v.T().Logf("WACKTEST99 FAKEINTAKE URL IS : %s", fakeIntakeURL)
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", fakeIntakeURL, endpoint)
-		v.T().Logf("WACKTEST2 Checking FakeIntake payloads for endpoint: %s", endpoint)
+		v.T().Logf("WACKTEST100 Checking FakeIntake payloads for URL: %s", url)
 
 		// Wait for payloads to appear in FakeIntake
 		assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
