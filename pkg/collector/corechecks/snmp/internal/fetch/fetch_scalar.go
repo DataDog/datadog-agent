@@ -97,7 +97,10 @@ func doFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPack
 				if (zeroBaseIndex < 0) || (zeroBaseIndex > len(oids)-1) {
 					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
 				}
+				originalOid := oids
 				oids = slices.Delete(oids, zeroBaseIndex, zeroBaseIndex+1)
+				fmt.Printf("oids after slices.Delete: %v\n", oids)
+				fmt.Printf("originalOid after slices.Delete: %v\n", originalOid)
 				if len(oids) == 0 {
 					// If all oids are not found, return an empty packet with no variable and no error
 					return &gosnmp.SnmpPacket{}, nil
