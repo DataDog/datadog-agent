@@ -300,7 +300,6 @@
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-runtimes
-/comp/agent @DataDog/agent-runtimes
 /comp/aggregator @DataDog/agent-metric-pipelines
 /comp/api @DataDog/agent-runtimes
 /comp/checks @DataDog/agent-metric-pipelines
@@ -308,32 +307,27 @@
 /comp/core @DataDog/agent-runtimes
 /comp/dogstatsd @DataDog/agent-metric-pipelines
 /comp/forwarder @DataDog/agent-metric-pipelines
+/comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
-/comp/networkpath @DataDog/Networks
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-intake
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/ndm-core
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
-/comp/updater @DataDog/fleet @DataDog/windows-agent
-/comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
-/comp/agent/jmxlogger @DataDog/agent-metric-pipelines
+/comp/updater @DataDog/fleet
+/comp/aggregator/demultiplexer @DataDog/agent-runtimes
 /comp/aggregator/diagnosesendermanager @DataDog/agent-configuration
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
-/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
-/comp/core/gui @DataDog/agent-configuration
-/comp/core/profiler @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
-/comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
@@ -341,18 +335,9 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/agent-log-pipelines
-/comp/metadata/haagent @DataDog/ndm-core
-/comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
-/comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
-/comp/haagent @DataDog/ndm-core
-/comp/languagedetection/client @DataDog/container-platform
-/comp/rdnsquerier @DataDog/ndm-integrations
-/comp/serializer/logscompression @DataDog/agent-log-pipelines
-/comp/serializer/metricscompression @DataDog/agent-metric-pipelines
-/comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
