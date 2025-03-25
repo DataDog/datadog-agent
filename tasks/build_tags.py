@@ -187,13 +187,13 @@ SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
     "ec2",
     "linux_bpf",
-    "netcgo",
+    # "netcgo",
     "npm",
-    "nvml",
-    "pcap",
+    # "nvml",
+    # "pcap",
     "trivy",
-    "zlib",
-    "zstd",
+    # "zlib",
+    # "zstd",
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
