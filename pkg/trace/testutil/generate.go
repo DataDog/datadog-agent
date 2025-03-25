@@ -127,10 +127,7 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 	if nmetrics > len(spanMetrics) {
 		nmetrics = len(spanMetrics)
 	}
-	nmeta := ntags - nmetrics
-	if nmeta > len(metas) {
-		nmeta = len(metas)
-	}
+	nmeta := min(ntags-nmetrics, len(metas))
 	for i := 0; i < nmeta; i++ {
 		for k := range metas {
 			if _, ok := s.Meta[k]; ok {

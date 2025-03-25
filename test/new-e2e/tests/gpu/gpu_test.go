@@ -7,6 +7,7 @@
 package gpu
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -24,17 +25,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
-var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor"}
+var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 	caps                     suiteCapabilities
 	agentRestartsAtSuiteInit map[agentComponent]int
+	provisioner              provisioners.Provisioner
 }
 
 const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
@@ -96,6 +99,9 @@ func TestGPUK8sSuite(t *testing.T) {
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
 
+	// Temporary fix while we debug the issue
+	flake.MarkOnLog(t, "panic: Expected to find a single pod")
+
 	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
 	// we're not breaking main if we get rate limited
 	flake.MarkOnLog(t, "rate limit")
@@ -111,7 +117,11 @@ func TestGPUK8sSuite(t *testing.T) {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
-	suite := &gpuK8sSuite{}
+	suite := &gpuK8sSuite{
+		gpuBaseSuite: gpuBaseSuite[environments.Kubernetes]{
+			provisioner: provisioner,
+		},
+	}
 
 	e2e.Run(t, suite, suiteParams...)
 }
@@ -148,6 +158,26 @@ func (v *gpuBaseSuite[Env]) SetupSuite() {
 	for _, service := range services {
 		v.agentRestartsAtSuiteInit[service] = v.caps.GetRestartCount(service)
 	}
+}
+
+func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
+	s.BaseSuite.AfterTest(suiteName, testName)
+
+	if !s.T().Failed() {
+		return
+	}
+
+	k8sPulumiProvisioner, ok := s.provisioner.(*provisioners.PulumiProvisioner[environments.Kubernetes])
+	if !ok {
+		return
+	}
+
+	diagnose, err := k8sPulumiProvisioner.Diagnose(context.Background(), s.Env().KubernetesCluster.ClusterName)
+	if err != nil {
+		s.T().Logf("failed to diagnose provisioner: %v", err)
+	}
+
+	s.T().Logf("Diagnose result:\n\n%s", diagnose)
 }
 
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID

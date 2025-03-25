@@ -9,8 +9,12 @@
 package sysctl
 
 import (
+	"bufio"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -47,11 +51,11 @@ type SnapshotEvent struct {
 }
 
 // NewSnapshotEvent returns a new sysctl snapshot event
-func NewSnapshotEvent(ignoredBaseNames []string) (*SnapshotEvent, error) {
+func NewSnapshotEvent(ignoredBaseNames []string, kernelCompilationFlags map[string]uint8) (*SnapshotEvent, error) {
 	se := &SnapshotEvent{
 		Sysctl: NewSnapshot(),
 	}
-	if err := se.Sysctl.Snapshot(ignoredBaseNames); err != nil {
+	if err := se.Sysctl.Snapshot(ignoredBaseNames, kernelCompilationFlags); err != nil {
 		return nil, err
 	}
 	return se, nil
@@ -72,18 +76,21 @@ type Snapshot struct {
 	CPUFlags []string `json:"cpu_flags,omitempty"`
 	// KernelCmdline contains the kernel command line parameters
 	KernelCmdline string `json:"kernel_cmdline,omitempty"`
+	// KernelCompilationConfiguration contains the kernel compilation configuration
+	KernelCompilationConfiguration map[string]string `json:"kernel_compilation_configuration,omitempty"`
 }
 
 // NewSnapshot returns a new sysctl snapshot
 func NewSnapshot() Snapshot {
 	return Snapshot{
-		Proc: make(map[string]interface{}),
-		Sys:  make(map[string]interface{}),
+		Proc:                           make(map[string]interface{}),
+		Sys:                            make(map[string]interface{}),
+		KernelCompilationConfiguration: make(map[string]string),
 	}
 }
 
 // Snapshot runs the snapshot by going through the filesystem
-func (s *Snapshot) Snapshot(ignoredBaseNames []string) error {
+func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags map[string]uint8) error {
 	if err := s.snapshotProcSys(ignoredBaseNames); err != nil {
 		return fmt.Errorf("couldn't snapshot /proc/sys: %w", err)
 	}
@@ -98,6 +105,10 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string) error {
 
 	if err := s.snapshotKernelCmdline(ignoredBaseNames); err != nil {
 		return fmt.Errorf("couldn't get kernel cmdline: %w", err)
+	}
+
+	if err := s.snapshotKernelCompilationConfiguration(kernelCompilationFlags); err != nil {
+		return fmt.Errorf("couldn't get kernel compilation configuration: %w", err)
 	}
 	return nil
 }
@@ -244,6 +255,75 @@ func (s *Snapshot) snapshotKernelCmdline(ignoredBaseNames []string) error {
 		return err
 	}
 	s.KernelCmdline = string(value)
+	return nil
+}
+
+func (s *Snapshot) getKernelConfigPath() (string, error) {
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return "", err
+	}
+	configPath := fmt.Sprintf(kernel.HostBoot("/config-%s"), strings.TrimSpace(string(kernelVersion)))
+	if _, err := os.Stat(configPath); err == nil {
+		return configPath, nil
+	}
+	procConfigGZ := kernel.HostProc("/config.gz")
+	if _, err := os.Stat(procConfigGZ); err == nil {
+		return procConfigGZ, nil
+	}
+	return "", fmt.Errorf("kernel config not found")
+}
+
+func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "#") {
+			if strings.HasSuffix(line, "is not set") {
+				key := string(bytes.Fields([]byte(line))[1])
+				if _, ok := kernelCompilationFlags[key]; ok {
+					s.KernelCompilationConfiguration[key] = "not_set"
+				}
+			}
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if ok && kernelCompilationFlags[key] != 0 {
+			s.KernelCompilationConfiguration[key] = strings.Trim(value, "\"")
+		}
+	}
+
+	return scanner.Err()
+}
+
+// snapshotKernelCompilationConfiguration tries to resolve and parse the kernel compilation configuration
+func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFlags map[string]uint8) error {
+	configPath, err := s.getKernelConfigPath()
+	if err != nil {
+		return fmt.Errorf("error finding kernel config: %w", err)
+	}
+
+	var reader io.Reader
+	file, err := os.Open(configPath)
+	if err != nil {
+		return fmt.Errorf("error opening config file: %w", err)
+	}
+	defer file.Close()
+
+	if strings.HasSuffix(configPath, ".gz") {
+		gzReader, err := gzip.NewReader(file)
+		if err != nil {
+			return fmt.Errorf("error reading gzipped config: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	} else {
+		reader = file
+	}
+
+	if err := s.parseKernelConfig(reader, kernelCompilationFlags); err != nil {
+		return fmt.Errorf("error parsing kernel config: %w", err)
+	}
 	return nil
 }
 

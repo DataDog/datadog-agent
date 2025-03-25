@@ -28,7 +28,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.144 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.145 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -118,7 +118,7 @@ require (
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
+	github.com/prometheus/client_golang v1.21.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -144,7 +144,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/dig v1.18.1 // indirect
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
@@ -205,6 +205,7 @@ require (
 	go.opentelemetry.io/collector/consumer/consumererror v0.121.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.121.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

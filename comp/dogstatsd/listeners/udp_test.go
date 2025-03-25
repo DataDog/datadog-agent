@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -216,7 +217,7 @@ func getLocalIP() string {
 }
 
 func defaultMConn(addr net.Addr, bs ...[]byte) *udpMock {
-	return &udpMock{bufferList: append([][]byte{}, bs...), address: addr}
+	return &udpMock{bufferList: slices.Clone(bs), address: addr}
 }
 
 type udpMock struct {
