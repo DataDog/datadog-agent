@@ -272,7 +272,7 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.requeueTransaction(notReady)
 	requireLenForwarderRetryQueue(t, forwarder, 2)
 
-	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
+	ready.On("Process", forwarder.workers[0].Client.GetClient()).Return(nil).Times(1)
 	ready.On("GetTarget").Return("").Times(2)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
@@ -421,6 +421,8 @@ forwarder_requeue_buffer_size: 1300
 }
 
 func newDomainForwarderForTest(config config.Component, log log.Component, connectionResetInterval time.Duration, ha bool) *domainForwarder {
+	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
 	transactionRetryQueue := retry.NewTransactionRetryQueue(

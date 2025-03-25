@@ -34,6 +34,8 @@ type Config struct {
 	NVMLLibraryPath string
 	// ConfigureCgroupPerms indicates whether the probe should configure cgroup permissions for GPU monitoring
 	ConfigureCgroupPerms bool
+	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
+	EnableFatbinParsing bool
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -46,5 +48,6 @@ func New() *Config {
 		NVMLLibraryPath:       spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
 		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
 		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
 	}
 }

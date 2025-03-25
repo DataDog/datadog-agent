@@ -143,9 +143,13 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
-        // for centos7, use src dentry for target resolution as the pointers have been swapped
+        // target dentry is swapped with src in the case of a successful rename
+        if (retval >= 0) {
+            syscall->resolver.dentry = syscall->rename.src_dentry;
+        } else {
+            syscall->resolver.dentry = syscall->rename.target_dentry;
+        }
         syscall->resolver.key = syscall->rename.target_file.path_key;
-        syscall->resolver.dentry = syscall->rename.src_dentry;
         syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;

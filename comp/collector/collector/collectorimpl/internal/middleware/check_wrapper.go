@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -132,7 +132,7 @@ func (c *CheckWrapper) InstanceConfig() string {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	// Avoid running concurrently with Run method (for now)
 	c.runM.Lock()
 	defer c.runM.Unlock()

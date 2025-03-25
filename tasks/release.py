@@ -513,11 +513,12 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         )
 
         # Step 4 - Send a slack message
-        post_message(
-            ctx,
-            "agent-release-sync",
-            f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}",
-        )
+        message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
+        channel = 'agent-release-sync'
+        if major_version == 6:
+            channel = 'agent-ci-on-call'
+            message += "\nCan you please merge this PR and trigger a build pipeline according to <https://datadoghq.atlassian.net/wiki/x/cgEaCgE|this document>?"
+        post_message(ctx, channel, message)
 
 
 @task
@@ -1305,7 +1306,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        set_current_milestone(next)
+        set_current_milestone(str(next))
         # Commit release.json
         ctx.run("git add release.json")
         ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")

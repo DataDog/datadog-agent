@@ -5,12 +5,8 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import (
-    resolve_gitlab_ci_configuration,
-)
-from tasks.libs.common.utils import (
-    gitlab_section,
-)
+from tasks.libs.ciproviders.gitlab_api import resolve_gitlab_ci_configuration
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
 
 
@@ -24,7 +20,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
 
     skipped_test_fips = {
         "new-e2e-otel": "TestOTelAgent",  # No FIPS + OTel image exists yet so these tests will never succeed
-        "new-e2e-amp": ".*/TestJMXFIPSMode",  # These tests are explicitly testing the agent when FIPS is disabled
+        "new-e2e-amp": ".*/TestJMXFIPSMode|TestJMXFetchNixMtls",  # These tests are explicitly testing the agent when FIPS is disabled
     }
 
     if generate_config:
