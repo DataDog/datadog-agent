@@ -76,20 +76,20 @@ type SNMPService struct {
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
-type Device struct {
-	IP        net.IP `json:"ip"`
-	AuthIndex int    `json:"auth_index"`
-}
-
 type snmpSubnet struct {
 	adIdentifier          string
 	config                snmp.Config
 	startingIP            net.IP
 	network               net.IPNet
 	cacheKey              string
-	devices               map[string]Device
+	devices               map[string]device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
+}
+
+type device struct {
+	IP        net.IP `json:"ip"`
+	AuthIndex int    `json:"auth_index"`
 }
 
 type snmpJob struct {
@@ -140,7 +140,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 
-	var devices []Device
+	var devices []device
 	err = json.Unmarshal([]byte(cacheValue), &devices)
 	if err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
@@ -154,7 +154,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 
 func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	// We don't lock the subnet for now, because the listener ought to be already locked
-	devices := make([]Device, 0, len(subnet.devices))
+	devices := make([]device, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
 		devices = append(devices, v)
 	}
@@ -272,7 +272,7 @@ func (l *SNMPListener) checkDevices() {
 			startingIP:     startingIP,
 			network:        *ipNet,
 			cacheKey:       cacheKey,
-			devices:        map[string]Device{},
+			devices:        map[string]device{},
 			deviceFailures: map[string]int{},
 		}
 		subnets = append(subnets, subnet)
@@ -370,7 +370,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		subnet:       subnet,
 	}
 	l.services[entityID] = svc
-	subnet.devices[entityID] = Device{
+	subnet.devices[entityID] = device{
 		IP:        net.ParseIP(deviceIP),
 		AuthIndex: authIndex,
 	}
