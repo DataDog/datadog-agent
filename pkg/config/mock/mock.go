@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
+	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 var (
@@ -53,6 +53,7 @@ func New(t testing.TB) model.Config {
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
+	newCfg.SetTestOnlyDynamicSchema(true)
 	return &mockConfig{newCfg}
 }
 
@@ -102,5 +103,6 @@ func NewSystemProbe(t testing.TB) model.Config {
 	setup.SetSystemProbe(viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
+	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
 	return &mockConfig{setup.SystemProbe()}
 }
