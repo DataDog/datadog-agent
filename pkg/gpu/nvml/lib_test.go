@@ -19,33 +19,50 @@ import (
 func TestEnsureinit(t *testing.T) {
 	t.Run("library present", func(t *testing.T) {
 		var cache nvmlCache
+		numCalls := 0
 		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 			return &nvmlmock.Interface{
-				InitFunc: func() nvml.Return { return nvml.SUCCESS },
+				InitFunc: func() nvml.Return {
+					numCalls++
+					return nvml.SUCCESS
+				},
 			}
 		}
 
 		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 1, numCalls)
 	})
 	t.Run("library absent", func(t *testing.T) {
 		var cache nvmlCache
+		numCalls := 0
 		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 			return &nvmlmock.Interface{
-				InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
+				InitFunc: func() nvml.Return {
+					numCalls++
+					return nvml.ERROR_LIBRARY_NOT_FOUND
+				},
 			}
 		}
 		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 1, numCalls)
 	})
 
 	t.Run("library absent, second call fails too", func(t *testing.T) {
 		var cache nvmlCache
+		numCalls := 0
 		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 			return &nvmlmock.Interface{
-				InitFunc: func() nvml.Return { return nvml.ERROR_LIBRARY_NOT_FOUND },
+
+				InitFunc: func() nvml.Return {
+					numCalls++
+					return nvml.ERROR_LIBRARY_NOT_FOUND
+				},
 			}
 		}
 		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 1, numCalls)
 		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 2, numCalls)
 	})
 
 	t.Run("library absent, second call succeeds", func(t *testing.T) {
@@ -64,5 +81,21 @@ func TestEnsureinit(t *testing.T) {
 		}
 		require.Error(t, cache.ensureInitWithOpts(nvmlNewFunc))
 		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
+	})
+	t.Run("library succeeds, second call caches result", func(t *testing.T) {
+		var cache nvmlCache
+		numCalls := 0
+		nvmlNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
+			return &nvmlmock.Interface{
+				InitFunc: func() nvml.Return {
+					numCalls++
+					return nvml.SUCCESS
+				},
+			}
+		}
+		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 1, numCalls)
+		require.NoError(t, cache.ensureInitWithOpts(nvmlNewFunc))
+		require.Equal(t, 1, numCalls)
 	})
 }

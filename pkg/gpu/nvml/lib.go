@@ -26,7 +26,7 @@ type nvmlCache struct {
 }
 
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
-func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) error {
+func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) (err error) {
 	// If the library is already initialized, return nil without locking
 	if c.isInitialized {
 		return nil
@@ -34,7 +34,13 @@ func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOpti
 
 	// Lock the mutex to ensure thread-safe initialization
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	defer func() {
+		// Set the initialized state before unlocking but in the defer(), so that we never
+		// set it before the library is completely initialized.
+		// err is the error returned by the function as declared above
+		c.isInitialized = err == nil
+		c.mu.Unlock()
+	}()
 
 	// Check again after locking to ensure no race condition
 	if c.isInitialized {
@@ -60,8 +66,6 @@ func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOpti
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
 		return fmt.Errorf("error initializing NVML library: %s", nvml.ErrorString(ret))
 	}
-
-	c.isInitialized = true
 
 	return nil
 }
