@@ -14,14 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/examples"
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/examples"
 )
 
 func TestEventMonitor(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	var sec *examples.SimpleEventConsumer
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
@@ -42,6 +44,7 @@ func TestEventMonitor(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
+		CheckRequiredTest(t)
 		forkCount := sec.ForkCount()
 		cmd := exec.Command(syscallTester, "fork")
 		_ = cmd.Run()
@@ -57,6 +60,7 @@ func TestEventMonitor(t *testing.T) {
 	})
 
 	t.Run("exec-exit", func(t *testing.T) {
+		CheckRequiredTest(t)
 		execCount := sec.ExecCount()
 		exitCount := sec.ExitCount()
 
@@ -77,6 +81,7 @@ func TestEventMonitor(t *testing.T) {
 
 func TestEventMonitorNoEnvs(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	var sec *examples.SimpleEventConsumer
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{

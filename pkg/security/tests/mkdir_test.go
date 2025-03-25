@@ -26,6 +26,7 @@ import (
 
 func TestMkdir(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -53,6 +54,7 @@ func TestMkdir(t *testing.T) {
 	expectedMode := uint16(applyUmask(int(mkdirMode)))
 
 	t.Run("mkdir", ifSyscallSupported("SYS_MKDIR", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Path("test-mkdir")
 		if err != nil {
 			t.Fatal(err)
@@ -78,6 +80,7 @@ func TestMkdir(t *testing.T) {
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
 		if err != nil {
 			t.Fatal(err)
@@ -104,6 +107,7 @@ func TestMkdir(t *testing.T) {
 
 	t.Run("io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		testatFile, _, err := test.Path("testat-mkdir")
 		if err != nil {
@@ -164,6 +168,7 @@ func TestMkdir(t *testing.T) {
 
 func TestMkdirError(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -184,6 +189,7 @@ func TestMkdirError(t *testing.T) {
 	}
 
 	t.Run("mkdirat-error", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testatFile, _, err := test.Path("testat2-mkdir")
 		if err != nil {
 			t.Fatal(err)

@@ -18,6 +18,7 @@ import (
 
 func TestChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -48,6 +49,7 @@ func TestChdir(t *testing.T) {
 
 	t.Run("chdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		test.WaitSignal(t, func() error {
 			return os.Chdir(testFolder)
@@ -60,6 +62,7 @@ func TestChdir(t *testing.T) {
 
 	t.Run("fchdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(testFolder)
@@ -76,6 +79,7 @@ func TestChdir(t *testing.T) {
 
 	t.Run("syscall-context", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		testFolder, _, err := test.Path("test-chdir-ctx")
 		if err != nil {

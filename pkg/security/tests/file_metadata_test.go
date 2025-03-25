@@ -15,13 +15,15 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFileMetadataExecs(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	// get arch/abi
 	arch := model.UnknownArch
@@ -67,6 +69,7 @@ func TestFileMetadataExecs(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exec-metadata", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command("ls", "-al", "/")
 			_ = cmd.Run()

@@ -31,6 +31,7 @@ import (
 
 func TestOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -65,6 +66,7 @@ func TestOpen(t *testing.T) {
 	}
 
 	t.Run("open", ifSyscallSupported("SYS_OPEN", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -88,6 +90,8 @@ func TestOpen(t *testing.T) {
 	}))
 
 	t.Run("openat", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -113,6 +117,8 @@ func TestOpen(t *testing.T) {
 	}
 
 	t.Run("openat2", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -136,6 +142,7 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -157,6 +164,7 @@ func TestOpen(t *testing.T) {
 
 	t.Run("truncate", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
@@ -192,6 +200,7 @@ func TestOpen(t *testing.T) {
 
 	t.Run("ftruncate", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
 		if err != nil {
@@ -231,6 +240,8 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		defer os.Remove(testFile)
 
 		// wait for this first event
@@ -277,6 +288,7 @@ func TestOpen(t *testing.T) {
 
 	t.Run("io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		defer os.Remove(testFile)
 
@@ -386,6 +398,7 @@ func TestOpen(t *testing.T) {
 
 func TestOpenMetadata(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -406,6 +419,8 @@ func TestOpenMetadata(t *testing.T) {
 	}
 
 	t.Run("metadata", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -431,6 +446,7 @@ func TestOpenMetadata(t *testing.T) {
 
 func TestOpenDiscarded(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -447,6 +463,7 @@ func TestOpenDiscarded(t *testing.T) {
 
 	t.Run("pipefs", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		var pipeFDs [2]int
 		if err := unix.Pipe(pipeFDs[:]); err != nil {
@@ -474,6 +491,7 @@ func TestOpenDiscarded(t *testing.T) {
 
 func TestOpenApproverZero(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

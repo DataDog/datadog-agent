@@ -107,6 +107,8 @@ func TestTracerMemfd(t *testing.T) {
 		return kv.IsRH7Kernel()
 	})
 
+	CheckRequiredTest(t)
+
 	consumer := &tracerMemfdConsumer{}
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
@@ -124,6 +126,7 @@ func TestTracerMemfd(t *testing.T) {
 	require.NoError(t, err)
 
 	test.RunMultiMode(t, "validate-event-and-tracer-tags", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)
 		consumer.capturedFd.Store(0)

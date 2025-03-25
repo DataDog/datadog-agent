@@ -22,6 +22,7 @@ import (
 
 func TestChmod(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -43,6 +44,7 @@ func TestChmod(t *testing.T) {
 	defer os.Remove(testFile)
 
 	t.Run("fchmod", func(t *testing.T) {
+		CheckRequiredTest(t)
 		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
@@ -73,6 +75,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("fchmodat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() { expectedMode = 0o757 }()
 
 		test.WaitSignal(t, func() error {
@@ -96,6 +99,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("fchmodat2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		defer func() { expectedMode = 0o757 }()
 
 		test.WaitSignal(t, func() error {
@@ -122,6 +126,7 @@ func TestChmod(t *testing.T) {
 	})
 
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
 				return error(errno)

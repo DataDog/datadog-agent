@@ -22,6 +22,7 @@ import (
 
 func TestMProtectEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -42,6 +43,7 @@ func TestMProtectEvent(t *testing.T) {
 	}
 
 	t.Run("mprotect", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			var data []byte
 			data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)

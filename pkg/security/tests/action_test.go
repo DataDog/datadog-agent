@@ -39,6 +39,8 @@ func TestActionKill(t *testing.T) {
 		})
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "kill_action_usr2",
@@ -76,6 +78,7 @@ func TestActionKill(t *testing.T) {
 	}
 
 	t.Run("kill-action-usr2", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-kill-action-usr2")
 		if err != nil {
 			t.Fatal(err)
@@ -138,6 +141,7 @@ func TestActionKill(t *testing.T) {
 	})
 
 	t.Run("kill-action-kill", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testFile, _, err := test.Path("test-kill-action-kill")
 		if err != nil {
 			t.Fatal(err)
@@ -203,6 +207,8 @@ func TestActionKillExcludeBinary(t *testing.T) {
 		return env.IsContainerized()
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "kill_action_kill_exclude",
@@ -261,6 +267,8 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			return env.IsContainerized()
 		})
 	}
+
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -453,6 +461,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	}
 
 	t.Run("executable", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// test that we can kill processes with the same executable more than once
 		for i := 0; i < 2; i++ {
 			t.Logf("test iteration %d", i)
@@ -481,6 +490,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	})
 
 	t.Run("container", func(t *testing.T) {
+		CheckRequiredTest(t)
 		dockerInstance, err := test.StartADocker()
 		if err != nil {
 			t.Fatalf("failed to start a Docker instance: %v", err)
@@ -532,6 +542,8 @@ func TestActionKillDisarm(t *testing.T) {
 	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
 		return env.IsContainerized()
 	})
+
+	CheckRequiredTest(t)
 
 	sleep := which(t, "sleep")
 
@@ -593,6 +605,8 @@ func TestActionHash(t *testing.T) {
 		t.Skip("skipping in docker, not  sharing the same pid ns and doesn't have a container ID")
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "hash_action_open",
@@ -646,6 +660,7 @@ func TestActionHash(t *testing.T) {
 	done := make(chan bool, 10)
 
 	t.Run("open-process-exit", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -693,6 +708,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("open-timeout", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -741,6 +757,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testExecutable, "/tmp/aaa")

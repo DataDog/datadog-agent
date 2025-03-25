@@ -107,6 +107,8 @@ func TestOpenTree(t *testing.T) {
 		t.Skip("open_tree syscall is not supported on this platform")
 	}
 
+	CheckRequiredTest(t)
+
 	execRules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule1",
@@ -190,6 +192,8 @@ func TestOpenTree(t *testing.T) {
 	}()
 
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		seen := 0
 
 		err = test.GetProbeEvent(func() error {
@@ -223,6 +227,8 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("copy-tree-test-detached-non-recursive", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		seen := 0
 		err = test.GetProbeEvent(func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
@@ -249,6 +255,8 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("detached-event-captured", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		test.WaitSignal(t, func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			if err != nil {
@@ -270,6 +278,8 @@ func TestOpenTree(t *testing.T) {
 	defer test.Close()
 
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		srcPath := which(t, "true")
 		pid := os.Getpid()
 		fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
@@ -289,6 +299,8 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("execution-from-visible-mount", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		exePath, _ := exec.LookPath("false")
 		test.WaitSignal(t, func() error {
 			_ = exec.Command(exePath).Run()

@@ -19,11 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // testSSHUser représente un utilisateur de test pour SSH
@@ -353,6 +354,8 @@ func TestSSHUserSession(t *testing.T) {
 		t.Skip("Skip test if log file does not exist")
 	}
 
+	CheckRequiredTest(t)
+
 	testUser, err := createTestUser()
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)
@@ -377,6 +380,7 @@ func TestSSHUserSession(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ssh_then_pwd", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err := test.GetEventSent(t, func() error {
 			if err := sshConnectAsTestUser(testUser, "pwd"); err != nil {
 				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
@@ -418,6 +422,8 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	if !isLogFileExist {
 		t.Skip("Skip test if log file does not exist")
 	}
+
+	CheckRequiredTest(t)
 
 	testUser, err := createTestUser()
 	if err != nil {
@@ -465,6 +471,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	assert.NotEqual(t, inodeBeforeRotate, inodeAfterRotate, "inode of %s should be different after rotate", logPath)
 
 	t.Run("ssh_then_pwd_after_rotation", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err := test.GetEventSent(t, func() error {
 			if err := sshConnectAsTestUser(testUser, "pwd"); err != nil {
 				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)

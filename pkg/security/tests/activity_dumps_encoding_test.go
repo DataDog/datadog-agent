@@ -60,6 +60,7 @@ func BenchmarkProtoJSONEncoding(b *testing.B) {
 
 func TestProtobufDecoding(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ad := getTestDataActivityDump(t)
 

@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/stretchr/testify/assert"
 )
 
 func injectHexDump(iface string, hexDump string) error {
@@ -76,6 +77,7 @@ func getInterfaceIndex(iface string) (int, error) {
 func TestDNSResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
+	CheckRequiredTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -94,6 +96,7 @@ func TestDNSResolver(t *testing.T) {
 	// Injects DNS responses for a couple hostnames on and checks
 	// if the resolver saved all of them on the cache
 	t.Run("saves-hostname-for-all-ips", func(t *testing.T) {
+		CheckRequiredTest(t)
 		// This test contains a 1 second backoff, and tries 10 times until it fails
 		attempts := 10
 
@@ -158,6 +161,7 @@ func TestDNSResolver(t *testing.T) {
 
 	// Injects a packet with a CNAME response and check if they were processed correctly
 	t.Run("cnames-correctly-processed", func(t *testing.T) {
+		CheckRequiredTest(t)
 		hostname := "www.bbc.co.uk"
 
 		hexDump := "0000000000000000000000000800450000c633044000011147ed7f0000357f0000010035d41400b2fef9b88381800001000600000001037777770362626302636f02756b0000010001c00c0005000100003b030014037777770362626302636f02756b03707269c010c02b000500010000012c001403626263036d617006666173746c79036e657400c04b0001000100000023000497654051c04b0001000100000023000497658051c04b0001000100000023000497650051c04b000100010000002300049765c051000029ffd6000000000000"

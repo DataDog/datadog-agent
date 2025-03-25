@@ -57,6 +57,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 
 	t.Run("exec-orig-then-link-then-exec-link", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
@@ -90,6 +91,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	})
 
 	t.Run("link-then-exec-orig-then-exec-link", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
@@ -126,16 +128,19 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 
 func TestHardLinkExecsWithERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
 }
 
 func TestHardLinkExecsWithMaps(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
 }
 
 func TestHardLink(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -164,6 +169,7 @@ func TestHardLink(t *testing.T) {
 	}
 
 	t.Run("hardlink-creation", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
@@ -194,6 +200,8 @@ func TestHardlinkBusybox(t *testing.T) {
 		return kv.Code < kernel.Kernel5_12
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_hardlink_1",
@@ -218,6 +226,7 @@ func TestHardlinkBusybox(t *testing.T) {
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/cat", []string{"/bin/gunzip"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {

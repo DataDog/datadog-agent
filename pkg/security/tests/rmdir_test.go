@@ -25,6 +25,7 @@ import (
 
 func TestRmdir(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -46,6 +47,7 @@ func TestRmdir(t *testing.T) {
 	expectedMode := uint16(applyUmask(mkdirMode))
 
 	t.Run("rmdir", ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		testFile, testFilePtr, err := test.Path("test-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -76,6 +78,7 @@ func TestRmdir(t *testing.T) {
 	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
+		CheckRequiredTest(t)
 		testDir, testDirPtr, err := test.Path("test-unlink-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -107,6 +110,7 @@ func TestRmdir(t *testing.T) {
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 
 		testDir, _, err := test.Path("test-unlink-rmdir")
 		if err != nil {
@@ -171,6 +175,7 @@ func TestRmdir(t *testing.T) {
 
 func TestRmdirInvalidate(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

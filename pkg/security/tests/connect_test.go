@@ -29,6 +29,7 @@ import (
 
 func TestConnectEventAFIntetTCP(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -72,6 +73,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 }
 func TestConnectEventAFInetIOUring(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -159,6 +161,8 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 }
 func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet",
@@ -200,6 +204,13 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 }
 func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if !nettest.SupportsIPv6() {
+		t.Skip("IPv6 is not supported")
+	}
+
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet6",
@@ -216,10 +227,6 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if !nettest.SupportsIPv6() {
-		t.Skip("IPv6 is not supported")
 	}
 
 	listener, err := net.Listen("tcp", ":4245")
@@ -247,6 +254,13 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 }
 func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if !nettest.SupportsIPv6() {
+		t.Skip("IPv6 is not supported")
+	}
+
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet6",
@@ -263,10 +277,6 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if !nettest.SupportsIPv6() {
-		t.Skip("IPv6 is not supported")
 	}
 
 	conn, err := net.ListenPacket("udp", ":4246")
@@ -292,6 +302,8 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 }
 func TestConnectEventinetNonBlocking(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_nonblocking_socket",

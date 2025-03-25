@@ -30,6 +30,7 @@ import (
 
 func TestMount(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	dstMntBasename := "test-dest-mount"
 
@@ -63,6 +64,7 @@ func TestMount(t *testing.T) {
 
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetProbeEvent(func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
@@ -94,6 +96,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
+		CheckRequiredTest(t)
 		file := testDrive.Path(dstMntBasename, "test-mount")
 
 		f, err := os.Create(file)
@@ -121,6 +124,7 @@ func TestMount(t *testing.T) {
 	defer releaseFile.Close()
 
 	t.Run("umount", func(t *testing.T) {
+		CheckRequiredTest(t)
 		err = test.GetProbeEvent(func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
@@ -145,6 +149,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -156,6 +161,7 @@ func TestMount(t *testing.T) {
 
 func TestMountPropagated(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	// - testroot
 	// 		/ dir1
@@ -241,6 +247,7 @@ func TestMountPropagated(t *testing.T) {
 	}
 
 	t.Run("bind-mounted-chmod", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -252,6 +259,7 @@ func TestMountPropagated(t *testing.T) {
 
 func testMountSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	//      / testDrive
 	//        / rootA
@@ -406,18 +414,20 @@ func testMountSnapshot(t *testing.T) {
 func TestMountSnapshotListmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
+	CheckRequiredTest(t)
 	testMountSnapshot(t)
 }
 
 func TestMountSnapshotProcfs(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "false")
+	CheckRequiredTest(t)
 	testMountSnapshot(t)
 }
 
 func TestMountEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -471,6 +481,8 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-tmpfs", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		tmpfsMount := newTestMount(
 			tmpfsMountPointPath,
 			withFSType("tmpfs"),
@@ -501,6 +513,8 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	t.Run("mount-bind", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		bindMount := newTestMount(
 			bindMountPointPath,
 			withSource(bindMountSourcePath),
@@ -536,10 +550,10 @@ func TestMountEvent(t *testing.T) {
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
-
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
 		}
+		CheckRequiredTest(t)
 
 		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
 		if err != nil {
@@ -573,6 +587,7 @@ func TestMountEvent(t *testing.T) {
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
 		}
+		CheckRequiredTest(t)
 
 		legitimateSourcePath := testDrive.Path("legitimate_source")
 		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {

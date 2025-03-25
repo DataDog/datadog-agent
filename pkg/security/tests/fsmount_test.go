@@ -10,14 +10,16 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
 	"golang.org/x/sys/unix"
 )
@@ -37,6 +39,7 @@ func fsconfigStr(fd int, cmd uint, key string, value string, aux int) (err error
 
 func TestFsmount(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -56,7 +59,7 @@ func TestFsmount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
-
+		CheckRequiredTest(t)
 		err = test.GetProbeEvent(func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -90,6 +93,7 @@ func TestFsmount(t *testing.T) {
 	})
 
 	t.Run("fsmount-resolve-open-file", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -123,6 +127,7 @@ func TestFsmount(t *testing.T) {
 	})
 
 	t.Run("fsmount-resolve-mkdir", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {

@@ -22,6 +22,7 @@ import (
 
 func TestSECLRuleFilter(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	kv := &kernel.Version{
 		OsRelease:    map[string]string{},
@@ -33,6 +34,7 @@ func TestSECLRuleFilter(t *testing.T) {
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 
 	t.Run("true", func(t *testing.T) {
+		CheckRequiredTest(t)
 		result, err := seclRuleFilter.IsRuleAccepted(
 			&rules.RuleDefinition{
 				Filters: []string{
@@ -45,6 +47,7 @@ func TestSECLRuleFilter(t *testing.T) {
 	})
 
 	t.Run("kernel-version", func(t *testing.T) {
+		CheckRequiredTest(t)
 		result, err := seclRuleFilter.IsRuleAccepted(
 			&rules.RuleDefinition{
 				Filters: []string{
@@ -58,6 +61,7 @@ func TestSECLRuleFilter(t *testing.T) {
 
 	for _, os := range []string{"windows", "linux"} {
 		t.Run("os-"+os, func(t *testing.T) {
+			CheckRequiredTest(t)
 			result, err := seclRuleFilter.IsRuleAccepted(
 				&rules.RuleDefinition{
 					Filters: []string{

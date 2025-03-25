@@ -26,6 +26,8 @@ func TestBPFEventLoad(t *testing.T) {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_prog_load",
@@ -45,6 +47,7 @@ func TestBPFEventLoad(t *testing.T) {
 	}
 
 	t.Run("prog_load", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -62,6 +65,8 @@ func TestBPFEventMap(t *testing.T) {
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
+
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -82,6 +87,7 @@ func TestBPFEventMap(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf", "-clone-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -99,6 +105,8 @@ func TestBPFCwsMapConstant(t *testing.T) {
 	checkKernelCompatibility(t, "< 4.15 kernels", func(kv *kernel.Version) bool {
 		return !kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_15
 	})
+
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -119,6 +127,7 @@ func TestBPFCwsMapConstant(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {

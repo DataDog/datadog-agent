@@ -14,16 +14,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
 	if err != nil {

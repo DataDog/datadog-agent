@@ -22,8 +22,11 @@ import (
 
 func TestReplay(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	t.Run("host-event", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_replay_host",
@@ -61,6 +64,8 @@ func TestReplay(t *testing.T) {
 	})
 
 	t.Run("container-event", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_replay_container",
@@ -120,6 +125,8 @@ func TestReplay(t *testing.T) {
 	})
 
 	t.Run("replay-event", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		ruleDefs := []*rules.RuleDefinition{
 			{
 				ID:         "test_rule_replay",

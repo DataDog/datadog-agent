@@ -25,6 +25,7 @@ import (
 
 func TestLink(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -55,6 +56,7 @@ func TestLink(t *testing.T) {
 	}
 
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
@@ -85,6 +87,7 @@ func TestLink(t *testing.T) {
 	}))
 
 	t.Run("linkat", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
@@ -116,6 +119,7 @@ func TestLink(t *testing.T) {
 
 	t.Run("io_uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckRequiredTest(t)
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {

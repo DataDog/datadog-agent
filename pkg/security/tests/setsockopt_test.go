@@ -20,6 +20,7 @@ import (
 
 func TestSetSockOpt(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -72,6 +73,8 @@ func TestSetSockOpt(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setsockopt", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		var fd int
 
 		test.WaitSignal(t, func() error {
@@ -136,6 +139,8 @@ func TestSetSockOpt(t *testing.T) {
 	})
 
 	t.Run("setsockopt-DGRAM-socket", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		var fd int
 
 		defer func() {}()
@@ -202,6 +207,8 @@ func TestSetSockOpt(t *testing.T) {
 	})
 
 	t.Run("setsockopt-STREAM-socket", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		var fd int
 
 		defer func() {}()
@@ -267,6 +274,8 @@ func TestSetSockOpt(t *testing.T) {
 		})
 	})
 	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		var fd int
 
 		test.WaitSignal(t, func() error {
@@ -302,6 +311,7 @@ func TestSetSockOpt(t *testing.T) {
 
 func TestSetSockOptTruncatedFilter(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -333,6 +343,8 @@ func TestSetSockOptTruncatedFilter(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setsockopt-TruncatedFilter", func(t *testing.T) {
+		CheckRequiredTest(t)
+
 		var fd int
 
 		defer func() {}()

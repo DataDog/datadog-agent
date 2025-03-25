@@ -33,6 +33,8 @@ func TestUserGroup(t *testing.T) {
 		return kv.IsRH7Kernel()
 	})
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_user",
@@ -135,6 +137,7 @@ func TestUserGroup(t *testing.T) {
 
 	for _, distroTest := range distroTests {
 		t.Run(distroTest.name, func(t *testing.T) {
+			CheckRequiredTest(t)
 			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name, "")
 			if err != nil {
 				t.Fatal(err)

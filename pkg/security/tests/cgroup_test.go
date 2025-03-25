@@ -90,11 +90,13 @@ func newCGroup(name, kind string) (*testCGroup, error) {
 }
 
 func TestCGroup(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
 	}
 
-	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -138,6 +140,7 @@ func TestCGroup(t *testing.T) {
 	}
 
 	t.Run("cgroup-id", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
@@ -157,11 +160,11 @@ func TestCGroup(t *testing.T) {
 	})
 
 	t.Run("systemd", func(t *testing.T) {
-
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 		})
+		CheckRequiredTest(t)
 
 		test.WaitSignal(t, func() error {
 			serviceUnit := `[Service]
@@ -197,11 +200,13 @@ ExecStart=/usr/bin/touch ` + testFile2
 }
 
 func TestCGroupSnapshot(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
 	}
 
-	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	cfs := utils.DefaultCGroupFS()
 
@@ -338,6 +343,8 @@ func TestCGroupVariables(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
+	CheckRequiredTest(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
@@ -380,6 +387,7 @@ func TestCGroupVariables(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -410,6 +418,8 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

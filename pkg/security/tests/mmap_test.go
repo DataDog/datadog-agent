@@ -22,6 +22,7 @@ import (
 
 func TestMMapEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -42,6 +43,7 @@ func TestMMapEvent(t *testing.T) {
 	}
 
 	t.Run("mmap", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
 			if err != nil {
@@ -68,6 +70,7 @@ func TestMMapEvent(t *testing.T) {
 
 func TestMMapApproverZero(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

@@ -20,6 +20,7 @@ import (
 
 func TestSpliceEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckRequiredTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -40,6 +41,7 @@ func TestSpliceEvent(t *testing.T) {
 	}
 
 	t.Run("test_splice", func(t *testing.T) {
+		CheckRequiredTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "splice")
 		}, func(event *model.Event, _ *rules.Rule) {
