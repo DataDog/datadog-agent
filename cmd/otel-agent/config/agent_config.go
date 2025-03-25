@@ -99,6 +99,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
 
+	// NOTE: This call is required for nodetreemodel to allow the schema to be
+	// modified after it has been constructed.
+	// TODO: Fix this usage of the config and then remove this call
+	pkgconfig.SetTestOnlyDynamicSchema(true)
+
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
