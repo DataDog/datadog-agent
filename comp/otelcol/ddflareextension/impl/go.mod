@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.0.0-00010101000000-000000000000
