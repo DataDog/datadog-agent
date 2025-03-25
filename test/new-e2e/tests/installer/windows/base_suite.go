@@ -13,13 +13,13 @@ import (
 
 	"github.com/cenkalti/backoff"
 
-	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"os"
 )
@@ -39,10 +39,10 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer           *DatadogInstaller
-	installScript       *DatadogInstallScript
-	currentAgentVersion agentVersion.Version
-	stableAgentVersion  PackageVersion
+	installer     *DatadogInstaller
+	installScript *DatadogInstallScript
+	currentAgent  *AgentVersionManager
+	stableAgent   *AgentVersionManager
 }
 
 // Installer The Datadog Installer for testing.
@@ -66,32 +66,102 @@ func (s *BaseSuite) Require() *suiteasserts.SuiteAssertions {
 }
 
 // CurrentAgentVersion the version of the Agent in the current pipeline
-func (s *BaseSuite) CurrentAgentVersion() *agentVersion.Version {
-	return &s.currentAgentVersion
+func (s *BaseSuite) CurrentAgentVersion() *AgentVersionManager {
+	return s.currentAgent
 }
 
 // StableAgentVersion the version of the last published stable agent
-func (s *BaseSuite) StableAgentVersion() PackageVersion {
-	return s.stableAgentVersion
+func (s *BaseSuite) StableAgentVersion() *AgentVersionManager {
+	return s.stableAgent
 }
 
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
-	// TODO:FA-779
-	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
-		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
+	// The below current and stable artifacts can be configured with environment variables.
+	// See doc.go for more information.
+	// TODO: not every test needs every artifact, it might be nice to have a way to opt-in to specific artifacts
+	//       which would let us create better "required but not set" messages.
+
+	// Get current version OCI package
+	currentOCI, err := NewPackageConfig(
+		WithName(consts.AgentPackage),
+		WithPipeline(s.Env().Environment.PipelineID()),
+		WithDevEnvOverrides("CURRENT_AGENT"),
+	)
+	s.Require().NoError(err, "failed to lookup OCI package for current agent version")
+
+	// Get current version MSI package
+	currentMSI, err := windowsagent.NewPackage(
+		windowsagent.WithURLFromPipeline(s.Env().Environment.PipelineID()),
+		windowsagent.WithDevEnvOverrides("CURRENT_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup MSI for current agent version")
+	s.Require().NotEmpty(currentMSI.URL, "Agent MSI URL is required but not set, set E2E_PIPELINE_ID or CURRENT_AGENT devenv overrides")
+
+	// Setup current Agent artifacts
+	currentVersion, currentPackageVersion := s.getAgentVersionVars("CURRENT_AGENT")
+	s.currentAgent, err = NewAgentVersionManager(
+		currentVersion,
+		currentPackageVersion,
+		currentOCI,
+		currentMSI,
+	)
+	s.Require().NoError(err, "Current agent version was in an incorrect format")
+
+	// Get previous version OCI package
+	previousOCI, err := NewPackageConfig(
+		WithName(consts.AgentPackage),
+		// TODO: update to last stable when there is one
+		WithPipeline("59404687"),
+		WithDevEnvOverrides("PREVIOUS_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
+
+	// Get previous version MSI package
+	previousMSI, err := windowsagent.NewPackage(
+		// TODO: update to last stable when there is one
+		windowsagent.WithURLFromPipeline("59404687"),
+		windowsagent.WithDevEnvOverrides("PREVIOUS_AGENT"),
+	)
+	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
+
+	// Setup previous Agent artifacts
+	previousVersion, previousVersionPackage := s.getAgentVersionVars("PREVIOUS_AGENT")
+	s.stableAgent, err = NewAgentVersionManager(
+		previousVersion,
+		previousVersionPackage,
+		previousOCI,
+		previousMSI,
+	)
+	s.Require().NoError(err, "Stable agent version was in an incorrect format")
+}
+
+// getAgentVersionVars retrieves the agent version and package version from environment variables
+//
+// example: CURRENT_AGENT_VERSION and CURRENT_AGENT_VERSION_PACKAGE
+//
+// see doc.go for more information
+func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
+	versionVar := fmt.Sprintf("%s_VERSION", prefix)
+	versionPackageVar := fmt.Sprintf("%s_VERSION_PACKAGE", prefix)
+
+	// Agent version
+	currentVersion := os.Getenv(versionVar)
+	s.Require().NotEmpty(currentVersion, "%s is required but not set", versionVar)
+
+	// Package version
+	currentVersionPackage := os.Getenv(versionPackageVar)
+	if currentVersionPackage == "" && os.Getenv("CI") == "" {
+		// locally, the version package can be the same as the version
+		currentVersionPackage = currentVersion
+	} else {
+		// The CI is expected to configure this
+		s.Require().NotEmpty(currentVersionPackage, "%s is required but not set", versionPackageVar)
 	}
 
-	var err error
-	s.currentAgentVersion, err = agentVersion.New(os.Getenv("CURRENT_AGENT_VERSION"), "")
-	s.Require().NoError(err, "Agent version was in an incorrect format")
-
-	s.stableAgentVersion = NewVersionFromPackageVersion(os.Getenv("STABLE_AGENT_VERSION_PACKAGE"))
-	if s.stableAgentVersion.PackageVersion() == "" {
-		s.FailNow("STABLE_AGENT_VERSION_PACKAGE was not set")
-	}
+	return currentVersion, currentVersionPackage
 }
 
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
@@ -103,7 +173,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	outputDir := filepath.Join(s.SessionOutputDir(), testPart)
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
-	s.installer = NewDatadogInstaller(s.Env(), outputDir)
+	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
 	s.installScript = NewDatadogInstallScript(s.Env())
 }
 
@@ -129,9 +199,7 @@ func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (str
 
 func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(WithName(consts.AgentPackage),
-		// TODO: switch to prod stable entry when available
-		WithPipeline("58948204"),
-		WithDevEnvOverrides("PREVIOUS_AGENT"),
+		WithPackage(s.StableAgentVersion().OCIPackage()),
 	)
 }
 
@@ -171,7 +239,7 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	// Arrange
-	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	// Act
 	_, _ = s.StartExperimentCurrentVersion()

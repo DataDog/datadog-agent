@@ -25,27 +25,28 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
 type DatadogInstaller struct {
-	binaryPath string
-	env        *environments.WindowsHost
-	outputDir  string
+	binaryPath          string
+	env                 *environments.WindowsHost
+	defaultInstallerURL string
+	outputDir           string
 }
 
 // NewDatadogInstaller instantiates a new instance of the Datadog Installer running
 // on a remote Windows host.
-func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *DatadogInstaller {
+func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string) *DatadogInstaller {
 	if outputDir == "" {
 		outputDir = os.TempDir()
 	}
 
 	return &DatadogInstaller{
-		binaryPath: path.Join(consts.Path, consts.BinaryName),
-		env:        env,
-		outputDir:  outputDir,
+		binaryPath:          path.Join(consts.Path, consts.BinaryName),
+		env:                 env,
+		outputDir:           outputDir,
+		defaultInstallerURL: msiURL,
 	}
 }
 
@@ -208,8 +209,10 @@ func (d *DatadogInstaller) GarbageCollect() (string, error) {
 // By default, it will use the installer from the current pipeline.
 func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	params := MsiParams{
-		msiLogFilename:         "install.log",
-		createInstallerFolders: true,
+		msiLogFilename: "install.log",
+		Params: Params{
+			installerURL: d.defaultInstallerURL,
+		},
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
@@ -217,27 +220,18 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 
 	// MSI can install from a URL or a local file
-	msiPath := params.installerURL
-	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists || strings.HasPrefix(msiPath, "file://") {
-		if strings.HasPrefix(msiPath, "file://") {
-			localMSIPath = strings.TrimPrefix(msiPath, "file://")
-		}
+	remoteMSIPath := params.installerURL
+	if strings.HasPrefix(remoteMSIPath, "file://") {
 		// developer provided a local file, put it on the remote host
-		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
+		localMSIPath := strings.TrimPrefix(remoteMSIPath, "file://")
+		remoteMSIPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
 		if err != nil {
 			return err
 		}
-		d.env.RemoteHost.CopyFile(localMSIPath, msiPath)
-	} else if params.installerURL == "" {
-		artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-agent") && strings.HasSuffix(artifact, ".msi")
-		})
-		if err != nil {
-			return err
-		}
-		// update URL
-		params.installerURL = artifactURL
-		msiPath = params.installerURL
+		d.env.RemoteHost.CopyFile(localMSIPath, remoteMSIPath)
+	}
+	if remoteMSIPath == "" {
+		return fmt.Errorf("MSI URL/path is required but was not provided")
 	}
 	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
 	if _, err := os.Stat(logPath); err == nil {
@@ -251,7 +245,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	if msiArgList != nil {
 		msiArgs = strings.Join(msiArgList, " ")
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
+	return windowsCommon.InstallMSI(d.env.RemoteHost, remoteMSIPath, msiArgs, logPath)
 }
 
 // Uninstall will attempt to uninstall the Datadog Agent on the remote host.
@@ -438,6 +432,14 @@ func WithPipeline(pipeline string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
 		params.Registry = consts.PipelineOCIRegistry
+		return nil
+	}
+}
+
+// WithPackage copies fields from the package
+func WithPackage(pkg TestPackageConfig) PackageOption {
+	return func(params *TestPackageConfig) error {
+		*params = pkg
 		return nil
 	}
 }
