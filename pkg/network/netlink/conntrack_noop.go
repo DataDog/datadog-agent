@@ -14,6 +14,13 @@ func NewNoOpConntrack(_ netns.NsHandle) (Conntrack, error) {
 	return &noOpConntrack{}, nil
 }
 
+// IsNoOpConntrack checks if a Conntrack instance is a no-op.
+// This is used to verify behavior during tests
+func IsNoOpConntrack(ct Conntrack) bool {
+	_, ok := ct.(*noOpConntrack)
+	return ok
+}
+
 type noOpConntrack struct{}
 
 var _ Conntrack = &noOpConntrack{}
