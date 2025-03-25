@@ -94,15 +94,12 @@ func (cm *ReaderConfigManager) update() error {
 		for pid, procInfo := range cm.state {
 			// cleanup dead procs
 			if _, running := updatedState[pid]; !running {
-				procInfo.Lock()
 				procInfo.CloseAllUprobeLinks()
 				delete(cm.state, pid)
-				procInfo.Unlock()
 			}
 		}
 
 		for pid, procInfo := range updatedState {
-			procInfo.Lock()
 			if _, tracked := cm.state[pid]; !tracked {
 				for _, probe := range procInfo.GetProbes() {
 					// install all probes from new process
@@ -117,7 +114,6 @@ func (cm *ReaderConfigManager) update() error {
 					cm.callback(procInfo, updatedProbe)
 				}
 			}
-			procInfo.Unlock()
 		}
 		cm.state = updatedState
 	}

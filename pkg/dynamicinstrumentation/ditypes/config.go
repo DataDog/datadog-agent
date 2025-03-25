@@ -14,7 +14,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -299,7 +298,6 @@ type ProcessInfo struct {
 
 	TypeMap *TypeMap
 
-	sync.RWMutex
 	ConfigurationUprobe    *link.Link
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
