@@ -8,7 +8,6 @@ package fetch
 import (
 	"fmt"
 	"maps"
-	"slices"
 	"sort"
 	"strings"
 
@@ -98,7 +97,7 @@ func doFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPack
 					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
 				}
 				originalOids := oids
-				oids = slices.Delete(oids, zeroBaseIndex, zeroBaseIndex+1)
+				oids = append(oids[:zeroBaseIndex], oids[zeroBaseIndex+1:]...)
 				fmt.Printf("oids after slices.Delete: %v\n", oids)
 				fmt.Printf("originalOids after slices.Delete: %v\n", originalOids)
 				if len(oids) == 0 {
