@@ -3006,3 +3006,150 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 		require.True(t, found, "HTTP connection through NAT was not found in tracked connections")
 	})
 }
+
+func (s *USMSuite) TestHTTPDirect() {
+	t := s.T()
+	cfg := tracertestutil.Config()
+	if !httpSupported() {
+		t.Skip("HTTP monitoring is not supported")
+	}
+
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.BypassEnabled = true
+	tr, err := tracer.NewTracer(cfg, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	// Start HTTP server on localhost
+	serverPort := 12346 // Using different port from DNAT test
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+	httpServer := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(nethttp.StatusOK)
+			w.Write([]byte("Hello direct"))
+		}),
+	}
+
+	go func() {
+		// Ignore server errors on shutdown
+		_ = httpServer.ListenAndServe()
+	}()
+	t.Cleanup(func() {
+		_ = httpServer.Close()
+	})
+
+	// Wait for server to start
+	time.Sleep(1 * time.Second)
+
+	// Test connection directly
+	t.Run("Direct HTTP request", func(t *testing.T) {
+		// Create a transport with DisableKeepAlives to ensure connection closure
+		// which is necessary for USM to properly capture HTTP statistics
+		client := &nethttp.Client{
+			Transport: &nethttp.Transport{
+				DisableKeepAlives: true,
+			},
+			Timeout: 5 * time.Second,
+		}
+
+		// Make HTTP request with connection closing
+		resp, err := client.Get(fmt.Sprintf("http://%s/direct-test", serverAddr))
+		require.NoError(t, err)
+
+		require.Equal(t, nethttp.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "Hello direct", string(body))
+
+		// Explicitly close the response body to ensure connection closure
+		err = resp.Body.Close()
+		require.NoError(t, err)
+
+		// Wait for USM to process the closed connection
+		t.Log("Waiting for USM to process closed HTTP connection...")
+		time.Sleep(3 * time.Second)
+
+		connections, connectionsCleanup, err := tr.GetActiveConnections(clientID)
+		require.NoError(t, err)
+		defer connectionsCleanup()
+
+		// Print HTTP data from connections
+		t.Logf("Connections HTTP Data:")
+		if connections.HTTP != nil && len(connections.HTTP) > 0 {
+			t.Logf("Found %d HTTP entries in connections", len(connections.HTTP))
+			for key, requestStats := range connections.HTTP {
+				t.Logf("  HTTP Key: %+v", key)
+				t.Logf("  HTTP RequestStats: %+v", requestStats)
+
+				// Print detailed HTTP stats by status code
+				t.Logf("  Status codes tracked: %d", len(requestStats.Data))
+				for statusCode, stat := range requestStats.Data {
+					t.Logf("    Status Code: %d", statusCode)
+					t.Logf("    Count: %d", stat.Count)
+					if stat.StaticTags != 0 {
+						t.Logf("    Static Tags: %d", stat.StaticTags)
+					}
+					if len(stat.DynamicTags) > 0 {
+						t.Logf("    Dynamic Tags: %v", stat.DynamicTags)
+					}
+				}
+			}
+		} else {
+			t.Logf("No HTTP data found in connections")
+		}
+
+		// Log all connections for debugging
+		t.Logf("Found %d total connections", len(connections.Conns))
+		for i, conn := range connections.Conns {
+			t.Logf("Connection %d:", i)
+			t.Logf("  Source: %s:%d", conn.Source.String(), conn.SPort)
+			t.Logf("  Destination: %s:%d", conn.Dest.String(), conn.DPort)
+			t.Logf("  Protocol Stack: %+v", conn.ProtocolStack)
+			if conn.IPTranslation != nil {
+				t.Logf("  IP Translation:")
+				t.Logf("    ReplSrcIP: %s, ReplSrcPort: %d", conn.IPTranslation.ReplSrcIP.String(), conn.IPTranslation.ReplSrcPort)
+				t.Logf("    ReplDstIP: %s, ReplDstPort: %d", conn.IPTranslation.ReplDstIP.String(), conn.IPTranslation.ReplDstPort)
+			} else {
+				t.Logf("  No IP Translation")
+			}
+			t.Logf("  Direction: %s", conn.Direction)
+			t.Logf("  Type: %s", conn.Type)
+			t.Logf("  PID: %d", conn.Pid)
+		}
+
+		// Check for success - either in connection.Conns or in connections.HTTP
+		found := false
+
+		// First, check in active connections
+		for _, conn := range connections.Conns {
+			// Check for direct HTTP connection to localhost
+			directConnection := (conn.Source.String() == "127.0.0.1" || conn.Dest.String() == "127.0.0.1") &&
+				conn.ProtocolStack.Application == protocols.HTTP &&
+				(int(conn.SPort) == serverPort || int(conn.DPort) == serverPort)
+
+			if directConnection {
+				t.Logf("Found direct HTTP connection in connections.Conns: %+v", conn)
+				found = true
+				break
+			}
+		}
+
+		// If not found in active connections, check in HTTP stats
+		if !found && connections.HTTP != nil && len(connections.HTTP) > 0 {
+			for key, _ := range connections.HTTP {
+				// Check if this HTTP key shows communication with localhost on our server port
+				if strings.Contains(key.String(), "127.0.0.1") && strings.Contains(key.String(), fmt.Sprintf(":%d", serverPort)) {
+					t.Logf("Found direct HTTP connection in connections.HTTP: %+v", key)
+					found = true
+					break
+				}
+			}
+		}
+
+		require.True(t, found, "Direct HTTP connection was not found in tracked connections or HTTP stats")
+	})
+}
