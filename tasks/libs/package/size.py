@@ -76,11 +76,13 @@ def extract_zip_archive(ctx, package_path, extract_dir):
 def extract_dmg_archive(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
         ctx.run(f"dmg2img {package_path} -o dmg_image.img")
-        ctx.run("7z dmg_image.img")
-        with ctx.cd("./Agent"):
-            package_path_pkg_format = package_path.replace("dmg", "pkg")
-            ctx.run(f"xar -xr {package_path_pkg_format} -C ./extracted_pkg")
-            ctx.run("mv ./extracted_pkg/datadog-agent-core.pkg ../datadog-agent-core.pkg")
+        ctx.run("7z x dmg_image.img")
+        ctx.run("./extracted_pkg")
+        package_path_pkg_format = package_path.replace("dmg", "pkg")
+        ctx.run(f"xar -xr ./Agent/{package_path_pkg_format} -C ./extracted_pkg")
+        ctx.run("mkdir image_content")
+        with ctx.cd("image_content"):
+            ctx.run("cat ../extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i")
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
