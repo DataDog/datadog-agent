@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -614,7 +615,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	ns, err := kernel.GetNetNsInoFromPid(context.procRoot, int(pid))
+	ns, err := ns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
 		return nil
 	}
