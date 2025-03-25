@@ -92,9 +92,9 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if err != nil {
 		return "", "", err
 	}
-	setHostTag(s, "cluster_id", clusterID)
-	setHostTag(s, "dataproc_cluster_id", clusterID)
-	setHostTag(s, "data_workload_monitoring_trial", "true")
+	setHostTag(s, "cluster_id", clusterID, true)
+	setHostTag(s, "dataproc_cluster_id", clusterID, false)
+	setHostTag(s, "data_workload_monitoring_trial", "true", false)
 
 	dataprocRole, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-role")
 	if err != nil {
@@ -104,15 +104,14 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if dataprocRole == "Master" {
 		isMaster = "true"
 	}
-	setHostTag(s, "is_master_node", isMaster)
-	s.Span.SetTag("host."+"is_master_node", isMaster)
+	setHostTag(s, "is_master_node", isMaster, true)
 
 	clusterName, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-cluster-name")
 	if err != nil {
 		log.Warn("failed to get clusterName, using clusterID instead")
 		return isMaster, clusterID, nil
 	}
-	setHostTag(s, "cluster_name", clusterName)
+	setHostTag(s, "cluster_name", clusterName, false)
 
 	return isMaster, clusterName, nil
 }
