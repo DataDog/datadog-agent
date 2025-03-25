@@ -10,12 +10,13 @@ package nvml
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -53,7 +54,7 @@ func (c *nvmlCache) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOpti
 			cfg := pkgconfigsetup.SystemProbe()
 			// Use the config directly here to avoid importing the entire gpu
 			// config package, which includes system-probe specific imports
-			libpath = cfg.GetString(sysconfig.GpuNS("nvml_lib_path"))
+			libpath = cfg.GetString(strings.Join([]string{consts.GPUNS, "nvml_lib_path"}, "."))
 		} else {
 			cfg := pkgconfigsetup.Datadog()
 			libpath = cfg.GetString("nvml_lib_path")

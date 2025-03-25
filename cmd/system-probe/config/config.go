@@ -118,7 +118,7 @@ func load() (*types.Config, error) {
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
 	csmEnabled := cfg.GetBool(secNS("enabled"))
-	gpuEnabled := cfg.GetBool(GpuNS("enabled"))
+	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}

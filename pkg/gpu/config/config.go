@@ -13,10 +13,8 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 )
-
-// GPUNS is the namespace for the GPU monitoring probe.
-const GPUNS = "gpu_monitoring"
 
 // ErrNotSupported is the error returned if GPU monitoring is not supported on this platform
 var ErrNotSupported = errors.New("GPU Monitoring is not supported")
@@ -41,10 +39,10 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	return &Config{
 		Config:                *ebpf.NewConfig(),
-		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
-		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
-		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
-		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
+		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
+		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
+		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
+		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 	}
 }
