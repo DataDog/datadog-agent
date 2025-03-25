@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -121,6 +122,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			}),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
+			auditorMock.AuditorMockModule(),
 			fx.Options(opts...),
 			fx.Invoke(func(_ collectordef.Component) {
 			}),
@@ -226,6 +228,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			PIDFilePath: "",
 		}),
 		traceagentfx.Module(),
+		auditorMock.AuditorMockModule(),
 	)
 }
 
