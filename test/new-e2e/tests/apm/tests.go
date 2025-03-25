@@ -209,10 +209,13 @@ func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) 
 
 func hasContainerID(t *testing.T, payloads []*aggregator.APMStatsPayload, service string) bool {
 	for _, p := range payloads {
-		t.Logf("Stats for service: %v", p)
 		for _, s := range p.StatsPayload.Stats {
-			if s.Service == service {
-				return s.ContainerID != ""
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Service == service {
+						return s.ContainerID != ""
+					}
+				}
 			}
 		}
 	}
