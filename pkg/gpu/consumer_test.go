@@ -111,16 +111,26 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 
 func BenchmarkConsumer(b *testing.B) {
 	events := testutil.GetGPUTestEvents(b, "pytorch_batched_kernels.ndjson")
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
-	require.NoError(b, err)
+	for _, fatbinParsingEnabled := range []bool{true, false} {
+		name := "fatbinParsingDisabled"
+		if fatbinParsingEnabled {
+			name = "fatbinParsingEnabled"
+		}
+		b.Run(name, func(b *testing.B) {
+			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			require.NoError(b, err)
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
 
-	cfg := config.New()
-	// The only process in the test data is 24920
-	ctx.visibleDevicesCache[24920] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-	ctx.pidMaps[24920] = nil
+			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
-	for i := 0; i < b.N; i++ {
-		consumer := newCudaEventConsumer(ctx, nil, cfg, testutil.GetTelemetryMock(b))
-		injectEventsToConsumer(b, consumer, events)
+			cfg := config.New()
+			// The only process in the test data is 24920
+			ctx.visibleDevicesCache[24920] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.pidMaps[24920] = nil
+
+			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
+			b.ResetTimer()
+			injectEventsToConsumer(b, consumer, events, b.N)
+		})
 	}
 }
