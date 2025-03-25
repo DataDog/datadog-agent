@@ -266,20 +266,6 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	return []string{}, nil
 }
 
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
-	if err != nil {
-		return nil, err
-	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
-}
-
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	fail := true

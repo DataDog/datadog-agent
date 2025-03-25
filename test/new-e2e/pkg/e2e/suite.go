@@ -162,7 +162,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -219,7 +218,7 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				require.Nil(bs.T(), r, "Panic in EventuallyWithT: %v", r)
+				bs.T().Errorf("EventuallyWithT, panic: %v", r)
 			}
 		}()
 		condition(c)
@@ -231,7 +230,7 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				require.Nil(bs.T(), r, "Panic in EventuallyWithTf: %v", r)
+				bs.T().Errorf("EventuallyWithTf, panic: %v", r)
 			}
 		}()
 		condition(c)
