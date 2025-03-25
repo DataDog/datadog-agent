@@ -428,7 +428,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6

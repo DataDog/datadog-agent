@@ -13,9 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -65,7 +65,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	return NewExtension(c, cfg, telemetry, info, true)
 }
 
-func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
+func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOverride string) *httptest.ResponseRecorder {
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
@@ -73,7 +73,10 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 		t.Fatal(err)
 	}
 
-	token := apiutil.GetAuthToken()
+	token, err := at.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if tokenOverride != "" {
 		token = tokenOverride
 	}
@@ -120,13 +123,9 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	conf := configmock.New(t)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	at := authtokenmock.New(t)
 
-	rr := getResponseToHandlerRequest(t, "")
+	rr := getResponseToHandlerRequest(t, at, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -155,13 +154,9 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	conf := configmock.New(t)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	at := authtokenmock.New(t)
 
-	rr := getResponseToHandlerRequest(t, "badtoken")
+	rr := getResponseToHandlerRequest(t, at, "badtoken")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusForbidden, rr.Code,
