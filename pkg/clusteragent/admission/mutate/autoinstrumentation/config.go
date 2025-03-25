@@ -304,16 +304,19 @@ func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
 // variables to the workload that matches targeting.
 type TracerConfig struct {
 	// Name is the name of the environment variable.
-	Name string `mapstructure:"name" json:"name"`
+	Name string `json:"name,omitempty"`
 	// Value is the value to use.
-	Value string `mapstructure:"value" json:"value"`
+	Value string `json:"value,omitempty"`
+	// ValueFrom is the source for the environment variable's value.
+	ValueFrom *corev1.EnvVarSource `json:"valueFrom,omitempty"`
 }
 
 // AsEnvVar converts the TracerConfig to a corev1.EnvVar.
 func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 	return corev1.EnvVar{
-		Name:  c.Name,
-		Value: c.Value,
+		Name:      c.Name,
+		Value:     c.Value,
+		ValueFrom: c.ValueFrom,
 	}
 }
 

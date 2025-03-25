@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -158,6 +159,33 @@ func TestNewInstrumentationConfig(t *testing.T) {
 							{
 								Name:  "DD_DATA_JOBS_ENABLED",
 								Value: "true",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "can provide DD_SERVICE from arbitrary label",
+			configPath: "testdata/filter_service_env_var_from.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				Version:            "v2",
+				LibVersions:        map[string]string{},
+				Targets: []Target{
+					{
+						Name: "name-services",
+						TracerConfigs: []TracerConfig{
+							{
+								Name: "DD_SERVICE",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.labels['app.kubernetes.io/name']",
+									},
+								},
 							},
 						},
 					},
