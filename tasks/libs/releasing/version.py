@@ -118,7 +118,6 @@ def current_version_for_release_branch(ctx, release_branch) -> Version:
     cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?(-devel)?$'"
     res = ctx.run(cmd, hide=True, warn=True)
     res = res.stdout.strip().split('\n') if res else []
-    print(f"Found tags: {res}")
 
     # from_tag might return None, ignore those
     versions = [v for v in sorted(Version.from_tag(tag) for tag in res) if v]
