@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components/agent"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -184,7 +184,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 }
 
 func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor string) error {
-	packagePath, err := utils.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor)
+	packagePath, err := agent.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor)
 	if err != nil {
 		return err
 	}
