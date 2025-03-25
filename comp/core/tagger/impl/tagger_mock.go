@@ -164,8 +164,3 @@ func (f *fakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, err
 func (f *fakeTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	f.tagger.EnrichTags(tb, originInfo)
 }
-
-// ChecksCardinality calls tagger.ChecksCardinality().
-func (f *fakeTagger) ChecksCardinality() types.TagCardinality {
-	return f.tagger.ChecksCardinality()
-}
