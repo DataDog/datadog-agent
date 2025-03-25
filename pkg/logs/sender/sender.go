@@ -17,14 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-const (
-	// DefaultWorkerCount - By default most pipelines will only require a single sender worker, as the single worker itself can
-	// concurrently transmit multiple http requests at once. This value is not intended to be configurable, but legacy
-	// usages of the sender will override this value where necessary. If there is a desire to edit the concurrency of the senders
-	// via config, see the BatchMaxConcurrentSend endpoint setting.
-	DefaultWorkerCount = 1
-)
-
 var (
 	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
 	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
