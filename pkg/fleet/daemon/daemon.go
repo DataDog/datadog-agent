@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -346,17 +347,17 @@ func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
 func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startExperiment(ctx, url)
+	return d.startExperiment(ctx, url, d.installer(d.env))
 }
 
-func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
+func (d *daemonImpl) startExperiment(ctx context.Context, url string, installer installer.Installer) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
-	err = d.installer(d.env).InstallExperiment(ctx, url)
+	err = installer.InstallExperiment(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -594,15 +595,24 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		if request.Package == "datadog-installer" {
+		if request.Package == "datadog-installer" || request.Package == "datadog-agent" && runtime.GOOS == "windows" {
 			// Special case for the installer package as we want the experiment installer to start the experiment itself
 			return d.startInstallerExperiment(ctx, experimentPackage.URL)
 		}
-		if request.Package == "datadog-agent" && runtime.GOOS == "windows" {
-			// Special case for the agent package on Windows as we want the experiment installer to start the experiment itself
-			return d.startInstallerExperiment(ctx, experimentPackage.URL)
+
+		installer := d.installer(d.env)
+		if request.Package == "datadog-agent" {
+			tmpDir, err := os.MkdirTemp(paths.RootTmpDir, "")
+			if err != nil {
+				return fmt.Errorf("failed to create temporary directory: %w", err)
+			}
+			defer os.RemoveAll(tmpDir)
+			installer, err = extractInstallerFromOCI(ctx, d.env, experimentPackage.URL, tmpDir)
+			if err != nil {
+				return fmt.Errorf("could not extract installer from OCI: %w", err)
+			}
 		}
-		return d.startExperiment(ctx, experimentPackage.URL)
+		return d.startExperiment(ctx, experimentPackage.URL, installer)
 
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
