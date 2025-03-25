@@ -96,7 +96,7 @@ func testStatsHaveContainerID(t *testing.T, c *assert.CollectT, service string, 
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
-	assert.True(c, hasContainerID(t, stats, service), "got stats: %v", stats)
+	assert.True(c, hasContainerID(stats, service), "got stats: %v", stats)
 }
 
 func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
@@ -207,7 +207,7 @@ func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) 
 	return false
 }
 
-func hasContainerID(t *testing.T, payloads []*aggregator.APMStatsPayload, service string) bool {
+func hasContainerID(payloads []*aggregator.APMStatsPayload, service string) bool {
 	for _, p := range payloads {
 		for _, s := range p.StatsPayload.Stats {
 			for _, bucket := range s.Stats {
