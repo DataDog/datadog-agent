@@ -261,7 +261,7 @@ func newConfigChooseImpl(name string) pkgconfigmodel.Config {
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
 	var cfg pkgconfigmodel.Config
-	if envvar == "enable" {
+	if envvar == "enable" || envvar == "" {
 		cfg = nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
 		viperImpl := viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case

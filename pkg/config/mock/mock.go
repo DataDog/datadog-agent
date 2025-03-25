@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 var (
@@ -49,7 +49,7 @@ func New(t testing.TB) model.Config {
 	})
 
 	// Configure Datadog global configuration
-	newCfg := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
+	newCfg := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
@@ -100,7 +100,7 @@ func NewSystemProbe(t testing.TB) model.Config {
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
+	setup.SetSystemProbe(nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
