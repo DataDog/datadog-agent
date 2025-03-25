@@ -63,6 +63,10 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 			cacheErr = fmt.Errorf("failed to initialize resource type cache: %w", err)
 		}
 	})
+
+	if cacheErr != nil {
+		return cacheErr
+	}
 	return initRetry.TriggerRetry()
 }
 
