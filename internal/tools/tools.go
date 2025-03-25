@@ -13,7 +13,7 @@ package tools
 import (
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"
 	_ "github.com/stormcat24/protodep"
 	_ "github.com/vektra/mockery/v2"
