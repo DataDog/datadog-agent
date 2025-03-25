@@ -121,10 +121,14 @@ new-agent_dmg-x64-a7:
   #   - brew uses gettext --installed || true
   #   - if ! [ -d /usr/local/opt/gettext ]; then sudo mv /tmp/gettext-old /usr/local/opt/gettext; fi
   before_script:
+    - sudo umount /Volumes || true
     - sudo ls /Volumes || true
+    - sudo ls /Volumes/Agent || true
   after_script:
+    - sudo umount /Volumes || true
     - cat /tmp/debug || true
     - sudo ls /Volumes || true
+    - sudo ls /Volumes/Agent || true
   script:
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
