@@ -19,10 +19,15 @@ type mockNVML struct {
 	nvml.Interface
 	deviceCount int
 	countError  nvml.Return
+	initError   nvml.Return
 }
 
 func (m *mockNVML) DeviceGetCount() (int, nvml.Return) {
 	return m.deviceCount, m.countError
+}
+
+func (m *mockNVML) Init() nvml.Return {
+	return m.initError
 }
 
 func TestGetTags(t *testing.T) {
@@ -54,12 +59,21 @@ func TestGetTags(t *testing.T) {
 			},
 			wantTags: nil,
 		},
+		{
+			name: "init error",
+			nvml: mockNVML{
+				initError:   nvml.ERROR_UNKNOWN,
+				countError:  nvml.SUCCESS,
+				deviceCount: 10, // If the init check is not correct, we'll report the tag and the test will fail
+			},
+			wantTags: nil,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlLibrary = &tt.nvml
-			gotTags := GetTags()
+			nvmlLibrary = nil
+			gotTags := getTags(func(_ ...nvml.LibraryOption) nvml.Interface { return &tt.nvml })
 			assert.Equal(t, tt.wantTags, gotTags)
 		})
 	}
@@ -91,4 +105,51 @@ func BenchmarkGetTags(b *testing.B) {
 	} else {
 		b.Logf("GetTags took %v", duration)
 	}
+}
+
+func TestEnsureNvmlLibrary(t *testing.T) {
+	t.Run("library present", func(t *testing.T) {
+		// reset nvmlLibrary to nil to avoid interference from previous tests
+		nvmlLibrary = nil
+		mockLib := &mockNVML{
+			initError: nvml.SUCCESS,
+		}
+		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
+		assert.NoError(t, ensureNvmlLibrary(newFunc))
+	})
+	t.Run("library absent", func(t *testing.T) {
+		// reset nvmlLibrary to nil to avoid interference from previous tests
+		nvmlLibrary = nil
+		mockLib := &mockNVML{
+			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
+		}
+		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
+		assert.Error(t, ensureNvmlLibrary(newFunc))
+	})
+
+	t.Run("library absent, second call fails too", func(t *testing.T) {
+		// reset nvmlLibrary to nil to avoid interference from previous tests
+		nvmlLibrary = nil
+		mockLib := &mockNVML{
+			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
+		}
+		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
+		assert.Error(t, ensureNvmlLibrary(newFunc))
+		assert.Error(t, ensureNvmlLibrary(newFunc))
+	})
+
+	t.Run("library absent, second call succeeds", func(t *testing.T) {
+		// reset nvmlLibrary to nil to avoid interference from previous tests
+		nvmlLibrary = nil
+		mockLibFail := &mockNVML{
+			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
+		}
+		mockLibSuccess := &mockNVML{
+			initError: nvml.SUCCESS,
+		}
+		failFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLibFail }
+		successFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLibSuccess }
+		assert.Error(t, ensureNvmlLibrary(failFunc))
+		assert.NoError(t, ensureNvmlLibrary(successFunc))
+	})
 }
