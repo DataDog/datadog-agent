@@ -241,11 +241,11 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
 new-e2e-fips-compliance-test:
-  extends: .new_e2e_template_needs_deb_x64
+  extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7-fips
     - qa_agent_fips
-    - deploy_deb_testing-a7_x64
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -262,7 +262,7 @@ new-e2e-windows-fips-compliance-test:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent_fips
-    - deploy_windows_testing-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -278,7 +278,7 @@ new-e2e-windows-service-test:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7
+    - windows_msi_and_bosh_zip_x64-a7
   rules:
     - !reference [.on_windows_service_or_e2e_changes]
     - !reference [.manual]
@@ -311,9 +311,9 @@ new-e2e-npm-packages:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_rpm_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
@@ -386,8 +386,8 @@ new-e2e-amp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_agent_jmx
     - qa_agent_fips_jmx
@@ -404,8 +404,8 @@ new-e2e-alp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_agent_jmx
     - qa_agent_fips_jmx
@@ -424,8 +424,8 @@ new-e2e-cws:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_cws_instrumentation
     - qa_agent
     - qa_dca
@@ -446,7 +446,7 @@ new-e2e-discovery:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
     - qa_agent
   rules:
     - !reference [.on_discovery_or_e2e_changes]
@@ -460,8 +460,8 @@ new-e2e-process:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
     - qa_agent
     - qa_dca
   rules:
@@ -492,7 +492,7 @@ new-e2e-apm:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
