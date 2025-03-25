@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -28,7 +29,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.a = auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.p = &provider{
 		numberOfPipelines:    3,
-		auditor:              suite.a,
+		sender:               sender.NewMockSender(),
 		pipelines:            []*Pipeline{},
 		endpoints:            config.NewEndpoints(config.Endpoint{}, nil, true, false),
 		currentPipelineIndex: atomic.NewUint32(0),
@@ -37,7 +38,6 @@ func (suite *ProviderTestSuite) SetupTest() {
 }
 
 func (suite *ProviderTestSuite) TestProvider() {
-	suite.a.Start()
 	suite.p.Start()
 	suite.Equal(uint32(0), suite.p.currentPipelineIndex.Load())
 	suite.Equal(3, len(suite.p.pipelines))
@@ -59,7 +59,6 @@ func (suite *ProviderTestSuite) TestProvider() {
 	suite.Equal(suite.p.pipelines[1].InputChan, c)
 
 	suite.p.Stop()
-	suite.a.Stop()
 	suite.Nil(suite.p.NextPipelineChan())
 }
 
