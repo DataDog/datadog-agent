@@ -611,8 +611,6 @@ github.com/onsi/ginkgo/v2 v2.21.0 h1:7rg/4f3rB88pb5obDgNZrNHrQ4e6WpjonchcpuBRnZM
 github.com/onsi/ginkgo/v2 v2.21.0/go.mod h1:7Du3c42kxCUegi0IImZ1wUQzMBVecgIHjR1C+NkhLQo=
 github.com/onsi/gomega v1.35.1 h1:Cwbd75ZBPxFSuZ6T+rN/WCb/gOc6YgFBXLlZLhC7Ds4=
 github.com/onsi/gomega v1.35.1/go.mod h1:PvZbdDc8J6XJEpDK4HCuRBm8a6Fzp9/DmhC9C7yFlog=
-github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.121.0 h1:+If28r1+/jYVMRIXZL3bqqEQc5I7vzd0zdIo+HbGiYw=
-github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.121.0/go.mod h1:bBhlyYU6Q1K1a6Evjd3CixjkhI6UNzziuu5oY5EYGzE=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0 h1:gX7HGoRE0OTMS8ZVh/zPeQe+ZEASKxAo6Wn9dIcsgRE=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0/go.mod h1:y6UqtUREKcyDzLPQC5wSPbOlZR2HLUrNp/2ITZalVKA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.121.0 h1:GPc1Sv41r7Awj/PjAa12ynA2GH217yjVd01vJg7Pf6Y=
