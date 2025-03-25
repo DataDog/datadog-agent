@@ -104,7 +104,7 @@ new-agent_dmg-x64-a7:
     expire_in: 2 weeks
     paths:
       - datadog-agent-build
-      - .
+      - /tmp/debug
     when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
@@ -120,6 +120,11 @@ new-agent_dmg-x64-a7:
   #   - brew list | grep gettext || true
   #   - brew uses gettext --installed || true
   #   - if ! [ -d /usr/local/opt/gettext ]; then sudo mv /tmp/gettext-old /usr/local/opt/gettext; fi
+  before_script:
+    - sudo ls /Volumes || true
+  after_script:
+    - cat /tmp/debug || true
+    - sudo ls /Volumes || true
   script:
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
