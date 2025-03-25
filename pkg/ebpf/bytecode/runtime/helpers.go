@@ -60,8 +60,8 @@ type helperData struct {
 	AvailableFuncs map[string]struct{}
 }
 
-func generateHelperDefines(availableFns []string, allFns []string, out io.Writer) error {
-	tmpl, err := template.New("helperexist").Funcs(map[string]any{
+func generateHelperDefines(availableFns []string, allFns []string, _ io.Writer) error {
+	_, err := template.New("helperexist").Funcs(map[string]any{
 		"mapexists": func(k string, m map[string]struct{}) bool {
 			_, ok := m[k]
 			return ok
@@ -79,7 +79,8 @@ func generateHelperDefines(availableFns []string, allFns []string, out io.Writer
 	for _, f := range availableFns {
 		data.AvailableFuncs[f] = struct{}{}
 	}
-	return tmpl.Execute(out, data)
+	_ = data
+	return nil //tmpl.Execute(out, data)
 }
 
 func getAvailableHelpers(kernelHeaders []string) ([]string, error) {

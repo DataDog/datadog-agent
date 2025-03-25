@@ -148,10 +148,17 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 		if err != nil {
 			return err
 		}
-		err = programTemplate.Execute(out, probe)
-		if err != nil {
-			return err
-		}
+		_ = programTemplate
+		_ = out
+		_ = probe
+		// err = programTemplate.Execute(out, probe)
+		// if err != nil {
+		// 	return err
+		// }
+		// err = programTemplate.Execute(out, probe)
+		// if err != nil {
+		// 	return err
+		// }
 		return nil
 	}
 

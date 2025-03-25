@@ -54,9 +54,9 @@ func (nr *Resolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.Fil
 		{{ end }}
 }`
 
-	data := nr.generateGraphDataFromDump(dump)
-	t := template.Must(template.New("tmpl").Parse(tmpl))
-	return t.Execute(graphFile, data)
+	_ = nr.generateGraphDataFromDump(dump)
+	template.Must(template.New("tmpl").Parse(tmpl))
+	return nil //t.Execute(graphFile, data)
 }
 
 func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils.Graph {

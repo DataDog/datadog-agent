@@ -538,14 +538,14 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// render a report
 	t := template.New("secret_refresh")
-	t, err = t.Parse(secretRefreshTmpl)
+	_, err = t.Parse(secretRefreshTmpl)
 	if err != nil {
 		return "", err
 	}
 	b := new(strings.Builder)
-	if err = t.Execute(b, refreshResult); err != nil {
-		return "", err
-	}
+	// if err = t.Execute(b, refreshResult); err != nil {
+	// 	return "", err
+	// }
 	return b.String(), auditRecordErr
 }
 
@@ -647,7 +647,7 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		return
 	}
 
-	t, err = t.Parse(permissionsDetailsTemplate)
+	_, err = t.Parse(permissionsDetailsTemplate)
 	if err != nil {
 		fmt.Fprintf(w, "error parsing secret permissions details template: %s", err)
 		return
@@ -687,13 +687,13 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		info.Handles[handle] = details
 	}
 
-	err = t.Execute(w, info)
-	if err != nil {
-		fmt.Fprintf(w, "error rendering secret info: %s", err)
-	}
+	_ = info
+	// err = t.Execute(w, info)
+	// if err != nil {
+	// 	fmt.Fprintf(w, "error rendering secret info: %s", err)
+	// }
 
 	if r.refreshIntervalScatter {
 		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s ", r.scatterDuration, r.refreshInterval)
 	}
-
 }
