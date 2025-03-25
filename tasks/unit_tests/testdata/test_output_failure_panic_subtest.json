@@ -1,0 +1,22 @@
+{"Time":"2025-01-07T10:50:32.435732+01:00","Action":"start","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace"}
+{"Time":"2025-01-07T10:50:32.435851+01:00","Action":"start","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"}
+{"Time":"2025-01-07T10:50:32.435878+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan","Output":"testing: warning: no tests to run\n"}
+{"Time":"2025-01-07T10:50:32.435908+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan","Output":"PASS\n"}
+{"Time":"2025-01-07T10:50:32.435913+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan","Output":"ok  \tgithub.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan\t(cached) [no tests to run]\n"}
+{"Time":"2025-01-07T10:50:32.435919+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan","Elapsed":0}
+{"Time":"2025-01-07T10:50:32.435982+01:00","Action":"start","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"}
+{"Time":"2025-01-07T10:50:32.436028+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation","Output":"testing: warning: no tests to run\n"}
+{"Time":"2025-01-07T10:50:32.436035+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation","Output":"PASS\n"}
+{"Time":"2025-01-07T10:50:32.436041+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation","Output":"ok  \tgithub.com/DataDog/datadog-agent/pkg/serverless/trace/propagation\t(cached) [no tests to run]\n"}
+{"Time":"2025-01-07T10:50:32.436046+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation","Elapsed":0}
+{"Time":"2025-01-07T10:50:33.460941+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest"}
+{"Time":"2025-01-07T10:50:33.461002+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"=== RUN   TestLoadConfigShouldBeFast\n"}
+{"Time":"2025-01-07T10:50:33.464674+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"panic: toto\n"}
+{"Time":"2025-01-07T10:50:33.464694+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"\n"}
+{"Time":"2025-01-07T10:50:33.464697+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"goroutine 213 [running]:\n"}
+{"Time":"2025-01-07T10:50:33.464713+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"github.com/DataDog/datadog-agent/pkg/serverless/trace.TestLoadConfigShouldBeFast.func1()\n"}
+{"Time":"2025-01-07T10:50:33.464726+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"\t/Users/kevin.fairise/go/src/github.com/DataDog/datadog-agent/pkg/serverless/trace/trace_test.go:106 +0x2c\n"}
+{"Time":"2025-01-07T10:50:33.464728+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"created by github.com/DataDog/datadog-agent/pkg/serverless/trace.TestLoadConfigShouldBeFast in goroutine 212\n"}
+{"Time":"2025-01-07T10:50:33.46473+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Test":"TestLoadConfigShouldBeFast/MySubTest","Output":"\t/Users/kevin.fairise/go/src/github.com/DataDog/datadog-agent/pkg/serverless/trace/trace_test.go:105 +0x44\n"}
+{"Time":"2025-01-07T10:50:33.465562+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Output":"FAIL\tgithub.com/DataDog/datadog-agent/pkg/serverless/trace\t1.029s\n"}
+{"Time":"2025-01-07T10:50:33.465624+01:00","Action":"fail","Package":"github.com/DataDog/datadog-agent/pkg/serverless/trace","Elapsed":1.03}

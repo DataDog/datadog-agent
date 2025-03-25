@@ -21,7 +21,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -56,8 +56,6 @@ datadog-agent-oci-x64-a7:
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -80,8 +78,6 @@ datadog-agent-oci-arm64-a7:
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -98,7 +94,6 @@ installer-install-scripts:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
   script:
     - !reference [.retrieve_linux_go_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
@@ -150,7 +145,7 @@ powershell_script_signing:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
+    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -179,7 +174,6 @@ installer-amd64:
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
 
@@ -195,7 +189,6 @@ installer-arm64:
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
 
@@ -245,7 +238,6 @@ windows-installer-amd64:
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
-      -e USE_S3_CACHING="$USE_S3_CACHING"
       -e API_KEY_ORG2=${API_KEY_ORG2}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
@@ -257,4 +249,3 @@ windows-installer-amd64:
       - omnibus/pkg
   variables:
     ARCH: "x64"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"

@@ -262,6 +262,18 @@ type EVPProxy struct {
 	ReceiverTimeout int
 }
 
+// OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
+type OpenLineageProxy struct {
+	// Enabled reports whether OpenLineageProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
+}
+
 // InstallSignatureConfig contains the information on how the agent was installed
 // and a unique identifier that distinguishes this agent from others.
 type InstallSignatureConfig struct {
@@ -450,6 +462,9 @@ type AgentConfig struct {
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
+	// OpenLineageProxy contains the settings for the OpenLineageProxy proxy;
+	OpenLineageProxy OpenLineageProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -588,6 +603,9 @@ func New() *AgentConfig {
 		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		OpenLineageProxy: OpenLineageProxy{
+			Enabled: true,
 		},
 
 		Features:               make(map[string]struct{}),

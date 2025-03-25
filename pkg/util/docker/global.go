@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -91,7 +90,4 @@ type Config struct {
 	Whitelist []string
 	// Blacklist is the same as whitelist but for exclusion.
 	Blacklist []string
-
-	// internal use only
-	filter *containers.Filter
 }

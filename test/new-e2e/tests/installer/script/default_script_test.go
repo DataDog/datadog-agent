@@ -55,7 +55,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	// Packages installed
 	s.host.AssertPackageInstalledByInstaller(
 		"datadog-agent",
-		"datadog-installer",
 		"datadog-apm-inject",
 		"datadog-apm-library-java",
 		"datadog-apm-library-python",
@@ -71,8 +70,8 @@ func (s *installScriptDefaultSuite) TestInstall() {
 
 	// Units started
 	state.AssertUnitsRunning(
-		"datadog-installer.service",
 		"datadog-agent.service",
+		// "datadog-agent-installer.service", FIXME: uncomment when an agent+installer is released
 		"datadog-agent-trace.service",
 		"datadog-agent-process.service",
 		"datadog-agent-sysprobe.service",

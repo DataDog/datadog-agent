@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    When the API key can't be accessed in serverless, it is now logged as an error instead of debug.

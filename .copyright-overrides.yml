@@ -396,3 +396,8 @@ github.com/jaegertracing/jaeger-idl/proto-gen/api_v2: ["Copyright (c) 2019 The J
 github.com/jaegertracing/jaeger-idl/thrift-gen/agent: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
 github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
 github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+
+# https://github.com/bhmj/xpression/blob/master/LICENCE
+github.com/bhmj/xpression: Copyright 2021-2022 Michael Gurov (github.com/bhmj)
+
+cel.dev/expr: TristonianJones <tswadell@google.com>

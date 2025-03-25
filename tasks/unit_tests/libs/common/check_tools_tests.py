@@ -25,7 +25,8 @@ class TestCheckTools(unittest.TestCase):
         with self.assertRaises(Exit) as e:
             check_tools(c)
         self.assertEqual(
-            e.exception.message, "Please install the required tools with `inv install-tools` before running this task."
+            e.exception.message,
+            "Please install the required tools with `dda inv install-tools` before running this task.",
         )
 
     @patch('tasks.protobuf.check_tools_installed', new=MagicMock(return_value=True))

@@ -56,7 +56,6 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
-	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
 

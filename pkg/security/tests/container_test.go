@@ -31,11 +31,11 @@ func TestContainerCreatedAt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
-			Expression: `container.id != "" && container.created_at < 1s && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `container.id != "" && container.created_at < 3s && open.file.path == "{{.Root}}/test-open"`,
 		},
 		{
 			ID:         "test_container_created_at_delay",
-			Expression: `container.id != "" && container.created_at > 1s && open.file.path in [ "{{.Root}}/test-open-delay1", "{{.Root}}/test-open-delay2" ]`,
+			Expression: `container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -49,12 +49,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testFileDelay1, _, err := test.Path("test-open-delay1")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testFileDelay2, _, err := test.Path("test-open-delay2")
+	testFileDelay, _, err := test.Path("test-open-delay")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,29 +75,22 @@ func TestContainerCreatedAt(t *testing.T) {
 	})
 
 	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		cmd := cmdFunc("touch", []string{testFileDelay1}, nil) // shouldn't trigger an event
-		if err := cmd.Run(); err != nil {
-			t.Fatal(err)
-		}
-
-		time.Sleep((1 * time.Second) + (500 * time.Millisecond))
-
 		test.WaitSignal(t, func() error {
-			for i := 0; i < 3; i++ {
-				cmd = cmdFunc("touch", []string{testFileDelay2}, nil)
-				if err := cmd.Run(); err != nil {
-					return err
-				}
+			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
+			if err := cmd.Run(); err != nil {
+				return err
 			}
-			return nil
+			time.Sleep(3 * time.Second)
+			cmd = cmdFunc("touch", []string{testFileDelay}, nil)
+			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
-			assertFieldEqual(t, event, "open.file.path", testFileDelay2)
+			assertFieldEqual(t, event, "open.file.path", testFileDelay)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assert.Equal(t, event.CGroupContext.CGroupFlags, containerutils.CGroupFlags(containerutils.CGroupManagerDocker))
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
-			assert.True(t, time.Since(createdAt) > time.Second)
+			assert.True(t, time.Since(createdAt) > 3*time.Second)
 
 			test.validateOpenSchema(t, event)
 		})

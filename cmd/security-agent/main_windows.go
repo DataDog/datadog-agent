@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
@@ -43,16 +42,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
-
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -139,7 +135,7 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+			runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}
@@ -156,11 +152,6 @@ func (s *service) Run(svcctx context.Context) error {
 				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 		),
-		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-			return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
-				Config: config,
-			})
-		}),
 
 		statusimpl.Module(),
 

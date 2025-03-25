@@ -141,6 +141,43 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
+			name: "java + debug enabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "true",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLibConfigEnvs: map[string]string{
+				"DD_APM_INSTRUMENTATION_DEBUG": "true",
+				"DD_TRACE_STARTUP_LOGS":        "true",
+				"DD_TRACE_DEBUG":               "true",
+			},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name: "java + debug disabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "false",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
 			name:                    "config injector-image-override",
 			pod:                     common.FakePod("java-pod"),
 			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",

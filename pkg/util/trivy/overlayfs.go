@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy && (docker || containerd || crio)
 
 // Package trivy implement a simple overlayfs like filesystem to be able to
 // scan through layered filesystems.
@@ -73,7 +73,7 @@ func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, err := c.getCache()
+	cache, err := c.GetCache()
 	if err != nil {
 		return nil, err
 	}

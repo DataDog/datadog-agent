@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -52,7 +51,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -130,7 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -166,11 +164,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 				),
-				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
-						Config: config,
-					})
-				}),
 				statusimpl.Module(),
 				createandfetchimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),

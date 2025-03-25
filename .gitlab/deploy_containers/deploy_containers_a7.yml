@@ -84,7 +84,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-fips" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-fips" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
 
@@ -93,7 +93,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7-full-amd64,${IMG_BASE_SRC}-7-full-arm64"
     - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7-jmx-win1809-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2022-amd64"

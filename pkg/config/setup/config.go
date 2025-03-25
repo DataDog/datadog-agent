@@ -272,7 +272,15 @@ func init() {
 		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	if envvar == "enable" {
+		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	} else if envvar == "tee" {
+		viperConfig := viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	}
 
 	// Configuration defaults
 	initConfig()
@@ -328,6 +336,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// library support will not work reliably in those environments)
 	config.BindEnvAndSetDefault("allow_python_path_heuristics_failure", false)
 
+	// If true, Python is loaded when the first Python check is loaded.
+	// Otherwise, Python is loaded when the collector is initialized.
+	config.BindEnvAndSetDefault("python_lazy_loading", true)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
@@ -356,6 +368,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -487,6 +500,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
+	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -608,6 +623,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
+	// GPU
+	config.BindEnvAndSetDefault("collect_gpu_tags", false)
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
@@ -918,6 +935,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 	// Seconds to wait to sent metadata payload to the backend after startup
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
+	config.BindEnvAndSetDefault("metadata_ip_resolution_from_hostname", false) // resolve the hostname to get the IP address
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
@@ -975,6 +993,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
 	config.BindEnv("evp_proxy_config.receiver_timeout")
+
+	// trace-agent's ol_proxy
+	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
+	config.BindEnv("ol_proxy_config.dd_url")
+	config.BindEnv("ol_proxy_config.api_key")
+	config.BindEnv("ol_proxy_config.additional_endpoints")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1121,7 +1145,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
 	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
-	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -1375,6 +1399,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
@@ -1394,6 +1419,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_http_protocol", "auto")
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {
@@ -1419,7 +1445,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
-	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
@@ -1583,15 +1608,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 
+	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
-	// The following auto_multi_line settings are experimental and may change
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
@@ -1600,6 +1618,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+
+	// Enable the legacy auto multiline detection (v1)
+	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
+
+	// The following auto_multi_line settings are settings for auto multiline detection v1
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
 	// Add a tag to logs that are multiline aggregated
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
@@ -1696,6 +1724,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
+	config.BindEnvAndSetDefault("kubelet_use_api_server", false)
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
@@ -2267,15 +2296,16 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Command:          config.GetString("secret_backend_command"),
-		Arguments:        config.GetStringSlice("secret_backend_arguments"),
-		Timeout:          config.GetInt("secret_backend_timeout"),
-		MaxSize:          config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:  config.GetInt("secret_refresh_interval"),
-		GroupExecPerm:    config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:          config.GetString("run_path"),
-		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
+		Command:                config.GetString("secret_backend_command"),
+		Arguments:              config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                config.GetInt("secret_backend_timeout"),
+		MaxSize:                config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:        config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter: config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:          config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:        config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                config.GetString("run_path"),
+		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
 	})
 
 	if config.GetString("secret_backend_command") != "" {

@@ -111,12 +111,12 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 		bucket := tx.Bucket([]byte(metaBucket))
 		if bucket == nil {
 			log.Infof("Missing meta bucket")
-			return err
+			return fmt.Errorf("Could not get RC metadata: missing bucket")
 		}
 		metadataBytes := bucket.Get([]byte(metaFile))
 		if metadataBytes == nil {
 			log.Infof("Missing meta file in meta bucket")
-			return err
+			return fmt.Errorf("Could not get RC metadata: missing meta file")
 		}
 		err = json.Unmarshal(metadataBytes, &metadata)
 		if err != nil {

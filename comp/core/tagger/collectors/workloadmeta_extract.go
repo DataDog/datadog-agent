@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -369,18 +370,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
 
-	kubeServiceDisabled := false
-	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
-	}
-	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
+	kubeServiceDisabled := slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
+	if slices.Contains(strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ","), "kube_service") {
+		kubeServiceDisabled = true
 	}
 	if !kubeServiceDisabled {
 		for _, svc := range pod.KubeServices {
@@ -634,6 +626,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
 	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
 	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 
 	low, orch, high, standard := tagList.Compute()
 

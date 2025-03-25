@@ -200,6 +200,7 @@ collect_bgp_neighbor_states: true
 	event := []byte(`
 {
   "namespace": "test",
+  "integration": "cisco-sdwan",
   "devices": [
     {
       "id": "test:10.10.1.1",

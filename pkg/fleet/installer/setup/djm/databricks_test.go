@@ -46,6 +46,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_id:cluster123",
 				"cluster_name:example___job_name",
 				"databricks_workspace:example_workspace",
+				"workspace:example_workspace",
 			},
 		},
 		{
@@ -82,6 +83,50 @@ func TestSetupCommonHostTags(t *testing.T) {
 			setupCommonHostTags(s)
 
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
+		})
+	}
+}
+
+func TestGetJobAndRunIDs(t *testing.T) {
+	tests := []struct {
+		name          string
+		env           map[string]string
+		expectedJobID string
+		expectedRunID string
+		expectedOk    bool
+	}{
+		{
+			name: "Valid job and run ID",
+			env: map[string]string{
+				"DB_CLUSTER_NAME": "job-605777310657626-run-1020337925419295-databricks_cost_job_cluster",
+			},
+			expectedJobID: "605777310657626",
+			expectedRunID: "1020337925419295",
+			expectedOk:    true,
+		},
+		{
+			name: "Invalid cluster name",
+			env: map[string]string{
+				"DB_CLUSTER_NAME": "invalid-cluster-name",
+			},
+			expectedJobID: "",
+			expectedRunID: "",
+			expectedOk:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			jobID, runID, ok := getJobAndRunIDs()
+
+			assert.Equal(t, tt.expectedJobID, jobID)
+			assert.Equal(t, tt.expectedRunID, runID)
+			assert.Equal(t, tt.expectedOk, ok)
 		})
 	}
 }

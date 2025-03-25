@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -34,7 +35,12 @@ type MacTraceroute struct {
 // based on an input configuration
 func New(cfg config.Config, telemetry telemetry.Component) (*MacTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
-	runner, err := runner.New(telemetry)
+	// this should use fx dependency injection, but that requires properly passing hostnameComp
+	// through both the core agent and process agent, which turns out to be difficult.
+	// in addition, we only expect this to run on the core agent, not the process agent, since
+	// CNM is not supported on macOS
+	// TODO refactor traceroute dependencies?
+	runner, err := runner.New(telemetry, hostnameimpl.NewHostnameService())
 	if err != nil {
 		return nil, err
 	}

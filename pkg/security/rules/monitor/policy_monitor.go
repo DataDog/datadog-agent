@@ -259,6 +259,15 @@ func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 	}
 }
 
+// PolicyStateFromPolicy returns a policy state based on the policy definition
+func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
+	return &PolicyState{
+		Name:    policy.Name,
+		Version: policy.Def.Version,
+		Source:  policy.Source,
+	}
+}
+
 // RuleStateFromRule returns a rule state based on the given rule
 func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
 	ruleState := &RuleState{
@@ -323,7 +332,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 
 		for _, policy := range rule.UsedBy {
 			if policyState, exists = mp[policy.Name]; !exists {
-				policyState = PolicyStateFromRule(rule.PolicyRule)
+				policyState = PolicyStateFromPolicy(policy)
 				mp[policy.Name] = policyState
 			}
 			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))

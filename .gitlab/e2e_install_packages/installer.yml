@@ -15,5 +15,7 @@ qa_installer_script_main:
     - for file in $(find "$OMNIBUS_PACKAGE_DIR" -name "install*.sh"); do
         sed -i '/^#!\/bin\/bash$/a export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com' "$file";
       done
+    - sed -i '/^#!\/bin\/bash$/a export DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com' "$OMNIBUS_PACKAGE_DIR/install.sh"
+    - sed -i '/export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"/a DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version"' "$OMNIBUS_PACKAGE_DIR/install.sh"
     - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/scripts/"
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvidia
 
@@ -33,14 +33,12 @@ type sampleMetric struct {
 
 type samplesCollector struct {
 	device           nvml.Device
-	tags             []string
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(device nvml.Device, tags []string) (Collector, error) {
+func newSamplesCollector(device nvml.Device) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
-		tags:   tags,
 	}
 	c.samplesToCollect = append(c.samplesToCollect, allSamples...) // copy all metrics to avoid modifying the original slice
 
@@ -148,7 +146,6 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 		values = append(values, Metric{
 			Name:  metric.name,
 			Value: total,
-			Tags:  c.tags,
 			Type:  metrics.GaugeType,
 		})
 	}

@@ -134,13 +134,15 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name   string                 `yaml:"name" json:"name"`
-	Value  interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
-	Field  string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Append bool                   `yaml:"append" json:"append,omitempty"`
-	Scope  Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
-	Size   int                    `yaml:"size" json:"size,omitempty"`
-	TTL    *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
+	Name         string                 `yaml:"name" json:"name"`
+	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
+	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
+	Field        string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
+	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
+	Append       bool                   `yaml:"append" json:"append,omitempty"`
+	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	Size         int                    `yaml:"size" json:"size,omitempty"`
+	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 }
 
 // KillDisarmerParamsDefinition describes the parameters of a kill action disarmer
