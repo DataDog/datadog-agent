@@ -29,6 +29,7 @@ DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 class SkaffoldProfile(Enum):
     KIND = "kind"
     MINIKUBE = "minikube"
+    NONE = None
 
 
 @task
@@ -37,7 +38,7 @@ def setup(
     target="agent",
     build_include=None,
     build_exclude=None,
-    SkaffoldProfile=None,
+    skaffoldProfile=None,
     flavor=AgentFlavor.base.name,
     image='',
 ):
@@ -131,57 +132,62 @@ def setup(
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
     }
 
-    configure_skaffold(devcontainer, SkaffoldProfile(SkaffoldProfile))
+    configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
 
 
 def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
-    if profile == SkaffoldProfile.KIND:
-        devcontainer["runArgs"].append("--network=host")  # to connect to the kind api-server
-        # add requires extensions
-        additional_extensions = ["GoogleCloudTools.cloudcode"]
-        devcontainer["customizations"]["vscode"]["extensions"].extend(additional_extensions)
+    match profile:
+        case SkaffoldProfile.KIND:
+            devcontainer["runArgs"].append("--network=host")  # to connect to the kind api-server
+            # add requires extensions
+            additional_extensions = ["GoogleCloudTools.cloudcode"]
+            devcontainer["customizations"]["vscode"]["extensions"].extend(additional_extensions)
 
-        # Additionnal features
-        additional_features = {
-            "ghcr.io/rio/features/skaffold:2": {},
-            "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
-            "ghcr.io/devcontainers-extra/features/kind:1": {},
-            "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
-        }
-        devcontainer["features"].update(additional_features)
+            # Additionnal features
+            additional_features = {
+                "ghcr.io/rio/features/skaffold:2": {},
+                "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+                "ghcr.io/devcontainers-extra/features/kind:1": {},
+                "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
+            }
+            devcontainer["features"].update(additional_features)
 
-        # Addionnal settings
-        additional_settings = {
-            "cloudcode.features.completion": False,
-            "cloudcode.ai.assistance.enabled": False,
-            "cloudcode.cloudsdk.checkForMissing": False,
-            "cloudcode.cloudsdk.autoInstall": False,
-            "cloudcode.autoDependencies": "off",
-            "cloudcode.enableGkeAutopilotSupport": False,
-            "cloudcode.enableMinikubeGcpAuthPlugin": False,
-            "cloudcode.enableTelemetry": False,
-            "cloudcode.updateAdcOnLogin": False,
-            "cloudcode.useGcloudAuthSkaffold": False,
-            "cloudcode.yaml.validate": False,
-        }
-        devcontainer["customizations"]["vscode"]["settings"].update(additional_settings)
+            # Addionnal settings
+            additional_settings = {
+                "cloudcode.features.completion": False,
+                "cloudcode.ai.assistance.enabled": False,
+                "cloudcode.cloudsdk.checkForMissing": False,
+                "cloudcode.cloudsdk.autoInstall": False,
+                "cloudcode.autoDependencies": "off",
+                "cloudcode.enableGkeAutopilotSupport": False,
+                "cloudcode.enableMinikubeGcpAuthPlugin": False,
+                "cloudcode.enableTelemetry": False,
+                "cloudcode.updateAdcOnLogin": False,
+                "cloudcode.useGcloudAuthSkaffold": False,
+                "cloudcode.yaml.validate": False,
+            }
+            devcontainer["customizations"]["vscode"]["settings"].update(additional_settings)
 
-        # add envvars to deploy the agent
-        additional_envvars = {
-            "DD_API_KEY": "${localEnv:DD_API_KEY}",
-            "DD_APP_KEY": "${localEnv:DD_APP_KEY}",
-        }
-        devcontainer["containerEnv"].update(additional_envvars)
+            # add envvars to deploy the agent
+            additional_envvars = {
+                "DD_API_KEY": "${localEnv:DD_API_KEY}",
+                "DD_APP_KEY": "${localEnv:DD_APP_KEY}",
+            }
+            devcontainer["containerEnv"].update(additional_envvars)
 
-        # add Datadog helm chart registry to the devcontainer
-        devcontainer["onCreateCommand"] += " && helm repo add datadog https://helm.datadoghq.com && helm repo update"
-
-    elif profile == SkaffoldProfile.MINIKUBE:
-        # TODO: add minikube specific settings
-        pass
+            # add Datadog helm chart registry to the devcontainer
+            devcontainer["onCreateCommand"] += (
+                " && helm repo add datadog https://helm.datadoghq.com && helm repo update"
+            )
+        case SkaffoldProfile.MINIKUBE:
+            # TODO: add minikube specific settings
+            pass
+        case SkaffoldProfile.NONE:
+            # Nothing to do in case of none
+            pass
 
 
 @task

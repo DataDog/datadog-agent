@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,10 +36,8 @@ var (
 
 func isTagExcluded(tag string) bool {
 	if excludedTags := pkgconfigsetup.Datadog().GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
-		for _, excludedTag := range excludedTags {
-			if tag == excludedTag {
-				return true
-			}
+		if slices.Contains(excludedTags, tag) {
+			return true
 		}
 	}
 	return false

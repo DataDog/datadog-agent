@@ -6,10 +6,13 @@
 package dotnettests
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
 )
@@ -26,7 +29,9 @@ func TestDotnetLibraryInstallsWithoutIIS(t *testing.T) {
 
 // TestInstallDotnetLibraryPackageWithoutIIS tests installing the Datadog APM Library for .NET using the Datadog installer without IIS installed.
 func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackageWithoutIIS() {
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+	))
 	defer s.Installer().Purge()
 
 	// TODO: remove override once image is published in prod
@@ -39,4 +44,22 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 	// s.Require().Host(s.Env().RemoteHost).
 	// 	NoDirExists(consts.GetStableDirFor("datadog-apm-library-dotnet"),
 	// 		"the package directory should not exist")
+}
+
+func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestMSIInstallDotnetLibraryFailsWithoutIIS() {
+	version := "3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"
+	s.Require().Error(s.Installer().Install(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		// TODO: support DD_INSTALLER_REGISTRY_URL
+		installerwindows.WithMSIArg("SITE=datad0g.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version)),
+		installerwindows.WithMSILogFile("install-rollback.log"),
+		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
+	))
+	defer s.Installer().Purge()
+
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(consts.GetStableDirFor("datadog-apm-library-dotnet"),
+			"the package directory should not exist")
 }

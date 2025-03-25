@@ -272,7 +272,15 @@ func init() {
 		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	if envvar == "enable" {
+		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	} else if envvar == "tee" {
+		viperConfig := viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeConfig := nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	}
 
 	// Configuration defaults
 	initConfig()
@@ -615,6 +623,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
+	// GPU
+	config.BindEnvAndSetDefault("collect_gpu_tags", false)
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
@@ -1389,6 +1399,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
+	config.BindEnvAndSetDefault("forwarder_max_concurrent_requests", 10)
 	// Forwarder retry settings
 	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
 	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
@@ -1408,6 +1419,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_http_protocol", "auto")
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {
@@ -1600,15 +1612,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 
+	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
-	// The following auto_multi_line settings are experimental and may change
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
-
-	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
@@ -1617,6 +1622,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+
+	// Enable the legacy auto multiline detection (v1)
+	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
+
+	// The following auto_multi_line settings are settings for auto multiline detection v1
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
 	// Add a tag to logs that are multiline aggregated
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent

@@ -63,11 +63,12 @@ const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
 const SizeofConn = C.sizeof_conn_t
 
 type ClassificationProgram = uint32
+type ClassificationTLSProgram = uint32
 
 const (
-	ClassificationTLSClient ClassificationProgram = C.CLASSIFICATION_TLS_CLIENT_PROG
-	ClassificationTLSServer ClassificationProgram = C.CLASSIFICATION_TLS_SERVER_PROG
-	ClassificationQueues    ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
-	ClassificationDBs       ClassificationProgram = C.CLASSIFICATION_DBS_PROG
-	ClassificationGRPC      ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
+	ClassificationTLSClient ClassificationTLSProgram = C.CLASSIFICATION_TLS_CLIENT_PROG
+	ClassificationTLSServer ClassificationTLSProgram = C.CLASSIFICATION_TLS_SERVER_PROG
+	ClassificationQueues    ClassificationProgram    = C.CLASSIFICATION_QUEUES_PROG
+	ClassificationDBs       ClassificationProgram    = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC      ClassificationProgram    = C.CLASSIFICATION_GRPC_PROG
 )

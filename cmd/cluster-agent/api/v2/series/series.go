@@ -8,11 +8,13 @@
 package series
 
 import (
+	"bytes"
 	"compress/gzip"
 	"compress/zlib"
 	"context"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,6 +30,12 @@ const (
 	encodingZstd           = "zstd"
 	loadMetricsHandlerName = "load-metrics-handler"
 )
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
 func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
@@ -81,15 +89,17 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	payload, err := io.ReadAll(rc)
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+	buf.Reset() // Reset the buffer before using it
+	_, err = io.Copy(buf, rc)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	metricPayload := &gogen.MetricPayload{}
-	if err := metricPayload.Unmarshal(payload); err != nil {
+	if err := metricPayload.Unmarshal(buf.Bytes()); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

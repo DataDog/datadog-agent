@@ -7,6 +7,7 @@
 package flare
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -24,12 +25,18 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -163,6 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -189,8 +197,14 @@ func makeFlare(flareComp flare.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
-	_ tagger.Component,
-	flareprofiler flareprofilerdef.Component) error {
+	tagger tagger.Component,
+	flareprofiler flareprofilerdef.Component,
+	senderManager diagnosesendermanager.Component,
+	wmeta option.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	diagnoseComponent diagnose.Component,
+) error {
 	var (
 		profile flaretypes.ProfileData
 		err     error
@@ -267,10 +281,16 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	var filePath string
+
 	if cliParams.forceLocal {
-		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil)
+		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
-		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeout)
+		filePath, err = requestArchive(profile, cliParams.providerTimeout)
+		if err != nil {
+			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
+		}
 	}
 
 	if err != nil {
@@ -300,13 +320,13 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeout, err)
+		return "", err
 	}
 
 	cmdport := pkgconfigsetup.Datadog().GetInt("cmd_port")
@@ -326,7 +346,7 @@ func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, pro
 	// Set session token
 	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeout, err)
+		return "", err
 	}
 
 	p, err := json.Marshal(pdata)
@@ -344,19 +364,47 @@ func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, pro
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 			err = fmt.Errorf("Error getting flare from running agent: %w", err)
 		}
-		return createArchive(flareComp, pdata, providerTimeout, err)
+		return "", err
 	}
 
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError)
+	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError, diagnoseResult)
 	if err != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
 		return "", err
 	}
 
 	return filePath, nil
+}
+
+func runLocalDiagnose(
+	diagnoseComponent diagnose.Component,
+	diagnoseConfig diagnose.Config,
+	log log.Component,
+	senderManager diagnosesendermanager.Component,
+	wmeta option.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	tagger tagger.Component,
+	config config.Component) []byte {
+
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, wmeta, ac, secretResolver, tagger, config)
+
+	if err != nil {
+		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+	}
+
+	var buffer bytes.Buffer
+	writer := bufio.NewWriter(&buffer)
+	err = format.Text(writer, diagnoseConfig, result)
+	if err != nil {
+		return []byte(color.RedString(fmt.Sprintf("Error formatting diagnose result: %s", err)))
+	}
+	writer.Flush()
+
+	return buffer.Bytes()
 }

@@ -7,8 +7,12 @@
 package diagnose
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -24,6 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -36,8 +44,6 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -110,6 +116,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -336,42 +343,61 @@ func cmdDiagnose(cliParams *cliParams,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
-	_ log.Component,
+	log log.Component,
 	tagger tagger.Component,
-) error {
-	diagCfg := diagnosis.Config{
-		Verbose:    cliParams.verbose,
-		RunLocal:   cliParams.runLocal,
-		JSONOutput: cliParams.JSONOutput,
-		Include:    cliParams.include,
-		Exclude:    cliParams.exclude,
+	diagnoseComponent diagnose.Component,
+	config config.Component) error {
+
+	diagCfg := diagnose.Config{
+		Verbose: cliParams.verbose,
+		Include: cliParams.include,
+		Exclude: cliParams.exclude,
 	}
 	w := color.Output
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(w, diagCfg)
+		var sortedSuitesName []string
+		sortedSuitesName = append(sortedSuitesName, diagnose.AllSuites...)
+
+		sort.Strings(sortedSuitesName)
+
+		fmt.Fprintf(w, "Diagnose suites ...\n")
+		for idx, suiteName := range sortedSuitesName {
+			fmt.Fprintf(w, "  %d. %s\n", idx+1, suiteName)
+		}
 		return nil
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac, tagger)
 	// Run command
+	var err error
+	var result *diagnose.Result
+	if !cliParams.runLocal {
+		result, err = requestDiagnosesFromAgentProcess(diagCfg)
 
-	// Get the diagnose result
-	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-		diagCfg.RunLocal = true
-		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
 		if err != nil {
-			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-			return err
+			if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
+				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+			}
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, wmeta, ac, secretResolver, tagger, config)
 		}
+	} else {
+		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
+			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+		}
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, wmeta, ac, secretResolver, tagger, config)
 	}
 
-	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+	if err != nil {
+		return err
+	}
+
+	if cliParams.JSONOutput {
+		return format.JSON(w, result)
+	}
+
+	return format.Text(w, diagCfg, result)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
@@ -396,4 +422,47 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 
 	fmt.Println(string(r))
 	return nil
+}
+
+func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result, error) {
+	// Get client to Agent's RPC call
+	c := util.GetClient()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
+	}
+
+	// Make sure we have a session token (for privileged information)
+	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
+		return nil, fmt.Errorf("auth error: %w", err)
+	}
+
+	// Form call end-point
+	//nolint:revive // TODO(CINT) Fix revive linter
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+
+	// Serialized diag config to pass it to Agent execution context
+	var cfgSer []byte
+	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
+	}
+
+	// Run diagnose code inside Agent process
+	var response []byte
+	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
+	if err != nil {
+		if response != nil && string(response) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))
+		}
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
+	}
+
+	// Deserialize results
+	var diagnoses diagnose.Result
+	err = json.Unmarshal(response, &diagnoses)
+	if err != nil {
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
+	}
+
+	return &diagnoses, nil
 }
