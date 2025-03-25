@@ -77,7 +77,7 @@ type SNMPService struct {
 var _ Service = &SNMPService{}
 
 type Device struct {
-	IP        string `json:"ip"`
+	IP        net.IP `json:"ip"`
 	AuthIndex int    `json:"auth_index"`
 }
 
@@ -140,10 +140,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 
-	var devices []struct {
-		IP        net.IP `json:"ip"`
-		AuthIndex int    `json:"auth_index"`
-	}
+	var devices []Device
 	err = json.Unmarshal([]byte(cacheValue), &devices)
 	if err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
@@ -374,7 +371,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	}
 	l.services[entityID] = svc
 	subnet.devices[entityID] = Device{
-		IP:        deviceIP,
+		IP:        net.ParseIP(deviceIP),
 		AuthIndex: authIndex,
 	}
 	subnet.deviceFailures[entityID] = 0
