@@ -38,6 +38,7 @@ docker_trigger_internal:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
@@ -131,6 +132,7 @@ docker_trigger_internal-ot:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
@@ -272,6 +274,7 @@ docker_trigger_internal-full:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
