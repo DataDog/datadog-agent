@@ -349,6 +349,10 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	}
 
 	config := subnet.config
+	if authIndex < 0 || authIndex >= len(config.Authentications) {
+		log.Errorf("Invalid authentication index %d for device %s (max: %d)", authIndex, deviceIP, len(config.Authentications)-1)
+		return
+	}
 	authentication := config.Authentications[authIndex]
 	config.Version = authentication.Version
 	config.Timeout = authentication.Timeout
