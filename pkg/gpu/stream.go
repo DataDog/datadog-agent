@@ -128,8 +128,10 @@ type enrichedKernelLaunch struct {
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
 func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
-	if e.stream.sysCtx.kernelCache == nil {
-		return nil, nil // Fatbin parsing is disabled, so we don't need to get the kernel data. Return no error in this case
+	if e.stream.sysCtx.kernelCache == nil || e.stream.metadata.smVersion == noSmVersion {
+		// Fatbin parsing is disabled, so we don't need to get the kernel data. Return no error in this case
+		// Same is true if we haven't been able to detect the SM version for this stream
+		return nil, nil
 	}
 
 	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, errKernelNotProcessedYet)) {
