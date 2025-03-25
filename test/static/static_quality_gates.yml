@@ -171,3 +171,7 @@ static_quality_gate_docker_cws_instrumentation_amd64:
 static_quality_gate_docker_cws_instrumentation_arm64:
   max_on_wire_size: "111.12 MiB"
   max_on_disk_size: "290.82 MiB"
+
+static_quality_gate_agent_dmg_amd64:
+  max_on_wire_size: "1110.12 MiB"
+  max_on_disk_size: "2900.82 MiB"
