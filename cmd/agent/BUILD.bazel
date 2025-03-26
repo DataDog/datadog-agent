@@ -191,15 +191,13 @@ go_binary(
     # keep
     gotags = select({
         "@rules_go//go/platform:darwin": [
-            "apm",
             "consul",
             "datadog.no_waf",
             "ec2",
             "etcd",
-            "gce",
             "jmx",
             "kubeapiserver",
-            "kubelet",
+            #"kubelet",
             "oracle",
             "orchestrator",
             "otlp",
@@ -218,7 +216,6 @@ go_binary(
             "docker",
             "ec2",
             "etcd",
-            "gce",
             "jmx",
             "kubeapiserver",
             #"kubelet",
