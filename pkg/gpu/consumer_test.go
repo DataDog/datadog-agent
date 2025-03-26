@@ -109,6 +109,10 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, testutil.GPUUUIDs[1], globalStream.metadata.gpuUUID)
 }
 
+// BenchmarkConsumer benchmarks the consumer with a data sample, with and without fatbin parsing enabled
+// Note that the NVML library is mocked here, so if some of the API calls are slow in the real implementation
+// the results will not reflect that. This benchmark is useful to measure the performance of the event intake,
+// such as the event parsing, stream handling, the effect of the fatbin parsing and the related caches, etc
 func BenchmarkConsumer(b *testing.B) {
 	events := testutil.GetGPUTestEvents(b, testutil.DataSamplePytorchBatchedKernels)
 	for _, fatbinParsingEnabled := range []bool{true, false} {
