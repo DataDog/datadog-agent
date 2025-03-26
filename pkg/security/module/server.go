@@ -231,31 +231,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, isCustomEvent bool) {
-	if isCustomEvent {
-		appendTagsIfNotPresent := func(toAdd []string) {
-			for _, tag := range toAdd {
-				key, _, _ := strings.Cut(tag, ":")
-				if !slices.ContainsFunc(msg.Tags, func(t string) bool {
-					return strings.HasPrefix(t, key+":")
-				}) {
-					msg.Tags = append(msg.Tags, tag)
-				}
-			}
-		}
-
-		// on fargate, append global tags on custom events
-		if fargate.IsFargateInstance() {
-			appendTagsIfNotPresent(a.getGlobalTags())
-		}
-
-		// add agent tags on custom events
-		acc := a.probe.GetAgentContainerContext()
-		if acc != nil && acc.ContainerID != "" {
-			appendTagsIfNotPresent(a.probe.GetEventTags(acc.ContainerID))
-		}
-	}
-
+func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	// look for the service tag if we don't have one yet
 	if len(msg.Service) == 0 {
 		for _, tag := range msg.Tags {
@@ -264,6 +240,30 @@ func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, isCustomEvent b
 				break
 			}
 		}
+	}
+}
+
+func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
+	appendTagsIfNotPresent := func(toAdd []string) {
+		for _, tag := range toAdd {
+			key, _, _ := strings.Cut(tag, ":")
+			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
+				return strings.HasPrefix(t, key+":")
+			}) {
+				msg.Tags = append(msg.Tags, tag)
+			}
+		}
+	}
+
+	// on fargate, append global tags on custom events
+	if fargate.IsFargateInstance() {
+		appendTagsIfNotPresent(a.getGlobalTags())
+	}
+
+	// add agent tags on custom events
+	acc := a.probe.GetAgentContainerContext()
+	if acc != nil && acc.ContainerID != "" {
+		appendTagsIfNotPresent(a.probe.GetEventTags(acc.ContainerID))
 	}
 }
 
@@ -303,7 +303,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
-				a.updateMsgTags(m, false)
+				a.updateMsgService(m)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -430,7 +430,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
-		a.updateMsgTags(m, true)
+		a.updateCustomEventTags(m)
+		a.updateMsgService(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
