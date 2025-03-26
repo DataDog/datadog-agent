@@ -12,10 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+/*
 // procFSRoot retrieves the current procfs dir we should use
 // this function is copied from kernel/fs.go because using that function directly violates the check_size,
 // as some artifacts have a major binary size increase
@@ -30,11 +31,12 @@ var procFSRoot = funcs.MemoizeNoError(func() string {
 	}
 	return "/proc"
 })
+*/
 
 // GetTags returns a slice of tags indicating GPU presence
 func GetTags() []string {
 	// Get the host's proc directory path
-	procPath := procFSRoot()
+	procPath := kernel.ProcFSRoot()
 	nvidiaPath := filepath.Join(procPath, "driver", "nvidia", "gpus")
 
 	// Check if the NVIDIA directory exists
