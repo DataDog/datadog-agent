@@ -19,11 +19,6 @@ import (
 // Component is the component type.
 type Component interface {
 	GetTaggerTelemetryStore() *telemetry.Store
-	// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-	// If possible, avoid using this function, and use the Tag method instead.
-	// This function exists in order not to break backward compatibility with rtloader and python
-	// integrations using the tagger
-	LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error)
 	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
 	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
@@ -36,5 +31,4 @@ type Component interface {
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
-	ChecksCardinality() types.TagCardinality
 }

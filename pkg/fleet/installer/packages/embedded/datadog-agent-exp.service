@@ -1,22 +1,22 @@
 [Unit]
 Description=Datadog Agent Experiment
 After=network.target
-OnFailure=datadog-agent.service
-JobTimeoutSec=3000
-Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
 Conflicts=datadog-agent.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+OnFailure=datadog-agent.service
 Before=datadog-agent.service
 
 [Service]
-Type=oneshot
+Type=simple
 PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 User=dd-agent
+Restart=no
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
-ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
-ExecStart=/bin/false
-ExecStop=/bin/false
+ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+ExecStopPost=/bin/false
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
 RuntimeDirectory=datadog
-
-[Install]
-WantedBy=multi-user.target
