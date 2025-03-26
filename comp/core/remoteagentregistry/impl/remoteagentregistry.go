@@ -204,7 +204,7 @@ func newRegistryCollector(agentMapMu *sync.Mutex, agentMap map[string]*remoteAge
 	}
 }
 
-func (c *registryCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *registryCollector) Describe(_ chan<- *prometheus.Desc) {
 }
 
 func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
