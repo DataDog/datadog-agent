@@ -58,15 +58,18 @@ PACKAGE_SIZE_TEMPLATE = {
     'aarch64': {'datadog-agent': {'rpm': int(5e5)}, 'datadog-iot-agent': {'rpm': int(5e5)}},
 }
 
+
 class InfraError(Exception):
-    """ Assertion failed. """
-    def __init__(self, *args, **kwargs): # real signature unknown
+    """Assertion failed."""
+
+    def __init__(self, *args, **kwargs):  # real signature unknown
         pass
 
-    @staticmethod # known case of __new__
-    def __new__(*args, **kwargs): # real signature unknown
-        """ Create and return a new object.  See help(type) for accurate signature. """
+    @staticmethod  # known case of __new__
+    def __new__(*args, **kwargs):  # real signature unknown
+        """Create and return a new object.  See help(type) for accurate signature."""
         pass
+
 
 def extract_deb_package(ctx, package_path, extract_dir):
     ctx.run(f"dpkg -x {package_path} {extract_dir} > /dev/null")
@@ -77,7 +80,6 @@ def extract_rpm_package(ctx, package_path, extract_dir):
         out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null", warn=True)
         if out.exited == 2:
             raise InfraError()
-
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):
