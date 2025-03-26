@@ -106,6 +106,7 @@ new-agent_dmg-x64-a7:
       - datadog-agent-build
       # TODO
       - /tmp/debug
+      - volume
     when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
@@ -132,6 +133,7 @@ new-agent_dmg-x64-a7:
     - sudo ls /Volumes/Agent || true
     # TODO - sudo umount /Volumes/Agent || true
   script:
+    - cp -r /Volumes/Agent volume
     - set -e
     - mdfind "Finder.app"
     - |
