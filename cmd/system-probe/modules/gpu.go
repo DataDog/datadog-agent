@@ -66,7 +66,7 @@ var GPUMonitoring = module.Factory{
 			configureCgroupPermissions()
 		}
 
-		probeDeps, err := gpu.NewProbeDependencies(c, deps.Telemetry, processEventConsumer, deps.WMeta)
+		probeDeps, err := gpu.NewProbeDependencies(deps.Telemetry, processEventConsumer, deps.WMeta)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
 		}
