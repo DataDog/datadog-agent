@@ -368,6 +368,24 @@ func TestTargetEnvVar(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "target with env valueFrom",
+			expected: []Target{
+				{
+					Name: "default-target",
+					TracerConfigs: []TracerConfig{
+						{
+							Name: "DD_SERVICE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.labels['foo-bar']",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
