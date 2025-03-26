@@ -29,8 +29,8 @@ type WiFiInfo struct {
 	Ssid         string
 	Bssid        string
 	Channel      int
-	Noise        int     // Is it SNR on Mac OS X? On Windows it is not accessible (could not find a way to get it yet)
-	TransmitRate float64 // in what for Mac OS X?
+	Noise        int
+	TransmitRate float64 // in Mbps
 	MacAddress   string
 	PHYMode      string
 }

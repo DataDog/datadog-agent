@@ -300,8 +300,8 @@ type wlanInfo struct {
 	phy        string
 	auth       string
 	rssi       int32
-	rxRate     uint32
-	txRate     uint32
+	rxRate     float64
+	txRate     float64
 	channel    uint32
 	signal     uint32
 	adapterMac string
@@ -610,9 +610,11 @@ func getWlanInfo(wlanClient uintptr, itfGuid windows.GUID) (*wlanInfo, error) {
 	wi.bssid = formatMacAddress(connAttribs.wlanAssociationAttributes.dot11Bssid[:])
 	wi.phy = formatPhy(connAttribs.wlanAssociationAttributes.dot11PhyType)
 	wi.auth = formatAuthAlgo(connAttribs.wlanSecurityAttributes.dot11AuthAlgorithm)
-	wi.rxRate = connAttribs.wlanAssociationAttributes.ulRxRate
-	wi.txRate = connAttribs.wlanAssociationAttributes.ulTxRate
 	wi.signal = connAttribs.wlanAssociationAttributes.wlanSignalQuality
+
+	//Convert kbps to Mbps
+	wi.rxRate = float64(connAttribs.wlanAssociationAttributes.ulRxRate) / 1000.0
+	wi.txRate = float64(connAttribs.wlanAssociationAttributes.ulTxRate) / 1000.0
 
 	// Get channel and RSSI
 	channel, err := getChannel(wlanClient, itfGuid)

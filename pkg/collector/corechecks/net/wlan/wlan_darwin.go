@@ -33,7 +33,7 @@ const (
 	phyMode11ac                // IEEE 802.11ac PHY.
 )
 
-func formatPhy(phy phyMode) string {
+func (phy phyMode) String() {
 	switch phy {
 	case phyModeNone:
 		return "None"
@@ -48,7 +48,7 @@ func formatPhy(phy phyMode) string {
 	case phyMode11ac:
 		return "802.11ac"
 	default:
-		return "unknown"
+		return ""
 	}
 }
 
@@ -80,7 +80,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		Bssid:           bssid,
 		Channel:         int(info.channel),
 		Noise:           int(info.noise),
-		TransmitRate:    float64(info.transmitRate),
+		TransmitRate:    float64(info.transmitRate), // in Mbps
 		HardwareAddress: hardwareAddress,
 		PhyMode:         formatPhy(phyMode(info.activePHYMode)),
 	}
