@@ -79,14 +79,8 @@ message GetTelemetryResponse {
   // Telemetry payload.
   oneof payload {
     // Prometheus "text" exposition format.
+    //
+    // https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
     string prom_text = 1;
-
-    // In the future, we then might add:
-    // bytes prom_protobuf = 2;
-    //
-    // or potentially utilize the native Protocol Buffers definition:
-    // io.prometheus.write.v2.Request prom_protobuf = 2;
-    //
-    // and so on...
   }
 }

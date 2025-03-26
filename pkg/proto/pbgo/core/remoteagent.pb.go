@@ -482,6 +482,8 @@ type isGetTelemetryResponse_Payload interface {
 
 type GetTelemetryResponse_PromText struct {
 	// Prometheus "text" exposition format.
+	//
+	// https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
 	PromText string `protobuf:"bytes,1,opt,name=prom_text,json=promText,proto3,oneof"`
 }
 

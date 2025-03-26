@@ -65,8 +65,10 @@ func (s *remoteAgentServer) GetTelemetry(_ context.Context, req *pbcore.GetTelem
 	log.Printf("Got request for telemetry: %v", req)
 
 	var prometheusText = `
-# TYPE remote_agent_test_telemetry counter
-remote_agent_test_telemetry 62
+# TYPE remote_agent_test_foo counter
+remote_agent_test_foo 62
+# TYPE remote_agent_test_bar gauge
+remote_agent_test_bar{tag_one="1",tag_two="two"} 3
 `
 	return &pbcore.GetTelemetryResponse{
 		Payload: &pbcore.GetTelemetryResponse_PromText{

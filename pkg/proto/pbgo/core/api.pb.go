@@ -1146,6 +1146,7 @@ type RemoteAgentClient interface {
 	GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
+	// Gets the telemetry data of a remote agent.
 	GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error)
 }
 
@@ -1190,6 +1191,7 @@ type RemoteAgentServer interface {
 	GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
+	// Gets the telemetry data of a remote agent.
 	GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error)
 }
 

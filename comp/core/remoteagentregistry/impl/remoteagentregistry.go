@@ -92,11 +92,12 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf         config.Component
-	agentMap     map[string]*remoteAgentDetails
-	agentMapMu   sync.Mutex
-	shutdownChan chan struct{}
-	telemetry    telemetry.Component
+	conf              config.Component
+	agentMap          map[string]*remoteAgentDetails
+	agentMapMu        sync.Mutex
+	shutdownChan      chan struct{}
+	telemetry         telemetry.Component
+	RegistryCollector prometheus.Collector
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -152,14 +153,17 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	return recommendedRefreshInterval, nil
 }
 
+func (ra *remoteAgentRegistry) RegisterCollector() {
+	ra.telemetry.RegisterCollector(newRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
+}
+
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
+	ra.RegisterCollector()
 
 	go func() {
 		log.Info("Remote Agent registry started.")
-
-		ra.telemetry.RegisterCollector(newRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
 
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -277,11 +281,9 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
 		}
 		for _, metric := range mf.Metric {
 			labelNames := make([]string, 0, len(metric.Label))
-			for _, label := range metric.Label {
-				labelNames = append(labelNames, *label.Name)
-			}
 			labelValues := make([]string, 0, len(metric.Label))
 			for _, label := range metric.Label {
+				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
 			}
 			switch *mf.Type {

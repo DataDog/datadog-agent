@@ -14,4 +14,5 @@ type Component interface {
 	RegisterRemoteAgent(req *RegistrationData) (uint32, error)
 	GetRegisteredAgents() []*RegisteredAgent
 	GetRegisteredAgentStatuses() []*StatusData
+	RegisterCollector()
 }
