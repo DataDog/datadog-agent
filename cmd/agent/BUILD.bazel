@@ -221,7 +221,7 @@ go_binary(
             "gce",
             "jmx",
             "kubeapiserver",
-            "kubelet",
+            #"kubelet",
             "oracle",
             "orchestrator",
             "otlp",

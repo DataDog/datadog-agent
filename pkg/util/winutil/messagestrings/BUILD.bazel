@@ -6,24 +6,31 @@ go_library(
         "messages.go",
         "messagestrings.h",
     ],
-    cdeps = [":messagestrings_header"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
     visibility = ["//visibility:public"],
 )
 
-# Bridge between the genrule and the go rule (genrule output can't be used as a dep for `go_library`
-cc_library(
-    name = "messagestrings_header",
-    hdrs = [":messagestrings_h"],
-    includes = ["."],
+# These rules implement the windows resource generation based on the existing
+# code under /tasks/windows_resources.py
+# TODO: "hermetize" the usage of these two tools (windmc and windres, from binutils)
+genrule(
+    name = "messagestrings_resources",
+    srcs = ["messagestrings.mc"],
+    outs = [
+        "messagestrings.h",
+        "messagestrings.rc",
+    ],
+    cmd_bat = """
+    windmc --target pe-x86-64 -r $(RULEDIR) -h $(RULEDIR) $<
+    """,
 )
 
 genrule(
-    name = "messagestrings_h",
-    srcs = ["messagestrings.mc"],
-    outs = ["messagestrings.h"],
+    name = "messagestrings_coff",
+    srcs = ["messagestrings.rc"],
+    outs = ["rsrc.syso"],
     cmd_bat = """
-    windmc --target pe-x86-64 -r $(RULEDIR) -h $(RULEDIR) $<
+    windres --target pe-x86-64 -i $< -O coff -o $@
     """,
 )
