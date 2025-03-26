@@ -59,6 +59,8 @@ func parseCompleteEvent(header ebpf.CudaEventHeader, data []byte) (Event, error)
 	}
 }
 
+// GetGPUTestEvents returns a collection of events from the testdata directory. The datasetName
+// should be the name of the file in the testdata directory (with the extension).
 func GetGPUTestEvents(tb testing.TB, datasetName string) *EventCollection {
 	curDir, err := usmtestutil.CurDir()
 	require.NoError(tb, err)
