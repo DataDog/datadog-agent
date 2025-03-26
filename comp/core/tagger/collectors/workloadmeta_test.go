@@ -2376,7 +2376,7 @@ func TestHandleGPU(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
-						"gpu_device:tesla-v100",
+						"gpu_device:tesla_v100",
 						"gpu_uuid:gpu-1234",
 					},
 					StandardTags: []string{},
