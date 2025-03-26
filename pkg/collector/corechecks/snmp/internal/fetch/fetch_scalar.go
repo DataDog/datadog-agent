@@ -8,6 +8,7 @@ package fetch
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -80,8 +81,9 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 	}
 }
 
-func doFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPacket, error) {
+func doFetchScalarOids(session session.Session, origOids []string) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
+	oids := slices.Clone(origOids)
 	if session.GetVersion() == gosnmp.Version1 {
 		// When using snmp v1, if one of the oids return a NoSuchName, all oids will have value of Null.
 		// The response will contain Error=NoSuchName and ErrorIndex with index of the erroneous oid.
