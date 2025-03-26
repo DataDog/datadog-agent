@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -170,6 +171,8 @@ func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) 
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
+
+	fmt.Println("\033]32m", endpoints, "\033]0m")
 	return endpoints, configKey
 }
 

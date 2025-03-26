@@ -170,6 +170,9 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (InnerNode, error) {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+
+	fmt.Println("/033]032m", "Got a new value set", key, "/033]0m")
+
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
 		log.Errorf("Set invalid source: %s", source)

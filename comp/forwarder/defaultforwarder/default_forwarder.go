@@ -122,7 +122,7 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]string) *Options {
+func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) *Options {
 	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
@@ -365,7 +365,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
-			log.Infof("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			log.Errorf("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			log.Errorf("Updating API key: %s -> %s", oldAPIKey, newAPIKey)
 			for _, dr := range f.domainResolvers {
 				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
 			}

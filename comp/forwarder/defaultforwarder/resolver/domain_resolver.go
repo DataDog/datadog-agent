@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // DestinationType is used to identified the expected endpoint
@@ -48,25 +49,28 @@ type DomainResolver interface {
 
 // SingleDomainResolver will always return the same host
 type SingleDomainResolver struct {
-	domain  string
-	apiKeys []string
-	mu      sync.Mutex
+	domain         string
+	apiKeys        []utils.Endpoint
+	dedupedApiKeys []string
+	mu             sync.Mutex
 }
 
 // NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []string) *SingleDomainResolver {
+func NewSingleDomainResolver(domain string, apiKeys []utils.Endpoint, dedupedApiKeys []string) *SingleDomainResolver {
 	return &SingleDomainResolver{
 		domain,
 		apiKeys,
+		dedupedApiKeys,
 		sync.Mutex{},
 	}
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
-func NewSingleDomainResolvers(keysPerDomain map[string][]string) map[string]DomainResolver {
+func NewSingleDomainResolvers(keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
+	deduped := utils.DedupEndpoints(keysPerDomain)
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
-		resolvers[domain] = NewSingleDomainResolver(domain, keys)
+		resolvers[domain] = NewSingleDomainResolver(domain, keys, deduped[domain])
 	}
 	return resolvers
 }
@@ -85,7 +89,7 @@ func (r *SingleDomainResolver) GetBaseDomain() string {
 func (r *SingleDomainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.apiKeys
+	return r.dedupedApiKeys
 }
 
 // SetBaseDomain sets the only destination available for a SingleDomainResolver
@@ -102,15 +106,21 @@ func (r *SingleDomainResolver) GetAlternateDomains() []string {
 func (r *SingleDomainResolver) UpdateAPIKey(oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	replace := make([]string, 0, len(r.apiKeys))
-	for _, key := range r.apiKeys {
-		if key == oldKey {
-			replace = append(replace, newKey)
-		} else {
-			replace = append(replace, key)
+
+	/*
+		   TODO SMW sort this
+		for _, endpoint := range r.apiKeys {
+			replace := make([]string, 0, len(r.apiKeys))
+			for _, key := range endpoint.ApiKey {
+				if key == oldKey {
+					replace = append(replace, newKey)
+				} else {
+					replace = append(replace, key)
+				}
+			}
+			endpoint.ApiKey = replace
 		}
-	}
-	r.apiKeys = replace
+	*/
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver
