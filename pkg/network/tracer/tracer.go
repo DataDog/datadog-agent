@@ -801,7 +801,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -825,7 +825,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +884,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 // GetNetworkID retrieves the vpc_id (network_id) from IMDS
 func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	id := ""
-	err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
 		var err error
 		id, err = ec2.GetNetworkID(context)
 		return err

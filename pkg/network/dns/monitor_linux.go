@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +43,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 	}
 	defer ns.Close()
 
-	err = kernel.WithNS(ns, func() error {
+	err = netnsutil.WithNS(ns, func() error {
 		packetSrc, srcErr = filter.NewAFPacketSource(4 << 20) // 4 MB total
 		return srcErr
 	})

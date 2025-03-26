@@ -240,14 +240,14 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = kernel.GetNetNamespaces(c.procRoot)
+		nss, err = netnsutil.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
 	}
 
 	var conn *netlink.Conn
-	err = kernel.WithNS(c.rootNetNs, func() error {
+	err = netnsutil.WithNS(c.rootNetNs, func() error {
 		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
 		return err
 	})
@@ -295,7 +295,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	return kernel.WithNS(ns, func() error {
+	return netnsutil.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
@@ -328,7 +328,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
-		nsIno, err := kernel.GetInoForNs(ns)
+		nsIno, err := netnsutil.GetInoForNs(ns)
 		if err != nil {
 			return fmt.Errorf("netns ino: %w", err)
 		}
@@ -351,7 +351,7 @@ func LoadNfConntrackKernelModule(cfg *config.Config) error {
 
 	sock, err := NewSocket(ns)
 	if err != nil {
-		ino, errIno := kernel.GetInoForNs(ns)
+		ino, errIno := netnsutil.GetInoForNs(ns)
 		if errIno != nil {
 			return fmt.Errorf("failed to create new socket for net ns %d and failed to get inode: %v,  %w", int(ns), errIno, err)
 		}
@@ -393,7 +393,7 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = kernel.GetNetNamespaces(c.procRoot)
+		nss, err = netnsutil.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
