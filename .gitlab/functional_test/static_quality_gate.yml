@@ -6,9 +6,6 @@ static_quality_gates:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  retry:
-    max: 3
-    exit_codes: 42
   needs:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
@@ -62,3 +59,6 @@ static_quality_gates:
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv quality-gates.parse-and-trigger-gates || exit $?
+  retry:
+    max: 2
+    exit_codes: 42
