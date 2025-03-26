@@ -170,7 +170,8 @@ func (s *packageBaseSuite) SetupSuite() {
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
-		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
+		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
 	}
 }
 
