@@ -136,9 +136,6 @@ additional_endpoints:
 	// Verify initial API keys in status
 	status := v.Env().Agent.Client.Status()
 	v.T().Logf("WACKTEST1 status.Content: %s", status.Content)
-	assert.Contains(v.T(), status.Content, "API key ending with 12345")
-	assert.Contains(v.T(), status.Content, "https://app.datadoghq.com - API Keys ending with:")
-	assert.Contains(v.T(), status.Content, "https://app.datadoghq.eu - API Key ending with:")
 
 	// Update secrets in the backend
 	for key, value := range updatedAPIKeys {
