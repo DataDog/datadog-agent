@@ -146,8 +146,6 @@ github.com/DataDog/go-sqllexer v0.1.3 h1:Kl2T6QVndMEZqQSY8rkoltYP+LVNaA54N+EwAMc
 github.com/DataDog/go-sqllexer v0.1.3/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
-github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
-github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
 github.com/DataDog/gopacket v0.0.0-20250206221735-64e5a8c92d94 h1:lSpWcdWc0gQRVBiPLvnDxO1GEzr8+yBcSSpkWpYSAIo=
 github.com/DataDog/gopacket v0.0.0-20250206221735-64e5a8c92d94/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
 github.com/DataDog/gopsutil v1.2.2 h1:8lmthwyyCXa1NKiYcHlrtl9AAFdfbNI2gPcioCJcBPU=
@@ -1359,8 +1357,6 @@ github.com/open-policy-agent/opa v0.70.0 h1:B3cqCN2iQAyKxK6+GI+N40uqkin+wzIrM7YA
 github.com/open-policy-agent/opa v0.70.0/go.mod h1:Y/nm5NY0BX0BqjBriKUiV81sCl8XOjjvqQG7dXrggtI=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0 h1:gX7HGoRE0OTMS8ZVh/zPeQe+ZEASKxAo6Wn9dIcsgRE=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0/go.mod h1:y6UqtUREKcyDzLPQC5wSPbOlZR2HLUrNp/2ITZalVKA=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.121.0 h1:GPc1Sv41r7Awj/PjAa12ynA2GH217yjVd01vJg7Pf6Y=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.121.0/go.mod h1:KoiJRBuCNak/HhczGwXZEy8obZ2bFkNopxot6p/qRjg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.121.0 h1:9Gc8RqEI2q31gicv3smPK/Knw32V0lC47hFvGQYVxYY=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.121.0/go.mod h1:yF5I4j3Dh3OAUkL4gwUe5GXy9clqYYPF9azQSkwLfNU=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.121.0 h1:QOGF8d9L2AkGMPbfsjzuCYNX8Fhi65ywSY8+jjhzg60=
@@ -1391,8 +1387,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.121
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.121.0/go.mod h1:f9MPSdMvooe2s9Zg0WVBJOvg72d9fFikxFt7yniFros=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.121.0 h1:w9WLbJx54+1UI/LU2v9oS49khpYKDsTO5m21q6O/f8A=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.121.0/go.mod h1:gG7FrCz38jead6qHMueRLB8EPxkXyVvvlE9GrNpcYlg=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.121.0 h1:tW+gegtVU9sJxPSrIrEhw8gjSWtWwSMbyAY87TiIoEA=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.121.0/go.mod h1:pTQshxrJ11HWLnR5Mg0it+LRChGK+hx2denoPKsspYs=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.121.0 h1:0/HZ3gY08Bg24GDUhQWajwFi7XxrtV0ZgNHRijwqfzs=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.121.0/go.mod h1:uI7i/n8YfS6iQOFgcoqtsm8OyvEPl5dV45SB/hdSWjI=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.121.0 h1:I+F6xdXQsiXXdce7yjHN+y4LX5MrZI1kNmhBunJffdA=
