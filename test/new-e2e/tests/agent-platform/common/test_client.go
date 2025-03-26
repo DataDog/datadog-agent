@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
