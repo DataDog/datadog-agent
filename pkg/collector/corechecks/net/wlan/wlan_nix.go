@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin
+//go:build freebsd || linux || netbsd || openbsd || solaris || dragonfly || aix
 
 //nolint:revive // TODO(PLINT) Fix revive linter
 package wlan
@@ -11,5 +11,5 @@ package wlan
 import "fmt"
 
 func GetWiFiInfo() (WiFiInfo, error) {
-	return WiFiInfo{}, fmt.Errorf("wifi info only supported on macOS")
+	return WiFiInfo{}, fmt.Errorf("wifi info only supported on macOS and Windows")
 }

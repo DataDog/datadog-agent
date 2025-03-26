@@ -21,14 +21,14 @@ func TestWLANOK(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -104,14 +104,14 @@ func TestWLANEmptySSIDisUnknown(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -140,14 +140,14 @@ func TestWLANEmptyBSSIDisUnknown(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -176,14 +176,14 @@ func TestWLANEmptyHardwareAddress(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -212,14 +212,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -244,14 +244,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 	// change channel number from 1 to 2
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         2,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      2,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -261,14 +261,14 @@ func TestWLANChannelSwapEvents(t *testing.T) {
 
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -285,14 +285,14 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         0,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      0,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -316,14 +316,14 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         0,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      0,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -333,14 +333,14 @@ func TestWLANChannelSwapEventsChannelZero(t *testing.T) {
 
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "test-ssid",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "test-ssid",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -353,14 +353,14 @@ func TestWLANRoamingEvents(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "ssid-1",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "ssid-1",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -384,14 +384,14 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "ssid-2",
-			Bssid:           "test-bssid",
-			Channel:         2,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "ssid-2",
+			Bssid:        "test-bssid",
+			Channel:      2,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -403,14 +403,14 @@ func TestWLANRoamingEvents(t *testing.T) {
 
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "ssid-1",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   6,
+			Rssi:         10,
+			Ssid:         "ssid-1",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "802.11ac",
 		}, nil
 	}
 
@@ -429,14 +429,14 @@ func TestWLANNoMetricsWhenWiFiInterfaceInactive(t *testing.T) {
 	// setup mocks
 	getWiFiInfo = func() (WiFiInfo, error) {
 		return WiFiInfo{
-			Rssi:            10,
-			Ssid:            "ssid-1",
-			Bssid:           "test-bssid",
-			Channel:         1,
-			Noise:           20,
-			TransmitRate:    4.0,
-			HardwareAddress: "hardware-address",
-			ActivePHYMode:   0,
+			Rssi:         10,
+			Ssid:         "ssid-1",
+			Bssid:        "test-bssid",
+			Channel:      1,
+			Noise:        20,
+			TransmitRate: 4.0,
+			MacAddress:   "hardware-address",
+			PHYMode:      "None",
 		}, nil
 	}
 
