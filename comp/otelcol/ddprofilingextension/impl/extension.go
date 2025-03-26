@@ -128,6 +128,7 @@ func (e *ddExtension) startForOCB() error {
 		}
 	}
 	tags.WriteString(fmt.Sprintf("agent_version:%s", agentVersion))
+	tags.WriteString(",source:oss-ddprofilingextension")
 	if e.cfg.ProfilerOptions.Env != "" {
 		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
 	}

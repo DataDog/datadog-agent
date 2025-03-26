@@ -232,7 +232,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "agent_version:7.64.0,orchestrator:fargate_ecs,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,orchestrator:fargate_ecs,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
@@ -291,7 +291,7 @@ func TestOSSExtensionHost(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "agent_version:7.64.0,host:i-123456789", out)
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,host:i-123456789", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
