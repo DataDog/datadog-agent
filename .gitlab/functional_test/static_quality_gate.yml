@@ -7,59 +7,52 @@ static_quality_gates:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - job: agent_deb-x64-a7
-      artifacts: true
-    - job: agent_deb-arm64-a7
-      artifacts: true
-    - job: agent_rpm-x64-a7
-      artifacts: true
-    - job: agent_rpm-arm64-a7
-      artifacts: true
-    - job: agent_suse-x64-a7
-      artifacts: true
-    - job: agent_suse-arm64-a7
-      artifacts: true
-    - job: docker_build_agent7
-      artifacts: true
-    - job: docker_build_agent7_arm64
-      artifacts: true
-    - job: docker_build_agent7_jmx
-      artifacts: true
-    - job: docker_build_agent7_jmx_arm64
-      artifacts: true
-    - job: docker_build_cluster_agent_amd64
-      artifacts: true
-    - job: docker_build_cluster_agent_arm64
-      artifacts: true
-    - job: docker_build_dogstatsd_amd64
-      artifacts: true
-    - job: docker_build_dogstatsd_arm64
-      artifacts: true
-    - job: dogstatsd_deb-x64
-      artifacts: true
-    - job: dogstatsd_deb-arm64
-      artifacts: true
-    - job: dogstatsd_rpm-x64
-      artifacts: true
-    - job: dogstatsd_suse-x64
-      artifacts: true
-    - job: iot_agent_deb-x64
-      artifacts: true
-    - job: iot_agent_deb-arm64
-      artifacts: true
-    - job: iot_agent_rpm-x64
-      artifacts: true
-    - job: iot_agent_rpm-arm64
-      artifacts: true
-    - job: iot_agent_suse-x64
-      artifacts: true
-  # Static Quality Gates aren't enforced until Q1
-  allow_failure: true
+    - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
+    - agent_deb-arm64-a7
+    - agent_deb-arm64-a7-fips
+    - agent_rpm-x64-a7
+    - agent_rpm-x64-a7-fips
+    - agent_rpm-arm64-a7
+    - agent_rpm-arm64-a7-fips
+    - agent_suse-x64-a7
+    - agent_suse-x64-a7-fips
+    - agent_suse-arm64-a7
+    - agent_suse-arm64-a7-fips
+    - agent_heroku_deb-x64-a7
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+    - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_core
+    - docker_build_agent7_windows1809_core_jmx
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows2022
+    - docker_build_agent7_windows2022_core
+    - docker_build_agent7_windows2022_core_jmx
+    - docker_build_agent7_windows2022_jmx
+    - dogstatsd_deb-x64
+    - dogstatsd_deb-arm64
+    - dogstatsd_rpm-x64
+    - dogstatsd_suse-x64
+    - iot_agent_deb-x64
+    - iot_agent_deb-arm64
+    - iot_agent_deb-armhf
+    - iot_agent_rpm-x64
+    - iot_agent_rpm-arm64
+    - iot_agent_rpm-armhf
+    - iot_agent_suse-x64
+    - windows_msi_and_bosh_zip_x64-a7
+ #  - job: agent_dmg-x64-a7
+ #    optional: True
+ #
   script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - export DD_API_KEY="$DATADOG_API_KEY"

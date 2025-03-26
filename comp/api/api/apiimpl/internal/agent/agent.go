@@ -10,26 +10,14 @@ package agent
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/gorilla/mux"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,13 +25,7 @@ import (
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
-	wmeta workloadmeta.Component,
-	senderManager sender.DiagnoseSenderManager,
-	secretResolver secrets.Component,
-	collector option.Option[collector.Component],
-	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
-	tagger tagger.Component,
 ) *mux.Router {
 	// Register the handlers from the component providers
 	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
@@ -55,10 +37,6 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, option.New(wmeta), ac, tagger)
-		getDiagnose(w, r, diagnoseDeps)
-	}).Methods("POST")
 
 	return r
 }
@@ -100,52 +78,4 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Write(jsonHealth)
-}
-
-func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {
-	var diagCfg diagnosis.Config
-
-	// Read parameters
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-			return
-		}
-
-		if err := json.Unmarshal(body, &diagCfg); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
-	conn := utils.GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	// Indicate that we are already running in Agent process (and flip RunLocal)
-	diagCfg.RunLocal = true
-
-	var diagnoseResult *diagnosis.DiagnoseResult
-	var err error
-
-	// Get diagnoses via API
-	// TODO: Once API component will be refactored, clean these dependencies
-	collector, ok := diagnoseDeps.Collector.Get()
-	if ok {
-		diagnoseResult, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
-	} else {
-		diagnoseResult, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, diagnoseDeps.AC, diagnoseDeps.Tagger))
-	}
-	if err != nil {
-		httputils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
-		return
-	}
-
-	// Serizalize diagnoses (and implicitly write result to the response)
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(diagnoseResult)
-	if err != nil {
-		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
-	}
 }

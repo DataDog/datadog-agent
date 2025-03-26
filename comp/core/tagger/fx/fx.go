@@ -7,20 +7,17 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component
-func Module(params tagger.Params) fxutil.Module {
+func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			taggerimpl.NewComponent,
 		),
-		fx.Supply(params),
 		fxutil.ProvideOptional[tagger.Component](),
 	)
 }

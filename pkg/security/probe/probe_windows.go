@@ -460,7 +460,7 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idObjectPermsChange:
 				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Tracef("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+					log.Tracef("Received objectPermsChange event %d %s", e.EventHeader.EventDescriptor.ID, pc)
 					ecb(pc, e.EventHeader.ProcessID)
 				}
 			}
@@ -484,59 +484,67 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idNameCreate:
 				if ca, err := p.parseNameCreateArgs(e); err == nil {
-					log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(ca, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idNameDelete:
 				if ca, err := p.parseNameDeleteArgs(e); err == nil {
-					log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(ca, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(ca, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idCreate event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
-					log.Tracef("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCreateNewFile event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(ca, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idCreateNewFile event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idCleanup:
 				if ca, err := p.parseCleanupArgs(e); err == nil {
-					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(ca, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idClose event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -546,103 +554,118 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					// lru is thread safe, has its own locking
 					p.discardedFileHandles.Remove(ca.fileObject)
 					p.filePathResolver.Remove(ca.fileObject)
+				} else {
+					log.Tracef("Unable to parse idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idFlush:
 				if fa, err := p.parseFlushArgs(e); err == nil {
+					log.Tracef("Received idFlush event %d %s", e.EventHeader.EventDescriptor.ID, fa)
+
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(fa, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idFlush event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idWrite:
 				if wa, err := p.parseWriteArgs(e); err == nil {
-					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
-					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					log.Tracef("Received idWrite event %d %s", e.EventHeader.EventDescriptor.ID, wa)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(wa, e.EventHeader.ProcessID)
+				} else if err != errReadNoPath && err != errDiscardedPath {
+					log.Tracef("Unable to parse idWrite event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idSetInformation:
 				if si, err := p.parseInformationArgs(e); err == nil {
-					log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
+					log.Tracef("Received idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, si)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(si, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idSetDelete:
 				if sd, err := p.parseSetDeleteArgs(e); err == nil {
-					log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
+					log.Tracef("Received idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, sd)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(sd, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idDeletePath:
 				if dp, err := p.parseDeletePathArgs(e); err == nil {
-					log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
+					log.Tracef("Received idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, dp)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(dp, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idRename:
 				if rn, err := p.parseRenameArgs(e); err == nil {
-					log.Tracef("Received Rename event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					log.Tracef("Received idRename event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(rn, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idRename event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRenamePath:
 				if rn, err := p.parseRenamePathArgs(e); err == nil {
-					log.Tracef("Received RenamePath event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					log.Tracef("Received idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(rn, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idFSCTL:
 				if fs, err := p.parseFsctlArgs(e); err == nil {
-					log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
+					log.Tracef("Received idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, fs)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(fs, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-
 			case idRename29:
 				if rn, err := p.parseRename29Args(e); err == nil {
-					log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					log.Tracef("Received idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
 					ecb(rn, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			}
-
 		case etw.DDGUID(p.regguid):
 			p.stats.rnLock.Lock()
 			p.stats.regNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -657,7 +680,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Unlock()
 
 					ecb(cka, e.EventHeader.ProcessID)
-
+				} else {
+					log.Tracef("Unable to parse idRegCreateKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRegOpenKey:
 				if cka, err := p.parseOpenRegistryKey(e); err == nil {
@@ -668,6 +692,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Unlock()
 
 					ecb(cka, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idRegOpenKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRegDeleteKey:
 				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
@@ -678,6 +704,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Unlock()
 
 					ecb(dka, e.EventHeader.ProcessID)
+				} else {
+					log.Tracef("Unable to parse idRegDeleteKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRegFlushKey:
 				if dka, err := p.parseFlushKey(e); err == nil {
@@ -686,6 +714,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.rpnLock.Unlock()
+				} else {
+					log.Tracef("Unable to parse idRegFlushKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRegCloseKey:
 				if dka, err := p.parseCloseKeyArgs(e); err == nil {
@@ -695,7 +725,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.rpnLock.Unlock()
-
+				} else {
+					log.Tracef("Unable to parse idRegCloseKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idQuerySecurityKey:
 				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
@@ -704,6 +735,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.rpnLock.Unlock()
+				} else {
+					log.Tracef("Unable to parse idQuerySecurityKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idSetSecurityKey:
 				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
@@ -712,6 +745,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.rpnLock.Unlock()
+				} else {
+					log.Tracef("Unable to parse idSetSecurityKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRegSetValueKey:
 				if svk, err := p.parseSetValueKey(e); err == nil {
@@ -721,6 +756,8 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.rpnLock.Lock()
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.rpnLock.Unlock()
+				} else {
+					log.Tracef("Unable to parse idRegSetValueKey event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			}
 		}

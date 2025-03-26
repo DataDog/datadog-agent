@@ -34,13 +34,14 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
+	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -68,7 +69,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -253,7 +253,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 
 		lis, err := net.Listen("tcp", serverHost)
 		require.NoError(t, err)
-		srv := grpc2.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux)
+		srv := grpchelpers.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux, time.Duration(0)*time.Second)
 		srv.Addr = lis.Addr().String()
 
 		go srv.Serve(lis)
@@ -1830,9 +1830,17 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				defer cancel()
 				res := collection.FindOne(timedContext, bson.M{"test": "test"})
 				require.NoError(t, res.Err())
-				var output map[string]string
-				require.NoError(t, res.Decode(&output))
-				delete(output, "_id")
+				var outputTmp map[string]interface{}
+				require.NoError(t, res.Decode(&outputTmp))
+				delete(outputTmp, "_id")
+
+				output := make(map[string]string)
+				for key, value := range outputTmp {
+					if str, ok := value.(string); ok {
+						output[key] = str
+					}
+				}
+
 				require.EqualValues(t, output, ctx.extras["input"])
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),

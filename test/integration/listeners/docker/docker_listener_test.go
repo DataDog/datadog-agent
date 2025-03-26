@@ -90,7 +90,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 	))
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)

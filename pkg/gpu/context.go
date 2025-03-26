@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -76,6 +76,10 @@ type systemContext struct {
 
 	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
 	fatbinTelemetry *fatbinTelemetry
+
+	// fatbinParsingEnabled is a flag to enable/disable fatbin parsing.
+	// TODO: this flag will be unnecessary once we have a separate structure for the fatbin parser
+	fatbinParsingEnabled bool
 }
 
 // symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
@@ -378,9 +382,15 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
 // last selection (via cudaSetDevice) this thread made and the visible devices for the process.
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerID string) (nvml.Device, error) {
+// This function caches the visible devices for the process in the visibleDevicesCache map, so it only
+// does the expensive operations of looking into the process state and filtering devices one time for each process
+// containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
+// might be expensive, we pass a function that can be called to retrieve it only when needed
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (nvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
+		containerID := containerIDFunc()
+
 		// Order is important! We need to filter the devices for the container
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the

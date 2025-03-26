@@ -106,64 +106,111 @@ func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
 
 func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
-	for idx, capture := range captures {
-		if capture == nil {
-			continue
-		}
-		var (
-			argName   string
-			defPieces []*ditypes.Parameter
-		)
-		if idx < len(defs) {
-			argName = defs[idx].Name
-		}
+	for idx, def := range defs {
+		argName := def.Name
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
-		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(capture)
-			continue
+
+		var capture *ditypes.Param
+		if idx < len(captures) {
+			capture = captures[idx]
 		}
+
 		if capture == nil {
+			// No capture for this def, check for not capture reason
+			args[argName] = &ditypes.CapturedValue{
+				Type: def.Type,
+			}
+			if def.DoNotCapture && def.NotCaptureReason != 0 {
+				args[argName].NotCapturedReason = def.NotCaptureReason.String()
+			}
 			continue
 		}
-		cv := &ditypes.CapturedValue{Type: capture.Type}
+
+		cv := &ditypes.CapturedValue{
+			Type: def.Type,
+		}
+
 		if capture.ValueStr != "" || capture.Type == "string" {
-			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if idx < len(defs) {
-			defPieces = defs[idx].ParameterPieces
+
+		// Handle nested fields if both def and capture have them
+		if capture.Fields != nil && def.ParameterPieces != nil {
+			// For slice types, use convertSlice helper which already exists
+			if uint(capture.Kind) == uint(reflect.Slice) {
+				args[argName] = convertSlice(capture, def)
+			} else {
+				// For struct types, recursively process fields
+				cv.Fields = convertArgs(def.ParameterPieces, capture.Fields)
+				args[argName] = cv
+			}
+		} else {
+			// No nested fields or already handled above
+			args[argName] = cv
 		}
-		if capture.Fields != nil {
-			cv.Fields = convertArgs(defPieces, capture.Fields)
+	}
+
+	// Handle extra captures not in defs
+	for idx, capture := range captures {
+		if idx >= len(defs) && capture != nil {
+			argName := fmt.Sprintf("arg_%d", idx)
+			cv := &ditypes.CapturedValue{
+				Type: capture.Type,
+			}
+			if capture.ValueStr != "" || capture.Type == "string" {
+				valueCopy := capture.ValueStr
+				cv.Value = &valueCopy
+			}
+			// Don't recursively process fields for captures not in defs
+			args[argName] = cv
 		}
-		args[argName] = cv
 	}
 	return args
 }
 
-func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
+func convertSlice(capture *ditypes.Param, def *ditypes.Parameter) *ditypes.CapturedValue {
+	// The actual definition of the slice elements is in def.ParameterPieces[0].ParameterPieces[0]
+	// So we need to copy it based on the length of capture.Fields
 	defs := []*ditypes.Parameter{}
-	for i := range capture.Fields {
-		var (
-			fieldType string
-			fieldKind uint
-			fieldSize int64
-		)
-		if capture.Fields[i] != nil {
-			fieldType = capture.Fields[i].Type
-			fieldKind = uint(capture.Fields[i].Kind)
-			fieldSize = int64(capture.Fields[i].Size)
+
+	if def == nil || def.ParameterPieces == nil || len(def.ParameterPieces) == 0 ||
+		def.ParameterPieces[0] == nil || def.ParameterPieces[0].ParameterPieces == nil || len(def.ParameterPieces[0].ParameterPieces) == 0 {
+
+		for i := range capture.Fields {
+			var (
+				fieldType string
+				fieldKind uint
+				fieldSize int64
+			)
+			if capture.Fields[i] != nil {
+				fieldType = capture.Fields[i].Type
+				fieldKind = uint(capture.Fields[i].Kind)
+				fieldSize = int64(capture.Fields[i].Size)
+			}
+			defs = append(defs, &ditypes.Parameter{
+				Name:      fmt.Sprintf("[%d]%s", i, fieldType),
+				Type:      fieldType,
+				Kind:      fieldKind,
+				TotalSize: fieldSize,
+			})
 		}
-		defs = append(defs, &ditypes.Parameter{
-			Name:      fmt.Sprintf("[%d]%s", i, fieldType),
-			Type:      fieldType,
-			Kind:      fieldKind,
-			TotalSize: fieldSize,
-		})
+	} else {
+		c := []*ditypes.Parameter{def.ParameterPieces[0].ParameterPieces[0]}
+		for i := range capture.Fields {
+			dst := []*ditypes.Parameter{}
+			copyTree(&dst, &c)
+			if len(dst) != 1 {
+				log.Tracef("error while parsing slice definition")
+				break
+			}
+			dst[0].Name = fmt.Sprintf("[%d]%s", i, dst[0].Type)
+			defs = append(defs, dst[0])
+		}
 	}
+
 	sliceValue := &ditypes.CapturedValue{
 		Type:   capture.Type,
 		Fields: convertArgs(defs, capture.Fields),
@@ -198,4 +245,60 @@ func getProbeUUID(probeID string) string {
 	// we could also validate that the extracted string is a valid UUID,
 	// but it's not necessary since we tolerate IDs that don't parse
 	return parts[1]
+}
+
+func copyTree(dst, src *[]*ditypes.Parameter) {
+	if dst == nil || src == nil || len(*src) == 0 {
+		return
+	}
+	*dst = make([]*ditypes.Parameter, len(*src))
+	for i := range *src {
+		if (*src)[i] == nil {
+			continue
+		}
+
+		// Create a new Parameter object for each element
+		srcParam := (*src)[i]
+		(*dst)[i] = &ditypes.Parameter{
+			Name:             srcParam.Name,
+			ID:               srcParam.ID,
+			Type:             srcParam.Type,
+			TotalSize:        srcParam.TotalSize,
+			Kind:             srcParam.Kind,
+			FieldOffset:      srcParam.FieldOffset,
+			DoNotCapture:     srcParam.DoNotCapture,
+			NotCaptureReason: srcParam.NotCaptureReason,
+		}
+
+		// Deep copy the Location if present
+		if srcParam.Location != nil {
+			(*dst)[i].Location = &ditypes.Location{
+				InReg:            srcParam.Location.InReg,
+				StackOffset:      srcParam.Location.StackOffset,
+				Register:         srcParam.Location.Register,
+				NeedsDereference: srcParam.Location.NeedsDereference,
+				PointerOffset:    srcParam.Location.PointerOffset,
+			}
+		}
+
+		// Deep copy the LocationExpressions slice
+		if len(srcParam.LocationExpressions) > 0 {
+			(*dst)[i].LocationExpressions = make([]ditypes.LocationExpression, len(srcParam.LocationExpressions))
+			for j, expr := range srcParam.LocationExpressions {
+				// Copy the LocationExpression struct
+				(*dst)[i].LocationExpressions[j] = expr
+
+				// Deep copy any IncludedExpressions
+				if len(expr.IncludedExpressions) > 0 {
+					(*dst)[i].LocationExpressions[j].IncludedExpressions = make([]ditypes.LocationExpression, len(expr.IncludedExpressions))
+					copy((*dst)[i].LocationExpressions[j].IncludedExpressions, expr.IncludedExpressions)
+				}
+			}
+		}
+
+		// Recursively copy ParameterPieces
+		if len(srcParam.ParameterPieces) > 0 {
+			copyTree(&((*dst)[i].ParameterPieces), &(srcParam.ParameterPieces))
+		}
+	}
 }

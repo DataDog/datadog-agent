@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -30,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 )
 
 const (
@@ -67,6 +68,7 @@ type npCollectorImpl struct {
 	workers       int
 	stopChan      chan struct{}
 	flushLoopDone chan struct{}
+	workersDone   chan struct{}
 	runDone       chan struct{}
 	flushInterval time.Duration
 
@@ -118,6 +120,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
+		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
 	}
@@ -231,7 +234,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	vpcSubnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	vpcSubnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
@@ -297,7 +300,7 @@ func (s *npCollectorImpl) start() error {
 
 	go s.listenPathtests()
 	go s.flushLoop()
-	s.startWorkers()
+	go s.runWorkers()
 
 	return nil
 }
@@ -309,6 +312,7 @@ func (s *npCollectorImpl) stop() {
 	}
 	close(s.stopChan)
 	<-s.flushLoopDone
+	<-s.workersDone
 	<-s.runDone
 	s.running = false
 }
@@ -517,15 +521,23 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) startWorkers() {
+func (s *npCollectorImpl) runWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
+
+	var wg sync.WaitGroup
 	for w := 0; w < s.workers; w++ {
+		wg.Add(1)
 		s.logger.Debugf("Starting worker #%d", w)
-		go s.startWorker(w)
+		go func() {
+			defer wg.Done()
+			s.runWorker(w)
+		}()
 	}
+	wg.Wait()
+	s.workersDone <- struct{}{}
 }
 
-func (s *npCollectorImpl) startWorker(workerID int) {
+func (s *npCollectorImpl) runWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -542,7 +554,9 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			checkDuration := s.TimeNowFn().Sub(startTime)
 			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)
 			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)
-			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			if checkInterval > 0 {
+				_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			}
 		}
 	}
 }
