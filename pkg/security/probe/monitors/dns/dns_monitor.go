@@ -23,8 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// Contains the stats of the DNS monitor
 type Stats struct {
-	FilteredDnsPackets  uint32
+	FilteredDNSPackets  uint32
 	SameIDDifferentSize uint32
 }
 
@@ -70,7 +71,7 @@ func (d *Monitor) SendStats() error {
 	}
 
 	for _, val := range statsAcrossAllCPUs {
-		totalFilteredOnKernel += int64(val.FilteredDnsPackets)
+		totalFilteredOnKernel += int64(val.FilteredDNSPackets)
 		totalSameIDDifferentSize += int64(val.SameIDDifferentSize)
 	}
 
@@ -80,11 +81,11 @@ func (d *Monitor) SendStats() error {
 		return err
 	}
 
-	if err := d.statsdClient.Count(metrics.MetricDNSSameIdDifferentSize, totalSameIDDifferentSize, tags, 1.0); err != nil {
-		seclog.Tracef("couldn't set MetricDNSSameIdDifferentSize metric: %s", err)
+	if err := d.statsdClient.Count(metrics.MetricDNSSameIDDifferentSize, totalSameIDDifferentSize, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricDNSSameIDDifferentSize metric: %s", err)
 		return err
 	}
-	
+
 	err = buffer.Put(uint32(0), d.statsZero)
 	if err != nil {
 		return fmt.Errorf("failed to reset DNS stats buffer: %w", err)
@@ -93,8 +94,8 @@ func (d *Monitor) SendStats() error {
 	return nil
 }
 
-// NewDnsMonitor returns a new Monitor
-func NewDnsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
+// NewDNSMonitor returns a new Monitor
+func NewDNSMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)

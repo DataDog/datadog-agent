@@ -82,8 +82,8 @@ var (
 
 	// MetricRepeatedDNSResponsesFilteredOnKernel DNS responses that were filtered on the kernel
 	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
-	// MetricRepeatedDNSResponsesSameIdDifferentSize DNS responses that had the same ID but a different size (expect close to zero)
-	MetricDNSSameIdDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
+	// MetricDNSSameIDDifferentSize DNS responses that had the same ID but a different size
+	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
 
 	// filtering metrics
 

@@ -78,7 +78,7 @@ func (m *EBPFMonitors) Init() error {
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.Resolvers.CGroupResolver)
 
 	if p.config.Probe.DNSResolutionEnabled {
-		m.dnsMonitor, err = dns.NewDnsMonitor(p.Manager, p.statsdClient)
+		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager, p.statsdClient)
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
