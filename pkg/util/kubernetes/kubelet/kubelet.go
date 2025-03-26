@@ -45,12 +45,14 @@ var (
 	globalKubeUtilMutex sync.Mutex
 )
 
-// StreamLogOptions is used to mirror the options we need from PodLogOptions in "k8s.io/api/core/v1"
-// without importing the entire package
-
+// Time is used to mirror the wrapped Time struct inn"k8s.io/apimachinery/pkg/apis/meta/v1"
 type Time struct {
 	time.Time
 }
+
+// StreamLogOptions is used to mirror the options we need from PodLogOptions in "k8s.io/api/core/v1"
+// without importing the entire package
+
 type StreamLogOptions struct {
 	SinceTime  *Time
 	Follow     bool
