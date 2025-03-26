@@ -529,7 +529,7 @@ func Test_fetchOidBatchSize_v1NoSuchName(t *testing.T) {
 	session.On("Get", []string{"1.1.1.5.0", "1.1.1.6.0"}).Return(&getPacket3, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
-	copyOids := slices.Clone(oids)
+	origOids := slices.Clone(oids)
 
 	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
 	assert.Nil(t, err)
@@ -542,7 +542,7 @@ func Test_fetchOidBatchSize_v1NoSuchName(t *testing.T) {
 		"1.1.1.6.0": {Value: float64(60)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
-	assert.Equal(t, oids, copyOids)
+	assert.Equal(t, origOids, oids)
 }
 
 func Test_fetchOidBatchSize_zeroSizeError(t *testing.T) {
@@ -702,7 +702,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.3"}).Return(&getPacket3, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
-	copyOids := slices.Clone(oids)
+	origOids := slices.Clone(oids)
 
 	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
@@ -712,7 +712,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 		"1.1.1.3.0": {Value: float64(30)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
-	assert.Equal(t, oids, copyOids)
+	assert.Equal(t, origOids, oids)
 }
 
 func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
