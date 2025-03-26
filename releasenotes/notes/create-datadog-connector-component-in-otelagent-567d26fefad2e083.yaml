@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Fork datadogconnector component into OTel agent from the opentelemetry-collector-contrib repo (https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/datadogconnector). In this fork, tagger is called during APM metrics computation, so internal users should now see container tags on their APM metrics.
+    Forks the datadogconnector component into the OTel agent from the opentelemetry-collector-contrib repo (https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/connector/datadogconnector). In this fork, a tagger is called during APM metrics computation, so users with pod labels `tags.datadoghq.com/*` can now see container tags on their APM metrics.
