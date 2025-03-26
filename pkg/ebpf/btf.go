@@ -22,8 +22,8 @@ import (
 	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

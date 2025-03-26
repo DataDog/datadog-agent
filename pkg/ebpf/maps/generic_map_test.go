@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestBatchAPISupported(t *testing.T) {

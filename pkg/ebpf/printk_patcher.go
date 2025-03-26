@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

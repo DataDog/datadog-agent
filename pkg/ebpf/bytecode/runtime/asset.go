@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
