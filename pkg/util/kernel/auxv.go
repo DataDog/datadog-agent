@@ -41,10 +41,14 @@ type auxvPairReader interface {
 }
 
 // See https://elixir.bootlin.com/linux/v6.5.5/source/include/uapi/linux/auxvec.h
+//
+//revive:disable:var-naming keep kernel naming, but do not export them
 const (
 	_AT_NULL         = 0  // End of vector
 	_AT_SYSINFO_EHDR = 33 // Offset to vDSO blob in process image
 )
+
+//revive:enable:var-naming
 
 type auxvRuntimeReader struct {
 	data  [][2]uintptr
@@ -68,7 +72,7 @@ func (r *auxvRuntimeReader) ReadAuxvPair() (uint64, uint64, error) {
 	} else {
 		tag, value = _AT_NULL, _AT_NULL
 	}
-	r.index += 1
+	r.index++
 	return uint64(tag), uint64(value), nil
 }
 

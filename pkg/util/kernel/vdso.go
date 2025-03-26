@@ -29,7 +29,6 @@
 package kernel
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -130,7 +129,7 @@ func vdsoLinuxVersionCode(r io.ReaderAt) (uint32, error) {
 		return 0, fmt.Errorf("reading vDSO ELF: %w", err)
 	}
 
-	sections := hdr.SectionsByType(elf.SHT_NOTE)
+	sections := hdr.SectionsByType(safeelf.SHT_NOTE)
 	if len(sections) == 0 {
 		return 0, errors.New("no note section found in vDSO ELF")
 	}
