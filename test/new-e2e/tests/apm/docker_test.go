@@ -166,7 +166,7 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsHaveContainerID(s.T(), c, service, s.Env().FakeIntake)
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 

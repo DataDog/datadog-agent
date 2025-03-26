@@ -90,13 +90,26 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
 }
 
-func testStatsHaveContainerID(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
-	assert.True(c, hasContainerID(stats, service), "got stats: %v", stats)
+
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Service == service {
+						assert.NotEmpty(c, s.ContainerID, "ContainerID should not be empty. Got Stats: %v", stats)
+						assert.NotEmpty(c, s.Tags, "Container Tags should not be empty. Got Stats: %v", stats)
+						assert.Contains(c, s.Tags, fmt.Sprintf("container_name:%s", service))
+					}
+				}
+			}
+		}
+	}
 }
 
 func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
@@ -199,21 +212,6 @@ func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) 
 				for _, ss := range bucket.Stats {
 					if ss.Service == service {
 						return true
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
-func hasContainerID(payloads []*aggregator.APMStatsPayload, service string) bool {
-	for _, p := range payloads {
-		for _, s := range p.StatsPayload.Stats {
-			for _, bucket := range s.Stats {
-				for _, ss := range bucket.Stats {
-					if ss.Service == service {
-						return s.ContainerID != ""
 					}
 				}
 			}

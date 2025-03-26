@@ -207,7 +207,7 @@ func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsHaveContainerID(s.T(), c, service, s.Env().FakeIntake)
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
 		s.logJournal(false)
 	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
