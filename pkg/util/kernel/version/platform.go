@@ -5,7 +5,7 @@
 
 //go:build linux
 
-// Package version contains kernel functions that are used within ebpf related products.
+// Package version contains functions to retrieve linux kernel version
 // Those functions were split from the util/kernel package to reduce package size and avoid cilium dependencies when unnecessary.
 package version
 
