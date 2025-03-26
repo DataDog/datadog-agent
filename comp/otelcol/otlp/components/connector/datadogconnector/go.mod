@@ -353,6 +353,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => ./
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
