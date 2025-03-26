@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // The Tagger is the central source of truth for client-side entity tagging.
-// It subscribes to workloadmeta to get updates for all the entity kinds
+// It subscribes to WorkloadMeta to get updates for all the entity kinds
 // (containers, kubernetes pods, kubernetes nodes, etc.) and extracts the tags for each of them.
 // Tags are then stored in memory (by the TagStore) and can be queried by the tagger.Tag()
 // method.
@@ -15,16 +15,18 @@ package taggerimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"reflect"
+	"sync"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -41,193 +43,280 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+const (
+	// pidCacheTTL is the time to live for the PID cache
+	pidCacheTTL = 1 * time.Second
+	// inodeCacheTTL is the time to live for the inode cache
+	inodeCacheTTL = 1 * time.Second
+	// externalDataCacheTTL is the time to live for the external data cache
+	externalDataCacheTTL = 1 * time.Second
+)
+
+// datadogConfig contains the Agent configuration.
+type datadogConfig struct {
+	checksCardinality                  types.TagCardinality // Cardinality for checks
+	dogstatsdCardinality               types.TagCardinality // Cardinality for DogStatsD Custom Metrics.
+	dogstatsdEntityIDPrecedenceEnabled bool                 // Disable Origin Detection for DogStatsD metrics when EntityID is set.
+	dogstatsdOptOutEnabled             bool                 // Disable Origin Detection if enabled and cardinality is none.
+	originDetectionUnifiedEnabled      bool                 // Unifies Origin Detection mechanisms to use the same logic.
+}
+
+// Tagger is the entry class for entity tagging. It holds the tagger collector,
+// memory tagStore, and handles the query logic. One should use the package
+// methods in comp/core/tagger to use the default Tagger instead of instantiating it
+// directly.
+type localTagger struct {
+	sync.RWMutex
+
+	tagStore      *tagstore.TagStore
+	workloadStore workloadmeta.Component
+	log           log.Component
+	cfg           config.Component
+	collector     *collectors.WorkloadMetaCollector
+
+	datadogConfig              datadogConfig
+	tlmUDPOriginDetectionError coretelemetry.Counter
+	telemetryStore             *telemetry.Store
+	ctx                        context.Context
+	cancel                     context.CancelFunc
+}
+
 // Requires defines the dependencies of the tagger component.
 type Requires struct {
 	compdef.In
 
-	Lc        compdef.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Wmeta     workloadmeta.Component
-	Telemetry coretelemetry.Component
-	Params    tagger.Params
+	Lc           compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
+	Telemetry    coretelemetry.Component
 }
 
 // Provides contains the fields provided by the tagger constructor.
 type Provides struct {
 	compdef.Out
 
-	Comp     tagger.Component
+	Comp     taggerdef.Component
 	Endpoint api.AgentEndpointProvider
-}
-
-// datadogConfig contains the configuration specific to Dogstatsd.
-type datadogConfig struct {
-	// dogstatsdEntityIDPrecedenceEnabled disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
-	dogstatsdEntityIDPrecedenceEnabled bool
-	// dogstatsdOptOutEnabled If enabled, and cardinality is none no origin detection is performed.
-	dogstatsdOptOutEnabled bool
-	// originDetectionUnifiedEnabled If enabled, all origin detection mechanisms will be unified to use the same logic.
-	originDetectionUnifiedEnabled bool
-}
-
-// TaggerWrapper is a struct that contains two tagger component: capturetagger and the local tagger
-// and implements the tagger interface
-type TaggerWrapper struct {
-	defaultTagger tagger.Component
-
-	wmeta         workloadmeta.Component
-	datadogConfig datadogConfig
-
-	checksCardinality          types.TagCardinality
-	dogstatsdCardinality       types.TagCardinality
-	tlmUDPOriginDetectionError coretelemetry.Counter
-	telemetryStore             *telemetry.Store
-
-	log log.Component
 }
 
 // NewComponent returns a new tagger client
 func NewComponent(req Requires) (Provides, error) {
-	taggerClient, err := NewTaggerClient(req.Params, req.Config, req.Wmeta, req.Log, req.Telemetry)
-
+	taggerInstance, err := newLocalTagger(req.Config, req.WorkloadMeta, req.Log, req.Telemetry, nil)
 	if err != nil {
 		return Provides{}, err
 	}
 
-	taggerClient.wmeta = req.Wmeta
-
-	req.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
-	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
-		// Main context passed to components, consistent with the one used in the workloadmeta component
+	req.Log.Info("Tagger is created")
+	req.Lc.Append(compdef.Hook{OnStart: func(context.Context) error {
+		// Main context passed to components, consistent with the one used in the WorkloadMeta component.
 		mainCtx, _ := common.GetMainCtxCancel()
-		return taggerClient.Start(mainCtx)
+		taggerInstance.ctx, taggerInstance.cancel = context.WithCancel(mainCtx)
+
+		// Start the WorkloadMeta collector.
+		taggerInstance.collector = collectors.NewWorkloadMetaCollector(
+			taggerInstance.ctx,
+			taggerInstance.cfg,
+			taggerInstance.workloadStore,
+			taggerInstance.tagStore,
+		)
+
+		// Start the TagStore and the WorkloadMeta collector.
+		go taggerInstance.tagStore.Run(taggerInstance.ctx)
+		go taggerInstance.collector.Run(taggerInstance.ctx, taggerInstance.cfg)
+
+		return nil
 	}})
 	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
-		return taggerClient.Stop()
+		// Stop the tagger.
+		taggerInstance.cancel()
+		return nil
 	}})
 
 	return Provides{
-		Comp:     taggerClient,
-		Endpoint: api.NewAgentEndpointProvider(taggerClient.writeList, "/tagger-list", "GET"),
+		Comp: taggerInstance,
+		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
+			response := taggerInstance.List()
+			jsonTags, err := json.Marshal(response)
+			if err != nil {
+				httputils.SetJSONError(writer, req.Log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+				return
+			}
+			_, err = writer.Write(jsonTags)
+			if err != nil {
+				_ = req.Log.Errorf("Unable to write tagger list response: %s", err)
+			}
+		}, "/tagger-list", "GET"),
 	}, nil
 }
 
-// NewTaggerClient returns a new tagger client
-func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component) (*TaggerWrapper, error) {
-	var defaultTagger tagger.Component
+func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (*localTagger, error) {
+	dc := datadogConfig{}
+	dc.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
+	dc.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
+	dc.dogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
+
+	checksTagCardinalityRawConfig := cfg.GetString("checks_tag_cardinality")
+	dogstatsdTagCardinalityRawConfig := cfg.GetString("dogstatsd_tag_cardinality")
+
 	var err error
-	telemetryStore := telemetry.NewStore(telemetryComp)
-	if params.UseFakeTagger {
-		defaultTagger = taggermock.New().Comp
-	} else {
-		defaultTagger, err = newLocalTagger(cfg, wmeta, log, telemetryStore)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	wrapper := &TaggerWrapper{
-		defaultTagger:  defaultTagger,
-		log:            log,
-		telemetryStore: telemetryStore,
-	}
-
-	checkCard := cfg.GetString("checks_tag_cardinality")
-	dsdCard := cfg.GetString("dogstatsd_tag_cardinality")
-	wrapper.checksCardinality, err = types.StringToTagCardinality(checkCard)
+	dc.checksCardinality, err = types.StringToTagCardinality(checksTagCardinalityRawConfig)
 	if err != nil {
 		log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
-		wrapper.checksCardinality = types.LowCardinality
 	}
-
-	wrapper.dogstatsdCardinality, err = types.StringToTagCardinality(dsdCard)
+	dc.dogstatsdCardinality, err = types.StringToTagCardinality(dogstatsdTagCardinalityRawConfig)
 	if err != nil {
 		log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
-		wrapper.dogstatsdCardinality = types.LowCardinality
+	}
+	telemetryStore := telemetry.NewStore(telemetryComp)
+	if tagStore == nil {
+		tagStore = tagstore.NewTagStore(telemetryStore)
 	}
 
-	wrapper.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
-	wrapper.datadogConfig.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
-	wrapper.datadogConfig.dogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
 	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
 	// pipeline improve memory allocation. We kept the old name to be
 	// backward compatible and because origin detection only affect
 	// dogstatsd metrics.
-	wrapper.tlmUDPOriginDetectionError = telemetryComp.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
+	tlmUDPOriginDetectionError := telemetryComp.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
 
-	return wrapper, nil
+	return &localTagger{
+		tagStore:                   tagStore,
+		workloadStore:              wmeta,
+		log:                        log,
+		telemetryStore:             telemetryStore,
+		cfg:                        cfg,
+		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
+		datadogConfig:              dc,
+	}, nil
 }
 
-func (t *TaggerWrapper) writeList(w http.ResponseWriter, _ *http.Request) {
-	response := t.List()
-
-	jsonTags, err := json.Marshal(response)
-	if err != nil {
-		httputils.SetJSONError(w, t.log.Errorf("Unable to marshal tagger list response: %s", err), 500)
-		return
+// getTags returns a read only list of tags for a given entity.
+func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
 	}
-	w.Write(jsonTags)
+	if entityID.Empty() {
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
+	}
+
+	cachedTags := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
+
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+	return cachedTags, nil
 }
 
-// Start calls defaultTagger.Start
-func (t *TaggerWrapper) Start(ctx context.Context) error {
-	return t.defaultTagger.Start(ctx)
+// AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
+func (t *localTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+	tags, err := t.getTags(entityID, cardinality)
+	tb.AppendHashed(tags)
+	return err
 }
 
-// Stop calls defaultTagger.Stop
-func (t *TaggerWrapper) Stop() error {
-	return t.defaultTagger.Stop()
-}
-
-// GetTaggerTelemetryStore returns tagger telemetry store
-func (t *TaggerWrapper) GetTaggerTelemetryStore() *telemetry.Store {
-	return t.telemetryStore
-}
-
-// GetDefaultTagger returns the default Tagger in current instance
-func (t *TaggerWrapper) GetDefaultTagger() tagger.Component {
-	return t.defaultTagger
-}
-
-// GetEntity returns the hash for the provided entity id.
-func (t *TaggerWrapper) GetEntity(entityID types.EntityID) (*types.Entity, error) {
-	return t.defaultTagger.GetEntity(entityID)
-}
-
-// Tag queries the captureTagger (for replay scenarios) or the defaultTagger.
-// It can return tags at high cardinality (with tags about individual containers),
-// or at orchestrator cardinality (pod/task level).
-func (t *TaggerWrapper) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
-	return t.defaultTagger.Tag(entityID, cardinality)
-}
-
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *TaggerWrapper) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
+// Tag returns a copy of the tags for a given entity
+func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags, err := t.getTags(entityID, cardinality)
 	if err != nil {
 		return nil, err
 	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
+	return tags.Copy(), nil
 }
 
-// AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
-// sources and appends them to the TagsAccumulator.  It can return tags at high
-// cardinality (with tags about individual containers), or at orchestrator
-// cardinality (pod/task level).
-func (t *TaggerWrapper) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	return t.defaultTagger.AccumulateTagsFor(entityID, cardinality, tb)
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+// The resolutions will be done in the following order:
+// * OriginInfo.LocalData.ContainerID: If the container ID is already known, return it.
+// * OriginInfo.LocalData.ProcessID: If the process ID is known, do a PID resolution.
+// * OriginInfo.LocalData.Inode: If the inode is known, do an inode resolution.
+// * OriginInfo.ExternalData: If the ExternalData are known, do an ExternalData resolution.
+func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
+	t.log.Debugf("Generating container ID from OriginInfo: %+v", originInfo)
+	// If the container ID is already known, return it.
+	if originInfo.LocalData.ContainerID != "" {
+		t.log.Debugf("Found OriginInfo.LocalData.ContainerID: %s", originInfo.LocalData.ContainerID)
+		containerID = originInfo.LocalData.ContainerID
+		return
+	}
+
+	// Get the MetaCollector from WorkloadMeta.
+	metaCollector := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector()
+
+	// If the process ID is known, do a PID resolution.
+	if originInfo.LocalData.ProcessID != 0 {
+		t.log.Debugf("Resolving container ID from PID: %d", originInfo.LocalData.ProcessID)
+		containerID, err = metaCollector.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from PID: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
+		} else {
+			return
+		}
+	}
+
+	// If the inode is known, do an inode resolution.
+	if originInfo.LocalData.Inode != 0 {
+		t.log.Debugf("Resolving container ID from inode: %d", originInfo.LocalData.Inode)
+		containerID, err = metaCollector.GetContainerIDForInode(originInfo.LocalData.Inode, inodeCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from inode: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for inode: %d", originInfo.LocalData.Inode)
+		} else {
+			return
+		}
+	}
+
+	// If the ExternalData are known, do an ExternalData resolution.
+	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
+		t.log.Debugf("Resolving container ID from ExternalData: %+v", originInfo.ExternalData)
+		containerID, err = metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, externalDataCacheTTL)
+		if err != nil {
+			t.log.Debugf("Error resolving container ID from ExternalData: %v", err)
+		} else if containerID == "" {
+			t.log.Debugf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
+		} else {
+			return
+		}
+	}
+
+	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }
 
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (t *TaggerWrapper) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
+// Standard returns standard tags for a given entity
+// It triggers a tagger fetch if the no tags are found
+func (t *localTagger) Standard(entityID types.EntityID) ([]string, error) {
+	if entityID.Empty() {
+		return nil, fmt.Errorf("empty entity ID")
+	}
+
+	return t.tagStore.LookupStandard(entityID)
+}
+
+// GetEntity returns the entity corresponding to the specified id and an error
+func (t *localTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	return t.tagStore.GetEntity(entityID)
+}
+
+// List the content of the tagger
+func (t *localTagger) List() types.TaggerListResponse {
+	return t.tagStore.List()
+}
+
+// Subscribe returns a channel that receives a slice of events whenever an entity is
+// added, modified or deleted. It can send an initial burst of events only to the new
+// subscriber, without notifying all of the others.
+func (t *localTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return t.tagStore.Subscribe(subscriptionID, filter)
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry tagStore
+func (t *localTagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
+}
+
+// GetEntityHash returns the hash for the tags associated with the given entity.
+// Returns an empty string if the tags lookup fails.
+func (t *localTagger) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return ""
@@ -235,16 +324,10 @@ func (t *TaggerWrapper) GetEntityHash(entityID types.EntityID, cardinality types
 	return utils.ComputeTagsHash(tags)
 }
 
-// Standard queries the defaultTagger to get entity
-// standard tags (env, version, service) from cache or sources.
-func (t *TaggerWrapper) Standard(entityID types.EntityID) ([]string, error) {
-	return t.defaultTagger.Standard(entityID)
-}
-
-// AgentTags returns the agent tags
-// It relies on the container provider utils to get the Agent container ID
-func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector().GetSelfContainerID()
+// AgentTags returns the agent tags.
+// It relies on the container provider utils to get the Agent container ID.
+func (t *localTagger) AgentTags(cardinality types.TagCardinality) ([]string, error) {
+	ctrID, err := metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -259,19 +342,14 @@ func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, e
 
 // GlobalTags queries global tags that should apply to all data coming from the
 // agent.
-func (t *TaggerWrapper) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.defaultTagger.Tag(types.GetGlobalEntityID(), cardinality)
+func (t *localTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
+	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
 // from the agent and appends them to the TagsAccumulator
-func (t *TaggerWrapper) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	return t.defaultTagger.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
-}
-
-// List the content of the defaulTagger
-func (t *TaggerWrapper) List() types.TaggerListResponse {
-	return t.defaultTagger.List()
+func (t *localTagger) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+	return t.AccumulateTagsFor(types.GetGlobalEntityID(), cardinality, tb)
 }
 
 // EnrichTags extends a tag list with origin detection tags
@@ -281,8 +359,8 @@ func (t *TaggerWrapper) List() types.TaggerListResponse {
 // This function is dupliacted in the remote tagger `impl-remote`.
 // When modifying this function make sure to update the copy `impl-remote` as well.
 // TODO: extract this function to a share function so it can be used in both implementations
-func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
-	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality, t.log)
+func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
+	cardinality := taggerCardinality(originInfo.Cardinality, t.datadogConfig.dogstatsdCardinality, t.log)
 
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
@@ -296,7 +374,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	// Generate container ID from Inode
 	if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
-		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
 		if inodeResolutionError != nil {
 			t.log.Tracef("Failed to resolve container ID from inode %d: %v", originInfo.LocalData.Inode, inodeResolutionError)
 		}
@@ -399,7 +477,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		}
 
 		// Generate container ID from External Data
-		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
 		if err != nil {
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
@@ -417,25 +495,14 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	}
 }
 
-// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
-func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
-}
-
 // generateContainerIDFromInode generates a container ID from the CGroup inode.
-func (t *TaggerWrapper) generateContainerIDFromInode(e origindetection.LocalData, metricsProvider provider.ContainerIDForInodeRetriever) (string, error) {
+func (t *localTagger) generateContainerIDFromInode(e origindetection.LocalData, metricsProvider provider.ContainerIDForInodeRetriever) (string, error) {
 	return metricsProvider.GetContainerIDForInode(e.Inode, time.Second)
 }
 
 // generateContainerIDFromExternalData generates a container ID from the External Data.
-func (t *TaggerWrapper) generateContainerIDFromExternalData(e origindetection.ExternalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
+func (t *localTagger) generateContainerIDFromExternalData(e origindetection.ExternalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
 	return metricsProvider.ContainerIDForPodUIDAndContName(e.PodUID, e.ContainerName, e.Init, time.Second)
-}
-
-// ChecksCardinality defines the cardinality of tags we should send for check metrics
-// this can still be overridden when calling get_tags in python checks.
-func (t *TaggerWrapper) ChecksCardinality() types.TagCardinality {
-	return t.checksCardinality
 }
 
 // taggerCardinality converts tagger cardinality string to types.TagCardinality
@@ -454,9 +521,4 @@ func taggerCardinality(cardinality string,
 	}
 
 	return taggerCardinality
-}
-
-// Subscribe calls defaultTagger.Subscribe
-func (t *TaggerWrapper) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
-	return t.defaultTagger.Subscribe(subscriptionID, filter)
 }

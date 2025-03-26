@@ -18,12 +18,13 @@ import (
 	"net/url"
 	"strings"
 
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -67,14 +68,14 @@ func getLogsUseTCP() bool {
 }
 
 // Diagnose performs connectivity diagnosis
-func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
 	if err != nil {
-		return []diagnosis.Diagnosis{
+		return []diagnose.Diagnosis{
 			{
-				Result:      diagnosis.DiagnosisSuccess,
+				Status:      diagnose.DiagnosisSuccess,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
@@ -83,9 +84,10 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		}
 	}
 
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	numberOfWorkers := 1
+	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
@@ -93,8 +95,8 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		endpoints, err := getLogsEndpoints(useTCP)
 
 		if err != nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate agent configuration",
@@ -160,17 +162,17 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func createDiagnosis(name string, logURL string, report string, err error) diagnosis.Diagnosis {
-	d := diagnosis.Diagnosis{
+func createDiagnosis(name string, logURL string, report string, err error) diagnose.Diagnosis {
+	d := diagnose.Diagnosis{
 		Name: name,
 	}
 
 	if err == nil {
-		d.Result = diagnosis.DiagnosisSuccess
+		d.Status = diagnose.DiagnosisSuccess
 		diagnosisWithoutReport := fmt.Sprintf("Connectivity to `%s` is Ok", logURL)
 		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
 	} else {
-		d.Result = diagnosis.DiagnosisFail
+		d.Status = diagnose.DiagnosisFail
 		diagnosisWithoutReport := fmt.Sprintf("Connection to `%s` failed", logURL)
 		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
 		d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
@@ -230,7 +232,7 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 
 // vertifyEndpointResponse interprets the endpoint response and displays information on if the connectivity
 // check was successful or not
-func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBody []byte, err error) (string, error) {
+func verifyEndpointResponse(diagCfg diagnose.Config, statusCode int, responseBody []byte, err error) (string, error) {
 
 	if err != nil {
 		return fmt.Sprintf("Could not get a response from the endpoint : %v\n%s\n",

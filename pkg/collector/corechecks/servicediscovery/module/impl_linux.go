@@ -891,15 +891,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	service.ContainerID = id
-
-	// We checked the container tags before, no need to do it again.
-	if service.CheckedContainerData {
+	container, ok := containers[id]
+	if !ok {
 		return
 	}
 
-	container, ok := containers[id]
-	if !ok {
+	service.ContainerID = id
+	service.ContainerTags = container.Tags
+
+	// We checked the container tags before, no need to do it again.
+	if service.CheckedContainerData {
 		return
 	}
 

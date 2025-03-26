@@ -8,6 +8,7 @@ package eval
 
 import (
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -624,12 +625,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 	}
 
 	arrayOp := func(a []string, b *StringValues) bool {
-		for _, as := range a {
-			if b.Matches(as) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(a, b.Matches)
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -697,10 +693,8 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 
 	arrayOp := func(a []int, b []int) bool {
 		for _, va := range a {
-			for _, vb := range b {
-				if va == vb {
-					return true
-				}
+			if slices.Contains(b, va) {
+				return true
 			}
 		}
 		return false
@@ -776,12 +770,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 	}
 
 	arrayOp := func(a bool, b []bool) bool {
-		for _, v := range b {
-			if v == a {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(b, a)
 	}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
@@ -1037,6 +1026,73 @@ func CIDRArrayMatches(a *CIDRArrayEvaluator, b *CIDRValuesEvaluator, state *Stat
 		return values.Match(ipnets)
 	}
 	return cidrArrayMatches(a, b, state, op)
+}
+
+func cidrArrayMatchesCIDREvaluator(a *CIDRArrayEvaluator, b *CIDREvaluator, state *State, arrayOp func(a []net.IPNet, b net.IPNet) bool) (*BoolEvaluator, error) {
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:           arrayOp(ea, eb),
+			Weight:          b.Weight + a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+// CIDRArrayMatchesCIDREvaluator weak comparison, at least one element of a should be in b.
+func CIDRArrayMatchesCIDREvaluator(a *CIDRArrayEvaluator, b *CIDREvaluator, state *State) (*BoolEvaluator, error) {
+	op := func(values []net.IPNet, ipnet net.IPNet) bool {
+		for _, ip := range values {
+			if ip.Contains(ipnet.IP) {
+				return true
+			}
+		}
+		return false
+	}
+	return cidrArrayMatchesCIDREvaluator(a, b, state, op)
 }
 
 // CIDRArrayMatchesAll ensures that all values from a and b match.

@@ -334,14 +334,7 @@ notify_ebpf_complexity_changes:
               - fedora_38
             TEST_SET: no_usm
   before_script:
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    # TODO: Remove this override once the standard build image supports building system probe
-    - echo "libvirt-python; sys_platform == 'never'" >> /tmp/uv-overrides.txt
-    - export UV_OVERRIDE=/tmp/uv-overrides.txt
-    - python3 -m dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
+    - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
