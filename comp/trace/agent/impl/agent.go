@@ -143,6 +143,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
+		true,
 	)
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)

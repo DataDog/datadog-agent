@@ -634,7 +634,7 @@ func TestLexerNormalization(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
 	defer cancelFunc()
 	span := &pb.Span{
 		Resource: "SELECT * FROM [u].[users]",

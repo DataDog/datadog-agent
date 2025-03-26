@@ -127,7 +127,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AzureContainerAppTags = args.AzureContainerAppTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent(), false)
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
