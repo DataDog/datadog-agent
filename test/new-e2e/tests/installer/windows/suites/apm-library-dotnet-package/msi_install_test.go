@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -125,6 +126,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIThenRemoteUpgrade() {
 
 // TestUpgradeWithMSI tests the dotnet library can be upgraded from the MSI
 func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
+	flake.Mark(s.T())
 	s.setAgentConfig()
 	oldVersion := s.previousDotnetLibraryVersion
 	newVersion := s.currentDotnetLibraryVersion

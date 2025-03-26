@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -37,6 +38,7 @@ func TestLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
+	var at authtoken.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -53,19 +55,16 @@ func TestLifecycle(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		createandfetchimpl.Module(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Populate(&at),
 		secretsimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		url := fmt.Sprintf("https://localhost:%d/agent/status", port)
-		req, err := http.NewRequest("GET", url, nil)
+		client := util.GetClient()
+		_, err := util.DoGet(client, url, util.CloseConnection)
 		require.NoError(c, err)
-		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
-		res, err := util.GetClient().Do(req)
-		require.NoError(c, err)
-		defer res.Body.Close()
-		assert.Equal(c, http.StatusOK, res.StatusCode)
 	}, 5*time.Second, time.Second)
 }
 
@@ -74,6 +73,7 @@ func TestPostAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
+	var at authtoken.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -90,7 +90,8 @@ func TestPostAuthentication(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		createandfetchimpl.Module(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Populate(&at),
 		secretsimpl.MockModule(),
 	))
 
@@ -107,7 +108,9 @@ func TestPostAuthentication(t *testing.T) {
 		assert.Equal(c, http.StatusUnauthorized, res.StatusCode)
 
 		// With authentication
-		req.Header.Set("Authorization", "Bearer "+util.GetAuthToken())
+		token, err := at.Get()
+		require.NoError(c, err)
+		req.Header.Set("Authorization", "Bearer "+token)
 		log.Infof("Issuing authenticated test request to url: %s", url)
 		res, err = util.GetClient().Do(req)
 		require.NoError(c, err)
