@@ -530,10 +530,19 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	return result
 }
 
+func (t *Tracer) getCachedConntrack() *cachedConntrack {
+	newConntrack := netlink.NewConntrack
+	// if we already established that netlink conntracker is not supported, don't try again
+	if t.conntracker.GetType() == "" {
+		newConntrack = netlink.NewNoOpConntrack
+	}
+	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
+}
+
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
-	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
+	cachedConntrack := t.getCachedConntrack()
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()
