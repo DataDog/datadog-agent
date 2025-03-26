@@ -9,31 +9,31 @@
 package prebuilt
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	// DeprecatedKernelVersionRhel is the kernel version
 	// where prebuilt eBPF is deprecated on RHEL based kernels
-	DeprecatedKernelVersionRhel = version.FromCode(5, 14, 0)
+	DeprecatedKernelVersionRhel = kernelversion.FromCode(5, 14, 0)
 	// DeprecatedKernelVersion is the kernel version
 	// where prebuilt eBPF is deprecated on non-RHEL based kernels
-	DeprecatedKernelVersion = version.FromCode(6, 0, 0)
+	DeprecatedKernelVersion = kernelversion.FromCode(6, 0, 0)
 )
 
 // IsDeprecated returns true if prebuilt ebpf is deprecated
 // on this host
 func IsDeprecated() bool {
 	// has to be kernel 6+ or RHEL 9+ (kernel 5.14+)
-	family, err := version.Family()
+	family, err := kernelversion.Family()
 	if err != nil {
 		log.Warnf("could not determine OS family: %s", err)
 		return false
 	}
 
 	// check kernel version
-	kv, err := version.Host()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		log.Warnf("could not determine kernel version: %s", err)
 		return false
