@@ -9,10 +9,10 @@ package flare
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getDockerSelfInspect(_ option.Option[workloadmeta.Component]) ([]byte, error) {
+func getDockerSelfInspect(_ optional.Option[workloadmeta.Component]) ([]byte, error) {
 	return nil, nil
 }
 

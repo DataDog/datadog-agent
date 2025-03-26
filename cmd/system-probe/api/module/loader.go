@@ -13,12 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/gorilla/mux"
 )
 
 var l *loader
@@ -63,7 +62,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta option.Option[workloadmeta.Component]) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta optional.Option[workloadmeta.Component]) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -139,7 +138,7 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory, wmeta option.Option[workloadmeta.Component]) error {
+func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component]) error {
 	l.Lock()
 	defer l.Unlock()
 

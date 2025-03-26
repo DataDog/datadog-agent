@@ -7,15 +7,14 @@
 package collector
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // EventType represents the type of events emitted by the collector
 type EventType uint32
@@ -54,8 +53,8 @@ type Component interface {
 // the implementation to avoid linking with the implementation.
 func NoneModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func() option.Option[Component] {
-			return option.None[Component]()
+		fx.Provide(func() optional.Option[Component] {
+			return optional.NewNoneOption[Component]()
 		}),
 	)
 }

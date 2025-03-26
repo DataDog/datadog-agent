@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -175,8 +175,8 @@ func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []stri
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
 func newCheck() check.Check {

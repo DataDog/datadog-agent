@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {
