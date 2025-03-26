@@ -12,7 +12,9 @@ import (
 
 // AgentVersionManager provides Agent package information for a particular Agent version for the installer tests
 type AgentVersionManager struct {
-	// version should match Agent's version.AgentVersion field
+	// version should match Agent's `version` subcommand output field
+	// Example Agent: Agent 7.65.0-devel - Meta: git.579.0000ac2 - Commit: 0000ac28cd - Serialization version: v5.0.144 - Go version: go1.23.7
+	// Example Installer: 7.65.0-devel+git.579.0000ac2
 	version agentVersion.Version
 	// packageVersion should match Agent's version.AgentPackageVersion field
 	packageVersion string
@@ -36,7 +38,7 @@ func NewAgentVersionManager(versionStr, packageVersionStr string, ociPackage Tes
 
 // Version returns the Agent version as returned by the version command, e.g. 7.60.0
 //
-// this should match the Agent's version.AgentVersion field
+// this should match Agent's `version` subcommand output field
 //
 // Pipeline build example: 7.64.0-devel
 func (avm *AgentVersionManager) Version() string {
