@@ -44,7 +44,7 @@ func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName
 		options := &kubelet.StreamLogOptions{
 			Follow:     true,
 			Timestamps: true,
-			SinceTime:  since,
+			SinceTime:  &kubelet.Time{Time: since},
 		}
 		return client.StreamLogs(ctx, namespace, podName, containerName, options)
 	}
