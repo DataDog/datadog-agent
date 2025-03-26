@@ -12,6 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
-func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.GatewayLookup, uint32, error) {
+func createGatewayLookup(_ telemetryComponent.Component) (network.GatewayLookup, uint32, error) {
 	return nil, 0, nil
 }
