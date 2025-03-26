@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -156,7 +159,7 @@ func (ra *remoteAgentRegistry) start() {
 	go func() {
 		log.Info("Remote Agent registry started.")
 
-		ra.telemetry.RegisterCollector(NewRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
+		ra.telemetry.RegisterCollector(newRegistryCollector(&ra.agentMapMu, ra.agentMap, ra.getQueryTimeout()))
 
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -193,7 +196,7 @@ type registryCollector struct {
 	queryTimeout time.Duration
 }
 
-func NewRegistryCollector(agentMapMu *sync.Mutex, agentMap map[string]*remoteAgentDetails, queryTimeout time.Duration) prometheus.Collector {
+func newRegistryCollector(agentMapMu *sync.Mutex, agentMap map[string]*remoteAgentDetails, queryTimeout time.Duration) prometheus.Collector {
 	return &registryCollector{
 		agentMapMu:   agentMapMu,
 		agentMap:     agentMap,
@@ -208,7 +211,7 @@ func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
 	c.getRegisteredAgentsTelemetry(ch)
 }
 
-func (c *registryCollector) getRegisteredAgentsTelemetry(_ chan<- prometheus.Metric) {
+func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Metric) {
 	c.agentMapMu.Lock()
 
 	agentsLen := len(c.agentMap)
@@ -226,13 +229,14 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(_ chan<- prometheus.Met
 
 	for agentID, details := range c.agentMap {
 		go func() {
-			// Retrieve the telemetry data in exposition format from the remote agent
 			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
 			if err != nil {
 				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
 				return
 			}
-			// TODO: parse the response and add the metrics to the channel
+			if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
+				collectFromPromText(ch, promText.PromText)
+			}
 			data <- resp
 		}()
 	}
@@ -245,7 +249,7 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(_ chan<- prometheus.Met
 collect:
 	for {
 		select {
-		case _ = <-data:
+		case <-data:
 			responsesRemaining--
 		case <-timeout:
 			break collect
@@ -256,6 +260,48 @@ collect:
 		}
 	}
 
+}
+
+// Retrieve the telemetry data in exposition format from the remote agent
+func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
+	var parser expfmt.TextParser
+	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
+	if err != nil {
+		log.Warnf("Failed to parse prometheus text: %v", err)
+		return
+	}
+	for _, mf := range metricFamilies {
+		help := ""
+		if mf.Help != nil {
+			help = *mf.Help
+		}
+		for _, metric := range mf.Metric {
+			labelNames := make([]string, 0, len(metric.Label))
+			for _, label := range metric.Label {
+				labelNames = append(labelNames, *label.Name)
+			}
+			labelValues := make([]string, 0, len(metric.Label))
+			for _, label := range metric.Label {
+				labelValues = append(labelValues, *label.Value)
+			}
+			switch *mf.Type {
+			case dto.MetricType_COUNTER:
+				ch <- prometheus.MustNewConstMetric(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					prometheus.CounterValue,
+					*metric.Counter.Value,
+					labelValues...,
+				)
+			case dto.MetricType_GAUGE:
+				ch <- prometheus.MustNewConstMetric(
+					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
+					prometheus.GaugeValue,
+					*metric.Gauge.Value,
+					labelValues...,
+				)
+			}
+		}
+	}
 }
 
 func (ra *remoteAgentRegistry) getQueryTimeout() time.Duration {

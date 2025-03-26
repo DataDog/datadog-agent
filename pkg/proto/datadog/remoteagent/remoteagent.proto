@@ -76,8 +76,17 @@ message GetFlareFilesResponse {
 message GetTelemetryRequest {}
 
 message GetTelemetryResponse {
-  // Text based metrics in Prometheus exposition format.
-  //
-  // This needs to be parsed into the appropriate metrics.
-  string telemetry = 1;
+  // Telemetry payload.
+  oneof payload {
+    // Prometheus "text" exposition format.
+    string prom_text = 1;
+
+    // In the future, we then might add:
+    // bytes prom_protobuf = 2;
+    //
+    // or potentially utilize the native Protocol Buffers definition:
+    // io.prometheus.write.v2.Request prom_protobuf = 2;
+    //
+    // and so on...
+  }
 }

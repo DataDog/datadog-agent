@@ -61,6 +61,20 @@ func (s *remoteAgentServer) GetFlareFiles(_ context.Context, req *pbcore.GetFlar
 	}, nil
 }
 
+func (s *remoteAgentServer) GetTelemetry(_ context.Context, req *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
+	log.Printf("Got request for telemetry: %v", req)
+
+	var prometheusText = `
+# TYPE remote_agent_test_telemetry counter
+remote_agent_test_telemetry 62
+`
+	return &pbcore.GetTelemetryResponse{
+		Payload: &pbcore.GetTelemetryResponse_PromText{
+			PromText: prometheusText,
+		},
+	}, nil
+}
+
 func newRemoteAgentServer() *remoteAgentServer {
 	return &remoteAgentServer{
 		started: time.Now(),
