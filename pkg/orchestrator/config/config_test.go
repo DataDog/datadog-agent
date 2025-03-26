@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator && test
+
 package config
 
 import (
@@ -13,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -124,11 +127,13 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
+	taggerMock.SetGlobalTags([]string{"env:prod"}, nil, nil, nil)
 	ddOrchestratorURL := "DD_ORCHESTRATOR_URL"
 	expectedValue := "123.datadoghq.com"
 	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -141,6 +146,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 	err = orchestratorCfg.Load()
 	suite.NoError(err)
 
+	suite.Equal([]string{"env:prod"}, orchestratorCfg.ExtraTags)
 	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
 }
 
@@ -180,11 +186,12 @@ func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedValue := "50"
 	suite.T().Setenv(ddMaxMessage, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -194,12 +201,13 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
 	expectedDefaultValue := 100
 
 	suite.T().Setenv(ddMaxMessage, "150")
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -207,11 +215,12 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
 	expectedValue := "token consul"
 	suite.T().Setenv(ddSensitiveWords, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -221,11 +230,12 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	ddSensitiveAnnotationsLabels := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS"
 	expectedValue := "my-sensitive-annotation my-sensitive-label"
 	suite.T().Setenv(ddSensitiveAnnotationsLabels, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -235,7 +245,8 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
 }
 
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -256,9 +267,10 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -279,9 +291,10 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
+	taggerMock := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(taggerMock)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
