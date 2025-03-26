@@ -13,7 +13,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,22 +78,22 @@ func (tm *CompilationTelemetry) SubmitTelemetry(filename string) {
 		return
 	}
 
-	platform, err := ebpfutil.Platform()
+	platform, err := kernelversion.Platform()
 	if err != nil {
 		log.Warnf("failed to retrieve host platform information: %s", err)
 		return
 	}
-	platformVersion, err := ebpfutil.PlatformVersion()
+	platformVersion, err := kernelversion.PlatformVersion()
 	if err != nil {
 		log.Warnf("failed to get platform version: %s", err)
 		return
 	}
-	kernelVersion, err := ebpfutil.Release()
+	kernelVersion, err := kernelversion.Release()
 	if err != nil {
 		log.Warnf("failed to get kernel version: %s", err)
 		return
 	}
-	arch, err := ebpfutil.Machine()
+	arch, err := kernelversion.Machine()
 	if err != nil {
 		log.Warnf("failed to get kernel architecture: %s", err)
 		return

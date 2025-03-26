@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,7 +43,7 @@ import (
 // 5.5 for security_perf_event_open
 // 5.0 required for /proc/kallsyms BTF program full names
 // 4.15 required for map names from kernel
-var minimumKernelVersion = ebpfutil.VersionCode(5, 5, 0)
+var minimumKernelVersion = kernelversion.VersionCode(5, 5, 0)
 
 const maxMapsTracked = 20
 
@@ -65,7 +65,7 @@ type Probe struct {
 
 // NewProbe creates a [Probe]
 func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
 	}
@@ -133,11 +133,11 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 
 	// `security_bpf_map_alloc` was renamed to `security_bpf_map_create`
 	// in this commit: https://github.com/torvalds/linux/commit/a2431c7eabcf9bd5a1e7a1f7ecded40fdda4a8c5
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kernel version: %s", err)
 	}
-	if kv >= ebpfutil.VersionCode(6, 9, 0) {
+	if kv >= kernelversion.VersionCode(6, 9, 0) {
 		delete(collSpec.Programs, "k_map_alloc")
 	} else {
 		delete(collSpec.Programs, "k_map_create")

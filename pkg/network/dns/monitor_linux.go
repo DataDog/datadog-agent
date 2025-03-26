@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,13 +52,13 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 		return nil, err
 	}
 
-	currKernelVersion, err := ebpfutil.HostVersion()
+	currKernelVersion, err := kernelversion.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 		currKernelVersion = math.MaxUint32
 	}
-	pre410Kernel := currKernelVersion < ebpfutil.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < kernelversion.VersionCode(4, 1, 0)
 
 	var p *ebpfProgram
 	if pre410Kernel || cfg.EnableEbpfless {

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,7 +26,7 @@ import (
 // We used to only check for kv < 6.5.0 here - however, OpenSUSE 15.6 backported
 // this change into 6.4.0 to pick up a CVE so the version number is not reliable.
 // Instead, we directly check if the function exists.
-func HasTCPSendPage(kv ebpfutil.Version) bool {
+func HasTCPSendPage(kv kernelversion.Version) bool {
 	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
 	if err == nil {
 		return len(missing) == 0
@@ -34,7 +34,7 @@ func HasTCPSendPage(kv ebpfutil.Version) bool {
 
 	log.Debugf("unable to determine whether tcp_sendpage exists, using kernel version instead: %s", err)
 
-	kv650 := ebpfutil.VersionCode(6, 5, 0)
+	kv650 := kernelversion.VersionCode(6, 5, 0)
 	return kv < kv650
 }
 
@@ -47,13 +47,13 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 
-	kv410 := ebpfutil.VersionCode(4, 1, 0)
-	kv470 := ebpfutil.VersionCode(4, 7, 0)
-	kv4180 := ebpfutil.VersionCode(4, 18, 0)
-	kv5180 := ebpfutil.VersionCode(5, 18, 0)
-	kv5190 := ebpfutil.VersionCode(5, 19, 0)
+	kv410 := kernelversion.VersionCode(4, 1, 0)
+	kv470 := kernelversion.VersionCode(4, 7, 0)
+	kv4180 := kernelversion.VersionCode(4, 18, 0)
+	kv5180 := kernelversion.VersionCode(5, 18, 0)
+	kv5190 := kernelversion.VersionCode(5, 19, 0)
 
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
 	return nil
 }
 
-func selectVersionBasedProbe(runtimeTracer bool, kv ebpfutil.Version, dfault probes.ProbeFuncName, versioned probes.ProbeFuncName, reqVer ebpfutil.Version) probes.ProbeFuncName {
+func selectVersionBasedProbe(runtimeTracer bool, kv kernelversion.Version, dfault probes.ProbeFuncName, versioned probes.ProbeFuncName, reqVer kernelversion.Version) probes.ProbeFuncName {
 	if runtimeTracer {
 		return dfault
 	}

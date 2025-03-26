@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -264,7 +264,7 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	if err != nil {
 		return nil, err
 	}
-	kernelVersion, err := ebpfutil.Release()
+	kernelVersion, err := kernelversion.Release()
 	if err != nil {
 		return nil, fmt.Errorf("kernel release: %s", err)
 	}
@@ -307,11 +307,11 @@ func (b *orderedBTFLoader) embeddedPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("BTF platform: %s", err)
 	}
-	platformVersion, err := ebpfutil.PlatformVersion()
+	platformVersion, err := kernelversion.PlatformVersion()
 	if err != nil {
 		return "", fmt.Errorf("platform version: %s", err)
 	}
-	kernelVersion, err := ebpfutil.Release()
+	kernelVersion, err := kernelversion.Release()
 	if err != nil {
 		return "", fmt.Errorf("kernel release: %s", err)
 	}
@@ -433,7 +433,7 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 }
 
 var getBTFPlatform = funcs.Memoize(func() (btfPlatform, error) {
-	platform, err := ebpfutil.Platform()
+	platform, err := kernelversion.Platform()
 	if err != nil {
 		return "", fmt.Errorf("kernel platform: %s", err)
 	}

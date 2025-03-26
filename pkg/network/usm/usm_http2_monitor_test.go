@@ -46,7 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 type pathType uint8
@@ -86,7 +86,7 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 }
 
 func skipIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := ebpfutil.HostVersion()
+	currKernelVersion, err := kernelversion.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)

@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -127,14 +127,14 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := ebpfutil.HostVersion()
+	currKernelVersion, err := kernelversion.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the kernel version, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
-	pre410Kernel := currKernelVersion < ebpfutil.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < kernelversion.VersionCode(4, 1, 0)
 	if pre410Kernel {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
@@ -466,7 +466,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
-	conns.KernelHeaderFetchResult = int32(ebpfutil.HeaderProvider.GetResult())
+	conns.KernelHeaderFetchResult = int32(kernelversion.HeaderProvider.GetResult())
 	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())

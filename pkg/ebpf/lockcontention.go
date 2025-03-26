@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cilium/ebpf"
@@ -141,12 +141,12 @@ func lockContentionCollectorSupported() bool {
 	}
 
 	var platform, version string
-	platform, err = ebpfutil.Platform()
+	platform, err = kernelversion.Platform()
 	if err != nil {
 		return false
 	}
 
-	version, err = ebpfutil.PlatformVersion()
+	version, err = kernelversion.PlatformVersion()
 	if err != nil {
 		return false
 	}

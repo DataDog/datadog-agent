@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,7 +47,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		a.tm.SubmitTelemetry(a.filename)
 	}()
 
-	opts := ebpfutil.HeaderOptions{
+	opts := kernelversion.HeaderOptions{
 		DownloadEnabled: config.EnableKernelHeaderDownload,
 		Dirs:            config.KernelHeadersDirs,
 		DownloadDir:     config.KernelHeadersDownloadDir,
@@ -55,7 +55,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		YumReposDir:     config.YumReposDir,
 		ZypperReposDir:  config.ZypperReposDir,
 	}
-	kernelHeaders := ebpfutil.GetKernelHeaders(opts)
+	kernelHeaders := kernelversion.GetKernelHeaders(opts)
 	if len(kernelHeaders) == 0 {
 		a.tm.compilationResult = headerFetchErr
 		return nil, errors.New("unable to find kernel headers")

@@ -25,97 +25,97 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
-	Kernel4_9 = ebpfutil.VersionCode(4, 9, 0)
+	Kernel4_9 = kernelversion.VersionCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
-	Kernel4_10 = ebpfutil.VersionCode(4, 10, 0)
+	Kernel4_10 = kernelversion.VersionCode(4, 10, 0)
 	// Kernel4_12 is the KernelVersion representation of kernel version 4.12
-	Kernel4_12 = ebpfutil.VersionCode(4, 12, 0)
+	Kernel4_12 = kernelversion.VersionCode(4, 12, 0)
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
-	Kernel4_13 = ebpfutil.VersionCode(4, 13, 0)
+	Kernel4_13 = kernelversion.VersionCode(4, 13, 0)
 	// Kernel4_14 is the KernelVersion representation of kernel version 4.14
-	Kernel4_14 = ebpfutil.VersionCode(4, 14, 0)
+	Kernel4_14 = kernelversion.VersionCode(4, 14, 0)
 	// Kernel4_15 is the KernelVersion representation of kernel version 4.15
-	Kernel4_15 = ebpfutil.VersionCode(4, 15, 0)
+	Kernel4_15 = kernelversion.VersionCode(4, 15, 0)
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
-	Kernel4_16 = ebpfutil.VersionCode(4, 16, 0)
+	Kernel4_16 = kernelversion.VersionCode(4, 16, 0)
 	// Kernel4_18 is the KernelVersion representation of kernel version 4.18
-	Kernel4_18 = ebpfutil.VersionCode(4, 18, 0)
+	Kernel4_18 = kernelversion.VersionCode(4, 18, 0)
 	// Kernel4_19 is the KernelVersion representation of kernel version 4.19
-	Kernel4_19 = ebpfutil.VersionCode(4, 19, 0)
+	Kernel4_19 = kernelversion.VersionCode(4, 19, 0)
 	// Kernel4_20 is the KernelVersion representation of kernel version 4.20
-	Kernel4_20 = ebpfutil.VersionCode(4, 20, 0)
+	Kernel4_20 = kernelversion.VersionCode(4, 20, 0)
 	// Kernel5_0 is the KernelVersion representation of kernel version 5.0
-	Kernel5_0 = ebpfutil.VersionCode(5, 0, 0)
+	Kernel5_0 = kernelversion.VersionCode(5, 0, 0)
 	// Kernel5_1 is the KernelVersion representation of kernel version 5.1
-	Kernel5_1 = ebpfutil.VersionCode(5, 1, 0)
+	Kernel5_1 = kernelversion.VersionCode(5, 1, 0)
 	// Kernel5_2 is the KernelVersion representation of kernel version 5.2
-	Kernel5_2 = ebpfutil.VersionCode(5, 2, 0)
+	Kernel5_2 = kernelversion.VersionCode(5, 2, 0)
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
-	Kernel5_3 = ebpfutil.VersionCode(5, 3, 0)
+	Kernel5_3 = kernelversion.VersionCode(5, 3, 0)
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
-	Kernel5_4 = ebpfutil.VersionCode(5, 4, 0)
+	Kernel5_4 = kernelversion.VersionCode(5, 4, 0)
 	// Kernel5_5 is the KernelVersion representation of kernel version 5.5
-	Kernel5_5 = ebpfutil.VersionCode(5, 5, 0)
+	Kernel5_5 = kernelversion.VersionCode(5, 5, 0)
 	// Kernel5_6 is the KernelVersion representation of kernel version 5.6
-	Kernel5_6 = ebpfutil.VersionCode(5, 6, 0)
+	Kernel5_6 = kernelversion.VersionCode(5, 6, 0)
 	// Kernel5_7 is the KernelVersion representation of kernel version 5.7
-	Kernel5_7 = ebpfutil.VersionCode(5, 7, 0)
+	Kernel5_7 = kernelversion.VersionCode(5, 7, 0)
 	// Kernel5_8 is the KernelVersion representation of kernel version 5.8
-	Kernel5_8 = ebpfutil.VersionCode(5, 8, 0)
+	Kernel5_8 = kernelversion.VersionCode(5, 8, 0)
 	// Kernel5_9 is the KernelVersion representation of kernel version 5.9
-	Kernel5_9 = ebpfutil.VersionCode(5, 9, 0)
+	Kernel5_9 = kernelversion.VersionCode(5, 9, 0)
 	// Kernel5_10 is the KernelVersion representation of kernel version 5.10
-	Kernel5_10 = ebpfutil.VersionCode(5, 10, 0)
+	Kernel5_10 = kernelversion.VersionCode(5, 10, 0)
 	// Kernel5_11 is the KernelVersion representation of kernel version 5.11
-	Kernel5_11 = ebpfutil.VersionCode(5, 11, 0)
+	Kernel5_11 = kernelversion.VersionCode(5, 11, 0)
 	// Kernel5_12 is the KernelVersion representation of kernel version 5.12
-	Kernel5_12 = ebpfutil.VersionCode(5, 12, 0)
+	Kernel5_12 = kernelversion.VersionCode(5, 12, 0)
 	// Kernel5_13 is the KernelVersion representation of kernel version 5.13
-	Kernel5_13 = ebpfutil.VersionCode(5, 13, 0)
+	Kernel5_13 = kernelversion.VersionCode(5, 13, 0)
 	// Kernel5_14 is the KernelVersion representation of kernel version 5.14
-	Kernel5_14 = ebpfutil.VersionCode(5, 14, 0)
+	Kernel5_14 = kernelversion.VersionCode(5, 14, 0)
 	// Kernel5_15 is the KernelVersion representation of kernel version 5.15
-	Kernel5_15 = ebpfutil.VersionCode(5, 15, 0)
+	Kernel5_15 = kernelversion.VersionCode(5, 15, 0)
 	// Kernel5_16 is the KernelVersion representation of kernel version 5.16
-	Kernel5_16 = ebpfutil.VersionCode(5, 16, 0)
+	Kernel5_16 = kernelversion.VersionCode(5, 16, 0)
 	// Kernel5_17 is the KernelVersion representation of kernel version 5.17
-	Kernel5_17 = ebpfutil.VersionCode(5, 17, 0)
+	Kernel5_17 = kernelversion.VersionCode(5, 17, 0)
 	// Kernel5_18 is the KernelVersion representation of kernel version 5.18
-	Kernel5_18 = ebpfutil.VersionCode(5, 18, 0)
+	Kernel5_18 = kernelversion.VersionCode(5, 18, 0)
 	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
-	Kernel5_19 = ebpfutil.VersionCode(5, 19, 0)
+	Kernel5_19 = kernelversion.VersionCode(5, 19, 0)
 	// Kernel6_0 is the KernelVersion representation of kernel version 6.0
-	Kernel6_0 = ebpfutil.VersionCode(6, 0, 0)
+	Kernel6_0 = kernelversion.VersionCode(6, 0, 0)
 	// Kernel6_1 is the KernelVersion representation of kernel version 6.1
-	Kernel6_1 = ebpfutil.VersionCode(6, 1, 0)
+	Kernel6_1 = kernelversion.VersionCode(6, 1, 0)
 	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
-	Kernel6_2 = ebpfutil.VersionCode(6, 2, 0)
+	Kernel6_2 = kernelversion.VersionCode(6, 2, 0)
 	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
-	Kernel6_3 = ebpfutil.VersionCode(6, 3, 0)
+	Kernel6_3 = kernelversion.VersionCode(6, 3, 0)
 	// Kernel6_5 is the KernelVersion representation of kernel version 6.5
-	Kernel6_5 = ebpfutil.VersionCode(6, 5, 0)
+	Kernel6_5 = kernelversion.VersionCode(6, 5, 0)
 	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
-	Kernel6_6 = ebpfutil.VersionCode(6, 6, 0)
+	Kernel6_6 = kernelversion.VersionCode(6, 6, 0)
 	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
-	Kernel6_7 = ebpfutil.VersionCode(6, 7, 0)
+	Kernel6_7 = kernelversion.VersionCode(6, 7, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
-	Kernel6_10 = ebpfutil.VersionCode(6, 10, 0)
+	Kernel6_10 = kernelversion.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
-	Kernel6_11 = ebpfutil.VersionCode(6, 11, 0)
+	Kernel6_11 = kernelversion.VersionCode(6, 11, 0)
 )
 
 // Version defines a kernel version helper
 type Version struct {
 	OsRelease     map[string]string
 	OsReleasePath string
-	Code          ebpfutil.Version
+	Code          kernelversion.Version
 	UnameRelease  string
 }
 
@@ -184,12 +184,12 @@ func newKernelVersion() (*Version, error) {
 	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
 	osReleasePaths = append(osReleasePaths, lsbRelease)
 
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}
 
-	unameRelease, err := ebpfutil.Release()
+	unameRelease, err := kernelversion.Release()
 	if err != nil {
 		return nil, err
 	}
@@ -221,12 +221,12 @@ func (k *Version) IsUbuntuKernel() bool {
 }
 
 // UbuntuKernelVersion returns a parsed ubuntu kernel version or nil if not on ubuntu or if parsing failed
-func (k *Version) UbuntuKernelVersion() *ebpfutil.UbuntuKernelVersion {
+func (k *Version) UbuntuKernelVersion() *kernelversion.UbuntuKernelVersion {
 	if k.OsRelease["ID"] != "ubuntu" {
 		return nil
 	}
 
-	ukv, err := ebpfutil.NewUbuntuKernelVersion(k.UnameRelease)
+	ukv, err := kernelversion.NewUbuntuKernelVersion(k.UnameRelease)
 	if err != nil {
 		return nil
 	}
@@ -315,7 +315,7 @@ func (k *Version) IsAmazonLinux2023Kernel() bool {
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
-func (k *Version) IsInRangeCloseOpen(begin ebpfutil.Version, end ebpfutil.Version) bool {
+func (k *Version) IsInRangeCloseOpen(begin kernelversion.Version, end kernelversion.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 

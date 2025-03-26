@@ -10,20 +10,20 @@ package config
 import (
 	"fmt"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 // MinimumKernelVersion indicates the minimum kernel version required for GPU monitoring
-var MinimumKernelVersion ebpfutil.Version
+var MinimumKernelVersion kernelversion.Version
 
 func init() {
 	// we rely on ring buffer support for GPU monitoring, hence the minimal kernel version is 5.8.0
-	MinimumKernelVersion = ebpfutil.VersionCode(5, 8, 0)
+	MinimumKernelVersion = kernelversion.VersionCode(5, 8, 0)
 }
 
 // CheckGPUSupported checks if the host's kernel supports GPU monitoring
 func CheckGPUSupported() error {
-	kversion, err := ebpfutil.HostVersion()
+	kversion, err := kernelversion.HostVersion()
 	if err != nil {
 		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
 	}

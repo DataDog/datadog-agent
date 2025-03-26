@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,11 +28,11 @@ import (
 // this ensures that a newline is added. In newer ones it would mean that two newlines are
 // added, so this patcher removes that newline in those cases.
 func patchPrintkNewline(m *manager.Manager) error {
-	kernelVersion, err := ebpfutil.HostVersion()
+	kernelVersion, err := kernelversion.HostVersion()
 	if err != nil {
 		return err // can't detect kernel version, don't patch
 	}
-	if kernelVersion < ebpfutil.VersionCode(5, 9, 0) {
+	if kernelVersion < kernelversion.VersionCode(5, 9, 0) {
 		return nil // Do nothing in older kernels
 	}
 
