@@ -330,7 +330,7 @@ type wlanInfo struct {
 func formatSSID(dot11Ssid DOT11_SSID) string {
 	ssidLen := dot11Ssid.USSIDLength
 	if ssidLen == 0 {
-		return "Unknown"
+		return ""
 	}
 
 	return string(dot11Ssid.UcSSID[:ssidLen])
@@ -342,13 +342,13 @@ func formatMacAddress(mac []byte) string {
 	} else if len(mac) >= 8 {
 		return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mac[6], mac[7])
 	} else {
-		return "Unknown"
+		return ""
 	}
 }
 
 func formatPhy(phy DOT11_PHY_TYPE) string {
 	// PHY type
-	phyStr := "Unknown"
+	phyStr := ""
 	switch phy {
 	case dot11PhyTypeAny:
 		phyStr = "Any"
@@ -380,7 +380,7 @@ func formatPhy(phy DOT11_PHY_TYPE) string {
 }
 
 func formatAuthAlgo(authAlgo DOT11_AUTH_ALGORITHM) string {
-	authAlgoStr := "Unknown"
+	authAlgoStr := ""
 	switch authAlgo {
 	case DOT11_AUTH_ALGO_80211_OPEN:
 		authAlgoStr = "802.11 Open"
