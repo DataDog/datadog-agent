@@ -11,6 +11,7 @@ package runtime
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -586,6 +587,29 @@ func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component)
 	}
 
 	return nil
+}
+
+func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
+	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
+	if len(msg.GetMetadata().GetContainerID()) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
+	}
+	if len(msg.GetMetadata().GetCGroupID()) > 0 {
+		fmt.Printf("%s  cgroup ID: %s\n", prefix, msg.GetMetadata().GetCGroupID())
+	}
+	if len(msg.GetTags()) > 0 {
+		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
+	}
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	printActivityTreeStats(prefix, msg.GetStats())
+	if len(msg.GetStorage()) > 0 {
+		fmt.Printf("%s  storage:\n", prefix)
+		for _, storage := range msg.GetStorage() {
+			printStorageRequestMessage(prefix+"\t", storage)
+		}
+	}
 }
 
 func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageRequestParams, error) {
