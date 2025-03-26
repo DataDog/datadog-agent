@@ -492,7 +492,6 @@
 /pkg/util/encoding/                     @DataDog/ebpf-platform
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
-/pkg/util/ebpf/                         @DataDog/ebpf-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
 /pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/slices/                       @DataDog/ebpf-platform
