@@ -30,7 +30,7 @@ func TestDownloadCommand(t *testing.T) {
 	}{
 		{
 			name:     "runtime download",
-			cliInput: []string{"download"},
+			cliInput: []string{"runtime", "policy", "download"},
 			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, "SYS-PROBE", params.LoggerName(), "logger name not matching")
@@ -41,12 +41,22 @@ func TestDownloadCommand(t *testing.T) {
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			[]*cobra.Command{DownloadPolicyCommand(&command.GlobalParams{})},
+			[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{}))},
 			test.cliInput,
 			downloadPolicy,
 			test.check,
 		)
 	}
+}
+
+func testRuntimeCommand(subcommand *cobra.Command) *cobra.Command {
+	runtimeCmd := &cobra.Command{
+		Use:   "runtime",
+		Short: "Runtime Security Agent (CWS) utility commands",
+	}
+
+	runtimeCmd.AddCommand(subcommand)
+	return runtimeCmd
 }
 
 func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {

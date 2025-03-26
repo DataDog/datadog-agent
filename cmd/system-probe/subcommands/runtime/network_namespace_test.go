@@ -19,6 +19,6 @@ func TestDumpNetworkNamespaceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "network-namespace", "dump"},
-		dumpNetworkNamespace,
+		DumpNetworkNamespace,
 		func() {})
 }

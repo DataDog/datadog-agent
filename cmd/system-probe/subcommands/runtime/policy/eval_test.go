@@ -19,8 +19,8 @@ import (
 
 func TestEvalCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{EvalCommand(&command.GlobalParams{})},
+		[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{}))},
 		[]string{"runtime", "policy", "eval", "--rule-id=10", "--event-file=file"},
-		evalRule,
+		EvaluateRule,
 		func() {})
 }

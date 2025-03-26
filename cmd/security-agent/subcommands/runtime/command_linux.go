@@ -8,56 +8,43 @@
 package runtime
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	sysprobecmd "github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
 
 // Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
-		Short: "runtime Agent utility commands",
+		Short: "Runtime Security Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
-	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
-	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
-	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
-	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
-	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
-	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+	confFilePath := ""
+	if len(globalParams.ConfigFilePaths) != 0 {
+		confFilePath = globalParams.ConfigFilePaths[0]
+	}
+
+	sysprobeGlobalParams := &sysprobecmd.GlobalParams{
+		ConfFilePath:         confFilePath,
+		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+	}
+
+	runtimeCmd.AddCommand(policy.Command(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.SelfTestCommand(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.ActivityDumpCommand(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.SecurityProfileCommand(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.ProcessCacheCommand(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.NetworkNamespaceCommand(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.DiscardersCommand(sysprobeGlobalParams))
 
 	// Deprecated
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(
+		deprecateCommand(checkPoliciesCommands(globalParams), "please use `system-probe runtime policy check` instead"),
+		deprecateCommand(reloadPoliciesCommands(globalParams), "please use `system-probe runtime policy reload` instead"))
 
 	return []*cobra.Command{runtimeCmd}
-}
-
-func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
-	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
-	if len(msg.GetMetadata().GetContainerID()) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
-	}
-	if len(msg.GetMetadata().GetCGroupID()) > 0 {
-		fmt.Printf("%s  cgroup ID: %s\n", prefix, msg.GetMetadata().GetCGroupID())
-	}
-	if len(msg.GetTags()) > 0 {
-		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
-	}
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
-	printActivityTreeStats(prefix, msg.GetStats())
-	if len(msg.GetStorage()) > 0 {
-		fmt.Printf("%s  storage:\n", prefix)
-		for _, storage := range msg.GetStorage() {
-			printStorageRequestMessage(prefix+"\t", storage)
-		}
-	}
 }

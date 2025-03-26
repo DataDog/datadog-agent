@@ -18,6 +18,6 @@ func TestRunRuntimeSelfTestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "self-test"},
-		runRuntimeSelfTest,
+		RunRuntimeSelfTest,
 		func() {})
 }

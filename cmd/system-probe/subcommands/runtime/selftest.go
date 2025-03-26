@@ -21,12 +21,13 @@ import (
 	"go.uber.org/fx"
 )
 
-func selfTestCommand(_ *command.GlobalParams) *cobra.Command {
+// SelfTestCommand returns the CLI command for "runtime self-test"
+func SelfTestCommand(_ *command.GlobalParams) *cobra.Command {
 	return &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(runRuntimeSelfTest,
+			return fxutil.OneShot(RunRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
@@ -37,7 +38,8 @@ func selfTestCommand(_ *command.GlobalParams) *cobra.Command {
 	}
 }
 
-func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
+// RunRuntimeSelfTest runs the runtime self test
+func RunRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

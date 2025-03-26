@@ -54,7 +54,7 @@ func EvalCommand(globalParams *command.GlobalParams) *cobra.Command {
 		Use:   "eval",
 		Short: "Evaluate given event data against the give rule",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(evalRule,
+			return fxutil.OneShot(EvaluateRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -176,7 +176,8 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
+// EvaluateRule evaluates a rule
+func EvaluateRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
 	policiesDir := evalArgs.dir
 
 	// enabled all the rules

@@ -22,12 +22,13 @@ import (
 	"go.uber.org/fx"
 )
 
-func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
+// DiscardersCommand returns the CLI command for "runtime discarders"
+func DiscardersCommand(_ *command.GlobalParams) *cobra.Command {
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpDiscarders,
+			return fxutil.OneShot(DumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
@@ -43,10 +44,11 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 	}
 	discardersCmd.AddCommand(dumpDiscardersCmd)
 
-	return []*cobra.Command{discardersCmd}
+	return discardersCmd
 }
 
-func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
+// DumpDiscarders dumps the discarders
+func DumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -54,7 +56,6 @@ func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) er
 	defer runtimeSecurityClient.Close()
 
 	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
-
 	if dumpErr != nil {
 		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
 
 // Commands returns the config commands
@@ -20,13 +21,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Runtime Security Agent (CWS) utility commands",
 	}
 
-	runtimeCmd.AddCommand(policyCommand(globalParams))
-	runtimeCmd.AddCommand(selfTestCommand(globalParams))
-	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
-	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
-	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
-	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
-	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+	runtimeCmd.AddCommand(policy.Command(globalParams))
+	runtimeCmd.AddCommand(SelfTestCommand(globalParams))
+	runtimeCmd.AddCommand(ActivityDumpCommand(globalParams))
+	runtimeCmd.AddCommand(SecurityProfileCommand(globalParams))
+	runtimeCmd.AddCommand(ProcessCacheCommand(globalParams))
+	runtimeCmd.AddCommand(NetworkNamespaceCommand(globalParams))
+	runtimeCmd.AddCommand(DiscardersCommand(globalParams))
 
 	return []*cobra.Command{runtimeCmd}
 }

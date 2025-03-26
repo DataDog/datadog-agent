@@ -49,7 +49,8 @@ type activityDumpCliParams struct {
 	remoteStorageCompression bool
 }
 
-func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// ActivityDumpCommand returns the CLI command for "runtime activity-dump"
+func ActivityDumpCommand(globalParams *command.GlobalParams) *cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
@@ -59,7 +60,8 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
-	return []*cobra.Command{activityDumpCmd}
+
+	return activityDumpCmd
 }
 
 func listCommands(_ *command.GlobalParams) []*cobra.Command {

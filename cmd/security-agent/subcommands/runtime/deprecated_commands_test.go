@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,7 +19,7 @@ func TestCheckPoliciesDeprecatedCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "check-policies"},
-		checkPolicies,
+		policy.CheckPolicies,
 		func() {})
 }
 
@@ -26,6 +27,6 @@ func TestReloadRuntimePoliciesDeprecatedCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "reload"},
-		reloadRuntimePolicies,
+		policy.ReloadRuntimePolicies,
 		func() {})
 }

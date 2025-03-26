@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
 
 // Commands exports commands
@@ -20,8 +21,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "runtime Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(policyCommand(globalParams))
-	runtimeCmd.AddCommand(selfTestCommand(globalParams))
+	runtimeCmd.AddCommand(policy.Command(globalParams))
+	runtimeCmd.AddCommand(SelfTestCommand(globalParams))
+
 	/*
 		runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 		runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
