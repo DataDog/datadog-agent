@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package kernel
+// Package netns provides utility functions for network ns handling on linux platform.
+package netns
 
 import (
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,7 +73,7 @@ func WithNS(ns netns.NsHandle, fn func() error) error {
 func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	var nss []netns.NsHandle
 	seen := make(map[string]interface{})
-	err := WithAllProcs(procRoot, func(pid int) error {
+	err := kernel.WithAllProcs(procRoot, func(pid int) error {
 		ns, err := netns.GetFromPath(path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)))
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, unix.ENOENT) {
