@@ -110,7 +110,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 }
 
 func BenchmarkConsumer(b *testing.B) {
-	events := testutil.GetGPUTestEvents(b, "pytorch_batched_kernels.ndjson")
+	events := testutil.GetGPUTestEvents(b, testutil.DataSamplePytorchBatchedKernels)
 	for _, fatbinParsingEnabled := range []bool{true, false} {
 		name := "fatbinParsingDisabled"
 		if fatbinParsingEnabled {
