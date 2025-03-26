@@ -31,6 +31,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        DDA_NO_DYNAMIC_DEPTH: "1"
+        DDA_NO_DYNAMIC_DEPS: "1"
       run: |
         dda inv -e issue.assign-owner -i ${{ github.event.issue.number }}

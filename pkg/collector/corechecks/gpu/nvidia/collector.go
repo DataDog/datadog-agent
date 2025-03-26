@@ -137,7 +137,7 @@ func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[strin
 		}
 
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-		tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
+		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
 			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
 		}

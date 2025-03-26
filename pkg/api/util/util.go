@@ -32,6 +32,7 @@ const (
 	uninitialized source = iota
 	setAuthToken
 	createAndSetAuthToken
+	setAuthTokenInMemory
 )
 
 var (

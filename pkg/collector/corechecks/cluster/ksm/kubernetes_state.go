@@ -347,11 +347,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 					return err
 				}
 
-				apiServerClient, err := apiserver.GetAPIClient()
-				if err != nil {
-					return err
-				}
-
 				err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
 				if err != nil {
 					return err
