@@ -69,7 +69,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var kv = ebpfutil.MustHostVersion()

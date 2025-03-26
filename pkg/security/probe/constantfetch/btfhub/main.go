@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func main() {

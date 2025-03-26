@@ -8,7 +8,7 @@ package ebpftest
 import (
 	"testing"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 // RequireKernelVersion skips a test if the minimum kernel version is not met

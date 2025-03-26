@@ -24,8 +24,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var (

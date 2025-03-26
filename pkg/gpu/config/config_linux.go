@@ -10,7 +10,7 @@ package config
 import (
 	"fmt"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 // MinimumKernelVersion indicates the minimum kernel version required for GPU monitoring

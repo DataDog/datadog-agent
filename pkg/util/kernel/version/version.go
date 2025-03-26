@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package ebpf
+package version
 
 import (
 	"fmt"
@@ -49,7 +49,7 @@ func HostVersion() (Version, error) {
 	return Version(lvc), nil
 }
 
-// MustHostVersion returns the running kernel version of the host
+// MustHostVersion returns the running kernel version of the host and panics in case of an error
 func MustHostVersion() Version {
 	lvc, err := features.LinuxVersionCode()
 	if err != nil {
@@ -58,14 +58,14 @@ func MustHostVersion() Version {
 	return Version(lvc)
 }
 
-// ParseVersion parses a string in the format of x.x.x to a Version
+// ParseVersion parses a string in the format of x.x.x to a kernel version
 func ParseVersion(s string) Version {
 	var a, b, c byte
 	fmt.Sscanf(s, "%d.%d.%d", &a, &b, &c)
 	return VersionCode(a, b, c)
 }
 
-// VersionCode returns a Version computed from the individual parts of a x.x.x version
+// VersionCode returns a kernel version computed from the individual parts of a x.x.x format
 func VersionCode(major, minor, patch byte) Version {
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 	// Per https://github.com/torvalds/linux/blob/db7c953555388571a96ed8783ff6c5745ba18ab9/Makefile#L1250

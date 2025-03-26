@@ -28,8 +28,8 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestConntrackers(t *testing.T) {

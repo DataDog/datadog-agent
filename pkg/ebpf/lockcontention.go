@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cilium/ebpf"

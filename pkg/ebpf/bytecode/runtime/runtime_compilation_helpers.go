@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,17 +67,17 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 
-		kv, err := ebpfutil.HostVersion()
+		kv, err := version.HostVersion()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
 		}
-		family, err := ebpfutil.Family()
+		family, err := version.Family()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
 		}
 
 		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
-		if len(kernelHeaders) > 0 && (kv >= ebpfutil.VersionCode(4, 10, 0) || family == "rhel") {
+		if len(kernelHeaders) > 0 && (kv >= version.VersionCode(4, 10, 0) || family == "rhel") {
 			var helperPath string
 			helperPath, err = includeHelperAvailability(kernelHeaders)
 			if err != nil {
@@ -145,11 +145,11 @@ func getOutputFilePath(outputDir, filename, inputHash, flagHash string) (string,
 func getUnameHash() (string, error) {
 	// we use the raw uname instead of the kernel version, because some kernel versions
 	// can be clamped to 255 thus causing collisions
-	r, err := ebpfutil.Release()
+	r, err := version.Release()
 	if err != nil {
 		return "", err
 	}
-	v, err := ebpfutil.UnameVersion()
+	v, err := version.UnameVersion()
 	if err != nil {
 		return "", err
 	}

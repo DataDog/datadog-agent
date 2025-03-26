@@ -5,7 +5,7 @@
 
 //go:build linux && linux_bpf
 
-package ebpf
+package version
 
 import (
 	"bufio"

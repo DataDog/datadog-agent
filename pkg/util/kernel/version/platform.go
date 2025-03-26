@@ -5,9 +5,9 @@
 
 //go:build linux
 
-// Package ebpf contains kernel functions that are used within ebpf related products.
+// Package version contains kernel functions that are used within ebpf related products.
 // Those functions were split from the util/kernel package to reduce package size and avoid cilium dependencies when unnecessary.
-package ebpf
+package version
 
 import (
 	gopsutilhost "github.com/DataDog/gopsutil/host"

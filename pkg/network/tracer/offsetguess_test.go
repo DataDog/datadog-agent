@@ -28,7 +28,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 

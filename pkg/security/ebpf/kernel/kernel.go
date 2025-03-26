@@ -24,8 +24,8 @@ import (
 	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var (

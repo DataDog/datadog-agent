@@ -10,8 +10,9 @@ package tracer
 import (
 	"testing"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/stretchr/testify/assert"
+
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestUbuntuKernelsNotSupported(t *testing.T) {

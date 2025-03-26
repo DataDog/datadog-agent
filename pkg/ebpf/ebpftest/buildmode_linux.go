@@ -13,8 +13,8 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var hostPlatform string

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	kprobeconfig "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
