@@ -124,9 +124,9 @@ func BenchmarkConsumer(b *testing.B) {
 			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			cfg := config.New()
-			// The only process in the test data is 24920
-			ctx.visibleDevicesCache[24920] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-			ctx.pidMaps[24920] = nil
+			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
+			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.pidMaps[pid] = nil
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()

@@ -50,12 +50,11 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
 	require.NotNil(t, consumer)
 
-	events := testutil.GetGPUTestEvents(t, "pytorch_batched_kernels.ndjson")
-	require.Equal(t, 990, len(events.Events))
+	events := testutil.GetGPUTestEvents(t, testutil.DataSamplePytorchBatchedKernels)
 
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
-	executingPID := 24920
+	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
 	ctx.visibleDevicesCache[executingPID] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
 
 	injectEventsToConsumer(t, consumer, events, 0)

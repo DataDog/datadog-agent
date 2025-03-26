@@ -25,50 +25,42 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
-type partialEvent struct {
-	Header ebpf.CudaEventHeader `json:"header"`
+type dataSample string
+
+const (
+	// DataSamplePytorchBatchedKernels is a data sample that contains a sequence of kernel launches
+	// interspersed with cudaStreamSynchronize calls.
+	DataSamplePytorchBatchedKernels dataSample = "pytorch_batched_kernels.ndjson"
+)
+
+// DataSampleInfo contains information about a data sample
+type DataSampleInfo struct {
+	// ActivePID is the PID of the process that is active during the data sample
+	ActivePID int
+
+	// EventCount is the number of events in the data sample
+	EventCount int
 }
 
-func parseEventWithType[K any](header ebpf.CudaEventHeader, data []byte) (Event, error) {
-	var parsed K
-	err := json.Unmarshal(data, &parsed)
-	if err != nil {
-		return Event{}, err
-	}
-
-	return Event{
-		Data:       &parsed,
-		DataLength: int(unsafe.Sizeof(parsed)),
-		Header:     header,
-		Pointer:    unsafe.Pointer(&parsed),
-	}, nil
-}
-
-func parseCompleteEvent(header ebpf.CudaEventHeader, data []byte) (Event, error) {
-	switch ebpf.CudaEventType(header.Type) {
-	case ebpf.CudaEventTypeKernelLaunch:
-		return parseEventWithType[ebpf.CudaKernelLaunch](header, data)
-	case ebpf.CudaEventTypeMemory:
-		return parseEventWithType[ebpf.CudaMemEvent](header, data)
-	case ebpf.CudaEventTypeSync:
-		return parseEventWithType[ebpf.CudaSync](header, data)
-	case ebpf.CudaEventTypeSetDevice:
-		return parseEventWithType[ebpf.CudaSetDeviceEvent](header, data)
-	default:
-		return Event{}, fmt.Errorf("unsupported event type %d", header.Type)
-	}
+// DataSampleInfos contains information about the data samples available in the testdata directory,
+// for validation and reference
+var DataSampleInfos = map[dataSample]DataSampleInfo{
+	DataSamplePytorchBatchedKernels: {
+		ActivePID:  24920,
+		EventCount: 990,
+	},
 }
 
 // GetGPUTestEvents returns a collection of events from the testdata directory. The datasetName
 // should be the name of the file in the testdata directory (with the extension).
-func GetGPUTestEvents(tb testing.TB, datasetName string) *EventCollection {
+func GetGPUTestEvents(tb testing.TB, datasetName dataSample) *EventCollection {
 	curDir, err := usmtestutil.CurDir()
 	require.NoError(tb, err)
 
-	eventsFile := filepath.Join(curDir, "..", "testdata", datasetName)
+	eventsFile := filepath.Join(curDir, "..", "testdata", string(datasetName))
 	events, err := NewEventCollection(eventsFile)
 	require.NoError(tb, err)
-	require.NotEmpty(tb, events)
+	require.Len(tb, events.Events, DataSampleInfos[datasetName].EventCount)
 
 	return events
 }
@@ -130,6 +122,40 @@ func NewEventCollection(path string) (*EventCollection, error) {
 	}
 
 	return coll, nil
+}
+
+type partialEvent struct {
+	Header ebpf.CudaEventHeader `json:"header"`
+}
+
+func parseEventWithType[K any](header ebpf.CudaEventHeader, data []byte) (Event, error) {
+	var parsed K
+	err := json.Unmarshal(data, &parsed)
+	if err != nil {
+		return Event{}, err
+	}
+
+	return Event{
+		Data:       &parsed,
+		DataLength: int(unsafe.Sizeof(parsed)),
+		Header:     header,
+		Pointer:    unsafe.Pointer(&parsed),
+	}, nil
+}
+
+func parseCompleteEvent(header ebpf.CudaEventHeader, data []byte) (Event, error) {
+	switch ebpf.CudaEventType(header.Type) {
+	case ebpf.CudaEventTypeKernelLaunch:
+		return parseEventWithType[ebpf.CudaKernelLaunch](header, data)
+	case ebpf.CudaEventTypeMemory:
+		return parseEventWithType[ebpf.CudaMemEvent](header, data)
+	case ebpf.CudaEventTypeSync:
+		return parseEventWithType[ebpf.CudaSync](header, data)
+	case ebpf.CudaEventTypeSetDevice:
+		return parseEventWithType[ebpf.CudaSetDeviceEvent](header, data)
+	default:
+		return Event{}, fmt.Errorf("unsupported event type %d", header.Type)
+	}
 }
 
 // headerToString converts a CUDA event header to a human-readable string, including relative time
