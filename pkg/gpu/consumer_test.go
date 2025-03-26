@@ -108,3 +108,33 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 	require.Equal(t, testutil.GPUUUIDs[1], globalStream.metadata.gpuUUID)
 }
+
+// BenchmarkConsumer benchmarks the consumer with a data sample, with and without fatbin parsing enabled
+// Note that the NVML library is mocked here, so if some of the API calls are slow in the real implementation
+// the results will not reflect that. This benchmark is useful to measure the performance of the event intake,
+// such as the event parsing, stream handling, the effect of the fatbin parsing and the related caches, etc
+func BenchmarkConsumer(b *testing.B) {
+	events := testutil.GetGPUTestEvents(b, testutil.DataSamplePytorchBatchedKernels)
+	for _, fatbinParsingEnabled := range []bool{true, false} {
+		name := "fatbinParsingDisabled"
+		if fatbinParsingEnabled {
+			name = "fatbinParsingEnabled"
+		}
+		b.Run(name, func(b *testing.B) {
+			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			require.NoError(b, err)
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
+
+			ctx.fatbinParsingEnabled = fatbinParsingEnabled
+
+			cfg := config.New()
+			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
+			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.pidMaps[pid] = nil
+
+			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
+			b.ResetTimer()
+			injectEventsToConsumer(b, consumer, events, b.N)
+		})
+	}
+}
