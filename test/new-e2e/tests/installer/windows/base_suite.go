@@ -115,7 +115,7 @@ func (s *BaseSuite) SetupSuite() {
 		WithName(consts.AgentPackage),
 		// TODO: update to last stable when there is one
 		WithPipeline("59404687"),
-		WithDevEnvOverrides("PREVIOUS_AGENT"),
+		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
@@ -123,12 +123,12 @@ func (s *BaseSuite) SetupSuite() {
 	previousMSI, err := windowsagent.NewPackage(
 		// TODO: update to last stable when there is one
 		windowsagent.WithURLFromPipeline("59404687"),
-		windowsagent.WithDevEnvOverrides("PREVIOUS_AGENT"),
+		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 
 	// Setup previous Agent artifacts
-	previousVersion, previousVersionPackage := s.getAgentVersionVars("PREVIOUS_AGENT")
+	previousVersion, previousVersionPackage := s.getAgentVersionVars("STABLE_AGENT")
 	s.stableAgent, err = NewAgentVersionManager(
 		previousVersion,
 		previousVersionPackage,

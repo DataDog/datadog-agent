@@ -554,9 +554,9 @@ new-e2e-installer-windows:
     # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel-1"
     - export STABLE_AGENT_VERSION=${STABLE_AGENT_VERSION_PACKAGE%-1}
-    - export PREVIOUS_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.65.0-devel.git.579.0000ac2.pipeline.59404687.msi
-    - export PREVIOUS_AGENT_OCI_REGISTRY=install.datad0g.com
-    - export PREVIOUS_AGENT_OCI_VERSION=7.65.0-devel.git.579.0000ac2.pipeline.59404687-1
+    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.65.0-devel.git.579.0000ac2.pipeline.59404687.msi
+    - export STABLE_AGENT_OCI_REGISTRY=install.datad0g.com
+    - export STABLE_AGENT_OCI_VERSION=7.65.0-devel.git.579.0000ac2.pipeline.59404687-1
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
