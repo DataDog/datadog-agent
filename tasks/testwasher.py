@@ -147,7 +147,16 @@ class TestWasher:
         if self.flaky_test_indicator in log:
             return True
 
-        for pattern in self.flaky_log_main_patterns + self.flaky_log_patterns[package][test]:
+        # flake.MarkOnLog can be used in a parent test to mark a subtest.
+        # As a consequence we need to append parent test information.
+        all_flaky_log_patterns = []
+        test_parts = test.split('/')
+        for i_part in range(len(test_parts)):
+            parent_test = '/'.join(test_parts[: i_part + 1])
+            if parent_test in self.flaky_log_patterns[package]:
+                all_flaky_log_patterns += self.flaky_log_patterns[package][parent_test]
+
+        for pattern in self.flaky_log_main_patterns + all_flaky_log_patterns:
             if re.search(pattern, log, re.IGNORECASE):
                 return True
 

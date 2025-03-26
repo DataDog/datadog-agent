@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -258,11 +259,9 @@ func (jc *JoinsConfigWithoutLabelsMapping) setupGetAllLabels() {
 		return
 	}
 
-	for _, l := range jc.LabelsToGet {
-		if l == "*" {
-			jc.GetAllLabels = true
-			return
-		}
+	if slices.Contains(jc.LabelsToGet, "*") {
+		jc.GetAllLabels = true
+		return
 	}
 }
 
@@ -344,11 +343,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 			case defaultPodCollection, clusterUnassignedPodCollection:
 				// We can try to get the API Client directly because this code will be retried if it fails
 				apiServerClient, err = apiserver.GetAPIClient()
-				if err != nil {
-					return err
-				}
-
-				apiServerClient, err := apiserver.GetAPIClient()
 				if err != nil {
 					return err
 				}

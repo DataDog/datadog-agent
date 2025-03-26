@@ -149,9 +149,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (is_fully_classified(protocol_stack)) {
         return;
     }
+
+    bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
 
     // Load information that will be later on used to route tail-calls
     init_routing_cache(classification_ctx, protocol_stack);
@@ -168,9 +170,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             return;
         }
         // TLS classification
+        update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
-            // We can't classify TLS encrypted traffic further, so return early
-            update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
+            // If the TLS record is not a handshake, we can stop here as we've already marked the protocol as TLS
+            // and there is no need to look for additional handshake tags
             return;
         }
 
@@ -178,8 +181,22 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         tls_info_t *tags = get_or_create_tls_enhanced_tags(&classification_ctx->tuple);
         if (tags) {
             // The packet is a TLS handshake, so trigger tail calls to extract metadata from the payload
-            goto next_program;
+            __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
+            __u32 data_end = classification_ctx->skb_info.data_end;
+            if (is_tls_handshake_client_hello(skb, offset, data_end)) {
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_CLIENT_PROG);
+                return;
+            }
+            if (is_tls_handshake_server_hello(skb, offset, data_end)) {
+                bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_TLS_SERVER_PROG);
+                return;
+            }
         }
+        return;
+    }
+
+    // If we have already classified the encryption layer, we can skip the rest of the classification
+    if (encryption_layer_known) {
         return;
     }
 
@@ -218,19 +235,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
     tls_info_t* tls_info = get_tls_enhanced_tags(&classification_ctx->tuple);
     if (!tls_info) {
-        goto next_program;
+        return;
     }
     __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     __u32 data_end = classification_ctx->skb_info.data_end;
-    if (!is_tls_handshake_client_hello(skb, offset, classification_ctx->skb_info.data_end)) {
-        goto next_program;
-    }
     if (!parse_client_hello(skb, offset, data_end, tls_info)) {
         return;
     }
-
-next_program:
-    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_handshake_server(struct __sk_buff *skb) {
@@ -240,27 +251,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
     tls_info_t* tls_info = get_tls_enhanced_tags(&classification_ctx->tuple);
     if (!tls_info) {
-        goto next_program;
+        return;
     }
     __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
     __u32 data_end = classification_ctx->skb_info.data_end;
-    if (!is_tls_handshake_server_hello(skb, offset, data_end)) {
-        goto next_program;
-    }
     if (!parse_server_hello(skb, offset, data_end, tls_info)) {
         return;
     }
-
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
-    if (!protocol_stack) {
-        return;
-    }
-    update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
-    // We can't classify TLS encrypted traffic further, so return early
-    return;
-
-next_program:
-    classification_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {

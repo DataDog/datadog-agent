@@ -88,7 +88,12 @@ func (suite *k8sSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
-	suite.testUpAndRunning(10 * time.Minute)
+	timeout := 10 * time.Minute
+	// Windows FIPS images are bigger and take longer to pull and start
+	if suite.Env().Agent.FIPSEnabled {
+		timeout = 20 * time.Minute
+	}
+	suite.testUpAndRunning(timeout)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)

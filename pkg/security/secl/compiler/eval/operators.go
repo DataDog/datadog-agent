@@ -8,6 +8,7 @@ package eval
 
 import (
 	"net"
+	"slices"
 	"strings"
 )
 
@@ -624,12 +625,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 	}
 
 	arrayOp := func(a []string, b *StringValues) bool {
-		for _, as := range a {
-			if b.Matches(as) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(a, b.Matches)
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
@@ -697,10 +693,8 @@ func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (
 
 	arrayOp := func(a []int, b []int) bool {
 		for _, va := range a {
-			for _, vb := range b {
-				if va == vb {
-					return true
-				}
+			if slices.Contains(b, va) {
+				return true
 			}
 		}
 		return false
@@ -776,12 +770,7 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 	}
 
 	arrayOp := func(a bool, b []bool) bool {
-		for _, v := range b {
-			if v == a {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(b, a)
 	}
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc

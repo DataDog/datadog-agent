@@ -17,7 +17,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
     environment:
-      name: dependabot
+      name: main
     permissions:
       pull-requests: write
     steps:
