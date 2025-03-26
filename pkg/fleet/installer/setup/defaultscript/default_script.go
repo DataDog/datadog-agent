@@ -149,7 +149,7 @@ func setConfigTags(s *common.Setup) {
 		}
 	}
 	if tags, ok := os.LookupEnv("DD_EXTRA_TAGS"); ok {
-		s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
+		s.Config.DatadogYAML.ExtraTags = strings.Split(tags, ",")
 	}
 }
 

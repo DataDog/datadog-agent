@@ -237,16 +237,22 @@ func addCustomHostTags(s *common.Setup) {
 	tags := os.Getenv("DD_TAGS")
 	extraTags := os.Getenv("DD_EXTRA_TAGS")
 
-	allTags := strings.TrimSpace(strings.Join([]string{tags, extraTags}, " "))
-
 	// Split by comma or space because agent uses space and old script uses comma
-	tagsArray := strings.FieldsFunc(allTags, func(r rune) bool {
+	tagsArray := strings.FieldsFunc(tags, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+	extraTagsArray := strings.FieldsFunc(extraTags, func(r rune) bool {
 		return r == ',' || r == ' '
 	})
 
 	for _, tag := range tagsArray {
 		if tag != "" {
 			s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tag)
+		}
+	}
+	for _, tag := range extraTagsArray {
+		if tag != "" {
+			s.Config.DatadogYAML.ExtraTags = append(s.Config.DatadogYAML.ExtraTags, tag)
 		}
 	}
 }
