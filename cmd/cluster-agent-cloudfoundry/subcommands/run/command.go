@@ -55,6 +55,9 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -136,7 +139,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				metricscompressionfx.Module(),
 				createandfetchimpl.Module(),
 				diagnosefx.Module(),
-			)
+				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+					return demuxInstance.Serializer()
+				}),
+				metadatarunnerimpl.Module(),
+				dcametadatafx.Module())
 		},
 	}
 
@@ -158,6 +165,7 @@ func run(
 	logReceiver option.Option[integrations.Component],
 	authToken authtoken.Component,
 	diagonseComp diagnose.Component,
+	dcametadataComp dcametadata.Component,
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
@@ -200,7 +208,7 @@ func run(
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagonseComp); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagonseComp, dcametadataComp); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
