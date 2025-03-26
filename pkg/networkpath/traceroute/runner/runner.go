@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -265,7 +265,7 @@ func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.Ga
 	}
 	defer rootNs.Close()
 
-	nsIno, err := kernel.GetInoForNs(rootNs)
+	nsIno, err := netnsutil.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get inode number: %w", err)
 	}
