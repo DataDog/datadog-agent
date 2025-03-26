@@ -20,8 +20,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "runtime Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
-	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
+	runtimeCmd.AddCommand(policyCommand(globalParams))
+	runtimeCmd.AddCommand(selfTestCommand(globalParams))
 	/*
 		runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 		runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
