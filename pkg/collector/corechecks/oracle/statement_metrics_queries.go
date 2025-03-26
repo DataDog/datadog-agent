@@ -257,8 +257,8 @@ FROM v$sqlstats s, v$containers c, (
 )
 WHERE rowno = 1
 ) sq
-WHERE s.con_id (+)= c.con_id AND
-	s.sql_id = sq.sql_id AND sq.force_matching_signature = s.force_matching_signature
+WHERE s.con_id = c.con_id (+) AND
+	s.sql_id = sq.sql_id (+) AND sq.force_matching_signature = s.force_matching_signature
 GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id
 FETCH FIRST :limit ROWS ONLY`
 
