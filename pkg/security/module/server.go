@@ -231,16 +231,28 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
-func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, includeGlobalTags bool) {
-	// on fargate, append global tags
-	if includeGlobalTags && fargate.IsFargateInstance() {
-		for _, tag := range a.getGlobalTags() {
-			key, _, _ := strings.Cut(tag, ":")
-			if !slices.ContainsFunc(msg.Tags, func(t string) bool {
-				return strings.HasPrefix(t, key+":")
-			}) {
-				msg.Tags = append(msg.Tags, tag)
+func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage, isCustomEvent bool) {
+	if isCustomEvent {
+		appendTagsIfNotPresent := func(toAdd []string) {
+			for _, tag := range toAdd {
+				key, _, _ := strings.Cut(tag, ":")
+				if !slices.ContainsFunc(msg.Tags, func(t string) bool {
+					return strings.HasPrefix(t, key+":")
+				}) {
+					msg.Tags = append(msg.Tags, tag)
+				}
 			}
+		}
+
+		// on fargate, append global tags on custom events
+		if fargate.IsFargateInstance() {
+			appendTagsIfNotPresent(a.getGlobalTags())
+		}
+
+		// add agent tags on custom events
+		acc := a.probe.GetAgentContainerContext()
+		if acc != nil && acc.ContainerID != "" {
+			appendTagsIfNotPresent(a.probe.GetEventTags(acc.ContainerID))
 		}
 	}
 
