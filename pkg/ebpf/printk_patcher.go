@@ -28,11 +28,11 @@ import (
 // this ensures that a newline is added. In newer ones it would mean that two newlines are
 // added, so this patcher removes that newline in those cases.
 func patchPrintkNewline(m *manager.Manager) error {
-	kernelVersion, err := kernelversion.HostVersion()
+	kernelVersion, err := kernelversion.Host()
 	if err != nil {
 		return err // can't detect kernel version, don't patch
 	}
-	if kernelVersion < kernelversion.VersionCode(5, 9, 0) {
+	if kernelVersion < kernelversion.FromCode(5, 9, 0) {
 		return nil // Do nothing in older kernels
 	}
 

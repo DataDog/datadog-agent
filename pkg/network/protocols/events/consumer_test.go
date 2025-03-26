@@ -26,9 +26,9 @@ import (
 )
 
 func TestConsumer(t *testing.T) {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	require.NoError(t, err)
-	if minVersion := kernelversion.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := kernelversion.FromCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 
@@ -75,9 +75,9 @@ func TestConsumer(t *testing.T) {
 }
 
 func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	require.NoError(t, err)
-	if minVersion := kernelversion.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := kernelversion.FromCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 

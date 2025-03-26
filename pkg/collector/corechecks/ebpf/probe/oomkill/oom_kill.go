@@ -53,11 +53,11 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 }
 
 func loadOOMKillCOREProbe() (*Probe, error) {
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
-	if kv < kernelversion.VersionCode(4, 9, 0) {
+	if kv < kernelversion.FromCode(4, 9, 0) {
 		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 

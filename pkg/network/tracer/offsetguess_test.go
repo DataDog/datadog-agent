@@ -185,7 +185,7 @@ func testOffsetGuess(t *testing.T) {
 	mp, err := maps.GetMap[offsetT, uint64](mgr, "offsets")
 	require.NoError(t, err)
 
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	require.NoError(t, err)
 
 	// offset guessing used to rely on this previously,
@@ -197,7 +197,7 @@ func testOffsetGuess(t *testing.T) {
 	t.Cleanup(func() { offsetBuf.Close() })
 
 	// prebuilt on 5.18+ does not support UDPv6
-	if kv >= kernelversion.VersionCode(5, 18, 0) {
+	if kv >= kernelversion.FromCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 
@@ -282,13 +282,13 @@ func testOffsetGuess(t *testing.T) {
 
 			switch o {
 			case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-				if kv < kernelversion.VersionCode(4, 7, 0) {
+				if kv < kernelversion.FromCode(4, 7, 0) {
 					continue
 				}
 			case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
 				// TODO: offset guessing for these fields is currently broken on kernels 5.18+
 				// see https://datadoghq.atlassian.net/browse/NET-2984
-				if kv >= kernelversion.VersionCode(5, 18, 0) {
+				if kv >= kernelversion.FromCode(5, 18, 0) {
 					continue
 				}
 			case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:

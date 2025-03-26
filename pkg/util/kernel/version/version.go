@@ -40,8 +40,8 @@ func (v Version) Patch() uint8 {
 	return (uint8)(v & 0xff)
 }
 
-// HostVersion returns the running kernel version of the host
-func HostVersion() (Version, error) {
+// Host returns the running kernel version of the host
+func Host() (Version, error) {
 	lvc, err := features.LinuxVersionCode()
 	if err != nil {
 		return 0, err
@@ -49,8 +49,8 @@ func HostVersion() (Version, error) {
 	return Version(lvc), nil
 }
 
-// MustHostVersion returns the running kernel version of the host and panics in case of an error
-func MustHostVersion() Version {
+// MustHost returns the running kernel version of the host and panics in case of an error
+func MustHost() Version {
 	lvc, err := features.LinuxVersionCode()
 	if err != nil {
 		panic(err)
@@ -58,24 +58,24 @@ func MustHostVersion() Version {
 	return Version(lvc)
 }
 
-// ParseVersion parses a string in the format of x.x.x to a kernel version
-func ParseVersion(s string) Version {
+// Parse parses a string in the format of x.x.x to a kernel version
+func Parse(s string) Version {
 	var a, b, c byte
 	fmt.Sscanf(s, "%d.%d.%d", &a, &b, &c)
-	return VersionCode(a, b, c)
+	return FromCode(a, b, c)
 }
 
-// VersionCode returns a kernel version computed from the individual parts of a x.x.x format
-func VersionCode(major, minor, patch byte) Version {
+// FromCode returns a kernel version computed from the individual parts of a x.x.x format
+func FromCode(major, minor, patch byte) Version {
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 	// Per https://github.com/torvalds/linux/blob/db7c953555388571a96ed8783ff6c5745ba18ab9/Makefile#L1250
 	return Version((uint32(major) << 16) + (uint32(minor) << 8) + uint32(patch))
 }
 
-// ParseReleaseString converts a release string with format
+// FromReleaseString converts a release string with format
 // 4.4.2[-1] to a kernel version number in LINUX_VERSION_CODE format.
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func ParseReleaseString(releaseString string) (Version, error) {
+func FromReleaseString(releaseString string) (Version, error) {
 	versionParts := versionRegex.FindStringSubmatch(releaseString)
 	if len(versionParts) < 3 {
 		return 0, fmt.Errorf("got invalid release version %q (expected format '4.3.2-1')", releaseString)
@@ -107,7 +107,7 @@ func ParseReleaseString(releaseString string) (Version, error) {
 		patch = 255
 	}
 
-	return VersionCode(byte(major), byte(minor), byte(patch)), nil
+	return FromCode(byte(major), byte(minor), byte(patch)), nil
 }
 
 // UbuntuKernelVersion represents a version from an ubuntu kernel

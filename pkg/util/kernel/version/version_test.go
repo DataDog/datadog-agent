@@ -15,13 +15,13 @@ import (
 
 func TestLinuxKernelVersionCode(t *testing.T) {
 	// Some sanity checks
-	assert.Equal(t, VersionCode(2, 6, 9), Version(132617))
-	assert.Equal(t, VersionCode(3, 2, 12), Version(197132))
-	assert.Equal(t, VersionCode(4, 4, 0), Version(263168))
+	assert.Equal(t, FromCode(2, 6, 9), Version(132617))
+	assert.Equal(t, FromCode(3, 2, 12), Version(197132))
+	assert.Equal(t, FromCode(4, 4, 0), Version(263168))
 
-	assert.Equal(t, ParseVersion("2.6.9"), Version(132617))
-	assert.Equal(t, ParseVersion("3.2.12"), Version(197132))
-	assert.Equal(t, ParseVersion("4.4.0"), Version(263168))
+	assert.Equal(t, Parse("2.6.9"), Version(132617))
+	assert.Equal(t, Parse("3.2.12"), Version(197132))
+	assert.Equal(t, Parse("4.4.0"), Version(263168))
 
 	assert.Equal(t, Version(132617).String(), "2.6.9")
 	assert.Equal(t, Version(197132).String(), "3.2.12")
@@ -67,7 +67,7 @@ var testData = []struct {
 
 func TestParseReleaseString(t *testing.T) {
 	for _, test := range testData {
-		version, err := ParseReleaseString(test.releaseString)
+		version, err := FromReleaseString(test.releaseString)
 		if err != nil && test.succeed {
 			t.Errorf("expected %q to succeed: %s", test.releaseString, err)
 		} else if err == nil && !test.succeed {

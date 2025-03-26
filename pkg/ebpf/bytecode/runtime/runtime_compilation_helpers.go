@@ -67,7 +67,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 
-		kv, err := version.HostVersion()
+		kv, err := version.Host()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
 		}
@@ -77,7 +77,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		}
 
 		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
-		if len(kernelHeaders) > 0 && (kv >= version.VersionCode(4, 10, 0) || family == "rhel") {
+		if len(kernelHeaders) > 0 && (kv >= version.FromCode(4, 10, 0) || family == "rhel") {
 			var helperPath string
 			helperPath, err = includeHelperAvailability(kernelHeaders)
 			if err != nil {

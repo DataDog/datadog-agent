@@ -114,7 +114,7 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 		return nil, nil
 	}
 
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't determine current kernel version: %w", err)
 	}

@@ -34,7 +34,7 @@ func HasTCPSendPage(kv kernelversion.Version) bool {
 
 	log.Debugf("unable to determine whether tcp_sendpage exists, using kernel version instead: %s", err)
 
-	kv650 := kernelversion.VersionCode(6, 5, 0)
+	kv650 := kernelversion.FromCode(6, 5, 0)
 	return kv < kv650
 }
 
@@ -47,13 +47,13 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
 	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
 
-	kv410 := kernelversion.VersionCode(4, 1, 0)
-	kv470 := kernelversion.VersionCode(4, 7, 0)
-	kv4180 := kernelversion.VersionCode(4, 18, 0)
-	kv5180 := kernelversion.VersionCode(5, 18, 0)
-	kv5190 := kernelversion.VersionCode(5, 19, 0)
+	kv410 := kernelversion.FromCode(4, 1, 0)
+	kv470 := kernelversion.FromCode(4, 7, 0)
+	kv4180 := kernelversion.FromCode(4, 18, 0)
+	kv5180 := kernelversion.FromCode(5, 18, 0)
+	kv5190 := kernelversion.FromCode(5, 19, 0)
 
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, err
 	}

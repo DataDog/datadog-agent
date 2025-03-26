@@ -135,11 +135,11 @@ func getIpv6Configuration(c *config.Config) (bool, bool) {
 		tcpv6Enabled = c.CollectTCPv6Conns
 		udpv6Enabled = c.CollectUDPv6Conns
 		if c.CollectUDPv6Conns {
-			kv, err := kernelversion.HostVersion()
+			kv, err := kernelversion.Host()
 			if err != nil {
 				return
 			}
-			if kv >= kernelversion.VersionCode(5, 18, 0) {
+			if kv >= kernelversion.FromCode(5, 18, 0) {
 				udpv6Enabled = false
 			}
 		}

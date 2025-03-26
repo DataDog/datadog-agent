@@ -59,7 +59,7 @@ const (
 
 var (
 	emptyBody = []byte(nil)
-	kv        = kernelversion.MustHostVersion()
+	kv        = kernelversion.MustHost()
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
