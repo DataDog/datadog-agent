@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// Contains the stats of the DNS monitor
+// Stats contains the stats of the DNS monitor
 type Stats struct {
 	FilteredDNSPackets  uint32
 	SameIDDifferentSize uint32

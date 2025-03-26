@@ -34,7 +34,7 @@ struct dns_receiver_stats_t {
 
 struct dns_responses_sent_to_userspace_lru_entry_t {
     u64 timestamp;
-    u16 packet_size;
+    u64 packet_size;
 };
 
 #endif

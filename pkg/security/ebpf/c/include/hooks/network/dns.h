@@ -200,9 +200,9 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     struct dns_responses_sent_to_userspace_lru_entry_t entry;
     entry.timestamp = current_timestamp;
-    entry.packet_size = len;
-
+    entry.packet_size = (u64)len;
     bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &entry, BPF_ANY);
+
     send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;
