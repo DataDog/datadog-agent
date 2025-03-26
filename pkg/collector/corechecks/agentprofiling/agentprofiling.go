@@ -9,12 +9,12 @@ package agentprofiling
 
 import (
 	"fmt"
-	"runtime"
+	"os"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -104,36 +104,61 @@ func (m *AgentProfilingCheck) Run() error {
 	}
 
 	// Get Agent memory usage
-	var heapUsedMB float64
+	var processMemoryMB float64
 	if m.instance.MemoryThreshold > 0 {
-		var memStats runtime.MemStats
-		runtime.ReadMemStats(&memStats)
-		heapUsedMB = float64(memStats.HeapAlloc) / MB
+		// Get the current process (agent)
+		p, err := process.NewProcess(int32(os.Getpid()))
+		if err != nil {
+			log.Errorf("Failed to get agent process: %s", err)
+			return err
+		}
 
-		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", heapUsedMB, float64(m.instance.MemoryThreshold)/MB)
+		// Get process memory info
+		memInfo, err := p.MemoryInfo()
+		if err != nil {
+			log.Errorf("Failed to get agent memory info: %s", err)
+			return err
+		}
+
+		// RSS (Resident Set Size) represents the total memory allocated to the process
+		// This includes all memory: Go heap, native libraries, and other allocations
+		processMemoryMB = float64(memInfo.RSS) / MB
+
+		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", processMemoryMB, float64(m.instance.MemoryThreshold)/MB)
 	}
 
 	// Get Agent CPU usage
 	var currentCPU float64
 	if m.instance.CPUThreshold > 0 {
-		percentages, err := cpu.Percent(200*time.Millisecond, false)
+		// Get the current process (agent)
+		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
-			log.Errorf("Failed to get CPU usage: %s", err)
+			log.Errorf("Failed to get agent process: %s", err)
 			return err
 		}
-		currentCPU = percentages[0]
+
+		// Get the total CPU time used by the process
+		cpuTimes, err := p.Times()
+		if err != nil {
+			log.Errorf("Failed to get agent CPU times: %s", err)
+			return err
+		}
+
+		// Calculate CPU percentage over the last 15 seconds
+		// This gives us a measurement that is closer to default metric system.cpu.user
+		currentCPU = (cpuTimes.User + cpuTimes.System) / 15.0 * 100.0
 
 		log.Infof("CPU usage check - Current: %.2f%%, Threshold: %d%%", currentCPU, m.instance.CPUThreshold)
 	}
 
 	// Exit early if usage is below thresholds
-	if heapUsedMB < float64(m.instance.MemoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
-		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", heapUsedMB, float64(m.instance.MemoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
+	if processMemoryMB < float64(m.instance.MemoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
+		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.instance.MemoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
 		return nil
 	}
 
 	// If either memory or CPU exceeds threshold, generate flare
-	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Generating flare.", heapUsedMB, currentCPU)
+	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Generating flare.", processMemoryMB, currentCPU)
 	if err := m.generateFlare(); err != nil {
 		log.Errorf("Failed to generate flare: %s", err)
 		return err
@@ -144,6 +169,15 @@ func (m *AgentProfilingCheck) Run() error {
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
 func (m *AgentProfilingCheck) generateFlare() error {
+	// Skip flare generation when running via 'agent check' command
+	for _, arg := range os.Args {
+		if arg == "check" {
+			log.Info("Skipping flare generation when running via 'agent check' command")
+			m.profileCaptured = true
+			return nil
+		}
+	}
+
 	// Prepare flare arguments
 	providerTimeout := time.Duration(0) // Use default timeout
 	flareArgs := types.FlareArgs{
