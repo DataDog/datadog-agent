@@ -160,3 +160,15 @@ repos:
       language: system
       pass_filenames: false
       files: ^pkg/fleet/installer/packages/embedded/.*\.service$
+    - id: bazel-run-gazelle
+      name: bazel-run-gazelle
+      description: Run gazelle on the repo to keep BUILD.bazel files upt to date
+      entry: 'bazel run //:gazelle'
+      language: system
+      pass_filenames: false
+    - id: bazel-mod-tidy
+      name: bazel-mod-tidy
+      description: Run bazel mod tidy to make sure use_repo is up-to-date
+      entry: 'bazel mod tidy'
+      language: system
+      pass_filenames: false
