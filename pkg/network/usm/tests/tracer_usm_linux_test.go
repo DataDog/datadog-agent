@@ -72,7 +72,7 @@ import (
 	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
-var kv = kernelversion.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.

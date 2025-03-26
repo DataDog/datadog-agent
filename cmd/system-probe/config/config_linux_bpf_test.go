@@ -119,7 +119,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	family, err := kernelversion.Family()
 	require.NoError(t, err, "could not determine kernel family")
 
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	require.NoError(t, err, "could not determine kernel version")
 
 	deprecateVersion := prebuilt.DeprecatedKernelVersion

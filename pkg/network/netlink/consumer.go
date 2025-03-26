@@ -54,8 +54,8 @@ var errShortErrorMessage = errors.New("not enough data for netlink error code")
 var pre315Kernel bool
 
 func init() {
-	if vers, err := kernelversion.HostVersion(); err == nil {
-		pre315Kernel = vers < kernelversion.VersionCode(3, 15, 0)
+	if vers, err := kernelversion.Host(); err == nil {
+		pre315Kernel = vers < kernelversion.FromCode(3, 15, 0)
 	}
 }
 

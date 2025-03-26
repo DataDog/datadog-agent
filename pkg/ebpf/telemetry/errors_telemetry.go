@@ -339,9 +339,9 @@ func eBPFHelperErrorKey(h hash.Hash64, name telemetryKey) uint64 {
 
 // EBPFTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
 func EBPFTelemetrySupported() (bool, error) {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return false, err
 	}
-	return kversion >= kernelversion.VersionCode(4, 14, 0), nil
+	return kversion >= kernelversion.FromCode(4, 14, 0), nil
 }

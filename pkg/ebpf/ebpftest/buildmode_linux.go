@@ -18,7 +18,7 @@ import (
 )
 
 var hostPlatform string
-var kv = kernelversion.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 func init() {
 	hostPlatform, _ = kernelversion.Platform()

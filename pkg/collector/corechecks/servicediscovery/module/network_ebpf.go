@@ -32,7 +32,7 @@ type eBPFNetworkCollector struct {
 }
 
 func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options manager.Options) error {
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return err
 	}

@@ -214,11 +214,11 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 	enableProbe(p, probes.TCPGetSockOpt)
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("could not kernel version: %w", err)
 	}
-	if kv >= kernelversion.VersionCode(4, 7, 0) {
+	if kv >= kernelversion.FromCode(4, 7, 0) {
 		enableProbe(p, probes.NetDevQueue)
 	}
 
@@ -228,8 +228,8 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 	}
 
 	if c.CollectUDPv6Conns {
-		if kv < kernelversion.VersionCode(5, 18, 0) {
-			if kv < kernelversion.VersionCode(4, 7, 0) {
+		if kv < kernelversion.FromCode(5, 18, 0) {
+			if kv < kernelversion.FromCode(4, 7, 0) {
 				enableProbe(p, probes.IP6MakeSkbPre470)
 			} else {
 				enableProbe(p, probes.IP6MakeSkb)
@@ -618,11 +618,11 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
-			kv, err := kernelversion.HostVersion()
+			kv, err := kernelversion.Host()
 			if err != nil {
 				return fmt.Errorf("error getting kernel version: %w", err)
 			}
-			kv470 := kernelversion.VersionCode(4, 7, 0)
+			kv470 := kernelversion.FromCode(4, 7, 0)
 
 			// if IPv6 enabled & kv lower than 4.7.0, skip guessing for some fields
 			if (t.guessTCPv6 || t.guessUDPv6) && kv < kv470 {

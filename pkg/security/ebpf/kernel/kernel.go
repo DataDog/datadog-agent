@@ -32,83 +32,83 @@ var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
-	Kernel4_9 = kernelversion.VersionCode(4, 9, 0)
+	Kernel4_9 = kernelversion.FromCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
-	Kernel4_10 = kernelversion.VersionCode(4, 10, 0)
+	Kernel4_10 = kernelversion.FromCode(4, 10, 0)
 	// Kernel4_12 is the KernelVersion representation of kernel version 4.12
-	Kernel4_12 = kernelversion.VersionCode(4, 12, 0)
+	Kernel4_12 = kernelversion.FromCode(4, 12, 0)
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
-	Kernel4_13 = kernelversion.VersionCode(4, 13, 0)
+	Kernel4_13 = kernelversion.FromCode(4, 13, 0)
 	// Kernel4_14 is the KernelVersion representation of kernel version 4.14
-	Kernel4_14 = kernelversion.VersionCode(4, 14, 0)
+	Kernel4_14 = kernelversion.FromCode(4, 14, 0)
 	// Kernel4_15 is the KernelVersion representation of kernel version 4.15
-	Kernel4_15 = kernelversion.VersionCode(4, 15, 0)
+	Kernel4_15 = kernelversion.FromCode(4, 15, 0)
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
-	Kernel4_16 = kernelversion.VersionCode(4, 16, 0)
+	Kernel4_16 = kernelversion.FromCode(4, 16, 0)
 	// Kernel4_18 is the KernelVersion representation of kernel version 4.18
-	Kernel4_18 = kernelversion.VersionCode(4, 18, 0)
+	Kernel4_18 = kernelversion.FromCode(4, 18, 0)
 	// Kernel4_19 is the KernelVersion representation of kernel version 4.19
-	Kernel4_19 = kernelversion.VersionCode(4, 19, 0)
+	Kernel4_19 = kernelversion.FromCode(4, 19, 0)
 	// Kernel4_20 is the KernelVersion representation of kernel version 4.20
-	Kernel4_20 = kernelversion.VersionCode(4, 20, 0)
+	Kernel4_20 = kernelversion.FromCode(4, 20, 0)
 	// Kernel5_0 is the KernelVersion representation of kernel version 5.0
-	Kernel5_0 = kernelversion.VersionCode(5, 0, 0)
+	Kernel5_0 = kernelversion.FromCode(5, 0, 0)
 	// Kernel5_1 is the KernelVersion representation of kernel version 5.1
-	Kernel5_1 = kernelversion.VersionCode(5, 1, 0)
+	Kernel5_1 = kernelversion.FromCode(5, 1, 0)
 	// Kernel5_2 is the KernelVersion representation of kernel version 5.2
-	Kernel5_2 = kernelversion.VersionCode(5, 2, 0)
+	Kernel5_2 = kernelversion.FromCode(5, 2, 0)
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
-	Kernel5_3 = kernelversion.VersionCode(5, 3, 0)
+	Kernel5_3 = kernelversion.FromCode(5, 3, 0)
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
-	Kernel5_4 = kernelversion.VersionCode(5, 4, 0)
+	Kernel5_4 = kernelversion.FromCode(5, 4, 0)
 	// Kernel5_5 is the KernelVersion representation of kernel version 5.5
-	Kernel5_5 = kernelversion.VersionCode(5, 5, 0)
+	Kernel5_5 = kernelversion.FromCode(5, 5, 0)
 	// Kernel5_6 is the KernelVersion representation of kernel version 5.6
-	Kernel5_6 = kernelversion.VersionCode(5, 6, 0)
+	Kernel5_6 = kernelversion.FromCode(5, 6, 0)
 	// Kernel5_7 is the KernelVersion representation of kernel version 5.7
-	Kernel5_7 = kernelversion.VersionCode(5, 7, 0)
+	Kernel5_7 = kernelversion.FromCode(5, 7, 0)
 	// Kernel5_8 is the KernelVersion representation of kernel version 5.8
-	Kernel5_8 = kernelversion.VersionCode(5, 8, 0)
+	Kernel5_8 = kernelversion.FromCode(5, 8, 0)
 	// Kernel5_9 is the KernelVersion representation of kernel version 5.9
-	Kernel5_9 = kernelversion.VersionCode(5, 9, 0)
+	Kernel5_9 = kernelversion.FromCode(5, 9, 0)
 	// Kernel5_10 is the KernelVersion representation of kernel version 5.10
-	Kernel5_10 = kernelversion.VersionCode(5, 10, 0)
+	Kernel5_10 = kernelversion.FromCode(5, 10, 0)
 	// Kernel5_11 is the KernelVersion representation of kernel version 5.11
-	Kernel5_11 = kernelversion.VersionCode(5, 11, 0)
+	Kernel5_11 = kernelversion.FromCode(5, 11, 0)
 	// Kernel5_12 is the KernelVersion representation of kernel version 5.12
-	Kernel5_12 = kernelversion.VersionCode(5, 12, 0)
+	Kernel5_12 = kernelversion.FromCode(5, 12, 0)
 	// Kernel5_13 is the KernelVersion representation of kernel version 5.13
-	Kernel5_13 = kernelversion.VersionCode(5, 13, 0)
+	Kernel5_13 = kernelversion.FromCode(5, 13, 0)
 	// Kernel5_14 is the KernelVersion representation of kernel version 5.14
-	Kernel5_14 = kernelversion.VersionCode(5, 14, 0)
+	Kernel5_14 = kernelversion.FromCode(5, 14, 0)
 	// Kernel5_15 is the KernelVersion representation of kernel version 5.15
-	Kernel5_15 = kernelversion.VersionCode(5, 15, 0)
+	Kernel5_15 = kernelversion.FromCode(5, 15, 0)
 	// Kernel5_16 is the KernelVersion representation of kernel version 5.16
-	Kernel5_16 = kernelversion.VersionCode(5, 16, 0)
+	Kernel5_16 = kernelversion.FromCode(5, 16, 0)
 	// Kernel5_17 is the KernelVersion representation of kernel version 5.17
-	Kernel5_17 = kernelversion.VersionCode(5, 17, 0)
+	Kernel5_17 = kernelversion.FromCode(5, 17, 0)
 	// Kernel5_18 is the KernelVersion representation of kernel version 5.18
-	Kernel5_18 = kernelversion.VersionCode(5, 18, 0)
+	Kernel5_18 = kernelversion.FromCode(5, 18, 0)
 	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
-	Kernel5_19 = kernelversion.VersionCode(5, 19, 0)
+	Kernel5_19 = kernelversion.FromCode(5, 19, 0)
 	// Kernel6_0 is the KernelVersion representation of kernel version 6.0
-	Kernel6_0 = kernelversion.VersionCode(6, 0, 0)
+	Kernel6_0 = kernelversion.FromCode(6, 0, 0)
 	// Kernel6_1 is the KernelVersion representation of kernel version 6.1
-	Kernel6_1 = kernelversion.VersionCode(6, 1, 0)
+	Kernel6_1 = kernelversion.FromCode(6, 1, 0)
 	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
-	Kernel6_2 = kernelversion.VersionCode(6, 2, 0)
+	Kernel6_2 = kernelversion.FromCode(6, 2, 0)
 	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
-	Kernel6_3 = kernelversion.VersionCode(6, 3, 0)
+	Kernel6_3 = kernelversion.FromCode(6, 3, 0)
 	// Kernel6_5 is the KernelVersion representation of kernel version 6.5
-	Kernel6_5 = kernelversion.VersionCode(6, 5, 0)
+	Kernel6_5 = kernelversion.FromCode(6, 5, 0)
 	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
-	Kernel6_6 = kernelversion.VersionCode(6, 6, 0)
+	Kernel6_6 = kernelversion.FromCode(6, 6, 0)
 	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
-	Kernel6_7 = kernelversion.VersionCode(6, 7, 0)
+	Kernel6_7 = kernelversion.FromCode(6, 7, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
-	Kernel6_10 = kernelversion.VersionCode(6, 10, 0)
+	Kernel6_10 = kernelversion.FromCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
-	Kernel6_11 = kernelversion.VersionCode(6, 11, 0)
+	Kernel6_11 = kernelversion.FromCode(6, 11, 0)
 )
 
 // Version defines a kernel version helper
@@ -184,7 +184,7 @@ func newKernelVersion() (*Version, error) {
 	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
 	osReleasePaths = append(osReleasePaths, lsbRelease)
 
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}

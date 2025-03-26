@@ -127,8 +127,8 @@ func enableProgram(enabled map[string]struct{}, name string) {
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
-	kv5190 := kernelversion.VersionCode(5, 19, 0)
-	kv, err := kernelversion.HostVersion()
+	kv5190 := kernelversion.FromCode(5, 19, 0)
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, err
 	}

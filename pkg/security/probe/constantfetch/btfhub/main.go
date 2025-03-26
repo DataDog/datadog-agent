@@ -344,7 +344,7 @@ func (c *treeWalkCollector) extractConstantsFromBTF(archivePath, distribution, d
 	btfFileName := strings.TrimSuffix(archiveFileName, ".tar.xz")
 
 	releasePart := strings.Split(btfFileName, "-")[0]
-	kvCode, err := kernelversion.ParseReleaseString(releasePart)
+	kvCode, err := kernelversion.FromReleaseString(releasePart)
 	if err != nil {
 		return nil, err
 	}

@@ -16,10 +16,10 @@ import (
 var (
 	// DeprecatedKernelVersionRhel is the kernel version
 	// where prebuilt eBPF is deprecated on RHEL based kernels
-	DeprecatedKernelVersionRhel = version.VersionCode(5, 14, 0)
+	DeprecatedKernelVersionRhel = version.FromCode(5, 14, 0)
 	// DeprecatedKernelVersion is the kernel version
 	// where prebuilt eBPF is deprecated on non-RHEL based kernels
-	DeprecatedKernelVersion = version.VersionCode(6, 0, 0)
+	DeprecatedKernelVersion = version.FromCode(6, 0, 0)
 )
 
 // IsDeprecated returns true if prebuilt ebpf is deprecated
@@ -33,7 +33,7 @@ func IsDeprecated() bool {
 	}
 
 	// check kernel version
-	kv, err := version.HostVersion()
+	kv, err := version.Host()
 	if err != nil {
 		log.Warnf("could not determine kernel version: %s", err)
 		return false

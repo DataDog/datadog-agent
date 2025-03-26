@@ -127,14 +127,14 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := kernelversion.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the kernel version, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
-	pre410Kernel := currKernelVersion < kernelversion.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < kernelversion.FromCode(4, 1, 0)
 	if pre410Kernel {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}

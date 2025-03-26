@@ -18,12 +18,12 @@ var MinimumKernelVersion kernelversion.Version
 
 func init() {
 	// we rely on ring buffer support for GPU monitoring, hence the minimal kernel version is 5.8.0
-	MinimumKernelVersion = kernelversion.VersionCode(5, 8, 0)
+	MinimumKernelVersion = kernelversion.FromCode(5, 8, 0)
 }
 
 // CheckGPUSupported checks if the host's kernel supports GPU monitoring
 func CheckGPUSupported() error {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
 	}

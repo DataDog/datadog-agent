@@ -52,7 +52,7 @@ type usmGRPCSuite struct {
 }
 
 func TestGRPCScenarios(t *testing.T) {
-	currKernelVersion, err := kernelversion.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	require.NoError(t, err)
 	if currKernelVersion < http2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)

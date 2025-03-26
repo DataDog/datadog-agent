@@ -20,7 +20,7 @@ import (
 
 func TestHttpCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		currKernelVersion, err := kernelversion.HostVersion()
+		currKernelVersion, err := kernelversion.Host()
 		require.NoError(t, err)
 		if currKernelVersion < usmconfig.MinimumKernelVersion {
 			t.Skip("USM Runtime compilation not supported on this kernel version")

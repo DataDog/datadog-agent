@@ -147,7 +147,7 @@ func GetKernelHeaders(opts HeaderOptions) []string {
 		return HeaderProvider.kernelHeaders
 	}
 
-	hv, err := HostVersion()
+	hv, err := Host()
 	if err != nil {
 		HeaderProvider.result = hostVersionErr
 		log.Warnf("Unable to find kernel headers: unable to determine host kernel version: %s", err)

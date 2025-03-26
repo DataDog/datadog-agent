@@ -75,7 +75,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
 		if name == "netlink" {
-			if kv >= kernelversion.VersionCode(5, 19, 0) && kv < kernelversion.VersionCode(6, 3, 0) {
+			if kv >= kernelversion.FromCode(5, 19, 0) && kv < kernelversion.FromCode(6, 3, 0) {
 				// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
 				t.Skip("skip due to a kernel bug with conntrack netlink events flowing across namespaces")
 			}

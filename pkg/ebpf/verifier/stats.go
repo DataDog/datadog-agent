@@ -47,11 +47,11 @@ func isCOREAsset(path string) bool {
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics, and a map of their detailed complexity info (only filled if DetailedComplexity is true)
 func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, error) {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
 	}
-	if kversion < kernelversion.VersionCode(4, 15, 0) {
+	if kversion < kernelversion.FromCode(4, 15, 0) {
 		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
 	}
 
@@ -87,7 +87,7 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 
 func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
-		kversion, err := kernelversion.HostVersion()
+		kversion, err := kernelversion.Host()
 		if err != nil {
 			return fmt.Errorf("failed to get host kernel version: %w", err)
 		}
@@ -306,7 +306,7 @@ func unmarshalStatistics(output string, hostVersion kernelversion.Version) (*Sta
 		if version == "" {
 			return nil, fmt.Errorf("field %s not tagged with kernel version", field.Name)
 		}
-		if hostVersion < kernelversion.ParseVersion(version) {
+		if hostVersion < kernelversion.Parse(version) {
 			continue
 		}
 

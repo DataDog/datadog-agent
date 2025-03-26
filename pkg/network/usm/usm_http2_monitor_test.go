@@ -86,7 +86,7 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 }
 
 func skipIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernelversion.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)

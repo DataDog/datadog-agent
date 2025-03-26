@@ -30,8 +30,8 @@ var NetifReceiveSKBCoreKprobeMaximumKernelVersion kernelversion.Version
 var ErrNotSupported = errors.New("Universal Service Monitoring (USM) is not supported")
 
 func init() {
-	MinimumKernelVersion = kernelversion.VersionCode(4, 14, 0)
-	NetifReceiveSKBCoreKprobeMaximumKernelVersion = kernelversion.VersionCode(4, 15, 0)
+	MinimumKernelVersion = kernelversion.FromCode(4, 14, 0)
+	NetifReceiveSKBCoreKprobeMaximumKernelVersion = kernelversion.FromCode(4, 15, 0)
 }
 
 func runningOnARM() bool {
@@ -41,14 +41,14 @@ func runningOnARM() bool {
 // TLSSupported returns true if HTTPs monitoring is supported on the current OS.
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
 func TLSSupported(c *config.Config) bool {
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. https monitoring disabled.")
 		return false
 	}
 
 	if runningOnARM() {
-		return kversion >= kernelversion.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
+		return kversion >= kernelversion.FromCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
 	}
 
 	return kversion >= MinimumKernelVersion
@@ -84,7 +84,7 @@ func CheckUSMSupported(cfg *config.Config) error {
 		return fmt.Errorf("%w: eBPF-less is not supported", ErrNotSupported)
 	}
 
-	kversion, err := kernelversion.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
 	}
@@ -114,7 +114,7 @@ func ShouldUseNetifReceiveSKBCoreKprobe() bool {
 	isCached := isKernelVersionCached
 	mu.Unlock()
 	if !isCached {
-		kversion, err := kernelversion.HostVersion()
+		kversion, err := kernelversion.Host()
 		if err != nil {
 			log.Warnf("could not determine the current kernel version: %s", err)
 			return false

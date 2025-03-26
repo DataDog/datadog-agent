@@ -117,7 +117,7 @@ func isUnsupportedUbuntu(t *testing.T) bool {
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernelversion.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	require.NoError(t, err)
 	if currKernelVersion < usmconfig.MinimumKernelVersion {
 		t.Skipf("Kafka feature not available on pre %s kernels", usmconfig.MinimumKernelVersion.String())

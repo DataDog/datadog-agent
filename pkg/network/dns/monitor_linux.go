@@ -52,13 +52,13 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 		return nil, err
 	}
 
-	currKernelVersion, err := kernelversion.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 		currKernelVersion = math.MaxUint32
 	}
-	pre410Kernel := currKernelVersion < kernelversion.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < kernelversion.FromCode(4, 1, 0)
 
 	var p *ebpfProgram
 	if pre410Kernel || cfg.EnableEbpfless {

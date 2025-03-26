@@ -20,11 +20,11 @@ import (
 )
 
 func TestGetAvailableHelpers(t *testing.T) {
-	kv, err := kernelversion.HostVersion()
+	kv, err := kernelversion.Host()
 	require.NoError(t, err)
 	family, err := kernelversion.Family()
 	require.NoError(t, err)
-	if kv < kernelversion.VersionCode(4, 10, 0) && family != "rhel" {
+	if kv < kernelversion.FromCode(4, 10, 0) && family != "rhel" {
 		t.Skip("__BPF_FUNC_MAPPER macro not available on vanilla kernels < 4.10.0")
 	}
 

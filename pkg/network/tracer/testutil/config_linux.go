@@ -13,7 +13,7 @@ import (
 	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
-var kv = kernelversion.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 // Config returns a network.Config setup for test purposes
 func Config() *config.Config {
@@ -23,7 +23,7 @@ func Config() *config.Config {
 		cfg.ProtocolClassificationEnabled = false
 	}
 	// prebuilt on 5.18+ does not support UDPv6
-	if isPrebuilt(cfg) && kv >= kernelversion.VersionCode(5, 18, 0) {
+	if isPrebuilt(cfg) && kv >= kernelversion.FromCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 
