@@ -69,7 +69,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	}
 	var e error
 	var s string
-	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 
 	v := url.Values{}
 	if cliParams.prettyPrintJSON || cliParams.jsonStatus {

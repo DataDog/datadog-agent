@@ -42,7 +42,7 @@ func (s *otelAgentSpanReceiverV2TestSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otelAgentSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

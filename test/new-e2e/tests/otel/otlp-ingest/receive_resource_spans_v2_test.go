@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -50,7 +51,7 @@ func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
-	utils.SetupSampleTraces(s)
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

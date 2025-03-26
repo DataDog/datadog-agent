@@ -53,16 +53,16 @@ namespace Datadog.CustomActions
             }
         }
 
-        private (string Name, string Version) ParseVersion(string library)
+        private NameVersionPair ParseVersion(string library)
         {
             library = library.Trim();
             var index = library.IndexOf(':');
             if (index == -1)
             {
-                return (library, string.Empty);
+                return new NameVersionPair(library, string.Empty);
             }
 
-            return (library.Substring(0, index), library.Substring(index + 1));
+            return new NameVersionPair(library.Substring(0, index), library.Substring(index + 1));
         }
 
         private Dictionary<string, string> InstallerEnvironmentVariables()
@@ -172,6 +172,18 @@ namespace Datadog.CustomActions
         public static ActionResult RollbackActions(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
+        }
+
+        private class NameVersionPair
+        {
+            public NameVersionPair(string name, string version)
+            {
+                Name = name;
+                Version = version;
+            }
+
+            public string Name { get; }
+            public string Version { get; }
         }
     }
 }

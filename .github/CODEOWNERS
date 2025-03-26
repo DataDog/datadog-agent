@@ -42,7 +42,6 @@
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/static-analysis.datadog.yml            @DataDog/sdlc-security @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -215,7 +214,7 @@
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks
-/cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
 /cmd/agent/installer.go                 @DataDog/fleet
@@ -341,6 +340,7 @@
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/agent-log-pipelines
+/comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
@@ -432,7 +432,7 @@
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
-/pkg/collector/corechecks/sbom/         @DataDog/container-integrations
+/pkg/collector/corechecks/sbom/         @DataDog/agent-security @DataDog/container-integrations
 /pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
@@ -582,7 +582,7 @@
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/nvml @DataDog/ebpf-platform
-/pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
+/pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/Networks
 /pkg/collector/corechecks/networkpath/  @DataDog/Networks
 

@@ -192,6 +192,9 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 
 // getTags returns a read only list of tags for a given entity.
 func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
+	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
@@ -277,20 +280,6 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 	}
 
 	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
-}
-
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *localTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
-	if err != nil {
-		return nil, err
-	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
 }
 
 // Standard returns standard tags for a given entity
@@ -532,10 +521,4 @@ func taggerCardinality(cardinality string,
 	}
 
 	return taggerCardinality
-}
-
-// ChecksCardinality defines the cardinality of tags we should send for check metrics
-// this can still be overridden when calling get_tags in python checks.
-func (t *localTagger) ChecksCardinality() types.TagCardinality {
-	return t.datadogConfig.checksCardinality
 }

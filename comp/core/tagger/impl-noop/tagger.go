@@ -32,10 +32,6 @@ func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error)
 	return nil, nil
 }
 
-func (n *noopTagger) LegacyTag(string, types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 // This is a no-op for the noop tagger
 func (n *noopTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
@@ -75,10 +71,6 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 }
 
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
-
-func (n *noopTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
 
 // NewComponent returns a new noop tagger component
 func NewComponent() tagger.Component {

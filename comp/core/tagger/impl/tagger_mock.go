@@ -110,11 +110,6 @@ func (f *fakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return f.tagger.GetTaggerTelemetryStore()
 }
 
-// LegacyTag calls tagger.LegacyTag().
-func (f *fakeTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	return f.tagger.LegacyTag(entity, cardinality)
-}
-
 // Tag calls tagger.Tag().
 func (f *fakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	return f.tagger.Tag(entityID, cardinality)
@@ -168,9 +163,4 @@ func (f *fakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, err
 // EnrichTags calls tagger.EnrichTags().
 func (f *fakeTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	f.tagger.EnrichTags(tb, originInfo)
-}
-
-// ChecksCardinality calls tagger.ChecksCardinality().
-func (f *fakeTagger) ChecksCardinality() types.TagCardinality {
-	return f.tagger.ChecksCardinality()
 }
