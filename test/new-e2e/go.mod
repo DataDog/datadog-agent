@@ -23,7 +23,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250320141613-37219b27b29d
+	github.com/DataDog/test-infra-definitions v0.0.0-20250324140039-7e990ed5ab1a
 	github.com/aws/aws-sdk-go-v2 v1.36.2
 	github.com/aws/aws-sdk-go-v2/config v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.204.0
@@ -265,6 +265,7 @@ require (
 	github.com/creack/pty v1.1.21 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
