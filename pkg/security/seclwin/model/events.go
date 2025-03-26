@@ -81,8 +81,6 @@ const (
 	DNSEventType
 	// DNSResponseEventType DNS Response event
 	DNSResponseEventType
-	// DNSResponseEventsNotSentType DNS Response event not sent by the kernel to userspace
-	DNSResponseEventsNotSentType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
