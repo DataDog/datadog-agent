@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    For workload selection in autoinstrumentation, users can now use kubernetes native ``valueFrom``
-    as an alternative to ``value`` in ``ddTraceConfigs``, which enabled dynamic, user-defined label
-    based value propagation to the tracing SDKs, like ``DD_SERVICE``.
+    For workload selection in auto-instrumentation, users can now use the Kubernetes native ``valueFrom``
+    as an alternative to ``value`` in ``ddTraceConfigs``. This enables dynamic, user-defined and label
+   -based value propagation to the tracing SDKs, like ``DD_SERVICE``.
