@@ -106,7 +106,6 @@ new-agent_dmg-x64-a7:
       - datadog-agent-build
       # TODO
       - /tmp/debug
-      - /Volumes/Agent
     when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
@@ -122,15 +121,35 @@ new-agent_dmg-x64-a7:
   #   - brew list | grep gettext || true
   #   - brew uses gettext --installed || true
   #   - if ! [ -d /usr/local/opt/gettext ]; then sudo mv /tmp/gettext-old /usr/local/opt/gettext; fi
+
   before_script:
-    - sudo umount /Volumes/Agent || true
-    - sudo ls /Volumes || true
+    # TODO A
+    # - sudo umount /Volumes/Agent || true
+    # - sudo ls /Volumes || true
     - sudo ls /Volumes/Agent || true
   after_script:
     - cat /tmp/debug || true
     - sudo ls /Volumes/Agent || true
     # TODO - sudo umount /Volumes/Agent || true
   script:
+    - set -e
+    - |
+      sudo osascript -e '
+        tell application "Finder"
+          activate
+        end tell'
+    - |
+      sudo osascript -e '
+        tell application "Finder"
+          activate
+
+          tell disk "Agent"
+            open
+            set current view of container window to icon view
+          end tell
+        end tell'
+    - exit
+
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
     # Adds one fix
