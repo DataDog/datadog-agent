@@ -29,7 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 func TestConntrackers(t *testing.T) {

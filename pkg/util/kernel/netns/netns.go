@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package ns provides utility functions for network ns handling on linux platform.
-package ns
+// Package netns provides utility functions for network ns handling on linux platform.
+package netns
 
 import (
 	"errors"

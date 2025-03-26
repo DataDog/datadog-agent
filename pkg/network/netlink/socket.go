@@ -20,7 +20,7 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 //nolint:staticcheck // TODO(NET) Fix staticcheck linter
@@ -57,7 +57,7 @@ type Socket struct {
 func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 	var fd int
 	var err error
-	err = ns.WithNS(netNS, func() error {
+	err = netnsutil.WithNS(netNS, func() error {
 		fd, err = unix.Socket(
 			unix.AF_NETLINK,
 			unix.SOCK_RAW|unix.SOCK_CLOEXEC,

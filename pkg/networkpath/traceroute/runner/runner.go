@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 // StartServerTCPNs is identical to StartServerTCP, but it operates with the

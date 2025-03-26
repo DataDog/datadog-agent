@@ -23,7 +23,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 // TCPConnection encapsulates information for a TCP connection.
@@ -54,7 +54,7 @@ func GetTCPConnections() []TCPConnection {
 	)
 
 	_ = kernel.WithAllProcs(procRoot, func(pid int) error {
-		ino, err := ns.GetNetNsInoFromPid(procRoot, pid)
+		ino, err := netns.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
 			return nil
 		}

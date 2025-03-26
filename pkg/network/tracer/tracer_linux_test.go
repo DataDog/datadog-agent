@@ -62,7 +62,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
@@ -917,7 +917,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	// run tcp server in test1 net namespace
 	var server *tracertestutil.TCPServer
-	err = ns.WithNS(test1Ns, func() error {
+	err = netns.WithNS(test1Ns, func() error {
 		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(_ net.Conn) {})
 		return server.Run()
 	})
@@ -955,7 +955,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = ns.WithNS(test2Ns, func() error {
+		err = netns.WithNS(test2Ns, func() error {
 			var err error
 			c, err = server.Dial()
 			return err
@@ -987,7 +987,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var clientIP string
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			ns.WithNS(test2Ns, func() error {
+			netns.WithNS(test2Ns, func() error {
 				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
 				return nil
 			})

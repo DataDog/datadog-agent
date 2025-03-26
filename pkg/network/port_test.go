@@ -22,7 +22,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/ns"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
