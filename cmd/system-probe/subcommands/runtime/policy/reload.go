@@ -29,7 +29,7 @@ func ReloadPoliciesCommand(_ *command.GlobalParams) *cobra.Command {
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(reloadRuntimePolicies,
+			return fxutil.OneShot(ReloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
@@ -40,7 +40,8 @@ func ReloadPoliciesCommand(_ *command.GlobalParams) *cobra.Command {
 	}
 }
 
-func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
+// ReloadRuntimePolicies reloads the runtime policies
+func ReloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

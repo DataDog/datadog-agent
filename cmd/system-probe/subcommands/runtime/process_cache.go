@@ -29,7 +29,8 @@ type processCacheDumpCliParams struct {
 	format   string
 }
 
-func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// ProcessCacheCommand returns the CLI command for "runtime process-cache"
+func ProcessCacheCommand(globalParams *command.GlobalParams) *cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -38,7 +39,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dump",
 		Short: "dump the process cache",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpProcessCache,
+			return fxutil.OneShot(DumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -57,10 +58,11 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	processCacheCmd.AddCommand(processCacheDumpCmd)
 
-	return []*cobra.Command{processCacheCmd}
+	return processCacheCmd
 }
 
-func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+// DumpProcessCache dumps the process cache
+func DumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

@@ -9,59 +9,50 @@ package runtime
 
 import (
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	sysprobecmd "github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
 
+func deprecateCommand(cmd *cobra.Command, msg string) *cobra.Command {
+	var deprecatedCommand cobra.Command = *cmd
+	deprecatedCommand.Deprecated = msg
+	return &deprecatedCommand
+}
+
 // checkPoliciesCommands is deprecated
-func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &checkPoliciesCliParams{
-		GlobalParams: globalParams,
+func checkPoliciesCommands(globalParams *command.GlobalParams) *cobra.Command {
+	confFilePath := ""
+	if len(globalParams.ConfigFilePaths) > 0 {
+		confFilePath = globalParams.ConfigFilePaths[0]
 	}
 
-	checkPoliciesCmd := &cobra.Command{
-		Use:   "check-policies",
-		Short: "check policies and return a report",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(checkPolicies,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(),
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy check` instead",
+	sysprobeGlobalParams := sysprobecmd.GlobalParams{
+		ConfFilePath:         confFilePath,
+		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 	}
 
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
-
-	return []*cobra.Command{checkPoliciesCmd}
+	checkPoliciesCmd := policy.CheckPoliciesCommand(&sysprobeGlobalParams)
+	checkPoliciesCmd.Use = "check-policies"
+	checkPoliciesCmd.Short = "check policies and return a report"
+	return checkPoliciesCmd
 }
 
 // reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	reloadPoliciesCmd := &cobra.Command{
-		Use:   "reload",
-		Short: "Reload policies",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(reloadRuntimePolicies,
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy reload` instead",
+func reloadPoliciesCommands(globalParams *command.GlobalParams) *cobra.Command {
+	confFilePath := ""
+	if len(globalParams.ConfigFilePaths) > 0 {
+		confFilePath = globalParams.ConfigFilePaths[0]
 	}
-	return []*cobra.Command{reloadPoliciesCmd}
+
+	sysprobeGlobalParams := sysprobecmd.GlobalParams{
+		ConfFilePath:         confFilePath,
+		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+	}
+
+	reloadPoliciesCmd := policy.ReloadPoliciesCommand(&sysprobeGlobalParams)
+	reloadPoliciesCmd.Use = "reload"
+	reloadPoliciesCmd.Short = "Reload policies"
+	return reloadPoliciesCmd
 }

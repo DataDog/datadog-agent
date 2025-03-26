@@ -191,7 +191,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 
 	if downloadPolicyArgs.check {
-		if err := checkPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
+		if err := CheckPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
 			return err
 		}
 	}

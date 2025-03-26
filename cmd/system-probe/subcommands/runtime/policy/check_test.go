@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCheckPoliciesLoaded(t *testing.T) {
@@ -92,8 +92,8 @@ func TestCheckPoliciesLoaded(t *testing.T) {
 
 func TestCheckPoliciesCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{CheckPoliciesCommand(&command.GlobalParams{})},
+		[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{}))},
 		[]string{"runtime", "policy", "check"},
-		checkPolicies,
+		CheckPolicies,
 		func() {})
 }

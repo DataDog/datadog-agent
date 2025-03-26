@@ -11,28 +11,8 @@ package runtime
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
-
-func policyCommand(globalParams *command.GlobalParams) *cobra.Command {
-	policyCmd := &cobra.Command{
-		Use:   "policy",
-		Short: "Policy related commands",
-	}
-
-	policyCmd.AddCommand(
-		policy.EvalCommand(globalParams),
-		policy.CheckPoliciesCommand(globalParams),
-		policy.ReloadPoliciesCommand(globalParams),
-		policy.DownloadPolicyCommand(globalParams),
-	)
-
-	return policyCmd
-}
 
 //nolint:unused // TODO(SEC) Fix unused linter
 func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {

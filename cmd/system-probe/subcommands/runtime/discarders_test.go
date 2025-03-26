@@ -19,6 +19,6 @@ func TestDumpDiscardersCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "discarders", "dump"},
-		dumpDiscarders,
+		DumpDiscarders,
 		func() {})
 }

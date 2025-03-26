@@ -9,18 +9,24 @@
 package policy
 
 import (
-	"testing"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 )
 
-func TestReloadRuntimePoliciesCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{}))},
-		[]string{"runtime", "policy", "reload"},
-		ReloadRuntimePolicies,
-		func() {})
+// Command returns the CLI command for "runtime policy"
+func Command(globalParams *command.GlobalParams) *cobra.Command {
+	policyCmd := &cobra.Command{
+		Use:   "policy",
+		Short: "Policy related commands",
+	}
+
+	policyCmd.AddCommand(
+		EvalCommand(globalParams),
+		CheckPoliciesCommand(globalParams),
+		ReloadPoliciesCommand(globalParams),
+		DownloadPolicyCommand(globalParams),
+	)
+
+	return policyCmd
 }

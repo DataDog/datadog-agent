@@ -28,7 +28,8 @@ type dumpNetworkNamespaceCliParams struct {
 	snapshotInterfaces bool
 }
 
-func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// NetworkNamespaceCommand returns the CLI command for "runtime network-namespace
+func NetworkNamespaceCommand(globalParams *command.GlobalParams) *cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
 	}
@@ -37,7 +38,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 		Use:   "dump",
 		Short: "dumps the network namespaces held in cache",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpNetworkNamespace,
+			return fxutil.OneShot(DumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -55,10 +56,11 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	}
 	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
 
-	return []*cobra.Command{networkNamespaceCmd}
+	return networkNamespaceCmd
 }
 
-func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+// DumpNetworkNamespace dumps the network namespaces held in cache
+func DumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

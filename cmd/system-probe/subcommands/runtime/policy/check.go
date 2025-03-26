@@ -53,7 +53,7 @@ func CheckPoliciesCommand(globalParams *command.GlobalParams) *cobra.Command {
 		Use:   "check",
 		Short: "Check policies and return a report",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(checkPolicies,
+			return fxutil.OneShot(CheckPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -73,7 +73,8 @@ func CheckPoliciesCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return checkPoliciesCmd
 }
 
-func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
+// CheckPolicies checks the policies
+func CheckPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		if args.windowsModel {
 			return errors.New("unable to evaluator loaded policies using the windows model")

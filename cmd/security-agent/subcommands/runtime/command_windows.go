@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	sysprobecmd "github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
 
 // Commands exports commands
@@ -20,8 +23,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "runtime Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
-	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
+	confFilePath := ""
+	if len(globalParams.ConfigFilePaths) != 0 {
+		confFilePath = globalParams.ConfigFilePaths[0]
+	}
+
+	sysprobeGlobalParams := &sysprobecmd.GlobalParams{
+		ConfFilePath:         confFilePath,
+		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+	}
+
+	runtimeCmd.AddCommand(policy.Command(sysprobeGlobalParams))
+	runtimeCmd.AddCommand(runtime.SelfTestCommand(sysprobeGlobalParams))
 	/*
 		runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 		runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
@@ -30,9 +43,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		runtimeCmd.AddCommand(discardersCommands(globalParams)...)
 
 	*/
+
 	// Deprecated
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(
+		deprecateCommand(checkPoliciesCommands(globalParams), "please use `security-agent runtime policy check` instead"),
+		deprecateCommand(reloadPoliciesCommands(globalParams), "please use `security-agent runtime policy reload` instead"))
 
 	return []*cobra.Command{runtimeCmd}
 }

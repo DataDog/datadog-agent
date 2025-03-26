@@ -18,6 +18,6 @@ func TestDumpProcessCacheCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"runtime", "process-cache", "dump"},
-		dumpProcessCache,
+		DumpProcessCache,
 		func() {})
 }
