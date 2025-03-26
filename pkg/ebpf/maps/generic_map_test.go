@@ -18,7 +18,7 @@ import (
 
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestBatchAPISupported(t *testing.T) {
@@ -235,10 +235,10 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 }
 
 func TestIteratePerCPUMaps(t *testing.T) {
-	kernelVersion, err := ebpfutil.HostVersion()
+	kernelVersion, err := kernelversion.HostVersion()
 	require.NoError(t, err)
 
-	if kernelVersion < ebpfutil.VersionCode(4, 6, 0) {
+	if kernelVersion < kernelversion.VersionCode(4, 6, 0) {
 		t.Skip("Per CPU maps not supported on this kernel version")
 	}
 

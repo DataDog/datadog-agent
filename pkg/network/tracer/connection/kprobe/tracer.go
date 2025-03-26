@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,7 +47,7 @@ var (
 	// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+), which
 	// was added to socket filters in 4.11.0:
 	// - 2492d3b867043f6880708d095a7a5d65debcfc32
-	classificationMinimumKernel = ebpfutil.VersionCode(4, 11, 0)
+	classificationMinimumKernel = kernelversion.VersionCode(4, 11, 0)
 
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
@@ -58,7 +58,7 @@ var (
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 
-	rhel9KernelVersion = ebpfutil.VersionCode(5, 14, 0)
+	rhel9KernelVersion = kernelversion.VersionCode(5, 14, 0)
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -71,7 +71,7 @@ func ClassificationSupported(config *config.Config) bool {
 	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
 		return false
 	}
-	currentKernelVersion, err := ebpfutil.HostVersion()
+	currentKernelVersion, err := kernelversion.HostVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
 		return false
@@ -82,7 +82,7 @@ func ClassificationSupported(config *config.Config) bool {
 	}
 
 	// TODO: fix protocol classification is not supported on RHEL 9+
-	family, err := ebpfutil.Family()
+	family, err := kernelversion.Family()
 	if err != nil {
 		log.Warnf("could not determine OS family: %s", err)
 		return false
@@ -285,12 +285,12 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 	}
 	defer buf.Close()
 
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return nil, nil, fmt.Errorf("kernel version: %s", err)
 	}
 	// prebuilt on 5.18+ cannot support UDPv6
-	if kv >= ebpfutil.VersionCode(5, 18, 0) {
+	if kv >= kernelversion.VersionCode(5, 18, 0) {
 		config.CollectUDPv6Conns = false
 	}
 
@@ -298,15 +298,15 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 }
 
 func isCORETracerSupported() error {
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	if err != nil {
 		return err
 	}
-	if kv >= ebpfutil.VersionCode(4, 4, 128) {
+	if kv >= kernelversion.VersionCode(4, 4, 128) {
 		return nil
 	}
 
-	platform, err := ebpfutil.Platform()
+	platform, err := kernelversion.Platform()
 	if err != nil {
 		return err
 	}

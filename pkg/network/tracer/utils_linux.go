@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/ebpf/features"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,12 +27,12 @@ func NeedsEBPF() bool {
 // IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality
 // along with some context on why it's not supported
 func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
-	currentKernelCode, err := ebpfutil.HostVersion()
+	currentKernelCode, err := kernelversion.HostVersion()
 	if err != nil {
 		return false, fmt.Errorf("could not get kernel version: %s", err)
 	}
 
-	platform, err := ebpfutil.Platform()
+	platform, err := kernelversion.Platform()
 	if err != nil {
 		return false, fmt.Errorf("kernel platform: %s", err)
 	}
@@ -40,9 +40,9 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
 	return verifyOSVersion(currentKernelCode, platform, exclusionList)
 }
 
-func verifyOSVersion(kernelCode ebpfutil.Version, platform string, exclusionList []string) (bool, error) {
+func verifyOSVersion(kernelCode kernelversion.Version, platform string, exclusionList []string) (bool, error) {
 	for _, version := range exclusionList {
-		if code := ebpfutil.ParseVersion(version); code == kernelCode {
+		if code := kernelversion.ParseVersion(version); code == kernelCode {
 			return false, fmt.Errorf(
 				"current kernel version (%s) is in the exclusion list: %s (list: %+v)",
 				kernelCode,
@@ -59,7 +59,7 @@ func verifyOSVersion(kernelCode ebpfutil.Version, platform string, exclusionList
 	}
 
 	// using eBPF causes kernel panic for linux kernel version 4.4.114 ~ 4.4.127
-	if platform == "ubuntu" && kernelCode >= ebpfutil.VersionCode(4, 4, 114) && kernelCode <= ebpfutil.VersionCode(4, 4, 127) {
+	if platform == "ubuntu" && kernelCode >= kernelversion.VersionCode(4, 4, 114) && kernelCode <= kernelversion.VersionCode(4, 4, 127) {
 		return false, fmt.Errorf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
 	}
 

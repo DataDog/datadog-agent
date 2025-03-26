@@ -29,7 +29,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestConntrackers(t *testing.T) {
@@ -74,7 +74,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
 		if name == "netlink" {
-			if kv >= ebpfutil.VersionCode(5, 19, 0) && kv < ebpfutil.VersionCode(6, 3, 0) {
+			if kv >= kernelversion.VersionCode(5, 19, 0) && kv < kernelversion.VersionCode(6, 3, 0) {
 				// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
 				t.Skip("skip due to a kernel bug with conntrack netlink events flowing across namespaces")
 			}

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestTracerFallback(t *testing.T) {
@@ -262,10 +262,10 @@ func TestCORETracerSupported(t *testing.T) {
 		return nil, nil, nil
 	}
 
-	kv, err := ebpfutil.HostVersion()
+	kv, err := kernelversion.HostVersion()
 	require.NoError(t, err)
 
-	platform, err := ebpfutil.Platform()
+	platform, err := kernelversion.Platform()
 	require.NoError(t, err)
 
 	cfg := config.New()
@@ -273,7 +273,7 @@ func TestCORETracerSupported(t *testing.T) {
 	cfg.AllowRuntimeCompiledFallback = false
 	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
 	assert.False(t, prebuiltCalled)
-	if kv < ebpfutil.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
+	if kv < kernelversion.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
 		assert.ErrorIs(t, err, errCORETracerNotSupported)
 	} else {
@@ -286,7 +286,7 @@ func TestCORETracerSupported(t *testing.T) {
 	cfg.AllowRuntimeCompiledFallback = true
 	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
 	assert.NoError(t, err)
-	if kv < ebpfutil.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
+	if kv < kernelversion.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
 		assert.True(t, prebuiltCalled)
 	} else {

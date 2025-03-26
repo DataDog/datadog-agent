@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,11 +42,11 @@ func TestMain(m *testing.M) {
 
 func TestBuildVerifierStats(t *testing.T) {
 
-	kversion, err := ebpfutil.HostVersion()
+	kversion, err := kernelversion.HostVersion()
 	require.NoError(t, err)
 
 	// TODO: reduce the allows kernel version for this test to 4.15 once the loading on those kernels has been fixed
-	if kversion < ebpfutil.VersionCode(5, 2, 0) {
+	if kversion < kernelversion.VersionCode(5, 2, 0) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
@@ -119,7 +119,7 @@ func TestBuildVerifierStats(t *testing.T) {
 	}
 
 	bpfComplexity := OldBPFComplexityLimit
-	if kversion >= ebpfutil.VersionCode(5, 2, 0) {
+	if kversion >= kernelversion.VersionCode(5, 2, 0) {
 		bpfComplexity = NewBPFComplexityLimit
 	}
 

@@ -16,22 +16,22 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MinimumKernelVersion indicates the minimum kernel version required for HTTP monitoring
-var MinimumKernelVersion ebpfutil.Version
+var MinimumKernelVersion kernelversion.Version
 
 // NetifReceiveSKBCoreKprobeMaximumKernelVersion indicates the maximum kernel version to use with the __netif_receive_skb_core kprobe
-var NetifReceiveSKBCoreKprobeMaximumKernelVersion ebpfutil.Version
+var NetifReceiveSKBCoreKprobeMaximumKernelVersion kernelversion.Version
 
 // ErrNotSupported is the error returned if USM is not supported on this platform
 var ErrNotSupported = errors.New("Universal Service Monitoring (USM) is not supported")
 
 func init() {
-	MinimumKernelVersion = ebpfutil.VersionCode(4, 14, 0)
-	NetifReceiveSKBCoreKprobeMaximumKernelVersion = ebpfutil.VersionCode(4, 15, 0)
+	MinimumKernelVersion = kernelversion.VersionCode(4, 14, 0)
+	NetifReceiveSKBCoreKprobeMaximumKernelVersion = kernelversion.VersionCode(4, 15, 0)
 }
 
 func runningOnARM() bool {
@@ -41,14 +41,14 @@ func runningOnARM() bool {
 // TLSSupported returns true if HTTPs monitoring is supported on the current OS.
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
 func TLSSupported(c *config.Config) bool {
-	kversion, err := ebpfutil.HostVersion()
+	kversion, err := kernelversion.HostVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. https monitoring disabled.")
 		return false
 	}
 
 	if runningOnARM() {
-		return kversion >= ebpfutil.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
+		return kversion >= kernelversion.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
 	}
 
 	return kversion >= MinimumKernelVersion
@@ -57,18 +57,18 @@ func TLSSupported(c *config.Config) bool {
 var (
 	mu                    sync.Mutex
 	isKernelVersionCached bool
-	cachedKernelVersion   ebpfutil.Version
+	cachedKernelVersion   kernelversion.Version
 )
 
 // GetCachedKernelVersion returns the cached kernel version
-func GetCachedKernelVersion() ebpfutil.Version {
+func GetCachedKernelVersion() kernelversion.Version {
 	mu.Lock()
 	defer mu.Unlock()
 	return cachedKernelVersion
 }
 
 // SetCachedKernelVersion sets the cached kernel version
-func SetCachedKernelVersion(version ebpfutil.Version) {
+func SetCachedKernelVersion(version kernelversion.Version) {
 	mu.Lock()
 	defer mu.Unlock()
 	isKernelVersionCached = true
@@ -84,7 +84,7 @@ func CheckUSMSupported(cfg *config.Config) error {
 		return fmt.Errorf("%w: eBPF-less is not supported", ErrNotSupported)
 	}
 
-	kversion, err := ebpfutil.HostVersion()
+	kversion, err := kernelversion.HostVersion()
 	if err != nil {
 		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
 	}
@@ -114,7 +114,7 @@ func ShouldUseNetifReceiveSKBCoreKprobe() bool {
 	isCached := isKernelVersionCached
 	mu.Unlock()
 	if !isCached {
-		kversion, err := ebpfutil.HostVersion()
+		kversion, err := kernelversion.HostVersion()
 		if err != nil {
 			log.Warnf("could not determine the current kernel version: %s", err)
 			return false

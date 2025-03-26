@@ -29,7 +29,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 const (
@@ -52,7 +52,7 @@ type usmGRPCSuite struct {
 }
 
 func TestGRPCScenarios(t *testing.T) {
-	currKernelVersion, err := ebpfutil.HostVersion()
+	currKernelVersion, err := kernelversion.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)

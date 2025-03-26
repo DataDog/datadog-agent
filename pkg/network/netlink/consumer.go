@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -53,8 +53,8 @@ var errShortErrorMessage = errors.New("not enough data for netlink error code")
 var pre315Kernel bool
 
 func init() {
-	if vers, err := ebpfutil.HostVersion(); err == nil {
-		pre315Kernel = vers < ebpfutil.VersionCode(3, 15, 0)
+	if vers, err := kernelversion.HostVersion(); err == nil {
+		pre315Kernel = vers < kernelversion.VersionCode(3, 15, 0)
 	}
 }
 
