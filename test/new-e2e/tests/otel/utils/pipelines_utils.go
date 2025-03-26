@@ -85,7 +85,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), calendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
 		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
 			assert.True(s.T(), ok)
@@ -103,7 +103,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), calendarService, sp.Service)
+		assert.Equal(s.T(), CalendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
@@ -261,7 +261,7 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		tags := []string{fmt.Sprintf("service:%v", calendarService)}
+		tags := []string{fmt.Sprintf("service:%v", CalendarService)}
 		if iaParams.InfraAttributes {
 			tags = append(tags, "kube_ownerref_kind:replicaset")
 		}
@@ -273,7 +273,7 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 
 	for _, metricSeries := range metrics {
 		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
@@ -305,9 +305,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		if iaParams.InfraAttributes {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
 		} else {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
@@ -326,7 +326,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 			tags[k] = fmt.Sprint(v)
 		}
 		assert.Contains(s.T(), log.Message, logBody)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
@@ -356,11 +356,11 @@ func TestHosts(s OTelTestSuite) {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
 
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", calendarService)}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", CalendarService)}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -492,7 +492,7 @@ func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
@@ -641,7 +641,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 	if ust {
 		return append(envVars, []corev1.EnvVar{{
 			Name:  "DD_SERVICE",
-			Value: calendarService,
+			Value: CalendarService,
 		}, {
 			Name:  "DD_ENV",
 			Value: env,
@@ -656,7 +656,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 
 	return append(envVars, []corev1.EnvVar{{
 		Name:  "OTEL_SERVICE_NAME",
-		Value: calendarService,
+		Value: CalendarService,
 	}, {
 		Name: "OTEL_RESOURCE_ATTRIBUTES",
 		Value: resourceAttrs +
