@@ -7,7 +7,7 @@
 // gatherered with the event collector. They are placed in a separate file as they don't match
 // with any specific struct but are rather integration tests for the consumer and stats generator.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
