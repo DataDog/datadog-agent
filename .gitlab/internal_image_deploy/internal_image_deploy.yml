@@ -14,12 +14,13 @@ docker_trigger_internal:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v12
+    IMAGE_VERSION: tmpl-v13
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx
     TMPL_SRC_REPO: ci/datadog-agent/agent
+    TMPL_ADP_VERSION: 0.1.2
     RELEASE_STAGING: "true"
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
@@ -37,6 +38,7 @@ docker_trigger_internal:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
@@ -106,12 +108,13 @@ docker_trigger_internal-ot:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v12
+    IMAGE_VERSION: tmpl-v13
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx
     TMPL_SRC_REPO: ci/datadog-agent/agent
+    TMPL_ADP_VERSION: 0.1.2
     RELEASE_STAGING: "true"
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
@@ -129,6 +132,7 @@ docker_trigger_internal-ot:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
@@ -246,12 +250,13 @@ docker_trigger_internal-full:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v12
+    IMAGE_VERSION: tmpl-v13
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-full
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-full
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full
     TMPL_SRC_REPO: ci/datadog-agent/agent
+    TMPL_ADP_VERSION: 0.1.2
     RELEASE_STAGING: "true"
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
@@ -269,6 +274,7 @@ docker_trigger_internal-full:
       --variable BUILD_TAG
       --variable TMPL_SRC_IMAGE
       --variable TMPL_SRC_REPO
+      --variable TMPL_ADP_VERSION
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
       --variable DYNAMIC_BUILD_RENDER_RULES
