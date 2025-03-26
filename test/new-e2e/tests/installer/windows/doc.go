@@ -12,19 +12,19 @@
 //
 // To run the tests using artifacts from a specific pipeline, set the following environment variables:
 //
-//  E2E_PIPELINE_ID=<pipeline_id>
-//  CURRENT_AGENT_VERSION=<agent_version>
-//  STABLE_AGENT_VERSION=<stable_agent_version>
+//	E2E_PIPELINE_ID=<pipeline_id>
+//	CURRENT_AGENT_VERSION=<agent_version>
+//	STABLE_AGENT_VERSION=<stable_agent_version>
 //
 // Example:
 //
-//  E2E_PIPELINE_ID="40537701"
-//  CURRENT_AGENT_VERSION="7.66.0-devel"
-//  CURRENT_AGENT_VERSION_PACKAGE="7.66.0-devel.git.53.db3f37e.pipeline.1234-1"
-//  STABLE_AGENT_VERSION="7.65.0"
-//  STABLE_AGENT_VERSION_PACKAGE="7.65.0-1"
+//	E2E_PIPELINE_ID="40537701"
+//	CURRENT_AGENT_VERSION="7.66.0-devel"
+//	CURRENT_AGENT_VERSION_PACKAGE="7.66.0-devel.git.53.db3f37e.pipeline.1234-1"
+//	STABLE_AGENT_VERSION="7.65.0"
+//	STABLE_AGENT_VERSION_PACKAGE="7.65.0-1"
 //
-// VERSION is used for comparing with the output of the `version` subcommand
+// VERSION is used for comparing with the output of the `version` subcommand.
 //
 // VERSION_PACKAGE is used for comparing with the Fleet package stable/experiment status
 //
@@ -36,8 +36,8 @@
 //
 // To run the tests using local artifacts, set one or more the following environment variables:
 //
-//  CURRENT_AGENT_MSI_URL="file:///path/to/agent.msi"
-//  STABLE_AGENT_OCI_URL="file:///path/to/oci/package.tar"
+//	CURRENT_AGENT_MSI_URL="file:///path/to/agent.msi"
+//	STABLE_AGENT_OCI_URL="file:///path/to/oci/package.tar"
 //
 // See `WithDevEnvOverrides()` here for more OCI options and and in `common/agent/` for more MSI options.
 //
