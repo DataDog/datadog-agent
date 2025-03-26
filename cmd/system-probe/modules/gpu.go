@@ -29,13 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfig.GPUNS}
+var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
