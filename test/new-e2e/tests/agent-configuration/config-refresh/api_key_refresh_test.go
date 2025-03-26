@@ -187,7 +187,7 @@ additional_endpoints:
 			var payloads []map[string]interface{}
 			err = json.Unmarshal(body, &payloads)
 			require.NoError(t, err, "Failed to decode FakeIntake JSON response for %s", endpoint)
-			v.T().Logf("WACKTEST4 Number of payloads found for %s: %d", endpoint, len(payloads))
+			v.T().Logf("WACKTEST4.1 Number of payloads found for %s: %d", endpoint, len(payloads))
 
 			// Verify we have payloads
 			require.NotEmpty(t, payloads, "No payloads found in FakeIntake for endpoint %s", endpoint)
