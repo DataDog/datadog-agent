@@ -17,11 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 func TestRunWithChan(t *testing.T) {
+	authtoken := authtokenmock.New(t)
+
 	t.Run("success", func(t *testing.T) {
 		var called bool
 		handler := func(w http.ResponseWriter, _ *http.Request) {
@@ -30,7 +33,7 @@ func TestRunWithChan(t *testing.T) {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		cs := makeConfigSyncWithServer(t, ctx, handler)
+		cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
 
 		cs.Config.Set("key0", "value0", pkgconfigmodel.SourceFile)
 		cs.Config.Set("key1", "value1", pkgconfigmodel.SourceFile)
@@ -65,7 +68,7 @@ func TestRunWithChan(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		cs := makeConfigSyncWithServer(t, ctx, handler)
+		cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
 
 		cs.Config.Set("key1", "not-value1", pkgconfigmodel.SourceFile)
 
@@ -98,10 +101,12 @@ func TestRunWithInterval(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, key)))
 	})
 
+	authtoken := authtokenmock.New(t)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cs := makeConfigSyncWithServer(t, ctx, handler)
+	cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
 	cs.Config.Set("api_key", "api_key_remote", pkgconfigmodel.SourceEnvVar)
 
 	refreshInterval := time.Millisecond * 200

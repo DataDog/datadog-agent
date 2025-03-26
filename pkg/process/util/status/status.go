@@ -9,10 +9,11 @@ package status
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -123,20 +124,27 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader) (s CoreStatus) {
 	}
 }
 
-func getExpvars(expVarURL string, c authtoken.SecureClient) (s ProcessExpvars, err error) {
-	b, err := c.Get(expVarURL, authtoken.WithLeaveConnectionOpen)
+func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
+	client := http.Client{}
+	resp, err := client.Get(expVarURL)
+	if err != nil {
+		return s, ConnectionError{err}
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
 
-	err = json.Unmarshal(b, &s)
+	err = json.Unmarshal(body, &s)
 	return
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, c authtoken.SecureClient) (*Status, error) {
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
-	processExpVars, err := getExpvars(expVarURL, c)
+	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
 		return nil, err
 	}

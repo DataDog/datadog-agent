@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -145,7 +146,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func getSettingsClient(client authtoken.SecureClient) (settings.Client, error) {
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))
 
-	return settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", authtoken.WithLeaveConnectionOpen), nil
+	return settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", secureclient.WithLeaveConnectionOpen), nil
 }
 
 func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams, authToken authtoken.Component) error {

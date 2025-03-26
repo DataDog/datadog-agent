@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -83,6 +85,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				core.Bundle(),
 				process.Bundle(),
+				fetchonlyimpl.Module(),
 			)
 		},
 	}
@@ -110,7 +113,7 @@ func writeError(log log.Component, w io.Writer, e error) {
 }
 
 func fetchStatus(c authtoken.SecureClient, statusURL string) ([]byte, error) {
-	body, err := c.Get(statusURL, authtoken.WithLeaveConnectionOpen)
+	body, err := c.Get(statusURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)
 	}

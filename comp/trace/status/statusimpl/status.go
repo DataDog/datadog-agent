@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -80,7 +81,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.SecureClient.Get(url, authtoken.WithCloseConnection)
+	resp, err := s.SecureClient.Get(url, secureclient.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -70,7 +71,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, at authtoken.Componen
 	}
 
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := at.GetClient().Get(path, authtoken.WithCloseConnection)
+	r, err := at.GetClient().Get(path, secureclient.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

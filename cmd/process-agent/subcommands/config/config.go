@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -192,6 +193,6 @@ func getClient(deps dependencies) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewSecureClient(deps.At.GetClient(), ipcAddressWithPort, "process-agent", authtoken.WithLeaveConnectionOpen)
+	settingsClient := settingshttp.NewSecureClient(deps.At.GetClient(), ipcAddressWithPort, "process-agent", secureclient.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

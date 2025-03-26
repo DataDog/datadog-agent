@@ -16,6 +16,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -23,7 +24,7 @@ import (
 func GetTaggerList(c authtoken.SecureClient, w io.Writer, url string) error {
 
 	// get the tagger-list from server
-	r, err := c.Get(url, authtoken.WithLeaveConnectionOpen)
+	r, err := c.Get(url, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while getting tags list: %s\n", string(r))

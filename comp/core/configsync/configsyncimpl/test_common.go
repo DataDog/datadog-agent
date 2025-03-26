@@ -58,19 +58,18 @@ func makeConfigSync(t *testing.T) *configSync {
 	return cs
 }
 
-func makeServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *http.Client, *url.URL) {
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+func makeServer(t *testing.T, authtoken authtoken.Mock, handler http.HandlerFunc) (*httptest.Server, authtoken.SecureClient, *url.URL) {
+	server := authtoken.NewMockServer(handler)
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	return server, server.Client(), url
+	return server, authtoken.GetClient(), url
 }
 
 //nolint:revive
-func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
-	_, client, url := makeServer(t, handler)
+func makeConfigSyncWithServer(t *testing.T, ctx context.Context, authtoken authtoken.Mock, handler http.HandlerFunc) *configSync {
+	_, client, url := makeServer(t, authtoken, handler)
 
 	cs := makeConfigSync(t)
 	cs.ctx = ctx

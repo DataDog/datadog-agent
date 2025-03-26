@@ -55,7 +55,7 @@ func acquireHostname(c *config.AgentConfig) error {
 	if err != nil {
 		return err
 	}
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), c.AgentIPC.GetTLSServerConfig())
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), c.IPCTLSServerConfig)
 	if err != nil {
 		return err
 	}

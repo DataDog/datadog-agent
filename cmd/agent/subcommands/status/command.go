@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -171,7 +172,7 @@ func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
 		return err
 	}
 
-	res, err := endpoint.DoGet(authtoken.WithValues(v))
+	res, err := endpoint.DoGet(secureclient.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -201,7 +202,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(authtoken.WithValues(v))
+	res, err := endpoint.DoGet(secureclient.WithValues(v))
 	if err != nil {
 		return err
 	}

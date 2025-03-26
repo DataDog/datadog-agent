@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -89,6 +91,9 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func(t testing.TB) authtoken.Component {
+			return authtokenmock.New(t)
+		}),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)

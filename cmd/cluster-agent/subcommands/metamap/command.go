@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -75,7 +76,7 @@ func getMetadataMap(at authtoken.Component, nodeName string) error {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
-	r, e := at.GetClient().Get(urlstr, authtoken.WithLeaveConnectionOpen)
+	r, e := at.GetClient().Get(urlstr, secureclient.WithLeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

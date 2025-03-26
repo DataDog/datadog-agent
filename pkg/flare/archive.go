@@ -22,6 +22,7 @@ import (
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -226,7 +227,7 @@ func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	bytes, err := r.Get(procStatusURL, authtoken.WithLeaveConnectionOpen)
+	bytes, err := r.Get(procStatusURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
 	}
@@ -250,7 +251,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 		}
 
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) {
-			return r.Get(checkURL+checkName, authtoken.WithLeaveConnectionOpen)
+			return r.Get(checkURL+checkName, secureclient.WithLeaveConnectionOpen)
 		})
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
@@ -293,7 +294,7 @@ func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 
 // GetTaggerList fetches the tagger list from the given URL.
 func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
-	resp, err := r.Get(remoteURL, authtoken.WithLeaveConnectionOpen)
+	resp, err := r.Get(remoteURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +322,7 @@ func (r *RemoteFlareProvider) getAgentWorkloadList() ([]byte, error) {
 
 // GetWorkloadList fetches the workload list from the given URL.
 func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
-	resp, err := r.Get(url, authtoken.WithLeaveConnectionOpen)
+	resp, err := r.Get(url, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +377,7 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.Do(req, authtoken.WithContext(ctx))
+	resp, err := r.Do(req, secureclient.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}

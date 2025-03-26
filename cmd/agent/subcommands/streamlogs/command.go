@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -135,7 +136,7 @@ func streamLogs(lc log.Component, config config.Component, auth authtoken.Compon
 func streamRequest(client authtoken.SecureClient, url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
 	var e error
 
-	e = client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, authtoken.WithTimeout(duration))
+	e = client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, secureclient.WithTimeout(duration))
 
 	if e == io.EOF {
 		return nil

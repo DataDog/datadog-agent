@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -130,7 +131,7 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	timeout := conf.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
-	res, err := auth.GetClient().Get(url, authtoken.WithCloseConnection, authtoken.WithTimeout(timeout))
+	res, err := auth.GetClient().Get(url, secureclient.WithCloseConnection, secureclient.WithTimeout(timeout))
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
 	}

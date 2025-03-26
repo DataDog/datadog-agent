@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -32,7 +33,7 @@ func SecurityAgentConfig(config config.Reader, client authtoken.SecureClient) (s
 	timeout := config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
-	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", authtoken.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", secureclient.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }
 
@@ -51,7 +52,7 @@ func SecurityAgentConfigBySource(config config.Reader, client authtoken.SecureCl
 	timeout := config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
-	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", authtoken.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", secureclient.WithTimeout(timeout))
 	return settingsClient.FullConfigBySource()
 }
 
@@ -71,7 +72,7 @@ func TraceAgentConfig(config config.Reader, client authtoken.SecureClient) (stri
 
 	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
 
-	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "trace-agent", authtoken.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "trace-agent", secureclient.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }
 
@@ -99,6 +100,6 @@ func ProcessAgentConfig(config config.Reader, client authtoken.SecureClient, get
 
 	timeout := config.GetDuration("server_timeout") * time.Second
 
-	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "process-agent", authtoken.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "process-agent", secureclient.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }

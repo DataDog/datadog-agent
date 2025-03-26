@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package createandfetchimpl implements the creation and access to the auth_token used to communicate between Agent
-// processes.
-package authtoken
+// Package secureclient implements a secure client for the auth_token component
+package secureclient
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -18,7 +18,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -30,7 +32,7 @@ type secureClient struct {
 	config    pkgconfigmodel.Reader
 }
 
-func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader, _ ...ClientOption) SecureClient {
+func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader, _ ...authtoken.ClientOption) authtoken.SecureClient {
 	tr := &http.Transport{
 		TLSClientConfig: clientTLSConfig,
 	}
@@ -42,7 +44,7 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 	}
 }
 
-func (s *secureClient) Do(req *http.Request, opts ...RequestOption) (resp []byte, err error) {
+func (s *secureClient) Do(req *http.Request, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	var cb []func()
 	onEnded := func(fn func()) {
 		cb = append(cb, fn)
@@ -76,7 +78,7 @@ func (s *secureClient) Do(req *http.Request, opts ...RequestOption) (resp []byte
 	return body, nil
 }
 
-func (s *secureClient) Get(url string, opts ...RequestOption) (resp []byte, err error) {
+func (s *secureClient) Get(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -114,7 +116,7 @@ func (s *secureClient) Get(url string, opts ...RequestOption) (resp []byte, err 
 	return body, nil
 }
 
-func (s *secureClient) Head(url string, opts ...RequestOption) (resp []byte, err error) {
+func (s *secureClient) Head(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return nil, err
@@ -152,7 +154,7 @@ func (s *secureClient) Head(url string, opts ...RequestOption) (resp []byte, err
 	return body, nil
 }
 
-func (s *secureClient) Post(url string, contentType string, body io.Reader, opts ...RequestOption) (resp []byte, err error) {
+func (s *secureClient) Post(url string, contentType string, body io.Reader, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
@@ -190,7 +192,7 @@ func (s *secureClient) Post(url string, contentType string, body io.Reader, opts
 	return respBody, nil
 }
 
-func (s *secureClient) PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...RequestOption) (err error) {
+func (s *secureClient) PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...authtoken.RequestOption) (err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return err
@@ -235,7 +237,7 @@ func (s *secureClient) PostChunk(url string, contentType string, body io.Reader,
 	return err
 }
 
-func (s *secureClient) PostForm(url string, data url.Values, opts ...RequestOption) (resp []byte, err error) {
+func (s *secureClient) PostForm(url string, data url.Values, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	return s.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()), opts...)
 }
 
@@ -243,13 +245,13 @@ func (s *secureClient) PostForm(url string, data url.Values, opts ...RequestOpti
 
 // IPCEndpoint is an endpoint that IPC requests will be sent to
 type IPCEndpoint struct {
-	client    SecureClient
+	client    authtoken.SecureClient
 	target    url.URL
 	closeConn bool
 }
 
 // NewIPCEndpoint constructs a new IPC Endpoint using the given config, path, and options
-func (s *secureClient) NewIPCEndpoint(endpointPath string) (*IPCEndpoint, error) {
+func (s *secureClient) NewIPCEndpoint(endpointPath string) (authtoken.IPCEndpoint, error) {
 	var cmdHostKey string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
@@ -283,7 +285,7 @@ func (s *secureClient) NewIPCEndpoint(endpointPath string) (*IPCEndpoint, error)
 }
 
 // DoGet sends GET method to the endpoint
-func (end *IPCEndpoint) DoGet(options ...RequestOption) ([]byte, error) {
+func (end *IPCEndpoint) DoGet(options ...authtoken.RequestOption) ([]byte, error) {
 	target := end.target
 
 	// TODO: after removing callers to api/util/DoGet, pass `end.token` instead of using global var
@@ -302,4 +304,35 @@ func (end *IPCEndpoint) DoGet(options ...RequestOption) ([]byte, error) {
 		return nil, err
 	}
 	return res, err
+}
+
+func WithCloseConnection(req *http.Request, _ func(func())) *http.Request {
+	req.Close = true
+	return req
+}
+
+func WithLeaveConnectionOpen(req *http.Request, _ func(func())) *http.Request {
+	req.Close = false
+	return req
+}
+
+func WithContext(ctx context.Context) authtoken.RequestOption {
+	return func(req *http.Request, _ func(func())) *http.Request {
+		return req.WithContext(ctx)
+	}
+}
+
+func WithTimeout(to time.Duration) authtoken.RequestOption {
+	return func(req *http.Request, onEnding func(func())) *http.Request {
+		ctx, cncl := context.WithTimeout(context.Background(), to) // TODO IPC: handle call of WithContext and WithTimeout in the same time
+		onEnding(cncl)
+		return req.WithContext(ctx)
+	}
+}
+
+func WithValues(values url.Values) authtoken.RequestOption {
+	return func(req *http.Request, _ func(func())) *http.Request {
+		req.URL.RawQuery = values.Encode()
+		return req
+	}
 }

@@ -42,7 +42,6 @@ import (
 
 	// package dependencies
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -180,16 +179,11 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
+			resp, err := deps.AuthToken.GetClient().Do(req)
+			require.Error(t, err)
 
 			// for debug purpose
-			if content, err := io.ReadAll(resp.Body); assert.NoError(t, err) {
-				t.Log(string(content))
-			}
-
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			t.Log(string(resp))
 
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
@@ -273,17 +267,13 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	resp, err := util.GetClient().Do(req)
+	resp, err := deps.AuthToken.GetClient().Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
+	t.Log(string(resp))
 
 	// test the gateway is monted at the root
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
+	assert.Equal(t, "GRPC GATEWAY OK", string(resp))
 
 	req, err = http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
@@ -298,16 +288,16 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 		Transport: transport,
 	}
 
-	resp, err = http2Client.Do(req)
+	resp2, err := http2Client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer resp2.Body.Close()
 
-	content, err = io.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp2.Body)
 	assert.NoError(t, err)
 	t.Log(string(content))
 
 	// test the api routes grpc request to the grpc server
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp2.StatusCode)
 	assert.Equal(t, "GRPC SERVER OK", string(content))
 }
 

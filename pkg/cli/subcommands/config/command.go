@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -207,7 +208,7 @@ func otelAgentCfg(_ log.Component, config config.Component, at authtoken.Compone
 
 	otelCollectorURL := config.GetString("otelcollector.extension_url")
 
-	resp, err := at.GetClient().Get(otelCollectorURL, authtoken.WithLeaveConnectionOpen)
+	resp, err := at.GetClient().Get(otelCollectorURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return err
 	}

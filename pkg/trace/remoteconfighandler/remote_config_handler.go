@@ -163,9 +163,7 @@ func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Reque
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err
 	}
-	if h.agentConfig.AgentIPC != nil {
-		req.Header.Set("Authorization", "Bearer "+h.agentConfig.AgentIPC.Get())
-	}
+	req.Header.Set("Authorization", "Bearer "+h.agentConfig.AuthToken)
 	return req, nil
 }
 

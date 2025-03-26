@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -60,7 +61,7 @@ func workloadList(_ log.Component, config config.Component, at authtoken.Compone
 		return err
 	}
 
-	r, err := at.GetClient().Get(url, authtoken.WithLeaveConnectionOpen)
+	r, err := at.GetClient().Get(url, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

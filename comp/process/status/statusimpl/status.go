@@ -14,7 +14,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,8 +24,7 @@ import (
 type dependencies struct {
 	fx.In
 
-	Config    config.Component
-	Authtoken authtoken.Component
+	Config config.Component
 }
 
 type provides struct {
@@ -44,14 +42,12 @@ func Module() fxutil.Module {
 type statusProvider struct {
 	testServerURL string
 	config        config.Component
-	secureClient  authtoken.SecureClient
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:       deps.Config,
-			secureClient: deps.Authtoken.GetClient(),
+			config: deps.Config,
 		}),
 	}
 }
@@ -101,7 +97,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.secureClient)
+	agentStatus, err := processStatus.GetStatus(s.config, url)
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status

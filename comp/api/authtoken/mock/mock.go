@@ -8,23 +8,31 @@ package mock
 
 import (
 	"crypto/tls"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	authtokeninterface "github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // inMemoryAuthComponent is a mock for the authtoken component
 // It is used to set the auth token, client TLS config and server TLS config in memory
 type inMemoryAuthComponent struct {
-	t testing.TB
+	t    testing.TB
+	conf config.Component
 }
 
 // Get is a mock of the fetchonly Get function
-func (m *inMemoryAuthComponent) Get() (string, error) {
-	return util.GetAuthToken(), nil
+func (m *inMemoryAuthComponent) Get() string {
+	return util.GetAuthToken()
 }
 
 // GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function
@@ -42,6 +50,18 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 	ts.TLS = m.GetTLSServerConfig()
 	ts.StartTLS()
 	m.t.Cleanup(ts.Close)
+
+	// set the cmd_host and cmd_port in the config
+	addr, err := url.Parse(ts.URL)
+	require.NoError(m.t, err)
+	localHost, localPort, _ := net.SplitHostPort(addr.Host)
+	m.conf.Set("cmd_host", localHost, pkgconfigmodel.SourceAgentRuntime)
+	m.conf.Set("cmd_port", localPort, pkgconfigmodel.SourceAgentRuntime)
+	m.t.Cleanup(func() {
+		m.conf.UnsetForSource("cmd_host", pkgconfigmodel.SourceAgentRuntime)
+		m.conf.UnsetForSource("cmd_port", pkgconfigmodel.SourceAgentRuntime)
+	})
+
 	return ts
 }
 
@@ -51,6 +71,15 @@ func New(t testing.TB) authtokeninterface.Mock {
 	util.SetAuthTokenInMemory(t) // TODO IPC: remove this line when the migration to component framework will be fully finished
 
 	return &inMemoryAuthComponent{
-		t: t,
+		t:    t,
+		conf: config.NewMock(t),
 	}
+}
+
+func (at *inMemoryAuthComponent) HTTPMiddleware(next http.Handler) http.Handler {
+	return authtokeninterface.NewHTTPMiddleware(at.t.Logf, at.Get())(next)
+}
+
+func (at *inMemoryAuthComponent) GetClient(_ ...authtokeninterface.ClientOption) authtokeninterface.SecureClient {
+	return secureclient.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
 }

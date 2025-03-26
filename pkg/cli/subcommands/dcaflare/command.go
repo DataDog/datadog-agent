@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -139,7 +140,7 @@ func readProfileData(client authtoken.SecureClient, seconds int) (clusterAgentFl
 			URL:  pprofURL + "/block",
 		},
 	} {
-		b, err := client.Get(prof.URL, authtoken.WithLeaveConnectionOpen)
+		b, err := client.Get(prof.URL, secureclient.WithLeaveConnectionOpen)
 		if err != nil {
 			return pdata, err
 		}
@@ -167,7 +168,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 	client := at.GetClient()
 
 	if cliParams.profiling >= 30 {
-		settingsClient := settingshttp.NewSecureClient(client, configURL, "datadog-cluster-agent", authtoken.WithLeaveConnectionOpen)
+		settingsClient := settingshttp.NewSecureClient(client, configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,

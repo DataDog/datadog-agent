@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -412,7 +413,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component, au
 	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
 		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
 
-	r, err := c.Get(apiConfigURL, authtoken.WithCloseConnection)
+	r, err := c.Get(apiConfigURL, secureclient.WithCloseConnection)
 	if err != nil {
 		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}

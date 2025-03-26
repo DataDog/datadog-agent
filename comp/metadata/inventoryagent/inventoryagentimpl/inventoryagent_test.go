@@ -325,7 +325,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	defer func() {
 		fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	}()
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -347,7 +347,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 
-	fetchSecurityConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(_ pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		return `compliance_config:
   enabled: true
   host_benchmarks:
@@ -362,11 +362,11 @@ func TestFetchSecurityAgent(t *testing.T) {
 }
 
 func TestFetchProcessAgent(t *testing.T) {
-	defer func(original func(cfg pkgconfigmodel.Reader) (string, error)) {
+	defer func(original func(cfg pkgconfigmodel.Reader, c authtoken.SecureClient) (string, error)) {
 		fetchProcessConfig = original
 	}(fetchProcessConfig)
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(config pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -390,7 +390,7 @@ func TestFetchProcessAgent(t *testing.T) {
 	// default to true in the process agent configuration
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 
-	fetchProcessConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(_ pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		return `
 process_config:
   process_collection:
@@ -413,7 +413,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	defer func() {
 		fetchTraceConfig = configFetcher.TraceAgentConfig
 	}()
-	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(config pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -439,7 +439,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	}
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
-	fetchTraceConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ authtoken.SecureClient) (string, error) {
 		return `
 apm_config:
   enabled: true

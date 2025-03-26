@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -195,7 +196,7 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool, c authtoken.SecureC
 		Path:   "config-check",
 	}
 
-	r, err := c.Get(targetURL.String(), authtoken.WithLeaveConnectionOpen)
+	r, err := c.Get(targetURL.String(), secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))

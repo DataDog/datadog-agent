@@ -77,7 +77,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.authtoken.GetClient())
+	agentStatus, err := processStatus.GetStatus(s.config, url)
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status

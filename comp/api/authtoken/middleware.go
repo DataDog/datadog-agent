@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-func NewHTTPMiddleware(logger func(format string, params ...interface{}) error, authtoken string) func(http.Handler) http.Handler {
+func NewHTTPMiddleware(logger func(format string, params ...interface{}), authtoken string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var err error

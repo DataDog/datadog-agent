@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -82,7 +83,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, at
 		RawQuery: v.Encode(),
 	}
 
-	r, e := at.GetClient().Get(url.String(), authtoken.WithLeaveConnectionOpen)
+	r, e := at.GetClient().Get(url.String(), secureclient.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

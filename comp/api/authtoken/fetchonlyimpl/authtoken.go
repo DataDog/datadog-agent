@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -91,9 +92,9 @@ func (at *authToken) GetTLSServerConfig() *tls.Config {
 }
 
 func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
-	return authtoken.NewHTTPMiddleware(at.log.Warnf, at.Get())(next)
+	return authtoken.NewHTTPMiddleware(func(format string, params ...interface{}) { at.log.Warnf(format, params...) }, at.Get())(next)
 }
 
 func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
-	return authtoken.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
+	return secureclient.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
 }

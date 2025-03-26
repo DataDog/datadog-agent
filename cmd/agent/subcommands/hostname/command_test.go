@@ -95,7 +95,7 @@ func TestGetHostname(t *testing.T) {
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
 
-			hname, err := getHostname(config, cliParams)
+			hname, err := getHostname(config, cliParams, authComp)
 			require.NoError(t, err)
 
 			expectedHostname := localHostname

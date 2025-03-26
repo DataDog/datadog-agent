@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -91,7 +92,7 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 		return err
 	}
 
-	r, err := at.GetClient().Get(url, authtoken.WithCloseConnection)
+	r, err := at.GetClient().Get(url, secureclient.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

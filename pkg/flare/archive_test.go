@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,12 +44,18 @@ import (
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	at := authtokenmock.New(t)
+
+	ts := at.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", expected)
 	}))
-	defer ts.Close()
 
-	content, err := getHTTPCallContent(ts.URL)
+	remote := RemoteFlareProvider{
+		SecureClient: at.GetClient(),
+		at:           at,
+	}
+
+	content, err := remote.getHTTPCallContent(ts.URL)
 	require.NoError(t, err)
 	assert.Equal(t, expected, string(content))
 }
@@ -116,15 +121,21 @@ func TestGetAgentTaggerList(t *testing.T) {
 		Entities: tagMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	at := authtokenmock.New(t)
+
+	s := at.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
-	defer s.Close()
+
+	remote := RemoteFlareProvider{
+		SecureClient: at.GetClient(),
+		at:           at,
+	}
 
 	setupIPCAddress(t, configmock.New(t), s.URL)
 
-	content, err := getAgentTaggerList()
+	content, err := remote.getAgentTaggerList()
 	require.NoError(t, err)
 
 	assert.Contains(t, string(content), "random_prefix://random_id")
@@ -145,15 +156,21 @@ func TestGetWorkloadList(t *testing.T) {
 		Entities: workloadMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	at := authtokenmock.New(t)
+
+	s := at.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
-	defer s.Close()
+
+	remote := RemoteFlareProvider{
+		SecureClient: at.GetClient(),
+		at:           at,
+	}
 
 	setupIPCAddress(t, configmock.New(t), s.URL)
 
-	content, err := getAgentWorkloadList()
+	content, err := remote.getAgentWorkloadList()
 	require.NoError(t, err)
 
 	assert.Contains(t, string(content), "kind_id")
@@ -197,13 +214,21 @@ dd_url: https://my-url.com
 process_config:
   enabled: "true"
 `
+
+	at := authtokenmock.New(t)
+
+	remote := RemoteFlareProvider{
+		SecureClient: at.GetClient(),
+		at:           at,
+	}
+
 	// Setting an unused port to avoid problem when test run next to running Process Agent
 	port := 56789
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", port)
 
 	t.Run("without process-agent running", func(t *testing.T) {
-		content, err := getProcessAgentFullConfig()
+		content, err := remote.getProcessAgentFullConfig()
 		require.NoError(t, err)
 		assert.Equal(t, "error: process-agent is not running or is unreachable\n", string(content))
 	})
@@ -218,12 +243,11 @@ process_config:
 			_, err = w.Write(b)
 			require.NoError(t, err)
 		}
-		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
-		defer srv.Close()
+		srv := at.NewMockServer(http.HandlerFunc(handler))
 
 		setupIPCAddress(t, cfg, srv.URL)
 
-		content, err := getProcessAgentFullConfig()
+		content, err := remote.getProcessAgentFullConfig()
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
 	})
@@ -240,7 +264,7 @@ process_config:
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.cmd_port", port)
 
-		content, err := getProcessAgentFullConfig()
+		content, err := remote.getProcessAgentFullConfig()
 		require.NoError(t, err)
 		// if auth is not set, "no session token provided" would appear instead
 		assert.Equal(t, "", string(content))
@@ -284,9 +308,16 @@ func TestProcessAgentChecks(t *testing.T) {
 	expectedProcessDiscoveryJSON, err := json.Marshal(&expectedProcessDiscoveries)
 	require.NoError(t, err)
 
+	at := authtokenmock.New(t)
+
+	remote := RemoteFlareProvider{
+		SecureClient: at.GetClient(),
+		at:           at,
+	}
+
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
+		remote.getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
 		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
@@ -316,7 +347,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
+		remote.getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")
@@ -335,7 +366,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		cfg.SetWithoutSource("process_config.cmd_port", port)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
+		remote.getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
 
 		// if auth is not set, "no session token provided" would appear instead
 		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")

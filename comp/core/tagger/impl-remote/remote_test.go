@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -36,9 +37,11 @@ func TestNewComponent(t *testing.T) {
 		t.Skip("Skipping test on macOS runners with an existing Agent.")
 	}
 
+	at := authtokenmock.New(t)
+
 	// Start a mock gRPC server.
-	grpcServer, authToken, grpcErr := grpc.NewMockGrpcSecureServer("5001")
-	require.NoError(t, grpcErr)
+	grpcServer, err := grpc.NewMockGrpcSecureServer("5001", at.Get(), at.GetTLSServerConfig())
+	require.NoError(t, err)
 	defer grpcServer.Stop()
 
 	// Instantiate the component.
@@ -48,15 +51,11 @@ func TestNewComponent(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return authToken, nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		At:        at,
 	}
-	_, err := NewComponent(req)
+	_, err = NewComponent(req)
 	require.NoError(t, err)
 }
 
@@ -69,11 +68,6 @@ func TestNewComponentNonBlocking(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
 	}
@@ -90,11 +84,6 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "something", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
 	}

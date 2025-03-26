@@ -129,7 +129,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 
-	cfg.AgentIPC = at
+	cfg.AuthToken = at.Get()
+	cfg.IPCTLSClientConfig = at.GetTLSClientConfig()
+	cfg.IPCTLSServerConfig = at.GetTLSServerConfig()
 
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)

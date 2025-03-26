@@ -16,6 +16,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -42,7 +43,7 @@ func GetClusterChecks(w io.Writer, checkName string, c authtoken.SecureClient) e
 		return err
 	}
 
-	r, err := c.Get(urlstr, authtoken.WithLeaveConnectionOpen)
+	r, err := c.Get(urlstr, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
@@ -122,7 +123,7 @@ func GetEndpointsChecks(w io.Writer, checkName string, c authtoken.SecureClient)
 	}
 
 	// Query the cluster agent API
-	r, err := c.Get(urlstr, authtoken.WithLeaveConnectionOpen)
+	r, err := c.Get(urlstr, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))

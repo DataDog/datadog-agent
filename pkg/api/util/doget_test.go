@@ -6,7 +6,6 @@
 package util
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,12 +38,12 @@ func TestDoGet(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
-		_, err := DoGetWithOptions(server.Client(), server.URL, &ReqOptions{})
+		_, err := DoGet(server.Client(), server.URL, CloseConnection)
 		require.Error(t, err)
 	})
 
 	t.Run("url error", func(t *testing.T) {
-		_, err := DoGetWithOptions(http.DefaultClient, " http://localhost", &ReqOptions{})
+		_, err := DoGet(http.DefaultClient, " http://localhost", CloseConnection)
 		require.Error(t, err)
 	})
 
@@ -52,7 +51,7 @@ func TestDoGet(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		server.Close()
 
-		_, err := DoGetWithOptions(server.Client(), server.URL, &ReqOptions{})
+		_, err := DoGet(server.Client(), server.URL, CloseConnection)
 		require.Error(t, err)
 	})
 
@@ -63,8 +62,7 @@ func TestDoGet(t *testing.T) {
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
 
-		options := &ReqOptions{Authtoken: "mytoken"}
-		data, err := DoGetWithOptions(server.Client(), server.URL, options)
+		data, err := DoGet(server.Client(), server.URL, CloseConnection)
 		require.NoError(t, err)
 		require.Empty(t, data)
 	})
@@ -84,72 +82,8 @@ func TestDoGet(t *testing.T) {
 		cfg.SetWithoutSource("auth_token_file_path", authTokenPath)
 		SetAuthToken(cfg)
 
-		options := &ReqOptions{}
-		data, err := DoGetWithOptions(server.Client(), server.URL, options)
+		data, err := DoGet(server.Client(), server.URL, CloseConnection)
 		require.NoError(t, err)
 		require.Empty(t, data)
-	})
-
-	t.Run("context cancel", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}
-		server := makeTestServer(t, http.HandlerFunc(handler))
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		options := &ReqOptions{Ctx: ctx}
-		_, err := DoGetWithOptions(server.Client(), server.URL, options)
-		require.Error(t, err)
-	})
-}
-func TestWithInsecureTransport(t *testing.T) {
-	cfg := configmock.New(t)
-	CreateAndSetAuthToken(cfg)
-
-	// Spinning up server with IPC cert
-	knownHandler := func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("secure"))
-	}
-	knownServer := httptest.NewUnstartedServer(http.HandlerFunc(knownHandler))
-	knownServer.TLS = GetTLSServerConfig()
-	knownServer.StartTLS()
-	t.Cleanup(knownServer.Close)
-
-	// Spinning up server with self-signed cert
-	unknownHandler := func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("insecure"))
-	}
-	unknownServer := httptest.NewTLSServer(http.HandlerFunc(unknownHandler))
-	t.Cleanup(unknownServer.Close)
-
-	t.Run("secure client with known server: must succeed", func(t *testing.T) {
-		// Intenting a secure request
-		client := GetClient()
-		body, err := DoGet(client, knownServer.URL, CloseConnection)
-		require.NoError(t, err)
-		require.Equal(t, "secure", string(body))
-	})
-
-	t.Run("secure client with unknown server: must fail", func(t *testing.T) {
-		// Intenting a secure request
-		client := GetClient()
-		_, err := DoGet(client, unknownServer.URL, CloseConnection)
-		require.Error(t, err)
-	})
-
-	t.Run("insecure transport with known server: must succeed", func(t *testing.T) {
-		client := GetClient(WithInsecureTransport)
-		data, err := DoGet(client, knownServer.URL, CloseConnection)
-		require.NoError(t, err)
-		require.Equal(t, "secure", string(data))
-	})
-
-	t.Run("insecure transport with unknown server: must succeed", func(t *testing.T) {
-		client := GetClient(WithInsecureTransport)
-		data, err := DoGet(client, unknownServer.URL, CloseConnection)
-		require.NoError(t, err)
-		require.Equal(t, "insecure", string(data))
 	})
 }

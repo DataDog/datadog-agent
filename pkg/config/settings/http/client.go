@@ -16,6 +16,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -45,11 +46,11 @@ type secureHTTPClient struct {
 }
 
 func (c *secureHTTPClient) DoGet(url string) (body []byte, e error) {
-	return c.c.Get(url, authtoken.WithLeaveConnectionOpen)
+	return c.c.Get(url, secureclient.WithLeaveConnectionOpen)
 }
 
 func (c *secureHTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	return c.c.Post(url, contentType, body, authtoken.WithLeaveConnectionOpen)
+	return c.c.Post(url, contentType, body, secureclient.WithLeaveConnectionOpen)
 }
 
 type runtimeSettingsHTTPClient struct {

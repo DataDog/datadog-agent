@@ -73,10 +73,7 @@ func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOver
 		t.Fatal(err)
 	}
 
-	token, err := at.Get()
-	if err != nil {
-		t.Fatal(err)
-	}
+	token := at.Get()
 	if tokenOverride != "" {
 		token = tokenOverride
 	}

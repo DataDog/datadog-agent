@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
@@ -141,7 +142,7 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
-	resp, err := s.client.Get(prometheusURL, authtoken.WithCloseConnection)
+	resp, err := s.client.Get(prometheusURL, secureclient.WithCloseConnection)
 	if err != nil {
 		return err
 	}
@@ -185,7 +186,7 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
 
-	resp, err := s.client.Get(extensionURL, authtoken.WithCloseConnection)
+	resp, err := s.client.Get(extensionURL, secureclient.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,

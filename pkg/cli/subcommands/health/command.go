@@ -21,6 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -94,7 +95,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := at.GetClient().Get(urlstr, authtoken.WithContext(ctx), authtoken.WithCloseConnection)
+	r, err := at.GetClient().Get(urlstr, secureclient.WithContext(ctx), secureclient.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

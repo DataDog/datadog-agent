@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -133,7 +133,7 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		timeoutSeconds = defaultExtensionTimeout
 	}
 
-	data, err := c.client.Get(endpointURL, authtoken.WithContext(c.ctx), authtoken.WithTimeout(time.Duration(timeoutSeconds)*time.Second))
+	data, err := c.client.Get(endpointURL, secureclient.WithContext(c.ctx), secureclient.WithTimeout(time.Duration(timeoutSeconds)*time.Second))
 	if err != nil {
 		return nil, err
 	}

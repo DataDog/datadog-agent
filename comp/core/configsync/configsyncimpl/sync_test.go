@@ -21,14 +21,16 @@ import (
 )
 
 func TestFetchConfig(t *testing.T) {
+	authtoken := authtokenmock.New(t)
+
 	t.Run("success", func(t *testing.T) {
 		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`{"key1": "value1"}`))
 		}
 
-		_, client, url := makeServer(t, handler)
+		_, client, url := makeServer(t, authtoken, handler)
 
-		config, err := fetchConfig(context.Background(), client, "", url.String())
+		config, err := fetchConfig(context.Background(), client, url.String(), 0)
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{"key1": "value1"}, config)
 	})
@@ -38,9 +40,9 @@ func TestFetchConfig(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 
-		_, client, url := makeServer(t, handler)
+		_, client, url := makeServer(t, authtoken, handler)
 
-		_, err := fetchConfig(context.Background(), client, "", url.String())
+		_, err := fetchConfig(context.Background(), client, url.String(), 0)
 		require.Error(t, err)
 	})
 
@@ -49,9 +51,9 @@ func TestFetchConfig(t *testing.T) {
 			w.Write([]byte("invalid json"))
 		}
 
-		_, client, url := makeServer(t, handler)
+		_, client, url := makeServer(t, authtoken, handler)
 
-		_, err := fetchConfig(context.Background(), client, "", url.String())
+		_, err := fetchConfig(context.Background(), client, url.String(), 0)
 		require.Error(t, err)
 	})
 
@@ -59,9 +61,9 @@ func TestFetchConfig(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, client, url := makeServer(t, nil)
+		_, client, url := makeServer(t, authtoken, nil)
 
-		_, err := fetchConfig(ctx, client, "", url.String())
+		_, err := fetchConfig(ctx, client, url.String(), 0)
 		require.Error(t, err)
 	})
 }
@@ -72,7 +74,8 @@ func TestUpdater(t *testing.T) {
 		callbackCalled++
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
-	_, client, url := makeServer(t, handler)
+	authtoken := authtokenmock.New(t)
+	_, client, url := makeServer(t, authtoken, handler)
 
 	cfg := configmock.New(t)
 	cfg.Set("key1", "base_value", model.SourceDefault)
@@ -80,7 +83,7 @@ func TestUpdater(t *testing.T) {
 	cs := configSync{
 		Config:    cfg,
 		Log:       logmock.New(t),
-		Authtoken: authtokenmock.New(t),
+		Authtoken: authtoken,
 		url:       url,
 		client:    client,
 		ctx:       context.Background(),
