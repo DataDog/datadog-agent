@@ -8,7 +8,7 @@ target:
   memory_allotment: 2GiB
 
   environment:
-    DD_API_KEY: 123456789
+    DD_API_KEY: "123456789"
     DD_HOSTNAME: smp-regression
     DD_OTEL_ENABLED: false
     DD_SITE: 127.0.0.1:9092
