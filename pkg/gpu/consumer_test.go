@@ -133,6 +133,11 @@ func BenchmarkConsumer(b *testing.B) {
 
 			if ctx.kernelCache != nil {
 				ctx.kernelCache.pidMaps[pid] = nil
+
+				// If we don't start the kernel cache, the request channel will be full and we'll run into
+				// errors, falsifying the results of the benchmark
+				ctx.kernelCache.Start()
+				b.Cleanup(ctx.kernelCache.Stop)
 			}
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
