@@ -9,6 +9,7 @@ package tailers
 
 import (
 	"context"
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -101,7 +101,7 @@ func (t *base) run(
 		if err != nil {
 			if backoffDuration > backoffMaxDuration {
 				log.Warnf("Could not tail container %v: %v",
-					dockerutilPkg.ShortContainerID(t.ContainerID), err)
+					containerutilPkg.ShortContainerID(t.ContainerID), err)
 				return
 			}
 			// set up to wait before trying again

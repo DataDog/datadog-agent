@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -65,7 +66,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset %v: %v",
-			dockerutilPkg.ShortContainerID(t.ContainerID), err)
+			containerutilPkg.ShortContainerID(t.ContainerID), err)
 		// (the `since` value is still valid)
 	}
 

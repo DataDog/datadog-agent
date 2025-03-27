@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,7 +88,7 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 	// Update parent source with additional information
 	sourceInfo.SetMessage(containerID,
 		fmt.Sprintf("Container ID: %s, Tailing from file: %s",
-			dockerutilPkg.ShortContainerID(containerID),
+			containerutilPkg.ShortContainerID(containerID),
 			childSource.Config.Path))
 
 	// link status for this source and the parent, and hide the parent
