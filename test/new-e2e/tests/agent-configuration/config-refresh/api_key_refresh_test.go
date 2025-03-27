@@ -148,6 +148,7 @@ additional_endpoints:
 
 	// Verify that the new API keys appear in status
 	status = v.Env().Agent.Client.Status()
+	v.T().Logf("WACKTEST1 STATUS AFTER REFRESH: %s", status.Content)
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		// Check main API key
 		assert.Contains(t, status.Content, "API key ending with 54321")
@@ -208,7 +209,7 @@ additional_endpoints:
 			require.NotEmpty(t, foundAPIKeys, "No API keys found in FakeIntake payloads for endpoint %s", endpoint)
 			v.T().Logf("Found API keys for %s: %v", endpoint, foundAPIKeys)
 
-			// Check for expected API keys based on endpoint
+			// Check for expected API keys based on endpoint.
 			if endpoint == "/intake" {
 				// For /intake, we expect both apikey2 and apikey3
 				assert.True(t, foundAPIKeys[updatedAPIKeys["apikey2"]], "Expected apikey2 not found for /intake")
