@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
@@ -63,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -2870,6 +2872,7 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
+	require.NoError(t, tr.RegisterClient(clientID))
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
@@ -2903,16 +2906,14 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 
 	// Test connection through NAT
 	t.Run("HTTP request through DNAT", func(t *testing.T) {
-		// Create a transport with DisableKeepAlives to ensure connection closure
-		// which is necessary for USM to properly capture HTTP statistics
+		// Create a standard HTTP client without disabling keep-alives
+		transport := &nethttp.Transport{}
 		client := &nethttp.Client{
-			Transport: &nethttp.Transport{
-				DisableKeepAlives: true,
-			},
-			Timeout: 5 * time.Second,
+			Transport: transport,
+			Timeout:   5 * time.Second,
 		}
 
-		// Make HTTP request with connection closing
+		// Make HTTP request
 		resp, err := client.Get(fmt.Sprintf("http://%s/test-path", natAddr))
 		require.NoError(t, err)
 
@@ -2922,12 +2923,15 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 		require.NoError(t, err)
 		require.Equal(t, "Hello through NAT", string(body))
 
-		// Explicitly close the response body to ensure connection closure
+		// Explicitly close the response body
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		// Wait for USM to process the closed connection
-		t.Log("Waiting for USM to process closed HTTP connection...")
+		// Explicitly close all idle connections in the transport to ensure connection termination
+		transport.CloseIdleConnections()
+
+		// Wait for both USM and NPM to process the closed connection
+		t.Log("Waiting for USM and NPM to process closed HTTP connection...")
 		time.Sleep(3 * time.Second)
 
 		connections, connectionsCleanup, err := tr.GetActiveConnections(clientID)
@@ -2978,6 +2982,7 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 			t.Logf("  PID: %d", conn.Pid)
 		}
 
+		// Check for success - either in connection.Conns or in connections.HTTP
 		found := false
 		for _, conn := range connections.Conns {
 			// There are two connections we're interested in:
@@ -3003,7 +3008,58 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 
 			}
 		}
-		require.True(t, found, "HTTP connection through NAT was not found in tracked connections")
+		require.True(t, found, "HTTP connection through NAT was not found in tracked connections or HTTP stats")
+
+		// Test USMConnectionIndex lookup mechanism with these connections
+		t.Log("Testing USMConnectionIndex lookup with NAT connections")
+
+		// Extract the outgoing and incoming connections for testing
+		var outgoingConn, incomingConn network.ConnectionStats
+		outgoingFound, incomingFound := false, false
+
+		for _, conn := range connections.Conns {
+			if conn.Dest.String() == "2.2.2.2" && conn.Direction == network.OUTGOING && conn.IPTranslation != nil {
+				outgoingConn = conn
+				outgoingFound = true
+			}
+			if conn.Source.String() == "1.1.1.1" && conn.Direction == network.INCOMING {
+				incomingConn = conn
+				incomingFound = true
+			}
+		}
+
+		require.True(t, outgoingFound, "Outgoing connection not found for USMConnectionIndex test")
+		require.True(t, incomingFound, "Incoming connection not found for USMConnectionIndex test")
+
+		// Use the real HTTP data from connections.HTTP
+		require.NotNil(t, connections.HTTP, "No HTTP data found in connections")
+		require.Greater(t, len(connections.HTTP), 0, "No HTTP entries found in connections.HTTP")
+
+		// Create a USMConnectionIndex using the actual HTTP data from the test
+		httpIndex := marshal.GroupByConnection("http", connections.HTTP, func(key http.Key) types.ConnectionKey {
+			return key.ConnectionKey
+		})
+
+		// Test lookup with outgoing connection
+		outgoingResult := httpIndex.Find(outgoingConn)
+		require.NotNil(t, outgoingResult, "USMConnectionIndex.Find should find HTTP data for outgoing connection")
+		require.False(t, outgoingResult.IsPIDCollision(outgoingConn), "Should not report PID collision for outgoing connection")
+
+		// Test lookup with incoming connection
+		incomingResult := httpIndex.Find(incomingConn)
+		require.NotNil(t, incomingResult, "USMConnectionIndex.Find should find HTTP data for incoming connection")
+		require.False(t, incomingResult.IsPIDCollision(incomingConn), "Should not report PID collision for incoming connection due to bidirectional handling")
+
+		// Verify both connections point to the same USM data
+		require.Equal(t, outgoingResult, incomingResult, "Both connections should point to the same USM HTTP data")
+
+		// Test with a connection that doesn't match
+		randomConn := outgoingConn
+		randomConn.SPort = 9999 // Different port should not match
+		randomResult := httpIndex.Find(randomConn)
+		require.Nil(t, randomResult, "Random connection should not match any HTTP data")
+
+		t.Log("USMConnectionIndex correctly associates both the outgoing and incoming connections with the same HTTP data")
 	})
 }
 
@@ -3020,6 +3076,7 @@ func (s *USMSuite) TestHTTPDirect() {
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
+	require.NoError(t, tr.RegisterClient(clientID))
 
 	// Start HTTP server on localhost
 	serverPort := 12346 // Using different port from DNAT test
@@ -3046,16 +3103,14 @@ func (s *USMSuite) TestHTTPDirect() {
 
 	// Test connection directly
 	t.Run("Direct HTTP request", func(t *testing.T) {
-		// Create a transport with DisableKeepAlives to ensure connection closure
-		// which is necessary for USM to properly capture HTTP statistics
+		// Create a standard HTTP client without disabling keep-alives
+		transport := &nethttp.Transport{}
 		client := &nethttp.Client{
-			Transport: &nethttp.Transport{
-				DisableKeepAlives: true,
-			},
-			Timeout: 5 * time.Second,
+			Transport: transport,
+			Timeout:   5 * time.Second,
 		}
 
-		// Make HTTP request with connection closing
+		// Make HTTP request
 		resp, err := client.Get(fmt.Sprintf("http://%s/direct-test", serverAddr))
 		require.NoError(t, err)
 
@@ -3065,12 +3120,15 @@ func (s *USMSuite) TestHTTPDirect() {
 		require.NoError(t, err)
 		require.Equal(t, "Hello direct", string(body))
 
-		// Explicitly close the response body to ensure connection closure
+		// Explicitly close the response body
 		err = resp.Body.Close()
 		require.NoError(t, err)
 
-		// Wait for USM to process the closed connection
-		t.Log("Waiting for USM to process closed HTTP connection...")
+		// Explicitly close all idle connections in the transport to ensure connection termination
+		transport.CloseIdleConnections()
+
+		// Wait for both USM and NPM to process the closed connection
+		t.Log("Waiting for USM and NPM to process closed HTTP connection...")
 		time.Sleep(3 * time.Second)
 
 		connections, connectionsCleanup, err := tr.GetActiveConnections(clientID)
