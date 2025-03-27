@@ -13,45 +13,71 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"testing"
+	"unsafe"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
-type partialEvent struct {
-	Header ebpf.CudaEventHeader `json:"header"`
+type dataSample string
+
+const (
+	// DataSamplePytorchBatchedKernels is a data sample that contains a sequence of kernel launches
+	// interspersed with cudaStreamSynchronize calls.
+	DataSamplePytorchBatchedKernels dataSample = "pytorch_batched_kernels.ndjson"
+)
+
+// DataSampleInfo contains information about a data sample
+type DataSampleInfo struct {
+	// ActivePID is the PID of the process that is active during the data sample
+	ActivePID int
+
+	// EventCount is the number of events in the data sample
+	EventCount int
 }
 
-func parseEventWithType[K any](data []byte) (*K, error) {
-	var event K
-	err := json.Unmarshal(data, &event)
-	if err != nil {
-		return nil, err
-	}
-
-	return &event, nil
+// DataSampleInfos contains information about the data samples available in the testdata directory,
+// for validation and reference
+var DataSampleInfos = map[dataSample]DataSampleInfo{
+	DataSamplePytorchBatchedKernels: {
+		ActivePID:  24920,
+		EventCount: 990,
+	},
 }
 
-func parseCompleteEvent(eventType ebpf.CudaEventType, data []byte) (any, error) {
-	switch eventType {
-	case ebpf.CudaEventTypeKernelLaunch:
-		return parseEventWithType[ebpf.CudaKernelLaunch](data)
-	case ebpf.CudaEventTypeMemory:
-		return parseEventWithType[ebpf.CudaMemEvent](data)
-	case ebpf.CudaEventTypeSync:
-		return parseEventWithType[ebpf.CudaSync](data)
-	case ebpf.CudaEventTypeSetDevice:
-		return parseEventWithType[ebpf.CudaSetDeviceEvent](data)
-	default:
-		return nil, fmt.Errorf("unsupported event type %d", eventType)
-	}
+// GetGPUTestEvents returns a collection of events from the testdata directory. The datasetName
+// should be the name of the file in the testdata directory (with the extension).
+func GetGPUTestEvents(tb testing.TB, datasetName dataSample) *EventCollection {
+	curDir, err := usmtestutil.CurDir()
+	require.NoError(tb, err)
+
+	eventsFile := filepath.Join(curDir, "..", "testdata", string(datasetName))
+	events, err := NewEventCollection(eventsFile)
+	require.NoError(tb, err)
+	require.Len(tb, events.Events, DataSampleInfos[datasetName].EventCount)
+
+	return events
+}
+
+// Event wraps a parsed event and its length, to emulate the behavior of the ring buffer events
+type Event struct {
+	Data       any
+	DataLength int
+	Header     ebpf.CudaEventHeader
+	Pointer    unsafe.Pointer
 }
 
 // EventCollection represents a collection of recorded CUDA events from the system-probe
 // module, as returned by the `gpu/debug/collect-events` endpoint. This struct encapsulates methods to
 // parse, manipulate and display the events.
 type EventCollection struct {
-	Events       []any
+	Events       []Event
 	firstKtimeNs uint64
 	lastKtimeNs  uint64
 }
@@ -82,7 +108,7 @@ func NewEventCollection(path string) (*EventCollection, error) {
 		}
 
 		// parse the rest of the event now that we know the event type:
-		completeEvent, err := parseCompleteEvent(ebpf.CudaEventType(event.Header.Type), []byte(line))
+		completeEvent, err := parseCompleteEvent(event.Header, []byte(line))
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse line %d: %v", lineNumber, err)
 		}
@@ -96,6 +122,40 @@ func NewEventCollection(path string) (*EventCollection, error) {
 	}
 
 	return coll, nil
+}
+
+type partialEvent struct {
+	Header ebpf.CudaEventHeader `json:"header"`
+}
+
+func parseEventWithType[K any](header ebpf.CudaEventHeader, data []byte) (Event, error) {
+	var parsed K
+	err := json.Unmarshal(data, &parsed)
+	if err != nil {
+		return Event{}, err
+	}
+
+	return Event{
+		Data:       &parsed,
+		DataLength: int(unsafe.Sizeof(parsed)),
+		Header:     header,
+		Pointer:    unsafe.Pointer(&parsed),
+	}, nil
+}
+
+func parseCompleteEvent(header ebpf.CudaEventHeader, data []byte) (Event, error) {
+	switch ebpf.CudaEventType(header.Type) {
+	case ebpf.CudaEventTypeKernelLaunch:
+		return parseEventWithType[ebpf.CudaKernelLaunch](header, data)
+	case ebpf.CudaEventTypeMemory:
+		return parseEventWithType[ebpf.CudaMemEvent](header, data)
+	case ebpf.CudaEventTypeSync:
+		return parseEventWithType[ebpf.CudaSync](header, data)
+	case ebpf.CudaEventTypeSetDevice:
+		return parseEventWithType[ebpf.CudaSetDeviceEvent](header, data)
+	default:
+		return Event{}, fmt.Errorf("unsupported event type %d", header.Type)
+	}
 }
 
 // headerToString converts a CUDA event header to a human-readable string, including relative time
@@ -126,41 +186,36 @@ func (c *EventCollection) OutputEvents(writer io.Writer) error {
 	groupers := make(map[uint64]*eventGrouper)
 
 	for i, ev := range c.Events {
-		var header *ebpf.CudaEventHeader
 		var evStr string
-		switch e := ev.(type) {
+		switch e := ev.Data.(type) {
 		case *ebpf.CudaKernelLaunch:
-			header = &e.Header
 			evStr = fmt.Sprintf("kernel launch addr 0x%X", e.Kernel_addr)
 		case *ebpf.CudaMemEvent:
 			memName := "allocation"
 			if ebpf.CudaMemEventType(e.Type) == ebpf.CudaMemFree {
 				memName = "free"
 			}
-			header = &e.Header
 			evStr = fmt.Sprintf("memory %s addr 0x%X size %d", memName, e.Addr, e.Size)
 		case *ebpf.CudaSync:
-			header = &e.Header
 			evStr = "sync event"
 		case *ebpf.CudaSetDeviceEvent:
-			header = &e.Header
 			evStr = fmt.Sprintf("set device event device %d", e.Device)
 		default:
 			return fmt.Errorf("%d: unsupported event type: %T", i, e)
 		}
 
-		headerStr := c.headerToString(header, prevKtimeNs)
-		prevKtimeNs = header.Ktime_ns
+		headerStr := c.headerToString(&ev.Header, prevKtimeNs)
+		prevKtimeNs = ev.Header.Ktime_ns
 
 		fmt.Fprintf(writer, "%d: [%s] %s\n", i, headerStr, evStr)
 
-		tsMsec := float64(header.Ktime_ns-c.firstKtimeNs) / 1e6
+		tsMsec := float64(ev.Header.Ktime_ns-c.firstKtimeNs) / 1e6
 
-		pid := header.Pid_tgid >> 32
+		pid := ev.Header.Pid_tgid >> 32
 		if _, ok := groupers[pid]; !ok {
 			groupers[pid] = &eventGrouper{}
 		}
-		groupers[pid].addEvent(ebpf.CudaEventType(header.Type), tsMsec, i)
+		groupers[pid].addEvent(ebpf.CudaEventType(ev.Header.Type), tsMsec, i)
 	}
 
 	// flush the last value

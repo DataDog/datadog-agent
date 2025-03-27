@@ -84,7 +84,7 @@ repos:
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
-      entry: 'dda inv tidy'
+      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv tidy'
       language: system
       require_serial: true
       files: (\.go|^go\.mod|^go\.sum)$
