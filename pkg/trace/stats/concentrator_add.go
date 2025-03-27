@@ -1,0 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build !serverless
+
+package stats
+
+// Add applies the given input to the concentrator.
+func (c *Concentrator) Add(t Input) {
+	for _, trace := range t.Traces {
+		c.addNow(&trace, t.ContainerID, t.ContainerTags)
+	}
+}

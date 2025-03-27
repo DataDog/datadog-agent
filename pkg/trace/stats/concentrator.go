@@ -123,13 +123,6 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool) 
 	return Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks), ContainerID: containerID}
 }
 
-// Add applies the given input to the concentrator.
-func (c *Concentrator) Add(t Input) {
-	for _, trace := range t.Traces {
-		c.addNow(&trace, t.ContainerID, t.ContainerTags)
-	}
-}
-
 // addNow adds the given input into the concentrator.
 // Callers must guard!
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
