@@ -26,7 +26,7 @@ func TestNewCreditCardsObfuscator(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.CreditCards.Enabled = true
-	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	assert.True(t, a.conf.Obfuscation.CreditCards.Enabled)
 }
 
@@ -107,7 +107,7 @@ func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 		cfg.Features[f] = struct{}{}
 	}
 	cfg.Endpoints[0].APIKey = "test"
-	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true), cancelFunc
+	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent()), cancelFunc
 }
 
 func TestObfuscateConfig(t *testing.T) {
@@ -123,7 +123,7 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
 			agnt.obfuscateSpan(span)
@@ -445,7 +445,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 	cfg.Obfuscation = &config.ObfuscationConfig{
 		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 	}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
 
 	b.ResetTimer()
@@ -469,7 +469,7 @@ func TestObfuscateSpanEvent(t *testing.T) {
 	cfg.Obfuscation = &config.ObfuscationConfig{
 		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 	}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
 	testCases := []*struct {
 		span *pb.Span
@@ -539,7 +539,7 @@ func TestLexerObfuscation(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Features["sqllexer"] = struct{}{}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), true)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
 	span := &pb.Span{
 		Resource: "SELECT * FROM [u].[users]",

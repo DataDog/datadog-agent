@@ -137,7 +137,7 @@ type SpanModifier interface {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component, needsConcentrator bool) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -147,16 +147,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	timing := timing.New(statsd)
 	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
-
-	var concentrator Concentrator
-	if needsConcentrator {
-		concentrator = stats.NewConcentrator(conf, statsWriter, time.Now(), statsd)
-	} else {
-		concentrator = &stats.NoOpConcentrator{}
-	}
-
 	agnt := &Agent{
-		Concentrator:          concentrator,
+		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
