@@ -123,7 +123,10 @@ func (oc *OrchestratorConfig) Load() error {
 
 	oc.CollectorDiscoveryEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
-	oc.ExtraTags, _ = oc.TaggerComp.GlobalTags(types.LowCardinality)
+	oc.ExtraTags, err = oc.TaggerComp.GlobalTags(types.LowCardinality)
+	if err != nil {
+		pkglog.Debugf("Error getting global tags: %s", err)
+	}
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))

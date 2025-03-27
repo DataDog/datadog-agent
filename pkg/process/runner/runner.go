@@ -18,6 +18,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -98,6 +99,7 @@ func (l *CheckRunner) RunRealTime() bool {
 // NewRunner creates a new CheckRunner
 func NewRunner(
 	config pkgconfigmodel.Reader,
+	tagger tagger.Component,
 	sysCfg *sysconfigtypes.Config,
 	hostInfo *checks.HostInfo,
 	enabledChecks []checks.Check,
@@ -114,19 +116,20 @@ func NewRunner(
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
-	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, tagger, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
 func NewRunnerWithChecks(
 	config pkgconfigmodel.Reader,
+	tagger tagger.Component,
 	sysProbeCfg *checks.SysProbeConfig,
 	hostInfo *checks.HostInfo,
 	checks []checks.Check,
 	runRealTime bool,
 	rtNotifierChan <-chan types.RTResponse,
 ) (*CheckRunner, error) {
-	orchestrator := oconfig.NewDefaultOrchestratorConfig()
+	orchestrator := oconfig.NewDefaultOrchestratorConfig(tagger)
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
 	}
