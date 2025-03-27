@@ -303,6 +303,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			Version:      payloadKey.Version,
 			ImageTag:     payloadKey.ImageTag,
 			GitCommitSha: payloadKey.GitCommitSha,
+			ContainerID:  payloadKey.ContainerID,
 			Stats:        clientBuckets,
 		})
 	}
