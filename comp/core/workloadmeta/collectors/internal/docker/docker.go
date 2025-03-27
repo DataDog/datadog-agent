@@ -683,13 +683,13 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 			}
 
 			// Check that the index is not out of range to avoid a panic
-			if inspectIdx < len(inspect.RootFS.Layers) {
-				digest = inspect.RootFS.Layers[inspectIdx]
-				inspectIdx++
-			} else {
-				log.Warnf("unable to assign a digest for history layer \"%s\", all have been assigned already", history[i].CreatedBy)
-				break
+			if inspectIdx >= len(inspect.RootFS.Layers) {
+				log.Warn("cannot accurately assign digests to history layers, aborting")
+				return []workloadmeta.ContainerImageLayer{}
 			}
+
+			digest = inspect.RootFS.Layers[inspectIdx]
+			inspectIdx++
 
 		}
 
