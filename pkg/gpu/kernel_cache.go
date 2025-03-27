@@ -218,12 +218,6 @@ func (kc *kernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) 
 		return nil, fmt.Errorf("error reading process memory maps: %w", err)
 	}
 
-	for _, m := range maps {
-		fmt.Printf("map 0x%x 0x%x %s\n", m.StartAddr, m.EndAddr, m.Pathname)
-	}
-
-	fmt.Printf("key 0x%x\n", key.address)
-
 	entry := findEntryInMaps(maps, uintptr(key.address))
 	if entry == nil {
 		return nil, fmt.Errorf("could not find memory maps entry for kernel address 0x%x", key.address)
