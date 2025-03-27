@@ -31,6 +31,15 @@ func GetDevicesMetadata(namespace string, devices []client.ApplianceLite) []devi
 	return devicesMetadata
 }
 
+// GetControllersMetadata process devices API payloads to build metadata
+func GetControllersMetadata(namespace string, controllers []client.ControllerStatus) []devicemetadata.DeviceMetadata {
+	var controllersMetadata []devicemetadata.DeviceMetadata
+	for _, controller := range controllers {
+		controllersMetadata = append(controllersMetadata, buildControllerMetadata(namespace, controller))
+	}
+	return controllersMetadata
+}
+
 // GetDevicesTags process devices API payloads to build device tags
 func GetDevicesTags(namespace string, devices []client.ApplianceLite) map[string][]string {
 	deviceTags := make(map[string][]string)
@@ -127,7 +136,7 @@ func mapNDMPingStatus(versaPingStatus string) devicemetadata.DeviceStatus {
 	return devicemetadata.DeviceStatusReachable
 }
 
-func mapNDMDeviceType(versaType string) string {
+func mapNDMDeviceType(_ string) string {
 	return "Versa PLACEHOLDER"
 }
 

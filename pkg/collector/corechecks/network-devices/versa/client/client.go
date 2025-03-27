@@ -18,8 +18,6 @@ import (
 	"time"
 )
 
-const timeFormat = "2006-01-02T15:04:05"
-
 const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
@@ -168,12 +166,7 @@ func WithLookback(lookback time.Duration) ClientOptions {
 	}
 }
 
-func (client *Client) statisticsTimeRange() (string, string) {
-	endDate := timeNow().UTC()
-	startDate := endDate.Add(-client.lookback)
-	return startDate.Format(timeFormat), endDate.Format(timeFormat)
-}
-
+// GetAppliancesLite retrieves a list of appliances in a paginated manner
 func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
 	var appliances []ApplianceLite
 
@@ -200,6 +193,7 @@ func (client *Client) GetAppliancesLite() ([]ApplianceLite, error) {
 	return appliances, nil
 }
 
+// GetControllerMetadata retrieves the controller metadata
 func (client *Client) GetControllerMetadata() ([]ControllerStatus, error) {
 	resp, err := get[ControllerResponse](client, "/versa/ncs-services/vnms/dashboard/status/headEnds", nil)
 	if err != nil {
@@ -209,6 +203,7 @@ func (client *Client) GetControllerMetadata() ([]ControllerStatus, error) {
 	return resp.ControllerStatuses, nil
 }
 
+// GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 	resp, err := get[DirectorStatus](client, "/versa/ncs-services/vnms/dashboard/status/director", nil)
 	if err != nil {

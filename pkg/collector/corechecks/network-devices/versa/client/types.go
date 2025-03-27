@@ -6,13 +6,14 @@
 // Package client implements a Versa API client
 package client
 
+// Content encapsulates the content types of the Versa API
 type Content interface {
 	ApplianceLiteResponse |
 		ControllerResponse |
 		DirectorStatus
 }
 
-// ApplicanceResponse /versa/ncs-services/vnms/appliance/appliance/lite
+// ApplianceLiteResponse /versa/ncs-services/vnms/appliance/appliance/lite
 type ApplianceLiteResponse struct {
 	Appliances []ApplianceLite `json:"appliances"`
 	TotalCount int             `json:"totalCount"`
@@ -20,16 +21,17 @@ type ApplianceLiteResponse struct {
 
 // ApplianceLite encapsulates metadata for appliances
 type ApplianceLite struct {
-	Name                    string      `json:"name"`
-	UUID                    string      `json:"uuid"`
-	LastUpdatedTime         string      `json:"last-updated-time"`
-	PingStatus              string      `json:"ping-status"`
-	SyncStatus              string      `json:"sync-status"`
-	CreatedAt               string      `json:"createdAt"`
-	YangCompatibility       string      `json:"yang-compatibility-status"`
-	ServicesStatus          string      `json:"services-status"`
-	OverallStatus           string      `json:"overall-status"`
-	ControlStatus           string      `json:"controll-status"`
+	Name              string `json:"name"`
+	UUID              string `json:"uuid"`
+	LastUpdatedTime   string `json:"last-updated-time"`
+	PingStatus        string `json:"ping-status"`
+	SyncStatus        string `json:"sync-status"`
+	CreatedAt         string `json:"createdAt"`
+	YangCompatibility string `json:"yang-compatibility-status"`
+	ServicesStatus    string `json:"services-status"`
+	OverallStatus     string `json:"overall-status"`
+	// ControlStatus is a misspelled field in the API
+	ControlStatus           string      `json:"controll-status"` //nolint:misspell
 	PathStatus              string      `json:"path-status"`
 	TemplateStatus          string      `json:"templateStatus"`
 	OwnerOrg                string      `json:"ownerOrg"`
@@ -110,7 +112,7 @@ type HAStatus struct {
 	Enabled bool `json:"enabled"`
 }
 
-// Controller encapsulates metadata for a controller
+// ControllerStatus encapsulates metadata for a controller
 type ControllerStatus struct {
 	Name       string `json:"name"`
 	UUID       string `json:"uuid"`

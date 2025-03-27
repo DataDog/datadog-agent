@@ -113,14 +113,14 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	}
 
 	// TODO: remove this, we don't need it, just using it for debugging
-	endpointUrl, err := url.Parse(client.endpoint + "/versa")
+	endpointURL, err := url.Parse(client.endpoint + "/versa")
 	if err != nil {
 		return fmt.Errorf("url parsing failed: %w", err)
 	}
 
-	cookies := client.httpClient.Jar.Cookies(endpointUrl)
+	cookies := client.httpClient.Jar.Cookies(endpointURL)
 
-	log.Tracef("Client login URL: %s", endpointUrl)
+	log.Tracef("Client login URL: %s", endpointURL)
 	log.Tracef("Client login response headers: %+v", sessionRes.Header)
 	for _, cookie := range cookies {
 		log.Tracef("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
@@ -158,14 +158,14 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 		return err
 	}
 
-	endpointUrl, err := url.Parse(client.endpoint + "/versa")
+	endpointURL, err := url.Parse(client.endpoint + "/versa")
 	if err != nil {
 		return fmt.Errorf("url parsing failed: %w", err)
 	}
 
-	cookies := client.httpClient.Jar.Cookies(endpointUrl)
+	cookies := client.httpClient.Jar.Cookies(endpointURL)
 
-	log.Tracef("Client ANALYTICS login URL: %s", endpointUrl)
+	log.Tracef("Client ANALYTICS login URL: %s", endpointURL)
 	log.Tracef("Client ANALYTICS login response headers: %+v", loginRes.Header)
 	for _, cookie := range cookies {
 		log.Tracef("Versa Analytics cookie: %s=%s;Secure:%t;Path:%s", cookie.Name, cookie.Value, cookie.Secure, cookie.Path)
