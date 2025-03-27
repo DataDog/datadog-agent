@@ -103,10 +103,8 @@ new-agent_dmg-x64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
+      # TODO: Verify
       - datadog-agent-build
-      # TODO
-      - /tmp/debug
-      - volume
     when: always
   #   - brew install gettext -fv || true
   #   - brew link --overwrite gettext || true
@@ -135,9 +133,9 @@ new-agent_dmg-x64-a7:
   script:
     - ps aux | grep -i finder
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
-    - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
-    - ps aux | grep -i finder
-    - cp -r /Volumes/Agent volume
+    # - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
+    # - ps aux | grep -i finder
+    # - cp -r /Volumes/Agent volume
     - set +e
     - |
       sudo osascript -e '
