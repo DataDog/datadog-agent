@@ -97,7 +97,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 			log.Debugf("skipping empty line")
 			continue
 		}
-		var device Device
+		var device device
 		err := xml.Unmarshal([]byte(line), &device)
 		if err != nil {
 			log.Debugf("Failed to parse line %s because of %v - skipping the line (some labels might be missing)\n", line, err)
