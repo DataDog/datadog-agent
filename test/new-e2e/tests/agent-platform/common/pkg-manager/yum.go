@@ -25,3 +25,8 @@ func NewYum(host *components.RemoteHost) *Yum {
 func (s *Yum) Remove(pkg string) (string, error) {
 	return s.host.Execute("sudo yum remove -y " + pkg)
 }
+
+// Install executes install command from yum
+func (s *Yum) Install(pkg string) (string, error) {
+	return s.host.Execute("sudo yum install -y " + pkg)
+}

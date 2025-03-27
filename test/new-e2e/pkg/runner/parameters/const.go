@@ -73,6 +73,8 @@ const (
 	MajorVersion StoreKey = "major_version"
 	// FIPS config flag parameter name
 	FIPS StoreKey = "fips"
+	// LocalPackagePath config flag parameter name
+	LocalPackagePath StoreKey = "local_package_path"
 )
 
 const (
