@@ -107,10 +107,10 @@ secret_backend_arguments:
   - /tmp
 api_key: ENC[api_key]
 additional_endpoints:
-  "/intake":
+  "intake":
     - ENC[apikey2]
     - ENC[apikey3]
-  "/api/v2/series":
+  "api/v2/series":
     - ENC[apikey4]
 `
 
@@ -162,8 +162,8 @@ additional_endpoints:
 
 	// Wait for the agent to send data to each endpoint and verify the API keys
 	endpoints := []string{
-		"/intake",
-		"/api/v2/series",
+		"intake",
+		"api/v2/series",
 	}
 	fakeIntakeURL := v.Env().FakeIntake.Client().URL()
 	v.T().Logf("WACKTEST99 FAKEINTAKE URL IS : %s", fakeIntakeURL)
