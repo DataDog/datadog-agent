@@ -114,7 +114,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	for _, dev := range deviceCache.GetAllDevices() {
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
-		tags, err := tagger.Tag(entityID, tagger.ChecksConfigCardinality)
+		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
 			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", dev.UUID, err)
 		}
