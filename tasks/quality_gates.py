@@ -117,7 +117,6 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     final_state = "success"
     gate_states = []
 
-
     nightly_run = False
     branch = os.environ["CI_COMMIT_BRANCH"]
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")

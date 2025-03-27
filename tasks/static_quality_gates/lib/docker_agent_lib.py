@@ -78,7 +78,12 @@ def check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, m
 
 def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
     arguments = argument_extractor(
-        kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None, nightly=None
+        kwargs,
+        max_on_wire_size=read_byte_input,
+        max_on_disk_size=read_byte_input,
+        ctx=None,
+        metricHandler=None,
+        nightly=None,
     )
     ctx = arguments.ctx
     metric_handler = arguments.metricHandler
