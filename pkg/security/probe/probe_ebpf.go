@@ -162,14 +162,15 @@ type EBPFProbe struct {
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
-	isRuntimeDiscarded bool
-	constantOffsets    *constantfetch.ConstantFetcherStatus
-	runtimeCompiled    bool
-	useSyscallWrapper  bool
-	useFentry          bool
-	useRingBuffers     bool
-	useMmapableMaps    bool
-	cgroup2MountPath   string
+	isRuntimeDiscarded    bool
+	constantOffsets       *constantfetch.ConstantFetcherStatus
+	runtimeCompiled       bool
+	useSyscallWrapper     bool
+	useFentry             bool
+	useRingBuffers        bool
+	useMmapableMaps       bool
+	useSyscallTaskStorage bool
+	cgroup2MountPath      string
 
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
@@ -237,6 +238,46 @@ func (p *EBPFProbe) selectRingBuffersMode() {
 	}
 
 	p.useRingBuffers = true
+}
+
+func (p *EBPFProbe) selectSyscallTaskStorageMode() {
+	if !p.config.Probe.EventStreamUseSyscallTaskStorage {
+		p.useSyscallTaskStorage = false
+		return
+	}
+
+	if !p.kernelVersion.HasTaskStorage() {
+		p.useSyscallTaskStorage = false
+		seclog.Warnf("syscall task storage enabled but map type not supported on this kernel version, falling back to LRU hash map")
+		return
+	}
+
+	var programType lib.ProgramType
+	if p.useFentry {
+		programType = lib.Tracing
+	} else {
+		programType = lib.Kprobe
+	}
+
+	if !p.kernelVersion.HasTaskStorageForProgramType(programType) {
+		p.useSyscallTaskStorage = false
+		seclog.Warnf("syscall task storage enabled but not supported for program type %s on this kernel version, falling back to LRU hash map", programType)
+		return
+	}
+
+	if !p.kernelVersion.HasTaskStorageForProgramType(lib.TracePoint) {
+		p.useSyscallTaskStorage = false
+		seclog.Warnf("syscall task storage enabled but not supported for program type %s on this kernel version, falling back to LRU hash map", lib.TracePoint)
+		return
+	}
+
+	if p.kernelVersion.Code == 0 || p.kernelVersion.Code < kernel.Kernel5_13 {
+		p.useSyscallTaskStorage = false
+		seclog.Warnf("syscall task storage enabled but helper availability for tracing program types couldn't be ensured, falling back to LRU hash map")
+		return
+	}
+
+	p.useSyscallTaskStorage = true
 }
 
 // initCgroup2MountPath initiatlizses p.cgroup2MountPath
@@ -468,7 +509,7 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 }
 
 func (p *EBPFProbe) initEBPFManager() error {
-	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.useRingBuffers, p.useFentry)
+	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.useRingBuffers, p.useFentry, p.useSyscallTaskStorage)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -2913,6 +2954,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.useRingBuffers),
 		},
 		manager.ConstantEditor{
+			Name:  "use_syscall_task_storage",
+			Value: utils.BoolTouint64(p.useSyscallTaskStorage),
+		},
+		manager.ConstantEditor{
 			Name: "fentry_func_argc",
 			ValueCallback: func(prog *lib.ProgramSpec) interface{} {
 				// use a separate function to make sure we always return a uint64
@@ -3044,6 +3089,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		TracedCgroupSize:              p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:                p.useRingBuffers,
 		UseMmapableMaps:               p.useMmapableMaps,
+		UseSyscallTaskStorage:         p.useSyscallTaskStorage,
 		RingBufferSize:                uint32(p.config.Probe.EventStreamBufferSize),
 		PathResolutionEnabled:         p.probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
@@ -3234,6 +3280,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 
 	p.selectFentryMode()
 	p.selectRingBuffersMode()
+	p.selectSyscallTaskStorageMode()
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)

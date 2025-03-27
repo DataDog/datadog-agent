@@ -5,8 +5,5 @@ go_library(
     srcs = ["security_module_cmd_client_wrapper.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/agent/mocks",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/security/proto/api",
-        "@com_github_stretchr_testify//mock",
-    ],
+    deps = ["@com_github_stretchr_testify//mock"],
 )

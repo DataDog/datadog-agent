@@ -6,5 +6,4 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/dyninst/ir"],
 )

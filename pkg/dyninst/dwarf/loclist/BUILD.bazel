@@ -11,10 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/dwarf/dwarfutil",
-        "//pkg/dyninst/ir",
-    ],
+    deps = ["//pkg/dyninst/dwarf/dwarfutil"],
 )
 
 go_test(

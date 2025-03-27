@@ -16,6 +16,9 @@ import (
 	"sync"
 
 	"github.com/acobaugh/osrelease"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -339,6 +342,23 @@ func (k *Version) HasSafeBPFMemoryAllocations() bool {
 // See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
 func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
 	return k.Code != 0 && k.Code >= Kernel4_18
+}
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/4cf1bc1f10452065a29d576fc5693fc4fab5b919
+func (k *Version) HasTaskStorage() bool {
+	if features.HaveMapType(ebpf.TaskStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code >= Kernel5_11
+}
+
+// HasTaskStorageForProgramType returns true if the kernel supports using task local storage for the given program type
+// See https://github.com/torvalds/linux/commit/a10787e6d58c24b51e91c19c6d16c5da89fcaa4b
+func (k *Version) HasTaskStorageForProgramType(progType ebpf.ProgramType) bool {
+	return features.HaveProgramHelper(progType, asm.FnTaskStorageGet) == nil &&
+		features.HaveProgramHelper(progType, asm.FnGetCurrentTaskBtf) == nil
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19
