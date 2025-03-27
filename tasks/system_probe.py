@@ -823,12 +823,14 @@ def build_sysprobe_binary(
 
 
 def get_sysprobe_buildtags(is_windows, bundle_ebpf):
-    build_tags = [NPM_TAG]
+    platform = "windows" if is_windows else "linux"
+    build_tags = get_default_build_tags(build="system-probe", platform=platform)
+
+    if not is_windows and bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+
     build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+
     return build_tags
 
 
