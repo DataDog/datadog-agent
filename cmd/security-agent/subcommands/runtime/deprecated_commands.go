@@ -10,7 +10,6 @@ package runtime
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	sysprobecmd "github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime/policy"
 )
@@ -21,37 +20,18 @@ func deprecateCommand(cmd *cobra.Command, msg string) *cobra.Command {
 	return &deprecatedCommand
 }
 
-// checkPoliciesCommands is deprecated
-func checkPoliciesCommands(globalParams *command.GlobalParams) *cobra.Command {
-	confFilePath := ""
-	if len(globalParams.ConfigFilePaths) > 0 {
-		confFilePath = globalParams.ConfigFilePaths[0]
-	}
-
-	sysprobeGlobalParams := sysprobecmd.GlobalParams{
-		ConfFilePath:         confFilePath,
-		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
-	}
-
-	checkPoliciesCmd := policy.CheckPoliciesCommand(&sysprobeGlobalParams)
+// checkPoliciesCommand is deprecated
+func checkPoliciesCommand(globalParams *sysprobecmd.GlobalParams) *cobra.Command {
+	checkPoliciesCmd := policy.CheckPoliciesCommand(globalParams)
 	checkPoliciesCmd.Use = "check-policies"
 	checkPoliciesCmd.Short = "check policies and return a report"
 	return checkPoliciesCmd
 }
 
-// reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) *cobra.Command {
-	confFilePath := ""
-	if len(globalParams.ConfigFilePaths) > 0 {
-		confFilePath = globalParams.ConfigFilePaths[0]
-	}
+// reloadPoliciesCommand is deprecated
+func reloadPoliciesCommand(globalParams *sysprobecmd.GlobalParams) *cobra.Command {
 
-	sysprobeGlobalParams := sysprobecmd.GlobalParams{
-		ConfFilePath:         confFilePath,
-		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
-	}
-
-	reloadPoliciesCmd := policy.ReloadPoliciesCommand(&sysprobeGlobalParams)
+	reloadPoliciesCmd := policy.ReloadPoliciesCommand(globalParams)
 	reloadPoliciesCmd.Use = "reload"
 	reloadPoliciesCmd.Short = "Reload policies"
 	return reloadPoliciesCmd

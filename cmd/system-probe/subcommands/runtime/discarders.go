@@ -23,7 +23,7 @@ import (
 )
 
 // DiscardersCommand returns the CLI command for "runtime discarders"
-func DiscardersCommand(_ *command.GlobalParams) *cobra.Command {
+func DiscardersCommand(globalParams *command.GlobalParams) *cobra.Command {
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
@@ -32,7 +32,7 @@ func DiscardersCommand(_ *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},

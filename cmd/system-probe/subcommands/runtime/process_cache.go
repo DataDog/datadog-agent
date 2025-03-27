@@ -44,7 +44,7 @@ func ProcessCacheCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},

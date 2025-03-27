@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -18,11 +19,6 @@ import (
 
 // Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	runtimeCmd := &cobra.Command{
-		Use:   "runtime",
-		Short: "Runtime Security Agent utility commands",
-	}
-
 	confFilePath := ""
 	if len(globalParams.ConfigFilePaths) != 0 {
 		confFilePath = globalParams.ConfigFilePaths[0]
@@ -31,6 +27,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	sysprobeGlobalParams := &sysprobecmd.GlobalParams{
 		ConfFilePath:         confFilePath,
 		FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+		LoggerName:           "SECURITY-AGENT",
+	}
+
+	runtimeCmd := &cobra.Command{
+		Use:   "runtime",
+		Short: "Runtime Security Agent utility commands",
 	}
 
 	runtimeCmd.AddCommand(policy.Command(sysprobeGlobalParams))
@@ -43,8 +45,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	// Deprecated
 	runtimeCmd.AddCommand(
-		deprecateCommand(checkPoliciesCommands(globalParams), "please use `system-probe runtime policy check` instead"),
-		deprecateCommand(reloadPoliciesCommands(globalParams), "please use `system-probe runtime policy reload` instead"))
+		deprecateCommand(checkPoliciesCommand(sysprobeGlobalParams), "please use `system-probe runtime policy check` instead"),
+		deprecateCommand(reloadPoliciesCommand(sysprobeGlobalParams), "please use `system-probe runtime policy reload` instead"))
 
 	return []*cobra.Command{runtimeCmd}
 }

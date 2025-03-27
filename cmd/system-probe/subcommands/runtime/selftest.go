@@ -22,7 +22,7 @@ import (
 )
 
 // SelfTestCommand returns the CLI command for "runtime self-test"
-func SelfTestCommand(_ *command.GlobalParams) *cobra.Command {
+func SelfTestCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
@@ -31,7 +31,7 @@ func SelfTestCommand(_ *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},

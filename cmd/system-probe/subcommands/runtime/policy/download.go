@@ -57,7 +57,7 @@ func DownloadPolicyCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},

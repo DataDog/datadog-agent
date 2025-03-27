@@ -41,7 +41,7 @@ func TestDownloadCommand(t *testing.T) {
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{}))},
+			[]*cobra.Command{testRuntimeCommand(Command(&command.GlobalParams{LoggerName: "SYS-PROBE"}))},
 			test.cliInput,
 			downloadPolicy,
 			test.check,
