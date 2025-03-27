@@ -60,11 +60,11 @@ single_version_override(
 
 # Use an unreleased commit for gazelle that lets us treat all our buildtags
 # as simultaneously true and false when generating BUILD files
-# TODO: Update / remove as this gets merged / released upstream
+# TODO: Remove when this gets released upstream
 git_override(
     module_name = "gazelle",
-    commit = "337f1a6a8301f112570a4c2fdf3fff960f1c9995",
-    remote = "https://github.com/alopezz/bazel-gazelle.git",
+    commit = "3abbe5ae1918dc83f622849854a80a7961413bc2",
+    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
