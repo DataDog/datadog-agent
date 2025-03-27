@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
@@ -116,16 +117,23 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			ctx, err := getSystemContext(
+				withNvmlLib(testutil.GetBasicNvmlMock()),
+				withProcRoot(kernel.ProcFSRoot()),
+				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
+				withTelemetry(testutil.GetTelemetryMock(b)),
+				withFatbinParsingEnabled(fatbinParsingEnabled),
+			)
 			require.NoError(b, err)
 			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
-
-			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			cfg := config.New()
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
 			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-			ctx.pidMaps[pid] = nil
+
+			if ctx.kernelCache != nil {
+				ctx.kernelCache.pidMaps[pid] = nil
+			}
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()
