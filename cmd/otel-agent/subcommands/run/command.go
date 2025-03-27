@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -112,7 +112,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 			}),
 			logfx.Module(),
-			createandfetchimpl.Module(),
+			authtokenimpl.Module(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
@@ -134,7 +134,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
 		}),
-		createandfetchimpl.Module(),
+		authtokenimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -134,7 +133,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressionfx.Module(),
 				metricscompressionfx.Module(),
-				createandfetchimpl.Module(),
 				diagnosefx.Module(),
 			)
 		},

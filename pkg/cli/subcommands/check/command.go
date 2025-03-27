@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -167,7 +166,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				grpcNonefx.Module(),
-				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),

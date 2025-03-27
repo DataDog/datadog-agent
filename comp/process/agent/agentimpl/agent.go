@@ -9,7 +9,6 @@ package agentimpl
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -53,7 +52,6 @@ type dependencies struct {
 	Submitter      submitterComp.Component
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
-	Authtoken      authtoken.Component
 }
 
 type processAgent struct {
@@ -114,7 +112,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		}
 		return provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config, deps.Authtoken)),
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}

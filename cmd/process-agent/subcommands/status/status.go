@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -85,7 +85,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				core.Bundle(),
 				process.Bundle(),
-				fetchonlyimpl.Module(),
+				authtokenimpl.Module(),
 			)
 		},
 	}

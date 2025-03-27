@@ -46,7 +46,7 @@ type dependencies struct {
 	Params    Params
 	Providers []*types.FlareFiller `group:"flare"`
 	WMeta     option.Option[workloadmeta.Component]
-	AuthToken authtoken.Component
+	AuthToken option.Option[authtoken.Component]
 }
 
 type provides struct {

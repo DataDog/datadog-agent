@@ -60,8 +60,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(config config.Component, cliParams *cliParams, _ log.Component, auth authtoken.Component) error {
-	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/config-check")
+func run(cliParams *cliParams, _ log.Component, at authtoken.Component) error {
+	endpoint, err := at.GetClient().NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return err
 	}

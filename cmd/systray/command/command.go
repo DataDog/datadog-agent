@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"

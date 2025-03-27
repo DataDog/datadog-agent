@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type topFlags struct {
@@ -119,11 +120,15 @@ type metric struct {
 	tags  map[string]struct{}
 }
 
-func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, auth authtoken.Component) error {
+func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, at option.Option[authtoken.Component]) error {
 	var err error
 
 	path := flags.path
 	if path == "" {
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth token not found")
+		}
 		path, err = triggerDump(config, auth)
 		if err != nil {
 			return err

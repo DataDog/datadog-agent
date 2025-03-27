@@ -9,6 +9,9 @@
 package dualimpl
 
 import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -17,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires contains the dependencies for the dual tagger component
@@ -28,6 +32,7 @@ type Requires struct {
 	Log          log.Component
 	Wmeta        workloadmeta.Component
 	Telemetry    telemetry.Component
+	At           option.Option[authtoken.Component]
 }
 
 // Provides contains returned values for the  dual tagger component
@@ -38,12 +43,18 @@ type Provides struct {
 // NewComponent returns either a remote tagger or a local tagger based on the configuration
 func NewComponent(req Requires) (Provides, error) {
 	if req.DualParams.UseRemote(req.Config) {
+		auth, ok := req.At.Get()
+		if !ok {
+			return Provides{}, fmt.Errorf("auth component is not correctly initialized")
+		}
+
 		remoteRequires := remote.Requires{
 			Lc:        req.Lc,
 			Params:    req.RemoteParams,
 			Config:    req.Config,
 			Log:       req.Log,
 			Telemetry: req.Telemetry,
+			At:        auth,
 		}
 
 		provide, err := remote.NewComponent(remoteRequires)

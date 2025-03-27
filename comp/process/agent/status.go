@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -23,14 +22,12 @@ import (
 type StatusProvider struct {
 	testServerURL string
 	config        config.Component
-	authtoken     authtoken.Component
 }
 
 // NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component, Authtoken authtoken.Component) *StatusProvider {
+func NewStatusProvider(Config config.Component) *StatusProvider {
 	return &StatusProvider{
-		config:    Config,
-		authtoken: Authtoken,
+		config: Config,
 	}
 }
 

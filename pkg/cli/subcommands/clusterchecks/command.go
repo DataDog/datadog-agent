@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
@@ -134,12 +133,6 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams, a
 	fmt.Println("Requesting a cluster check rebalance...")
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
-	// Set session token
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
 	// Construct the POST payload.
 	payload := map[string]bool{
 		"force": cliParams.force,
@@ -185,12 +178,6 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams, at 
 		return fmt.Errorf("checkID must be specified")
 	}
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
-
-	// Set session token
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
 
 	r, err := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if err != nil {

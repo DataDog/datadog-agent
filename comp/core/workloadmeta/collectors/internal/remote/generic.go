@@ -22,11 +22,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -81,7 +83,7 @@ type GenericCollector struct {
 	cancel context.CancelFunc
 
 	Insecure  bool // for testing
-	AuthToken string
+	AuthToken option.Option[authtoken.Component]
 }
 
 // Start starts the generic collector
@@ -141,6 +143,11 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	expBackoff.MaxInterval = 5 * time.Minute
 	expBackoff.MaxElapsedTime = maxElapsed
 
+	auth, ok := c.AuthToken.Get()
+	if !ok {
+		return log.Error("no auth component found")
+	}
+
 	return backoff.Retry(func() error {
 		select {
 		case <-c.ctx.Done():
@@ -155,7 +162,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", c.AuthToken),
+						fmt.Sprintf("Bearer %s", auth.Get()), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),

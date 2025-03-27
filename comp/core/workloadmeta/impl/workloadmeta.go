@@ -13,7 +13,6 @@ import (
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -30,7 +29,6 @@ import (
 type workloadmeta struct {
 	log    log.Component
 	config config.Component
-	at     authtoken.Component
 
 	// Store related
 	storeMut sync.RWMutex
@@ -57,7 +55,6 @@ type Dependencies struct {
 	Log     log.Component
 	Config  config.Component
 	Catalog wmdef.CollectorList `group:"workloadmeta"`
-	At      authtoken.Component
 
 	Params wmdef.Params
 }
@@ -81,7 +78,6 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 	wm := &workloadmeta{
 		log:    deps.Log,
 		config: deps.Config,
-		at:     deps.At,
 
 		store:                 make(map[wmdef.Kind]map[string]*cachedEntity),
 		candidates:            candidates,

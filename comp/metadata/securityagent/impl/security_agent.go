@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -61,10 +62,10 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type secagent struct {
 	util.InventoryPayload
 
-	log          log.Component
-	conf         config.Component
-	secureClient authtoken.SecureClient
-	hostname     string
+	log       log.Component
+	conf      config.Component
+	authToken option.Option[authtoken.Component]
+	hostname  string
 }
 
 // Requires defines the dependencies for the securityagent metadata component
@@ -73,7 +74,7 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken authtoken.Component
+	AuthToken option.Option[authtoken.Component]
 }
 
 // Provides defines the output of the securityagent metadata component
@@ -87,11 +88,12 @@ type Provides struct {
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
 	hname, _ := hostname.Get(context.Background())
+
 	sa := &secagent{
-		log:          deps.Log,
-		conf:         deps.Config,
-		hostname:     hname,
-		secureClient: deps.AuthToken.GetClient(),
+		log:       deps.Log,
+		conf:      deps.Config,
+		hostname:  hname,
+		authToken: deps.AuthToken,
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
@@ -122,7 +124,14 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, sa.secureClient)
+	auth, ok := sa.authToken.Get()
+	if !ok {
+		sa.log.Warn("no client found")
+		return metadata
+	}
+	client := auth.GetClient()
+
+	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, client)
 	if err != nil {
 		sa.log.Debugf("error fetching security-agent config layers: %s", err)
 		return metadata
@@ -156,7 +165,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSecurityAgentConfig(sa.conf, sa.secureClient); err == nil {
+	if str, err := fetchSecurityAgentConfig(sa.conf, client); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sa.log.Debugf("error fetching security-agent config: %s", err)

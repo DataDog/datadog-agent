@@ -13,12 +13,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -70,6 +70,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				authtokenimpl.Module(),
 			)
 		},
 	}
@@ -80,13 +81,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func workloadList(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
-
-	// Set session token
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
 	url, err := workloadURL(cliParams.verboseList)
 	if err != nil {
 		return err

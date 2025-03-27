@@ -23,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -58,8 +59,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func printHostname(_ log.Component, config config.Component, params *cliParams, auth authtoken.Component) error {
-	hname, err := getHostname(config, params, auth)
+func printHostname(_ log.Component, config config.Component, params *cliParams, at option.Option[authtoken.Component]) error {
+	hname, err := getHostname(config, params, at)
 
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
@@ -69,8 +70,12 @@ func printHostname(_ log.Component, config config.Component, params *cliParams, 
 	return nil
 }
 
-func getHostname(config config.Component, params *cliParams, auth authtoken.Component) (string, error) {
+func getHostname(config config.Component, params *cliParams, at option.Option[authtoken.Component]) (string, error) {
 	if !params.forceLocal {
+		auth, ok := at.Get()
+		if !ok {
+			return "", fmt.Errorf("auth token not found")
+		}
 		hname, err := getRemoteHostname(config, auth)
 		if err == nil {
 			return hname, nil

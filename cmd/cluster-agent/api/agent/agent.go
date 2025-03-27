@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -38,7 +39,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
-		makeFlare(w, r, statusComponent, diagnoseComponent, authToken.GetClient())
+		makeFlare(w, r, statusComponent, diagnoseComponent, authToken)
 	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
@@ -127,7 +128,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Component, diagnoseComponent diagnose.Component, authToken authtoken.SecureClient) {
+func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Component, diagnoseComponent diagnose.Component, authToken authtoken.Component) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -150,7 +151,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	if logFile == "" {
 		logFile = defaultpaths.DCALogFile
 	}
-	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent, diagnoseComponent, authToken)
+	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent, diagnoseComponent, option.New[authtoken.Component](authToken))
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

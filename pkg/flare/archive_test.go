@@ -51,8 +51,7 @@ func TestGoRoutines(t *testing.T) {
 	}))
 
 	remote := RemoteFlareProvider{
-		SecureClient: at.GetClient(),
-		at:           at,
+		AuthComp: at.Optional(),
 	}
 
 	content, err := remote.getHTTPCallContent(ts.URL)
@@ -129,8 +128,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	}))
 
 	remote := RemoteFlareProvider{
-		SecureClient: at.GetClient(),
-		at:           at,
+		AuthComp: at.Optional(),
 	}
 
 	setupIPCAddress(t, configmock.New(t), s.URL)
@@ -164,8 +162,7 @@ func TestGetWorkloadList(t *testing.T) {
 	}))
 
 	remote := RemoteFlareProvider{
-		SecureClient: at.GetClient(),
-		at:           at,
+		AuthComp: at.Optional(),
 	}
 
 	setupIPCAddress(t, configmock.New(t), s.URL)
@@ -218,8 +215,7 @@ process_config:
 	at := authtokenmock.New(t)
 
 	remote := RemoteFlareProvider{
-		SecureClient: at.GetClient(),
-		at:           at,
+		AuthComp: at.Optional(),
 	}
 
 	// Setting an unused port to avoid problem when test run next to running Process Agent
@@ -311,8 +307,7 @@ func TestProcessAgentChecks(t *testing.T) {
 	at := authtokenmock.New(t)
 
 	remote := RemoteFlareProvider{
-		SecureClient: at.GetClient(),
-		at:           at,
+		AuthComp: at.Optional(),
 	}
 
 	t.Run("without process-agent running", func(t *testing.T) {

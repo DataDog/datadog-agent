@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -35,12 +34,6 @@ func GetClusterChecks(w io.Writer, checkName string, c authtoken.SecureClient) e
 	if !pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		fmt.Fprintln(w, "Cluster-checks are not enabled")
 		return nil
-	}
-
-	// Set session token
-	err := util.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
 	}
 
 	r, err := c.Get(urlstr, secureclient.WithLeaveConnectionOpen)

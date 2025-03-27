@@ -8,6 +8,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.63.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -34,8 +36,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.63.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.63.0 // indirect

@@ -52,7 +52,6 @@ import (
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -392,7 +391,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
-		authtokenimpl.Module(),
+		// authtokenimpl.Module(),
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),

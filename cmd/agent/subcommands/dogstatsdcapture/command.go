@@ -8,7 +8,6 @@ package dogstatsdcapture
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"time"
@@ -82,23 +81,14 @@ func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliPa
 	defer cancel()
 
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", auth.Get())},
+		"authorization": []string{fmt.Sprintf("Bearer %s", auth.Get())}, // TODO IPC: replace with GRPC Client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
 		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
+		grpc.WithTransportCredentials(credentials.NewTLS(auth.GetTLSClientConfig())),
 	)
 	if err != nil {
 		return err

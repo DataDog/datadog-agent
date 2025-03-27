@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -68,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(_ log.Component, config config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, at option.Option[authtoken.Component], params *cliParams) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
@@ -88,10 +89,15 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 
 	logFile := config.GetString("security_agent.log_file")
 
-	r, e := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	sr := string(r)
+	auth, ok := at.Get()
+	var r []byte
+	var sr string
 	var filePath string
-	if e != nil {
+	if ok {
+		r, e = auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
+		sr = string(r)
+	}
+	if !ok || e != nil {
 		if r != nil && sr != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(sr))
 		} else {

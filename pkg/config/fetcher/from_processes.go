@@ -13,18 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
 func SecurityAgentConfig(config config.Reader, client authtoken.SecureClient) (string, error) {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return "", err
-	}
-
 	port := config.GetInt("security_agent.cmd_port")
 	if port <= 0 {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
@@ -39,11 +33,6 @@ func SecurityAgentConfig(config config.Reader, client authtoken.SecureClient) (s
 
 // SecurityAgentConfigBySource fetch all configuration layers from the security-agent process by querying its HTTPS API
 func SecurityAgentConfigBySource(config config.Reader, client authtoken.SecureClient) (string, error) {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return "", err
-	}
-
 	port := config.GetInt("security_agent.cmd_port")
 	if port <= 0 {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
@@ -58,11 +47,6 @@ func SecurityAgentConfigBySource(config config.Reader, client authtoken.SecureCl
 
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
 func TraceAgentConfig(config config.Reader, client authtoken.SecureClient) (string, error) {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return "", err
-	}
-
 	port := config.GetInt("apm_config.debug.port")
 	if port <= 0 {
 		return "", fmt.Errorf("invalid apm_config.debug.port -- %d", port)
@@ -78,11 +62,6 @@ func TraceAgentConfig(config config.Reader, client authtoken.SecureClient) (stri
 
 // ProcessAgentConfig fetch the configuration from the process-agent process by querying its HTTPS API
 func ProcessAgentConfig(config config.Reader, client authtoken.SecureClient, getEntireConfig bool) (string, error) {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return "", err
-	}
-
 	ipcAddress, err := setup.GetIPCAddress(config)
 	if err != nil {
 		return "", err

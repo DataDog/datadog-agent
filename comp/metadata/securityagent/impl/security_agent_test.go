@@ -15,17 +15,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,11 +57,7 @@ func getSecurityAgentComp(t *testing.T, enableConfig bool) *secagent {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		AuthToken: fxutil.Test[authtoken.Component](t,
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-			fx.Provide(func() log.Component { return l }),
-			fx.Provide(func() config.Component { return cfg }),
-		),
+		AuthToken:  authtokenmock.New(t).Optional(),
 	}
 
 	comp := NewComponent(r).Comp

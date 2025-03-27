@@ -116,7 +116,7 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector(at authtoken.Component) (workloadmeta.CollectorProvider, error) {
+func NewCollector(at option.Option[authtoken.Component]) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
@@ -124,7 +124,7 @@ func NewCollector(at authtoken.Component) (workloadmeta.CollectorProvider, error
 			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
 			Insecure:      true, // wlm extractor currently does not support TLS
-			AuthToken:     at.Get(),
+			AuthToken:     at,
 		},
 	}, nil
 }

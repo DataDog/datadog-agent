@@ -26,7 +26,6 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
@@ -47,13 +46,12 @@ func getProcessAPIAddressPort() (string, error) {
 // RemoteFlareProvider is a struct that contains a SecureClient
 // It is used to make secure IPC requests to the agent
 type RemoteFlareProvider struct {
-	authtoken.SecureClient
-	at authtoken.Component // TODO IPC: create a GRPC Client and drop the authtoken.Component dependency in this struct
+	AuthComp option.Option[authtoken.Component] // TODO IPC: create a GRPC Client and drop the authtoken.Component dependency in this struct
 }
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], authtoken authtoken.Component) []*flaretypes.FlareFiller {
+func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], authtoken option.Option[authtoken.Component]) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -62,7 +60,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], aut
 	 */
 
 	remote := &RemoteFlareProvider{
-		SecureClient: authtoken.GetClient(),
+		AuthComp: authtoken,
 	}
 
 	providers := []*flaretypes.FlareFiller{
@@ -227,7 +225,12 @@ func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	bytes, err := r.Get(procStatusURL, secureclient.WithLeaveConnectionOpen)
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		return nil, log.Errorf("no auth component found")
+	}
+
+	bytes, err := auth.GetClient().Get(procStatusURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
 	}
@@ -242,6 +245,14 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	}
 	checkURL := fmt.Sprintf("https://%s/check/", addressPort)
 
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		log.Errorf("Could not zip process agent checks: no auth component found")
+		return
+	}
+
+	client := auth.GetClient()
+
 	getCheck := func(checkName, setting string) {
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
 
@@ -251,7 +262,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 		}
 
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) {
-			return r.Get(checkURL+checkName, secureclient.WithLeaveConnectionOpen)
+			return client.Get(checkURL+checkName, secureclient.WithLeaveConnectionOpen)
 		})
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
@@ -283,18 +294,18 @@ func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
 	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
 	return r.GetTaggerList(taggerListURL)
 }
 
 // GetTaggerList fetches the tagger list from the given URL.
 func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
-	resp, err := r.Get(remoteURL, secureclient.WithLeaveConnectionOpen)
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		return nil, log.Errorf("no auth component found")
+	}
+
+	resp, err := auth.GetClient().Get(remoteURL, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +333,12 @@ func (r *RemoteFlareProvider) getAgentWorkloadList() ([]byte, error) {
 
 // GetWorkloadList fetches the workload list from the given URL.
 func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
-	resp, err := r.Get(url, secureclient.WithLeaveConnectionOpen)
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		return nil, log.Errorf("no auth component found")
+	}
+
+	resp, err := auth.GetClient().Get(url, secureclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +393,12 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.Do(req, secureclient.WithContext(ctx))
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		return nil, log.Errorf("no auth component found")
+	}
+
+	resp, err := auth.GetClient().Do(req, secureclient.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}

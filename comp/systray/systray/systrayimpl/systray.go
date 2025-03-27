@@ -19,6 +19,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -47,23 +49,24 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Log      log.Component
-	Config   config.Component
-	Flare    flare.Component
-	Diagnose diagnose.Component
-	Params   systray.Params
+	Log       log.Component
+	Config    config.Component
+	Flare     flare.Component
+	Diagnose  diagnose.Component
+	Params    systray.Params
+	AuthToken option.Option[authtoken.Component]
 }
 
 type systrayImpl struct {
 	// For triggering Shutdown
 	shutdowner fx.Shutdowner
 
-	log      log.Component
-	config   config.Component
-	flare    flare.Component
-	diagnose diagnose.Component
-	params   systray.Params
-
+	log       log.Component
+	config    config.Component
+	flare     flare.Component
+	diagnose  diagnose.Component
+	params    systray.Params
+	authToken option.Option[authtoken.Component]
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
@@ -126,6 +129,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		flare:      deps.Flare,
 		diagnose:   deps.Diagnose,
 		params:     deps.Params,
+		authToken:  deps.AuthToken,
 		shutdowner: deps.Shutdowner,
 	}
 

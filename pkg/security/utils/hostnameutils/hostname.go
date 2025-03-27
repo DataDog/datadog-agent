@@ -66,10 +66,6 @@ func getHostnameFromAgent(ctx context.Context) (string, error) {
 			return err
 		}
 
-		err = util.SetAuthToken(pkgconfigsetup.Datadog())
-		if err != nil {
-			return err
-		}
 		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), util.GetTLSClientConfig())
 		if err != nil {
 			return err

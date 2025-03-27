@@ -25,6 +25,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/spf13/cobra"
 )
@@ -67,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, auth authtoken.Component) error {
+func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, at option.Option[authtoken.Component]) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
@@ -76,6 +77,11 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+
+	auth, ok := at.Get()
+	if !ok {
+		return fmt.Errorf("auth token not found")
+	}
 
 	r, e := auth.GetClient().Get(urlstr, secureclient.WithLeaveConnectionOpen)
 	if e != nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // inMemoryAuthComponent is a mock for the authtoken component
@@ -74,6 +75,11 @@ func New(t testing.TB) authtokeninterface.Mock {
 		t:    t,
 		conf: config.NewMock(t),
 	}
+}
+
+// New returns a new authtoken mock
+func (at *inMemoryAuthComponent) Optional() option.Option[authtokeninterface.Component] {
+	return option.New[authtokeninterface.Component](at)
 }
 
 func (at *inMemoryAuthComponent) HTTPMiddleware(next http.Handler) http.Handler {

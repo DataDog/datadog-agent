@@ -8,7 +8,6 @@ package dogstatsdreplay
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -20,6 +19,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -29,8 +30,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -96,19 +95,10 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-
 	apiconn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
 		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
+		grpc.WithTransportCredentials(credentials.NewTLS(auth.GetTLSClientConfig())),
 	)
 	if err != nil {
 		return err

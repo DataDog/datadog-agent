@@ -348,7 +348,7 @@ func cmdDiagnose(cliParams *cliParams,
 	tagger tagger.Component,
 	diagnoseComponent diagnose.Component,
 	config config.Component,
-	at authtoken.Component,
+	at option.Option[authtoken.Component],
 ) error {
 
 	diagCfg := diagnose.Config{
@@ -376,7 +376,12 @@ func cmdDiagnose(cliParams *cliParams,
 	var err error
 	var result *diagnose.Result
 	if !cliParams.runLocal {
-		result, err = requestDiagnosesFromAgentProcess(diagCfg, at)
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth component is not correctly initialized")
+		}
+
+		result, err = requestDiagnosesFromAgentProcess(diagCfg, auth)
 
 		if err != nil {
 			if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON

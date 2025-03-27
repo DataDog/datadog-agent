@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -50,7 +50,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				coreconfig.Module(),
 				secretsimpl.Module(),
 				logfx.Module(),
-				fetchonlyimpl.Module(),
+				authtokenimpl.Module(),
 				otelagentStatusfx.Module(),
 			)
 		},

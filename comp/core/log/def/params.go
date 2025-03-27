@@ -41,6 +41,10 @@ type Params struct {
 	// logFormatJSONFn returns a boolean determining whether logs should be
 	// written in JSON format.
 	logFormatJSONFn func(configGetter) bool
+
+	// isDaemon is a boolean determining whether the log component is running
+	// as a daemon.
+	isDaemon bool
 }
 
 // configGetter is a subset of the comp/core/config component, able to get
@@ -76,6 +80,7 @@ func ForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params.logSyslogRFCFn = func(configGetter) bool { return false }
 	params.logToConsoleFn = func(configGetter) bool { return true }
 	params.logFormatJSONFn = func(configGetter) bool { return false }
+	params.isDaemon = false
 	return params
 }
 
@@ -130,6 +135,7 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 	params.logSyslogRFCFn = func(g configGetter) bool { return g.GetBool("syslog_rfc") }
 	params.logToConsoleFn = func(g configGetter) bool { return g.GetBool("log_to_console") }
 	params.logFormatJSONFn = func(g configGetter) bool { return g.GetBool("log_format_json") }
+	params.isDaemon = true
 	return params
 }
 
@@ -184,4 +190,10 @@ func (params Params) LogToConsoleFn(c configGetter) bool {
 // LogFormatJSONFn returns a boolean determining whether logs should be written in JSON format
 func (params Params) LogFormatJSONFn(c configGetter) bool {
 	return params.logFormatJSONFn(c)
+}
+
+// IsDaemon returns a boolean determining whether the log component is running
+// as a daemon.
+func (params Params) IsDaemon() bool {
+	return params.isDaemon
 }

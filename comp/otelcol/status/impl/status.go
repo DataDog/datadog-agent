@@ -21,6 +21,8 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -30,7 +32,7 @@ var templatesFS embed.FS
 // Requires defines the dependencies of the status component.
 type Requires struct {
 	Config    config.Component
-	Authtoken authtoken.Component
+	Authtoken option.Option[authtoken.Component]
 }
 
 // Provides contains components provided by status constructor.
@@ -41,7 +43,7 @@ type Provides struct {
 
 type statusProvider struct {
 	Config         config.Component
-	client         authtoken.SecureClient
+	at             option.Option[authtoken.Component]
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -67,9 +69,10 @@ type prometheusRuntimeConfig struct {
 
 // NewComponent creates a new status component.
 func NewComponent(reqs Requires) Provides {
+
 	comp := statusProvider{
 		Config: reqs.Config,
-		client: reqs.Authtoken.GetClient(),
+		at:     reqs.Authtoken,
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,
 			"metrics":         0.0,
@@ -142,7 +145,12 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
-	resp, err := s.client.Get(prometheusURL, secureclient.WithCloseConnection)
+	auth, ok := s.at.Get()
+	if !ok {
+		return log.Error("no auth component found")
+	}
+
+	resp, err := auth.GetClient().Get(prometheusURL, secureclient.WithCloseConnection)
 	if err != nil {
 		return err
 	}
@@ -186,7 +194,15 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
 
-	resp, err := s.client.Get(extensionURL, secureclient.WithCloseConnection)
+	auth, ok := s.at.Get()
+	if !ok {
+		return map[string]interface{}{
+			"url":   extensionURL,
+			"error": "no auth component found",
+		}
+	}
+
+	resp, err := auth.GetClient().Get(extensionURL, secureclient.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,

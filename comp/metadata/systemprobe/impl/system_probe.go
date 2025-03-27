@@ -16,7 +16,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -71,11 +70,9 @@ type systemprobe struct {
 
 // Requires defines the dependencies for the systemprobe metadata component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken      authtoken.Component
+	Log            log.Component
+	Config         config.Component
+	Serializer     serializer.MetricSerializer
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 }
 

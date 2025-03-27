@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -150,7 +151,7 @@ func readProfileData(client authtoken.SecureClient, seconds int) (clusterAgentFl
 	return pdata, nil
 }
 
-func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Component, at authtoken.Component) error {
+func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Component, at option.Option[authtoken.Component]) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile clusterAgentFlare.ProfileData
@@ -165,10 +166,12 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		logFile = defaultpaths.DCALogFile
 	}
 
-	client := at.GetClient()
-
 	if cliParams.profiling >= 30 {
-		settingsClient := settingshttp.NewSecureClient(client, configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth token not found")
+		}
+		settingsClient := settingshttp.NewSecureClient(auth.GetClient(), configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,
@@ -178,7 +181,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		}
 
 		e = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, e = readProfileData(client, cliParams.profiling); e != nil {
+			if profile, e = readProfileData(auth.GetClient(), cliParams.profiling); e != nil {
 				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", e)))
 			}
 		}, profilingOpts, settingsClient)
@@ -196,16 +199,20 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		return e
 	}
 
-	r, e := client.Post(flareURL, "application/json", bytes.NewBuffer(p))
+	auth, ok := at.Get()
 	var filePath string
-	if e != nil {
+	var r []byte
+	if ok {
+		r, e = auth.GetClient().Post(flareURL, "application/json", bytes.NewBuffer(p))
+	}
+	if !ok || e != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = clusterAgentFlare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil, diagnoseComponent, at.GetClient())
+		filePath, e = clusterAgentFlare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil, diagnoseComponent, at)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

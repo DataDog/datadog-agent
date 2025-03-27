@@ -26,6 +26,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) error {
@@ -34,11 +35,16 @@ func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) err
 		return err
 	}
 
+	auth, ok := r.AuthComp.Get()
+	if !ok {
+		return log.Error("no auth component found")
+	}
+
 	// Dump the state
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", r.at.Get())}, // TODO IPC: Implement a GRPC secure client
+		"authorization": []string{fmt.Sprintf("Bearer %s", auth.Get())}, // TODO IPC: Implement a GRPC secure client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -47,7 +53,7 @@ func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) err
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.at.GetTLSClientConfig())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), auth.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}

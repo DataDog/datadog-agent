@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -153,9 +152,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-
-		// Provide authtoken module
-		createandfetchimpl.Module(),
 
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),

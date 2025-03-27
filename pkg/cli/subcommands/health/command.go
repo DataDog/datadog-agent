@@ -21,11 +21,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -64,6 +64,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				authtokenimpl.Module(),
 			)
 		},
 	}
@@ -84,12 +85,6 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
 		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
-	}
-
-	// Set session token
-	err = util.SetAuthToken(config)
-	if err != nil {
-		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)

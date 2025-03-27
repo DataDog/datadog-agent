@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the profiler component
@@ -53,7 +54,7 @@ type profiler struct {
 	settingsComponent settings.Component
 	cfg               config.Component
 	sysProbeCfg       sysprobeconfig.Component
-	authToken         authtoken.Component
+	authToken         option.Option[authtoken.Component]
 }
 
 // ReadProfileData gathers and returns pprof server output for a variety of agent services.
@@ -69,6 +70,8 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 
 	pdata := flaretypes.ProfileData{}
 
+	httpClient := http.Client{}
+
 	type pprofGetter func(path string) ([]byte, error)
 	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
 		endpoint := url.URL{
@@ -80,7 +83,22 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return p.authToken.GetClient().Get(endpoint.String() + path)
+			if !onHTTPS {
+				resp, err := httpClient.Get(endpoint.String() + path)
+				if err != nil {
+					return nil, err
+				}
+				defer resp.Body.Close()
+				return io.ReadAll(resp.Body)
+			} else {
+				auth, ok := p.authToken.Get()
+				if !ok {
+					return nil, logFunc("no auth component found")
+				}
+
+				return auth.GetClient().Get(endpoint.String() + path)
+			}
+
 		}
 	}
 

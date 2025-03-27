@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -160,7 +160,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryotelimpl.Module(),
 				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
-				authtokenimpl.Module(),
+				// authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.
 				fx.Provide(func() serializer.MetricSerializer {
@@ -199,7 +199,7 @@ func makeFlare(flareComp flare.Component,
 	_ option.Option[workloadmeta.Component],
 	tagger tagger.Component,
 	flareprofiler flareprofilerdef.Component,
-	at authtoken.Component,
+	at option.Option[authtoken.Component],
 	senderManager diagnosesendermanager.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
@@ -243,7 +243,12 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if cliParams.profiling >= 30 {
-		c, err := common.NewSettingsClient(at.GetClient())
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth token not found")
+		}
+
+		c, err := common.NewSettingsClient(auth.GetClient())
 		if err != nil {
 			return fmt.Errorf("failed to initialize settings client: %w", err)
 		}
@@ -274,8 +279,13 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if streamLogParams.Duration > 0 {
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth token not found")
+		}
+
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, at, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, auth, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
@@ -287,7 +297,12 @@ func makeFlare(flareComp flare.Component,
 		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
-		filePath, err = requestArchive(profile, at, cliParams.providerTimeout)
+		auth, ok := at.Get()
+		if !ok {
+			return fmt.Errorf("auth token not found")
+		}
+
+		filePath, err = requestArchive(profile, auth, cliParams.providerTimeout)
 		if err != nil {
 			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)

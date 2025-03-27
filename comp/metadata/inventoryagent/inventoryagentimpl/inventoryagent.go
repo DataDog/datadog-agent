@@ -100,7 +100,7 @@ type inventoryagent struct {
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	authToken    option.Option[authtoken.Component]
 }
 
 type dependencies struct {
@@ -110,7 +110,7 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	AuthToken      option.Option[authtoken.Component]
 }
 
 type provides struct {
@@ -203,7 +203,13 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, c authtoken.SecureClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(localConf, ia.authToken.GetClient()); err == nil {
+
+	auth, ok := ia.authToken.Get()
+	if !ok {
+		return localConf
+	}
+
+	if remoteConfig, err := configFetcher(localConf, auth.GetClient()); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {

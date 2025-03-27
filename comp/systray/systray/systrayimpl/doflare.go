@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -176,20 +175,17 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	c := util.GetClient()
+	auth, ok := s.authToken.Get()
+	if !ok {
+		return "", s.log.Error("unable to generate flare: no auth component found")
+	}
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	// Set session token
-	e = util.SetAuthToken(pkgconfigsetup.Datadog())
-	if e != nil {
-		return
-	}
-
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, e := auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
 	if e != nil {
 		// The agent could not make the flare, try create one from this context

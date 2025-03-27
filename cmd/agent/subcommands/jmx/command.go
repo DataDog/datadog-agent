@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -131,7 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			grpcNonefx.Module(),
-			authtokenimpl.Module(),
+			// authtokenimpl.Module(),
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.

@@ -23,6 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -54,7 +55,7 @@ type dependencies struct {
 	fx.In
 
 	Params Params
-	At     authtoken.Component
+	At     option.Option[authtoken.Component]
 }
 
 type client struct {
@@ -108,7 +109,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 				Config: pkgconfigsetup.Datadog(),
 			},
 			Catalog:   workloadmeta.Remote,
-			AuthToken: deps.At.Get(),
+			AuthToken: deps.At,
 		},
 	}, nil
 }

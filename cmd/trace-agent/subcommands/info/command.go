@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -51,7 +51,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		coreconfig.Module(),
 		secretsimpl.Module(),
 		nooptagger.Module(),
-		fetchonlyimpl.Module(),
+		authtokenimpl.Module(),
 		logfx.Module(),
 	)
 }

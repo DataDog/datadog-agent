@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -119,7 +119,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				createandfetchimpl.Module(),
+				authtokenimpl.Module(),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
@@ -292,7 +292,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		createandfetchimpl.Module(),
+		authtokenimpl.Module(),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },

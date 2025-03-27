@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package createandfetchimpl implements the creation and access to the auth_token used to communicate between Agent
+// Package authtokenimpl implements the access to the auth_token used to communicate between Agent
 // processes.
-package createandfetchimpl
+package authtokenimpl
 
 import (
 	"crypto/tls"
@@ -18,14 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newAuthToken),
-		fxutil.ProvideOptional[authtoken.Component](),
+		fx.Provide(newOptionalAuthToken),
 	)
 }
 
@@ -39,20 +41,45 @@ var _ authtoken.Component = (*authToken)(nil)
 type dependencies struct {
 	fx.In
 
-	Conf config.Component
-	Log  log.Component
+	Conf      config.Component
+	Log       log.Component
+	LogParams log.Params
 }
 
-func newAuthToken(deps dependencies) (authtoken.Component, error) {
-	if err := util.CreateAndSetAuthToken(deps.Conf); err != nil {
-		deps.Log.Errorf("could not create auth_token: %s", err)
-		return nil, err
+func newOptionalAuthToken(deps dependencies) option.Option[authtoken.Component] {
+	var initFunc func(model.Reader) error
+
+	if deps.LogParams.IsDaemon() {
+		deps.Log.Infof("Load or create auth token")
+		initFunc = util.CreateAndSetAuthToken
+	} else {
+		deps.Log.Infof("Load auth token")
+		initFunc = util.SetAuthToken
 	}
 
-	return &authToken{
+	if err := initFunc(deps.Conf); err != nil {
+		deps.Log.Errorf("could not load auth artifact: %s", err)
+		return option.None[authtoken.Component]()
+	}
+
+	return option.New[authtoken.Component](&authToken{
 		logger: deps.Log,
 		conf:   deps.Conf,
-	}, nil
+	})
+}
+
+type optionalDependencies struct {
+	fx.In
+	At  option.Option[authtoken.Component]
+	Log log.Component
+}
+
+func newAuthToken(deps optionalDependencies) (authtoken.Component, error) {
+	auth, ok := deps.At.Get()
+	if !ok {
+		return nil, deps.Log.Errorf("auth token not found")
+	}
+	return auth, nil
 }
 
 // Get returns the session token
@@ -60,12 +87,12 @@ func (at *authToken) Get() string {
 	return util.GetAuthToken()
 }
 
-// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
+// GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
 func (at *authToken) GetTLSClientConfig() *tls.Config {
 	return util.GetTLSClientConfig()
 }
 
-// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Client
+// GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (at *authToken) GetTLSServerConfig() *tls.Config {
 	return util.GetTLSServerConfig()
 }
