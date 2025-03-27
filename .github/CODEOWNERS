@@ -431,6 +431,7 @@
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
+/pkg/collector/corechecks/net/wlan/     @DataDog/windows-agent
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
