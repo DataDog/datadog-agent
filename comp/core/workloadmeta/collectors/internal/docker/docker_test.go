@@ -222,15 +222,6 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 						EmptyLayer: false,
 					},
 				},
-				{
-					Digest:    "",
-					SizeBytes: nonEmptySize,
-					History: &v1.History{
-						Created:    &baseTime,
-						CreatedBy:  cmd,
-						EmptyLayer: false,
-					},
-				},
 			},
 		},
 	}

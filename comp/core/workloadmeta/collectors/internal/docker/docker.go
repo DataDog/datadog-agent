@@ -688,6 +688,7 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 				inspectIdx++
 			} else {
 				log.Warnf("unable to assign a digest for history layer \"%s\", all have been assigned already", history[i].CreatedBy)
+				break
 			}
 
 		}
