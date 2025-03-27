@@ -10,19 +10,19 @@ package client
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -104,6 +104,9 @@ var defaultOptions = Options{pollInterval: 5 * time.Second}
 // TokenFetcher defines the callback used to fetch a token
 type TokenFetcher func() (string, error)
 
+// TLSClientConfigFetcher defines the callback used to fetch the IPC TLS Client configuration
+type TLSClientConfigFetcher func() *tls.Config
+
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
@@ -112,8 +115,8 @@ type agentGRPCConfigFetcher struct {
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
-	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -125,8 +128,8 @@ func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetch
 }
 
 // NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
-func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
-	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort, tlsFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +140,8 @@ func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFe
 	}, nil
 }
 
-func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClient, error) {
-	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
+func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsFetcher TLSClientConfigFetcher) (pbgo.AgentSecureClient, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, tlsFetcher, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
@@ -172,8 +175,8 @@ func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
-func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +185,8 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 }
 
 // NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
-func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -193,8 +196,8 @@ func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetc
 }
 
 // NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
-func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, tlsFetcher TLSClientConfigFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher, tlsFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -332,13 +335,7 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	defer c.m.Unlock()
 
 	// Make sure the product belongs to the list of requested product
-	knownProduct := false
-	for _, p := range c.products {
-		if p == product {
-			knownProduct = true
-			break
-		}
-	}
+	knownProduct := slices.Contains(c.products, product)
 	if !knownProduct {
 		c.products = append(c.products, product)
 	}
@@ -511,13 +508,7 @@ func (c *Client) update() error {
 }
 
 func containsProduct(products []string, product string) bool {
-	for _, p := range products {
-		if product == p {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(products, product)
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {

@@ -8,7 +8,6 @@ package configsyncimpl
 import (
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -17,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -30,8 +30,9 @@ func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
-	server := httptest.NewTLSServer(http.HandlerFunc(handler))
-	t.Cleanup(server.Close)
+
+	at := authtokenmock.New(t)
+	server := at.NewMockServer(http.HandlerFunc(handler))
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
@@ -50,7 +51,7 @@ func TestOptionalModule(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fetchonlyimpl.Module(),
+		fx.Provide(func() authtoken.Component { return at }),
 		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),

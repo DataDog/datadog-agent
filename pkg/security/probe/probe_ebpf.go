@@ -745,15 +745,18 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
-func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.NoCopy)
+var dnsLayer = new(layers.DNS)
 
-	layer := packet.Layer(layers.LayerTypeDNS)
-	if layer == nil {
+func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	if !p.config.Probe.DNSResolutionEnabled {
 		return
 	}
-	dnsLayer, ok := layer.(*layers.DNS)
-	if !ok {
+
+	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
+		// this is currently pretty common, so only trace log it for now
+		if seclog.DefaultLogger.IsTracing() {
+			seclog.Errorf("failed to decode DNS response: %s", err)
+		}
 		return
 	}
 
@@ -1819,7 +1822,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			return
 		case <-ticker.C:
 			// create the sysctl snapshot
-			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames)
+			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
 			if err != nil {
 				seclog.Errorf("sysctl snapshot failed: %v", err)
 				continue
@@ -2141,10 +2144,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "vfs_mkdir_dentry_position",
 			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_link_target_dentry_position",
-			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",

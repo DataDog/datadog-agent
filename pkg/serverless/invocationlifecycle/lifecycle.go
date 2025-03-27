@@ -7,6 +7,7 @@ package invocationlifecycle
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -381,9 +382,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString []byte, startTime t
 }
 
 func (lp *LifecycleProcessor) addTags(tagSet map[string]string) {
-	for k, v := range tagSet {
-		lp.requestHandler.triggerTags[k] = v
-	}
+	maps.Copy(lp.requestHandler.triggerTags, tagSet)
 }
 
 func (lp *LifecycleProcessor) addTag(key string, value string) {

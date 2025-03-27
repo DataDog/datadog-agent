@@ -196,12 +196,8 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.flushWg.Add(1)
 	}
 
-	p := &message.Payload{
-		Messages:      messages,
-		Encoded:       encodedPayload.Bytes(),
-		Encoding:      s.compression.ContentEncoding(),
-		UnencodedSize: unencodedSize,
-	}
+	p := message.NewPayload(messages, encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
+
 	s.utilization.Stop()
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, "strategy")

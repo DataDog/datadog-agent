@@ -52,6 +52,7 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -141,6 +142,7 @@ use (
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
+	pkg/util/otel
 	pkg/util/pointer
 	pkg/util/prometheus
 	pkg/util/scrubber

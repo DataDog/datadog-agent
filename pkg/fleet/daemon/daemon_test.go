@@ -114,6 +114,11 @@ func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *testPackageManager) SetupInstaller(ctx context.Context, path string) error {
+	args := m.Called(ctx, path)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
 	return args.Error(0)
@@ -121,6 +126,11 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Postinst(ctx context.Context, pkg string, version string) error {
+	args := m.Called(ctx, pkg, version)
 	return args.Error(0)
 }
 

@@ -6,6 +6,7 @@
 package server
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -16,7 +17,7 @@ type blocklist struct {
 }
 
 func newBlocklist(data []string, matchPrefix bool) blocklist {
-	data = append([]string{}, data...)
+	data = slices.Clone(data)
 	sort.Strings(data)
 
 	if matchPrefix && len(data) > 0 {
