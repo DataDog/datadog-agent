@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	testutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
@@ -67,7 +65,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return testutil.GetDeviceMock(index), nvml.SUCCESS
 					},
 				}
-				fakeTagger := taggermock.SetupFakeTagger(t)
+				fakeTagger := taggerfxmock.SetupFakeTagger(t)
 				fakeTagger.SetTags(types.NewEntityID(types.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=GPU-123", "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
 				fakeTagger.SetTags(types.NewEntityID(types.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=GPU-456", "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
 				return nvmlMock, fakeTagger
