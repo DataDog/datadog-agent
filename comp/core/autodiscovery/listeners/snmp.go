@@ -264,7 +264,7 @@ func (l *SNMPListener) getDeviceFingerprint(params *gosnmp.GoSNMP, deviceIP stri
 	log.Debugf("SNMP get sys infos to %s success: %s, %d, %s", deviceIP, sysName, sysUptime, sysObjectID)
 
 	// sysUptime is in hundredths of a second, we compute the boot timestamp in milliseconds
-	bootTimestamp := time.Now().Add(-time.Duration(sysUptime) * 10 * time.Millisecond).UnixMilli()
+	bootTimestamp := time.Now().Truncate(10 * time.Millisecond).Add(-time.Duration(sysUptime) * 10 * time.Millisecond).UnixMilli()
 
 	h := fnv.New64()
 	h.Write([]byte(sysName))                              //nolint:errcheck
