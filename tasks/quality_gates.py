@@ -116,10 +116,19 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     print(f"The following gates are going to run:{newline_tab}- {(newline_tab+'- ').join(gate_list)}")
     final_state = "success"
     gate_states = []
+
+
+    nightly_run = False
+    branch = os.environ["CI_COMMIT_BRANCH"]
+    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+        nightly_run = True
+
     for gate in gate_list:
         gate_inputs = config[gate]
         gate_inputs["ctx"] = ctx
         gate_inputs["metricHandler"] = metric_handler
+        gate_inputs["nightly"] = nightly_run
         try:
             gate_mod = getattr(quality_gates_mod, gate)
             gate_mod.entrypoint(**gate_inputs)
@@ -142,13 +151,11 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     metric_handler.send_metrics_to_datadog()
 
     github = GithubAPI()
-    branch = os.environ["CI_COMMIT_BRANCH"]
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+    if nightly_run:
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
 
