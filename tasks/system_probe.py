@@ -829,6 +829,11 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     if not is_windows and bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
 
+    # Temporary until we have a way to build libpcap dependencies on KMT
+    # and we understand whether it's needed or not
+    if "pcap" in build_tags:
+        build_tags.remove("pcap")
+
     build_tags.extend(UNIT_TEST_TAGS)
 
     return build_tags
