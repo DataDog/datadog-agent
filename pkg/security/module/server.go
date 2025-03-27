@@ -295,7 +295,7 @@ func (a *APIServer) start(ctx context.Context) {
 					return true
 				}
 
-				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
+				seclog.Debugf("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
 				m := &api.SecurityEventMessage{
 					RuleID:  msg.ruleID,
