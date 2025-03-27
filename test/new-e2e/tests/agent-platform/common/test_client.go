@@ -332,7 +332,7 @@ func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err erro
 }
 
 // InstallAgentFromLocalPackage installs the agent from a local package
-func (c *DockerTestClient) InstallAgentFromLocalPackage(localPath string) error {
+func (c *DockerTestClient) InstallAgentFromLocalPackage(_localPath string, _agentFlavor string) error {
 	panic("not implemented")
 }
 
