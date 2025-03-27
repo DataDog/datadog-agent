@@ -584,7 +584,7 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		bs.T().Fail() // We need to call Failotherwise bs.T().Failed() will be false in AfterTest
+		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
