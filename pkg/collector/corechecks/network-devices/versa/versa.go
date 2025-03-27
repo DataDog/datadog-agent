@@ -76,9 +76,8 @@ func (v *VersaCheck) Run() error {
 		return fmt.Errorf("error getting appliances from Versa client: %w", err)
 	}
 
-	// TODO: remove before merge
 	for _, appliance := range appliances {
-		log.Infof("Processing appliance: %+v", appliance)
+		log.Tracef("Processing appliance: %+v", appliance)
 	}
 
 	devicesMetadata := payload.GetDevicesMetadata(v.config.Namespace, appliances)

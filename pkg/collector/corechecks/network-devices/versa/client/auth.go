@@ -38,8 +38,6 @@ func (client *Client) login() error {
 		return fmt.Errorf("failed to run j_spring_security_check to get session token: %w", err)
 	}
 
-	// TODO: can we get a non-HTML response?
-
 	// Request to /versa/analytics/login to obtain Analytics CSRF prevention token
 	analyticsPayload := url.Values{}
 	analyticsPayload.Set("endpoint", "https://10.0.225.103:8443") // TODO: WHY? Where can we get this for others?
@@ -58,11 +56,6 @@ func (client *Client) login() error {
 	return nil
 }
 
-// TODO: remove this, it's just for manual testing
-func (client *Client) Authenticate() error {
-	return client.login()
-}
-
 // authenticate logins if no token or token is expired
 func (client *Client) authenticate() error {
 	now := timeNow()
@@ -71,7 +64,6 @@ func (client *Client) authenticate() error {
 	defer client.authenticationMutex.Unlock()
 
 	if client.token == "" || client.tokenExpiry.Before(now) {
-		log.Warnf("Versa logging in again token: %s, expiry: %s, now: %s", client.token, client.tokenExpiry, now)
 		return client.login()
 	}
 	return nil
@@ -132,11 +124,10 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	log.Tracef("Client login response headers: %+v", sessionRes.Header)
 	for _, cookie := range cookies {
 		log.Tracef("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
-		// TODO: better handling of cookie
+		// TODO: replace with OAuth token
 		if cookie.Name == "VD-CSRF-TOKEN" {
 			client.token = cookie.Value
 			client.tokenExpiry = timeNow().Add(time.Minute * 15)
-			log.Warnf("CLIENT TOKEN: %s, EXPIRY: %s", client.token, client.tokenExpiry)
 		}
 	}
 
