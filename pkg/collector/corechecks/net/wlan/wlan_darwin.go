@@ -82,7 +82,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 		Noise:           int(info.noise),
 		TransmitRate:    float64(info.transmitRate), // in Mbps
 		HardwareAddress: hardwareAddress,
-		PhyMode:         formatPhy(phyMode(info.activePHYMode)),
+		PhyMode:         phyMode(info.activePHYMode),
 	}
 
 	var err error
