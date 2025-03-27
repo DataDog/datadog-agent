@@ -1206,7 +1206,7 @@ api_key:
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
   ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
   #         luhn: false
-  ##        @param DD_APM_OBFUSCATION_CREDITCARDS_KEEP_VALUES - object - optional
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - client_id
