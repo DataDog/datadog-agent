@@ -133,7 +133,17 @@ new-agent_dmg-x64-a7:
   script:
     - ps aux | grep -i finder
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
-    # - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
+    - |
+      osascript -e '
+        tell application "Finder"
+          activate
+
+          tell disk "Macintosh HD"
+            open
+            set current view of container window to icon view
+          end tell
+        end tell'
+    - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
     # - ps aux | grep -i finder
     # - cp -r /Volumes/Agent volume
     # - set +e
@@ -163,7 +173,15 @@ new-agent_dmg-x64-a7:
     - |
       osascript -e '
         tell application "Finder"
-          -- activate
+          tell disk "Macintosh HD"
+            open
+            set current view of container window to icon view
+          end tell
+        end tell'
+    - |
+      osascript -e '
+        tell application "Finder"
+          activate
 
           tell disk "Macintosh HD"
             open
