@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
 	EventStreamUseKprobeFallback bool
 
+	// EventStreamUseSyscallTaskStorage specifies whether to use a task storage map to store syscall context
+	EventStreamUseSyscallTaskStorage bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -191,6 +194,7 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamUseSyscallTaskStorage:   getBool("event_stream.use_syscall_task_storage"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),

@@ -19,7 +19,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names_linux.go -pkg-name model
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer, useSyscallTaskStorage bool) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useFentry {
@@ -40,6 +40,12 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	} else {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
+	}
+
+	if useSyscallTaskStorage {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=1")
+	} else {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=0")
 	}
 
 	cflags = append(cflags, "-g")

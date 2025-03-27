@@ -322,7 +322,6 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
-
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
@@ -415,6 +414,23 @@ func (k *Version) HasBPFForEachMapElemHelper() bool {
 		return true
 	}
 	return k.Code != 0 && k.Code > Kernel5_13
+}
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/4cf1bc1f10452065a29d576fc5693fc4fab5b919
+func (k *Version) HasTaskStorage() bool {
+	if features.HaveMapType(ebpf.TaskStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code >= Kernel5_11
+}
+
+// HasTaskStorageForProgramType returns true if the kernel supports using task local storage for the given program type
+// See https://github.com/torvalds/linux/commit/a10787e6d58c24b51e91c19c6d16c5da89fcaa4b
+func (k *Version) HasTaskStorageForProgramType(progType ebpf.ProgramType) bool {
+	return features.HaveProgramHelper(progType, asm.FnTaskStorageGet) == nil &&
+		features.HaveProgramHelper(progType, asm.FnGetCurrentTaskBtf) == nil
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19

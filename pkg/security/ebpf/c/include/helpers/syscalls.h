@@ -118,13 +118,37 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     // handle kill action
     send_signal(pid);
 
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        bpf_task_storage_delete(&syscalls, task);
+        bpf_task_storage_get(&syscalls, task, syscall, BPF_LOCAL_STORAGE_GET_F_CREATE);
+    } else {
+        bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
+    }
+#else
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
+#endif
 
     monitor_syscalls(syscall->type, 1);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+    struct syscall_cache_t *syscall = NULL;
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls, task, NULL, 0);
+    } else {
+        syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+    }
+#else
+    syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+#endif
     if (!syscall) {
         return NULL;
     }
@@ -140,8 +164,21 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
+    struct syscall_cache_t *syscall = NULL;
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls, task, NULL, 0);
+    } else {
+        u64 key = bpf_get_current_pid_tgid();
+        syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+    }
+#else
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+    syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+#endif
     if (!syscall) {
         return NULL;
     }
@@ -152,13 +189,37 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*p
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
+    struct syscall_cache_t *syscall = NULL;
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls, task, NULL, 0);
+    } else {
+        u64 key = bpf_get_current_pid_tgid();
+        syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+    }
+#else
     u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+    syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+#endif
     if (!syscall) {
         return NULL;
     }
     if (predicate(syscall->type)) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+        u64 use_syscall_task_storage;
+        LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+        if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+            bpf_task_storage_delete(&syscalls, (struct task_struct *)bpf_get_current_task_btf());
+        } else {
+            u64 key = bpf_get_current_pid_tgid();
+            bpf_map_delete_elem(&syscalls, &key);
+        }
+#else
         bpf_map_delete_elem(&syscalls, &key);
+#endif
 
         monitor_syscalls(syscall->type, -1);
         return syscall;
@@ -167,13 +228,35 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*pr
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+    struct syscall_cache_t *syscall = NULL;
+#if USE_SYSCALL_TASK_STORAGE == 1
+    u64 use_syscall_task_storage;
+    LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+    if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls, task, NULL, 0);
+    } else {
+        syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+    }
+#else
+    syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+#endif
     if (!syscall) {
         return NULL;
     }
     u64 event_type = syscall->type; // fixes 4.14 verifier issue
     if (!type || event_type == type) {
+#if USE_SYSCALL_TASK_STORAGE == 1
+        u64 use_syscall_task_storage;
+        LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
+        if (use_syscall_task_storage) { // deadcode elimination will remove one of these branches
+            bpf_task_storage_delete(&syscalls, (struct task_struct *)bpf_get_current_task_btf());
+        } else {
+            bpf_map_delete_elem(&syscalls, &pid_tgid);
+        }
+#else
         bpf_map_delete_elem(&syscalls, &pid_tgid);
+#endif
 
         monitor_syscalls(event_type, -1);
         return syscall;

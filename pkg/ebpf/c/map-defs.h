@@ -58,4 +58,9 @@
 #define BPF_STACK_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_STACK, 0, value_type, max_entries, 0, 0, EXCLUDE_KEY_TYPE)
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#define BPF_TASK_STORAGE_MAP(name, value_type) \
+    BPF_MAP(name, BPF_MAP_TYPE_TASK_STORAGE, u32, value_type, 0, 0, BPF_F_NO_PREALLOC, INCLUDE_KEY_TYPE)
+#endif
+
 #endif

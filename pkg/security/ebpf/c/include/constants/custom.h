@@ -109,6 +109,12 @@ enum TC_RAWPACKET_KEYS {
 #endif
 #endif
 
+#ifndef USE_SYSCALL_TASK_STORAGE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#define USE_SYSCALL_TASK_STORAGE 1
+#endif
+#endif
+
 #ifndef BPF_OBJ_NAME_LEN
 #define BPF_OBJ_NAME_LEN 16U
 #endif
