@@ -822,7 +822,7 @@ def build_sysprobe_binary(
     ctx.run(cmd.format(**args), env=env)
 
 
-def get_sysprobe_buildtags(is_windows, bundle_ebpf):
+def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     platform = "windows" if is_windows else "linux"
     build_tags = get_default_build_tags(build="system-probe", platform=platform)
 
@@ -866,7 +866,7 @@ def test(
             kernel_release=kernel_release,
         )
 
-    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
+    build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""

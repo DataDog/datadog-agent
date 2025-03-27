@@ -61,7 +61,7 @@ from tasks.system_probe import (
     check_for_ninja,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
-    get_sysprobe_buildtags,
+    get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
     ninja_generate,
@@ -639,7 +639,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             "go": go_path,
             "chdir": "true",
             "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
         },
     )
 
@@ -968,7 +968,7 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
 
     info("[+] Computing Go dependencies for test packages...")
-    build_tags = get_sysprobe_buildtags(False, False)
+    build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
@@ -989,7 +989,7 @@ def kmt_sysprobe_prepare(
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
-        build_tags = get_sysprobe_buildtags(False, False)
+        build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
             pkg_name = os.path.relpath(pkg, os.getcwd())
             target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
