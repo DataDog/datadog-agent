@@ -13,7 +13,7 @@
 '@datadog/agent-devx-loops': '#agent-devx-loops-reviews'
 '@datadog/agent-discovery': '#agent-discovery'
 '@datadog/agent-e2e-testing': '#agent-e2e-framework-help'
-'@datadog/agent-integrations': '#agent-integrations'
+'@datadog/agent-integrations': '#agent-integrations-reviews'
 '@datadog/agent-log-pipelines': '#agent-log-pipelines'
 '@datadog/agent-metric-pipelines': '#agent-metric-pipelines'
 '@datadog/agent-metrics-logs': '#agent-metrics-logs'

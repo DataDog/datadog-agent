@@ -16,7 +16,6 @@ from tasks.libs.common.constants import (
 )
 from tasks.libs.common.git import get_commit_sha, get_current_branch, is_agent6
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.releasing.documentation import release_entry_for
 from tasks.libs.types.version import Version
 
 # Generic version regex. Aims to match:
@@ -116,7 +115,7 @@ def current_version_for_release_branch(ctx, release_branch) -> Version:
     assert match, f"Invalid release branch name: {release_branch} (should be X.YY.x)"
 
     # Get all the versions for this release X.YY
-    cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?$'"
+    cmd = rf"git tag | grep -E '^{match.group(1)}\.{match.group(2)}\.[0-9]+(-rc\.[0-9]+)?(-devel)?$'"
     res = ctx.run(cmd, hide=True, warn=True)
     res = res.stdout.strip().split('\n') if res else []
 
@@ -240,7 +239,7 @@ def _get_highest_repo_version(
     return highest_version
 
 
-def _get_release_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, version_re, release_json_key=None):
     """
     If release_json_key is None, returns the highest version entry in release.json.
     If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
@@ -250,7 +249,7 @@ def _get_release_version_from_release_json(release_json, major_version, version_
     release_component_version = None
 
     # Get the release entry for the given Agent major version
-    release_entry_name = release_entry_for(major_version)
+    release_entry_name = "release"
     release_json_entry = release_json.get(release_entry_name, None)
 
     # Check that the release entry exists, otherwise fail

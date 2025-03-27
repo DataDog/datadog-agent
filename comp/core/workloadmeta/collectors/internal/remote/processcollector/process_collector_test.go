@@ -12,7 +12,6 @@ package processcollector
 import (
 	"context"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -23,14 +22,13 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -80,15 +78,6 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
-		_, err := security.FetchOrCreateAuthToken(context.Background(), pkgconfigsetup.Datadog())
-		require.NoError(t, err)
-		defer func() {
-			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
-		}()
-	}
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
@@ -256,6 +245,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Create Auth Token for the client
+			authtokenmock.New(t)
 
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,

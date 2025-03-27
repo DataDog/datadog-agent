@@ -5,13 +5,14 @@
 
 //go:build linux_bpf
 
-// Package diconfig provides utlity that allows dynamic instrumentation to receive and
+// Package diconfig provides utilities that allows dynamic instrumentation to receive and
 // manage probe configurations from users
 package diconfig
 
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/google/uuid"
@@ -58,6 +59,7 @@ type ConfigManager interface {
 
 // RCConfigManager is the configuration manager which utilizes remote-config
 type RCConfigManager struct {
+	sync.RWMutex
 	procTracker *proctracker.ProcessTracker
 
 	diProcs  ditypes.DIProcs
@@ -80,15 +82,19 @@ func NewRCConfigManager() (*RCConfigManager, error) {
 	return cm, nil
 }
 
-// GetProcInfos returns the state of the RCConfigManager
+// GetProcInfos returns a copy of the state of the RCConfigManager
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
+	cm.RLock()
+	defer cm.RUnlock()
 	return cm.diProcs
 }
 
 // Stop closes the config and proc trackers used by the RCConfigManager
 func (cm *RCConfigManager) Stop() {
+	cm.Lock()
+	defer cm.Unlock()
 	cm.procTracker.Stop()
-	for _, procInfo := range cm.GetProcInfos() {
+	for _, procInfo := range cm.diProcs {
 		procInfo.CloseAllUprobeLinks()
 	}
 }
@@ -99,6 +105,8 @@ func (cm *RCConfigManager) Stop() {
 // It compares the previously known state of services on the machine and creates a hook on the remote-config
 // callback for configurations on new ones, and deletes the hook on old ones.
 func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
+	cm.Lock()
+	defer cm.Unlock()
 	// Remove processes that are no longer running from state and close their uprobe links
 	for pid, procInfo := range cm.diProcs {
 		_, ok := runningProcs[pid]
@@ -126,7 +134,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
-	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
+	procInfo.ProbesByID.Set(configProbe.ID, &svcConfigProbe)
 
 	log.Infof("Installing config probe for service: %s", svcConfigProbe.ServiceName)
 	procInfo.TypeMap = &ditypes.TypeMap{
@@ -201,7 +209,9 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 		// An empty config means that this probe has been removed for this process
 		if configEventParams[2].ValueStr == "" {
+			cm.Lock()
 			cm.diProcs.DeleteProbe(procInfo.PID, configPath.ProbeUUID.String())
+			cm.Unlock()
 			continue
 		}
 
@@ -227,31 +237,35 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			MaxFieldCount:     conf.Capture.MaxFieldCount,
 		}
 
-		probe, probeExists := procInfo.ProbesByID[configPath.ProbeUUID.String()]
-		if !probeExists {
+		cm.Lock()
+		probe := procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
+		if probe == nil {
 			cm.diProcs.SetProbe(procInfo.PID, procInfo.ServiceName, conf.Where.TypeName, conf.Where.MethodName, configPath.ProbeUUID, runtimeID, opts)
 			diagnostics.Diagnostics.SetStatus(procInfo.ServiceName, runtimeID.String(), configPath.ProbeUUID.String(), ditypes.StatusReceived)
-			probe = procInfo.ProbesByID[configPath.ProbeUUID.String()]
+			probe = procInfo.ProbesByID.Get(configPath.ProbeUUID.String())
 		}
 
 		// Check hash to see if the configuration changed
 		if configPath.Hash != probe.InstrumentationInfo.ConfigurationHash {
+			err := AnalyzeBinary(procInfo)
+			if err != nil {
+				log.Errorf("couldn't inspect binary: %v\n", err)
+				cm.Unlock()
+				continue
+			}
+
 			probe.InstrumentationInfo.ConfigurationHash = configPath.Hash
 			applyConfigUpdate(procInfo, probe)
 		}
+		cm.Unlock()
 	}
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Tracef("Applying config update: %v\n", probe)
-	err := AnalyzeBinary(procInfo)
-	if err != nil {
-		log.Errorf("couldn't inspect binary: %v\n", err)
-		return
-	}
 
 generateCompileAttach:
-	err = codegen.GenerateBPFParamsCode(procInfo, probe)
+	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
 		if !probe.InstrumentationInfo.AttemptedRebuild {
@@ -286,6 +300,7 @@ generateCompileAttach:
 		}
 		return
 	}
+
 }
 
 func newConfigProbe() *ditypes.Probe {

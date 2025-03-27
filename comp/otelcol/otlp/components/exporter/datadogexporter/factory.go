@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -45,6 +46,7 @@ type factory struct {
 	h              serializerexporter.SourceProviderFunc
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
+	gatewayUsage   otel.GatewayUsage
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -71,6 +73,7 @@ func newFactoryWithRegistry(
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
+	gatewayUsage otel.GatewayUsage,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -79,6 +82,7 @@ func newFactoryWithRegistry(
 		traceagentcmp:  traceagentcmp,
 		h:              h,
 		mclientwrapper: mclientwrapper,
+		gatewayUsage:   gatewayUsage,
 	}
 
 	return exporter.NewFactory(
@@ -111,8 +115,9 @@ func NewFactory(
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
+	gatewayUsage otel.GatewayUsage,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -169,7 +174,7 @@ func (f *factory) createTracesExporter(
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -198,7 +203,7 @@ func (f *factory) createMetricsExporter(
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, &wg)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, &wg, f.gatewayUsage)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
@@ -252,7 +257,7 @@ func (f *factory) createLogsExporter(
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
 	}
-	lf := logsagentexporter.NewFactoryWithType(logch, Type)
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,

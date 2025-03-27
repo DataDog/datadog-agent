@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -54,22 +54,544 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 	return func() { metrics.GetProvider = originalMetricsProvider }
 }
 
-func TestEnrichTags(t *testing.T) {
-	// Create fake tagger
-	c := configmock.New(t)
-	params := tagger.Params{
-		UseFakeTagger: true,
+func TestAccumulateTagsFor(t *testing.T) {
+	entityID := types.NewEntityID("", "entity_name")
+
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
 	}
-	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() log.Component { return logComponent }),
-		fx.Provide(func() config.Component { return c }),
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
+	fakeTagger := NewMock(mockReq).Comp
+	tagStore := fakeTagger.GetTagStore()
 
-	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
+	tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			EntityID:     entityID,
+			Source:       "stream",
+			LowCardTags:  []string{"low1"},
+			HighCardTags: []string{"high"},
+		},
+		{
+			EntityID:    entityID,
+			Source:      "pull",
+			LowCardTags: []string{"low2"},
+		},
+	})
+
+	tb := tagset.NewHashlessTagsAccumulator()
+	err := fakeTagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
+	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
+}
+
+func TestTag(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "123")
+
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+	tagStore := fakeTagger.GetTagStore()
+
+	tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			EntityID:             entityID,
+			Source:               "stream",
+			LowCardTags:          []string{"low1"},
+			OrchestratorCardTags: []string{"orchestrator1"},
+			HighCardTags:         []string{"high1"},
+		},
+		{
+			EntityID:             entityID,
+			Source:               "pull",
+			LowCardTags:          []string{"low2"},
+			OrchestratorCardTags: []string{"orchestrator2"},
+			HighCardTags:         []string{"high2"},
+		},
+	})
+
+	lowCardTags, err := fakeTagger.Tag(entityID, types.LowCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2"}, lowCardTags)
+
+	orchestratorCardTags, err := fakeTagger.Tag(entityID, types.OrchestratorCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2"}, orchestratorCardTags)
+
+	highCardTags, err := fakeTagger.Tag(entityID, types.HighCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2", "high1", "high2"}, highCardTags)
+}
+
+func TestGenerateContainerIDFromOriginInfo(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	// Overriding the GetProvider function to use the mock metrics provider
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
+	for _, tt := range []struct {
+		name                string
+		originInfo          origindetection.OriginInfo
+		expectedContainerID string
+		expectedError       error
+		setup               func()
+	}{
+		{
+			name:                "with empty OriginInfo",
+			originInfo:          origindetection.OriginInfo{},
+			expectedContainerID: "",
+			expectedError:       fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", origindetection.OriginInfo{}),
+			setup:               func() {},
+		},
+		{
+			name: "with container ID",
+			originInfo: origindetection.OriginInfo{
+				LocalData: origindetection.LocalData{ContainerID: "container_id"},
+			},
+			expectedContainerID: "container_id",
+			setup:               func() {},
+		},
+		{
+			name: "with ProcessID",
+			originInfo: origindetection.OriginInfo{
+				LocalData: origindetection.LocalData{ProcessID: 123},
+			},
+			expectedContainerID: "container_id",
+			setup: func() {
+				mockCollector := collectormock.MetaCollector{CIDFromPID: map[int]string{123: "container_id"}}
+				mockMetricsProvider.RegisterMetaCollector(&mockCollector)
+			},
+		},
+		{
+			name: "with Inode",
+			originInfo: origindetection.OriginInfo{
+				LocalData: origindetection.LocalData{Inode: 123},
+			},
+			expectedContainerID: "container_id",
+			setup: func() {
+				mockCollector := collectormock.MetaCollector{CIDFromInode: map[uint64]string{123: "container_id"}}
+				mockMetricsProvider.RegisterMetaCollector(&mockCollector)
+			},
+		},
+		{
+			name: "with External Data",
+			originInfo: origindetection.OriginInfo{
+				ExternalData: origindetection.ExternalData{
+					ContainerName: "container_name",
+					PodUID:        "pod_uid",
+				},
+			},
+			expectedContainerID: "container_id",
+			setup: func() {
+				mockCollector := collectormock.MetaCollector{CIDFromPodUIDContName: map[string]string{"pod_uid/container_name": "container_id"}}
+				mockMetricsProvider.RegisterMetaCollector(&mockCollector)
+			},
+		},
+		{
+			name: "with External Data and Init Container",
+			originInfo: origindetection.OriginInfo{
+				ExternalData: origindetection.ExternalData{
+					Init:          true,
+					ContainerName: "container_name",
+					PodUID:        "pod_uid",
+				},
+			},
+			expectedContainerID: "container_id",
+			setup: func() {
+				mockCollector := collectormock.MetaCollector{CIDFromPodUIDContName: map[string]string{"i-pod_uid/container_name": "container_id"}}
+				mockMetricsProvider.RegisterMetaCollector(&mockCollector)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			containerID, err := fakeTagger.GenerateContainerIDFromOriginInfo(tt.originInfo)
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedContainerID, containerID)
+			}
+		})
+	}
+}
+
+func TestGenerateContainerIDFromExternalData(t *testing.T) {
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	logComponent := logmock.New(t)
+	cfg := configmock.New(t)
+	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
+	assert.NoError(t, taggerErr)
+
+	for _, tt := range []struct {
+		name         string
+		externalData origindetection.ExternalData
+		expected     string
+		cidProvider  *fakeCIDProvider
+	}{
+		{
+			name:         "empty",
+			externalData: origindetection.ExternalData{},
+			expected:     "",
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name: "found container",
+			externalData: origindetection.ExternalData{
+				Init:          false,
+				ContainerName: "containerName",
+				PodUID:        "podUID",
+			},
+			expected: "containerID",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{
+					"podUID/containerName": "containerID",
+				},
+				initEntries: map[string]string{},
+			},
+		},
+		{
+			name: "found init container",
+			externalData: origindetection.ExternalData{
+				Init:          true,
+				ContainerName: "initContainerName",
+				PodUID:        "podUID",
+			},
+			expected: "initContainerID",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{},
+				initEntries: map[string]string{
+					"podUID/initContainerName": "initContainerID",
+				},
+			},
+		},
+		{
+			name: "container not found",
+			externalData: origindetection.ExternalData{
+				Init:          true,
+				ContainerName: "containerName",
+				PodUID:        "podUID",
+			},
+			expected: "",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{},
+				initEntries: map[string]string{
+					"podUID/initContainerName": "initContainerID",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			containerID, err := tagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, containerID)
+		})
+	}
+}
+
+func TestGenerateContainerIDFromInode(t *testing.T) {
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	logComponent := logmock.New(t)
+	cfg := configmock.New(t)
+	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
+	assert.NoError(t, taggerErr)
+
+	// Create mock metrics provider
+	mockProvider := collectormock.NewMetricsProvider()
+	mockProvider.RegisterMetaCollector(&collectormock.MetaCollector{
+		CIDFromInode: map[uint64]string{
+			uint64(1234): "abcdef",
+		},
+	})
+
+	for _, tt := range []struct {
+		name          string
+		localData     origindetection.LocalData
+		expected      string
+		inodeProvider *collectormock.MetricsProvider
+	}{
+		{
+			name:          "empty",
+			localData:     origindetection.LocalData{},
+			expected:      "",
+			inodeProvider: mockProvider,
+		},
+		{
+			name: "found container",
+			localData: origindetection.LocalData{
+				Inode: 1234,
+			},
+			expected:      "abcdef",
+			inodeProvider: mockProvider,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			containerID, err := tagger.generateContainerIDFromInode(tt.localData, mockProvider.GetMetaCollector())
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, containerID)
+		})
+	}
+}
+
+func TestDefaultCardinality(t *testing.T) {
+	for _, tt := range []struct {
+		name                  string
+		wantChecksCardinality types.TagCardinality
+		setup                 func(cfg config.Component)
+	}{
+		{
+			name:                  "successful parse config values, use config",
+			wantChecksCardinality: types.HighCardinality,
+			setup: func(cfg config.Component) {
+				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
+			},
+		},
+		{
+			name:                  "fail parse config values, use default",
+			wantChecksCardinality: types.LowCardinality,
+			setup: func(cfg config.Component) {
+				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			tt.setup(cfg)
+
+			logComponent := logmock.New(t)
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				fx.Provide(func() log.Component { return logComponent }),
+				fx.Provide(func() config.Component { return cfg }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
+			tagger, err := newLocalTagger(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent(), nil)
+			assert.NoError(t, err)
+
+			assert.Equal(t, tt.wantChecksCardinality, tagger.datadogConfig.checksCardinality)
+		})
+	}
+}
+
+func TestTaggerCardinality(t *testing.T) {
+	tests := []struct {
+		name        string
+		cardinality string
+		want        types.TagCardinality
+	}{
+		{
+			name:        "high",
+			cardinality: "high",
+			want:        types.HighCardinality,
+		},
+		{
+			name:        "orchestrator",
+			cardinality: "orchestrator",
+			want:        types.OrchestratorCardinality,
+		},
+		{
+			name:        "orch",
+			cardinality: "orch",
+			want:        types.OrchestratorCardinality,
+		},
+		{
+			name:        "low",
+			cardinality: "low",
+			want:        types.LowCardinality,
+		},
+		{
+			name:        "empty",
+			cardinality: "",
+			want:        types.LowCardinality,
+		},
+		{
+			name:        "unknown",
+			cardinality: "foo",
+			want:        types.LowCardinality,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := logmock.New(t)
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, types.LowCardinality, l))
+		})
+	}
+}
+
+func TestGlobalTags(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
+	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
+
+	globalTags, err := fakeTagger.GlobalTags(types.OrchestratorCardinality)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"global-low", "global-orch"}, globalTags)
+
+	tb := tagset.NewHashingTagsAccumulator()
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
+	assert.Equal(t, []string{"container-low", "container-orch", "global-low", "global-orch"}, tb.Get())
+}
+
+func TestAgentTags(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	agentContainerID, podUID := "agentContainerID", "podUID"
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
+	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "fooSource", []string{"pod-low"}, []string{"pod-orch"}, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, agentContainerID), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+
+	// Expect metrics provider to return an empty container ID so no tags can be found
+	containerMetaCollector := collectormock.MetaCollector{ContainerID: ""}
+	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
+	tagList, err := fakeTagger.AgentTags(types.OrchestratorCardinality)
+	assert.Nil(t, err)
+	assert.Nil(t, tagList)
+
+	// Expect metrics provider to return the agent container ID so tags can be found
+	containerMetaCollector = collectormock.MetaCollector{ContainerID: agentContainerID}
+	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
+	tagList, err = fakeTagger.AgentTags(types.OrchestratorCardinality)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"container-low", "container-orch"}, tagList)
+}
+
+func TestEnrichTagsOptOut(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+
+	tb := tagset.NewHashingTagsAccumulator()
+	// Test with none cardinality
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{
+		ContainerIDFromSocket: "container_id://bar",
+		LocalData: origindetection.LocalData{
+			ContainerID: "container-id",
+		},
+		Cardinality:   "none",
+		ProductOrigin: origindetection.ProductOriginDogStatsD,
+	})
+	assert.Equal(t, []string{}, tb.Get())
+
+	// Test without none cardinality
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{
+		ContainerIDFromSocket: "container_id://bar",
+		LocalData: origindetection.LocalData{
+			ContainerID: "container-id",
+			PodUID:      "pod-uid",
+		},
+		Cardinality:   "low",
+		ProductOrigin: origindetection.ProductOriginDogStatsD,
+	})
+	assert.Equal(t, []string{"container-low"}, tb.Get())
+}
+
+func TestEnrichTagsOrchestrator(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+	tb := tagset.NewHashingTagsAccumulator()
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
+	assert.Equal(t, []string{"container-low", "container-orch"}, tb.Get())
+}
+
+func TestEnrichTags(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
 
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
@@ -142,7 +664,7 @@ func TestEnrichTags(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tb := tagset.NewHashingTagsAccumulator()
-			tagger.EnrichTags(tb, tt.originInfo)
+			fakeTagger.EnrichTags(tb, tt.originInfo)
 			assert.Equal(t, tt.expectedTags, tb.Get())
 		})
 	}
@@ -234,339 +756,8 @@ func TestEnrichTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup()
 			tb := tagset.NewHashingTagsAccumulator()
-			tagger.EnrichTags(tb, tt.originInfo)
+			fakeTagger.EnrichTags(tb, tt.originInfo)
 			assert.Equal(t, tt.expectedTags, tb.Get())
-		})
-	}
-}
-
-func TestEnrichTagsOrchestrator(t *testing.T) {
-	// Create fake tagger
-	c := configmock.New(t)
-	params := tagger.Params{
-		UseFakeTagger: true,
-	}
-	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() log.Component { return logComponent }),
-		fx.Provide(func() config.Component { return c }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
-	assert.NoError(t, err)
-
-	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
-
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
-	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
-	assert.Equal(t, []string{"container-low", "container-orch"}, tb.Get())
-}
-
-func TestEnrichTagsOptOut(t *testing.T) {
-	// Create fake tagger
-	c := configmock.New(t)
-	c.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
-	c.SetWithoutSource("origin_detection_unified", true)
-	params := tagger.Params{
-		UseFakeTagger: true,
-	}
-	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() log.Component { return logComponent }),
-		fx.Provide(func() config.Component { return c }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
-	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
-
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
-
-	tb := tagset.NewHashingTagsAccumulator()
-	// Test with none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{
-		ContainerIDFromSocket: "container_id://bar",
-		LocalData: origindetection.LocalData{
-			ContainerID: "container-id",
-		},
-		Cardinality:   "none",
-		ProductOrigin: origindetection.ProductOriginDogStatsD,
-	})
-	assert.Equal(t, []string{}, tb.Get())
-
-	// Test without none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{
-		ContainerIDFromSocket: "container_id://bar",
-		LocalData: origindetection.LocalData{
-			ContainerID: "container-id",
-			PodUID:      "pod-uid",
-		},
-		Cardinality:   "low",
-		ProductOrigin: origindetection.ProductOriginDogStatsD,
-	})
-	assert.Equal(t, []string{"container-low"}, tb.Get())
-}
-
-func TestGenerateContainerIDFromExternalData(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		externalData origindetection.ExternalData
-		expected     string
-		cidProvider  *fakeCIDProvider
-	}{
-		{
-			name:         "empty",
-			externalData: origindetection.ExternalData{},
-			expected:     "",
-			cidProvider:  &fakeCIDProvider{},
-		},
-		{
-			name: "found container",
-			externalData: origindetection.ExternalData{
-				Init:          false,
-				ContainerName: "containerName",
-				PodUID:        "podUID",
-			},
-			expected: "containerID",
-			cidProvider: &fakeCIDProvider{
-				entries: map[string]string{
-					"podUID/containerName": "containerID",
-				},
-				initEntries: map[string]string{},
-			},
-		},
-		{
-			name: "found init container",
-			externalData: origindetection.ExternalData{
-				Init:          true,
-				ContainerName: "initContainerName",
-				PodUID:        "podUID",
-			},
-			expected: "initContainerID",
-			cidProvider: &fakeCIDProvider{
-				entries: map[string]string{},
-				initEntries: map[string]string{
-					"podUID/initContainerName": "initContainerID",
-				},
-			},
-		},
-		{
-			name: "container not found",
-			externalData: origindetection.ExternalData{
-				Init:          true,
-				ContainerName: "containerName",
-				PodUID:        "podUID",
-			},
-			expected: "",
-			cidProvider: &fakeCIDProvider{
-				entries: map[string]string{},
-				initEntries: map[string]string{
-					"podUID/initContainerName": "initContainerID",
-				},
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeTagger := TaggerWrapper{}
-			containerID, err := fakeTagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, containerID)
-		})
-	}
-}
-
-func TestGenerateContainerIDFromInode(t *testing.T) {
-	// Create mock metrics provider
-	mockProvider := collectormock.NewMetricsProvider()
-	mockProvider.RegisterMetaCollector(&collectormock.MetaCollector{
-		CIDFromInode: map[uint64]string{
-			uint64(1234): "abcdef",
-		},
-	})
-
-	for _, tt := range []struct {
-		name          string
-		localData     origindetection.LocalData
-		expected      string
-		inodeProvider *collectormock.MetricsProvider
-	}{
-		{
-			name:          "empty",
-			localData:     origindetection.LocalData{},
-			expected:      "",
-			inodeProvider: mockProvider,
-		},
-		{
-			name: "found container",
-			localData: origindetection.LocalData{
-				Inode: 1234,
-			},
-			expected:      "abcdef",
-			inodeProvider: mockProvider,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeTagger := TaggerWrapper{}
-			containerID, err := fakeTagger.generateContainerIDFromInode(tt.localData, mockProvider.GetMetaCollector())
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, containerID)
-		})
-	}
-}
-
-func TestAgentTags(t *testing.T) {
-	c := configmock.New(t)
-	params := tagger.Params{
-		UseFakeTagger: true,
-	}
-	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() log.Component { return logComponent }),
-		fx.Provide(func() config.Component { return c }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
-	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
-
-	agentContainerID, podUID := "agentContainerID", "podUID"
-	mockMetricsProvider := collectormock.NewMetricsProvider()
-	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
-	defer cleanUp()
-
-	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "fooSource", []string{"pod-low"}, []string{"pod-orch"}, nil, nil)
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, agentContainerID), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
-
-	// Expect metrics provider to return an empty container ID so no tags can be found
-	containerMetaCollector := collectormock.MetaCollector{ContainerID: ""}
-	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
-	tagList, err := tagger.AgentTags(types.OrchestratorCardinality)
-	assert.Nil(t, err)
-	assert.Nil(t, tagList)
-
-	// Expect metrics provider to return the agent container ID so tags can be found
-	containerMetaCollector = collectormock.MetaCollector{ContainerID: agentContainerID}
-	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
-	tagList, err = tagger.AgentTags(types.OrchestratorCardinality)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"container-low", "container-orch"}, tagList)
-}
-
-func TestGlobalTags(t *testing.T) {
-	c := configmock.New(t)
-	params := tagger.Params{
-		UseFakeTagger: true,
-	}
-	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() log.Component { return logComponent }),
-		fx.Provide(func() config.Component { return c }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
-	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
-	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
-
-	globalTags, err := tagger.GlobalTags(types.OrchestratorCardinality)
-	assert.Nil(t, err)
-	assert.Equal(t, []string{"global-low", "global-orch"}, globalTags)
-
-	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
-	assert.Equal(t, []string{"container-low", "container-orch", "global-low", "global-orch"}, tb.Get())
-}
-
-func TestTaggerCardinality(t *testing.T) {
-	tests := []struct {
-		name        string
-		cardinality string
-		want        types.TagCardinality
-	}{
-		{
-			name:        "high",
-			cardinality: "high",
-			want:        types.HighCardinality,
-		},
-		{
-			name:        "orchestrator",
-			cardinality: "orchestrator",
-			want:        types.OrchestratorCardinality,
-		},
-		{
-			name:        "orch",
-			cardinality: "orch",
-			want:        types.OrchestratorCardinality,
-		},
-		{
-			name:        "low",
-			cardinality: "low",
-			want:        types.LowCardinality,
-		},
-		{
-			name:        "empty",
-			cardinality: "",
-			want:        types.LowCardinality,
-		},
-		{
-			name:        "unknown",
-			cardinality: "foo",
-			want:        types.LowCardinality,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := logmock.New(t)
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, types.LowCardinality, l))
-		})
-	}
-}
-
-func TestDefaultCardinality(t *testing.T) {
-	for _, tt := range []struct {
-		name                  string
-		wantChecksCardinality types.TagCardinality
-		setup                 func(cfg config.Component)
-	}{
-		{
-			name:                  "successful parse config values, use config",
-			wantChecksCardinality: types.HighCardinality,
-			setup: func(cfg config.Component) {
-				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
-			},
-		},
-		{
-			name:                  "fail parse config values, use default",
-			wantChecksCardinality: types.LowCardinality,
-			setup: func(cfg config.Component) {
-				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			tt.setup(cfg)
-
-			params := tagger.Params{
-				UseFakeTagger: true,
-			}
-			logComponent := logmock.New(t)
-			wmeta := fxutil.Test[workloadmeta.Component](t,
-				fx.Provide(func() log.Component { return logComponent }),
-				fx.Provide(func() config.Component { return cfg }),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
-
-			tagger, err := NewTaggerClient(params, cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent())
-			assert.NoError(t, err)
-
-			assert.Equal(t, tt.wantChecksCardinality, tagger.ChecksCardinality())
 		})
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -338,9 +339,7 @@ func parsePGConfig(hostroot, configPath string, includeDepth int) (map[string]in
 				}
 				included, ok := parsePGConfig(hostroot, includedPath, includeDepth+1)
 				if ok {
-					for k, v := range included {
-						config[k] = v
-					}
+					maps.Copy(config, included)
 				}
 			} else if key == "include_dir" {
 				includedPath := val
@@ -353,9 +352,7 @@ func parsePGConfig(hostroot, configPath string, includeDepth int) (map[string]in
 					includedFile := relPath(hostroot, match)
 					included, ok := parsePGConfig(hostroot, includedFile, includeDepth+1)
 					if ok {
-						for k, v := range included {
-							config[k] = v
-						}
+						maps.Copy(config, included)
 					}
 				}
 			} else {

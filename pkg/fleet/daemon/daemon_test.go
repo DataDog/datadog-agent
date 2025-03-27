@@ -8,6 +8,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -113,6 +114,11 @@ func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *testPackageManager) SetupInstaller(ctx context.Context, path string) error {
+	args := m.Called(ctx, path)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
 	return args.Error(0)
@@ -120,6 +126,11 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Postinst(ctx context.Context, pkg string, version string) error {
+	args := m.Called(ctx, pkg, version)
 	return args.Error(0)
 }
 
@@ -215,10 +226,13 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
 	daemon := newDaemon(
 		rc,
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
+		taskDB,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,

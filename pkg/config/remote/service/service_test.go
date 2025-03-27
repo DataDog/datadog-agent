@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"testing"
 	"time"
 
@@ -71,6 +72,10 @@ func (m *mockAPI) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, 
 
 func (m *mockAPI) UpdatePARJWT(jwt string) {
 	m.Called(jwt)
+}
+
+func (m *mockAPI) UpdateAPIKey(apiKey string) {
+	m.Called(apiKey)
 }
 
 type mockUptane struct {
@@ -197,6 +202,135 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	service.clock = clock
 	service.uptane = uptane
 	return service
+}
+
+func TestFetchConfigs503And504IncrementsErrCountAndResets(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	lastConfigResponse := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{{Path: "test"}},
+	}
+
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
+		AgentUuid:                    "test-uuid",
+		AgentVersion:                 agentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		OrgUuid:                      "abcdef",
+		Tags:                         getHostTags(),
+	}).Return(lastConfigResponse, httpapi.ErrGatewayTimeout)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+
+	// There should be no errors at the start
+	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(0))
+	err := service.refresh()
+	assert.NotNil(t, err)
+	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(1))
+
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
+		AgentUuid:                    "test-uuid",
+		AgentVersion:                 agentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		HasError:                     true,
+		Error:                        fmt.Sprintf("api: %v", httpapi.ErrGatewayTimeout.Error()),
+		OrgUuid:                      "abcdef",
+		Tags:                         getHostTags(),
+	}).Return(lastConfigResponse, httpapi.ErrServiceUnavailable)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+
+	err = service.refresh()
+	assert.NotNil(t, err)
+	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(2))
+
+	// After a successful refresh, the error count should be reset
+	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
+		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
+		AgentUuid:                    "test-uuid",
+		AgentVersion:                 agentVersion,
+		CurrentConfigSnapshotVersion: 0,
+		CurrentConfigRootVersion:     0,
+		CurrentDirectorRootVersion:   0,
+		Products:                     []string{},
+		NewProducts:                  []string{},
+		HasError:                     true,
+		Error:                        fmt.Sprintf("api: %v", httpapi.ErrServiceUnavailable.Error()),
+		OrgUuid:                      "abcdef",
+		Tags:                         getHostTags(),
+	}).Return(lastConfigResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+
+	err = service.refresh()
+	assert.Nil(t, err)
+	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(0))
+}
+
+func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
+	api := &mockAPI{}
+	clock := clock.NewMock()
+	uptaneClient := &mockCoreAgentUptane{}
+	service := newTestService(t, api, uptaneClient, clock)
+
+	response := &pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}
+	// start with no previous errors
+	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(0))
+
+	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
+	service.pollOrgStatus()
+	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(1))
+
+	assert.Nil(t, service.previousOrgStatus)
+	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
+
+	service.pollOrgStatus()
+	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(2))
+}
+
+func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
+	api := &mockAPI{}
+	clock := clock.NewMock()
+	uptaneClient := &mockCoreAgentUptane{}
+	service := newTestService(t, api, uptaneClient, clock)
+
+	service.fetchOrgStatus503And504ErrCount = 1
+	response := &pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}
+	// start with 1 error
+	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(1))
+
+	assert.Nil(t, service.previousOrgStatus)
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+
+	service.pollOrgStatus()
+	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
 func TestServiceBackoffFailure(t *testing.T) {
@@ -438,8 +572,24 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
 	service.clients.seen(client)
+	// We don't flush the cache until we've seen at least one update from the backend
 	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, newConfig.ConfigStatus)
+
+	clock.Set(time.Now().Add(2 * time.Hour))
+	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(t, err)
+	assert.Nil(t, newConfig.TargetFiles)
+	assert.Nil(t, newConfig.ClientConfigs)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
+
+	clock.Set(time.Now().Add(20 * time.Minute))
+	service.firstUpdate = false
+	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(t, err)
+	assert.Nil(t, newConfig.TargetFiles)
+	assert.Nil(t, newConfig.ClientConfigs)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
 }
 
@@ -650,7 +800,6 @@ func TestServiceClientPredicates(t *testing.T) {
 	}, nil)
 	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
-	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
 		TraceAgentEnv:                testEnv,
@@ -766,6 +915,46 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	uptaneClient.AssertExpectations(t)
 	assert.Equal(t, service.defaultRefreshInterval, time.Second*42)
 	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestWithApiKeyUpdate(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	updatedKey := "notUpdated"
+
+	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
+		updatedKey = args.Get(0).(string)
+	})
+	orgResponse := pbgo.OrgDataResponse{
+		Uuid: "firstUuid",
+	}
+	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
+
+	cfg := configmock.New(t)
+	dir := t.TempDir()
+	cfg.SetWithoutSource("run_path", dir)
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("initialKey"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
+	service.api = api
+	service.uptane = uptaneClient
+
+	cfg.SetWithoutSource("api_key", "updated")
+	assert.Equal(t, "updated", updatedKey)
+
+	// We still use the new key even if the new org doesn't match the old org.
+	orgResponse.Uuid = "badUuid"
+	cfg.SetWithoutSource("api_key", "BAD_ORG")
+	assert.Equal(t, "BAD_ORG", updatedKey)
+
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
@@ -924,11 +1113,21 @@ func TestConfigExpiration(t *testing.T) {
 		},
 	}
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
+	uptaneClient.On("Targets").Return(data.TargetFiles{
+		// must be delivered
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta(nil, 0)},
+		// must not be delivered - expiration date is 9/21/2022
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta(nil, 1663732800)},
+	},
+		nil,
+	)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
+	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -949,15 +1148,15 @@ func TestConfigExpiration(t *testing.T) {
 		OrgUuid:            "abcdef",
 		Tags:               getHostTags(),
 	}).Return(lastConfigResponse, nil)
-	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
-	uptaneClient.On("UnsafeTargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,
-		[]string{},
+		[]string{
+			"datadog/2/APM_SAMPLING/id/1",
+		},
 	)
 	err = service.refresh()
 	assert.NoError(err)

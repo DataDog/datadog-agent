@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -38,7 +39,7 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	runner, err := runner.New(deps.Telemetry)
+	runner, err := runner.New(deps.Telemetry, deps.Hostname)
 	if err != nil {
 		return &traceroute{}, err
 	}
@@ -112,19 +113,22 @@ func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount ui
 func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	vars := mux.Vars(req)
 	host := vars["host"]
-	port, err := parseUint(req, "port", 16)
+
+	query := req.URL.Query()
+
+	port, err := parseUint(query, "port", 16)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
 	}
-	maxTTL, err := parseUint(req, "max_ttl", 8)
+	maxTTL, err := parseUint(query, "max_ttl", 8)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
 	}
-	timeout, err := parseUint(req, "timeout", 64)
+	timeout, err := parseUint(query, "timeout", 64)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
-	protocol := req.URL.Query().Get("protocol")
+	protocol := query.Get("protocol")
 
 	return tracerouteutil.Config{
 		DestHostname: host,
@@ -135,9 +139,9 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	}, nil
 }
 
-func parseUint(req *http.Request, field string, bitSize int) (uint64, error) {
-	if req.URL.Query().Has(field) {
-		return strconv.ParseUint(req.URL.Query().Get(field), 10, bitSize)
+func parseUint(query url.Values, field string, bitSize int) (uint64, error) {
+	if query.Has(field) {
+		return strconv.ParseUint(query.Get(field), 10, bitSize)
 	}
 
 	return 0, nil

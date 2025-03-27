@@ -619,6 +619,45 @@ func TestUnsetForSource(t *testing.T) {
 	assert.Equal(t, expect, txt)
 }
 
+func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnv("api_key")
+	cfg.BuildSchema()
+
+	// api_key is not in the config (does not have a default value)
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found := cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+
+	cfg.Set("api_key", "0123456789abcdef", model.SourceAgentRuntime)
+
+	// api_key is set
+	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.True(t, found)
+
+	cfg.UnsetForSource("api_key", model.SourceAgentRuntime)
+
+	// api_key is unset, which means its not listed in AllSettings
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+
+	cfg.SetWithoutSource("api_key", "0123456789abcdef")
+
+	// api_key is set
+	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.True(t, found)
+
+	cfg.UnsetForSource("api_key", model.SourceUnknown)
+
+	// api_key is unset again, should not appear in AllSettings
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+}
+
 func TestMergeFleetPolicy(t *testing.T) {
 	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")

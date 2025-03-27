@@ -60,7 +60,7 @@ notify_github:
   tags: ["arch:arm64"]
   rules:
     - !reference [.on_dev_branches]
-    - if: $RELEASE_VERSION_7 != ""
+    - if: $RELEASE_VERSION != ""
       changes:
         paths:
           - '**/*.go'

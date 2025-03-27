@@ -38,13 +38,23 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
     """
 
     files = ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
+    repo_root = ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip()
 
-    if include_deleted_files:
-        yield from files
-    else:
-        for file in files:
-            if os.path.isfile(file):
-                yield file
+    for file in files:
+        if include_deleted_files or os.path.isfile(file):
+            yield os.path.join(repo_root, file)
+
+
+def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iterable[str]:
+    """
+    Get the list of unstaged files in the repository.
+    """
+
+    files = ctx.run("git diff --name-only", hide=True).stdout.splitlines()
+
+    for file in files:
+        if (re_filter is None or re_filter.search(file)) and (include_deleted_files or os.path.isfile(file)):
+            yield file
 
 
 def get_file_modifications(

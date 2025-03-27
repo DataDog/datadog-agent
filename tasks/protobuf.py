@@ -7,6 +7,8 @@ from invoke import Exit, UnexpectedExit, task
 
 from tasks.install_tasks import TOOL_LIST_PROTO
 from tasks.libs.common.check_tools_version import check_tools_installed
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_unstaged_files
 
 PROTO_PKGS = {
     'model/v1': (False, False),
@@ -36,12 +38,14 @@ INJECT_TAG_TARGETS = {
 
 
 @task
-def generate(ctx, do_mockgen=True):
+def generate(ctx, pre_commit=False):
     """
     Generates protobuf definitions in pkg/proto
 
     We must build the packages one at a time due to protoc-gen-go limitations
     """
+    proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
+    old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
     # Key: path, Value: grpc_gateway, inject_tags
     check_tools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
@@ -105,8 +109,8 @@ def generate(ctx, do_mockgen=True):
                     f"protoc -I{proto_root} -I{protodep_root} --grpc-gateway_out=logtostderr=true:{repo_root} {targets}"
                 )
 
-        # Mockgen
-        if do_mockgen:
+        # Mockgen (not done in pre-commit as it is slow)
+        if not pre_commit:
             mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
             pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
             try:
@@ -150,13 +154,15 @@ def generate(ctx, do_mockgen=True):
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
 
     # Check the generated files were properly committed
-    git_status = ctx.run("git status -suno", hide=True).stdout
-    proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
-    if any(proto_file.search(line) for line in git_status.split("\n")):
-        raise Exit(
-            f"Generated files were not properly committed.\n{git_status}\nPlease run `dda inv protobuf.generate` and commit the changes.",
-            code=1,
-        )
+    current_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file))
+    if old_unstaged_proto_files != current_unstaged_proto_files:
+        if pre_commit:
+            updated_files = [f"- {file}\n" for file in current_unstaged_proto_files - old_unstaged_proto_files]
+            raise Exit(f"Files modified\n{''.join(updated_files)}", code=1)
+        else:
+            print("Generation complete and new files were updated, don't forget to commit and push")
+    else:
+        print(f"[{color_message('WARN', Color.ORANGE)}] Generation complete and no new files were updated")
 
 
 def check_tools(ctx):
@@ -165,14 +171,14 @@ def check_tools(ctx):
     """
     tools = [tool.split("/")[-1] for tool in TOOL_LIST_PROTO]
     if not check_tools_installed(tools):
-        raise Exit("Please install the required tools with `inv install-tools` before running this task.", code=1)
+        raise Exit("Please install the required tools with `dda inv install-tools` before running this task.", code=1)
     try:
         current_version = ctx.run("protoc --version", hide=True).stdout.strip().removeprefix("libprotoc ")
         with open(".protoc-version") as f:
             expected_version = f.read().strip()
         if current_version != expected_version:
             raise Exit(
-                f"Expected protoc version {expected_version}, found {current_version}. Please run `inv install-protoc` before running this task.",
+                f"Expected protoc version {expected_version}, found {current_version}. Please run `dda inv install-protoc` before running this task.",
                 code=1,
             )
     except UnexpectedExit as e:

@@ -1,7 +1,6 @@
 datadog:
   kubelet:
     tlsVerify: false
-  clusterName: "%s"
   orchestratorExplorer:
     customResources:
       - datadoghq.com/v1alpha1/datadogmetrics

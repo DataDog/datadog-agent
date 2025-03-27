@@ -285,20 +285,27 @@ build do
         FileUtils.rm([libssl_match, libcrypto_match])
       end
     elsif windows_target?
-      dll_folder = File.join(install_dir, "embedded3", "DLLS")
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
-      # We first need to copy some files around (we need the .lib files for building)
-      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+      lib_folder = File.join(install_dir, "embedded3", "lib")
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
+      include_folder = File.join(install_dir, "embedded3", "include")
+
+      # We first need create links to some files around such that cryptography finds .lib files
+      link File.join(lib_folder, "libssl.dll.a"),
            File.join(dll_folder, "libssl-3-x64.lib")
-      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+      link File.join(lib_folder, "libcrypto.dll.a"),
            File.join(dll_folder, "libcrypto-3-x64.lib")
 
-      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
-              env: {
-                "OPENSSL_LIB_DIR" => dll_folder,
-                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
-                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
-              }
+      block "Build cryptopgraphy library against Agent's OpenSSL" do
+        cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+
+        shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+                env: {
+                  "OPENSSL_LIB_DIR" => dll_folder,
+                  "OPENSSL_INCLUDE_DIR" => include_folder,
+                  "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+                }
+      end
       # Python extensions on windows require this to find their DLL dependencies,
       # we abuse the `.pth` loading system to inject it
       block "Inject dll path for Python extensions" do
@@ -309,10 +316,19 @@ build do
     end
   end
 
+  # These are files containing Python type annotations which aren't used at runtime
+  libraries = [
+    'krb5',
+    'Cryptodome',
+    'ddtrace',
+    'pyVmomi',
+    'gssapi',
+  ]
   block "Remove type annotations files" do
-    # These are files containing Python type annotations which aren't used at runtime
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
+    libraries.each do |library|
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

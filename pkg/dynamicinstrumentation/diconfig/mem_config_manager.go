@@ -72,9 +72,15 @@ func (cm *ReaderConfigManager) update() error {
 		for pid, proc := range cm.ConfigWriter.Processes {
 			// If a config exists relevant to this proc
 			if proc.ServiceName == serviceName {
-				procCopy := *proc
-				updatedState[pid] = &procCopy
-				updatedState[pid].ProbesByID = convert(serviceName, configsByID)
+				updatedState[pid] = &ditypes.ProcessInfo{
+					PID:                 proc.PID,
+					ServiceName:         proc.ServiceName,
+					RuntimeID:           proc.RuntimeID,
+					BinaryPath:          proc.BinaryPath,
+					TypeMap:             proc.TypeMap,
+					ConfigurationUprobe: proc.ConfigurationUprobe,
+					ProbesByID:          convert(serviceName, configsByID),
+				}
 			}
 		}
 	}
@@ -197,10 +203,10 @@ func (r *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
 	}
 }
 
-func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) map[ditypes.ProbeID]*ditypes.Probe {
-	probesByID := map[ditypes.ProbeID]*ditypes.Probe{}
+func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) *ditypes.ProbesByID {
+	probesByID := ditypes.NewProbesByID()
 	for id, config := range configsByID {
-		probesByID[id] = config.toProbe(service)
+		probesByID.Set(id, config.toProbe(service))
 	}
 	return probesByID
 }
@@ -217,6 +223,7 @@ func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 				StringMaxSize:     ditypes.StringMaxSize,
 				SliceMaxLength:    ditypes.SliceMaxLength,
 				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
+				MaxFieldCount:     rc.Capture.MaxFieldCount,
 			},
 		},
 	}

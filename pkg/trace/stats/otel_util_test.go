@@ -235,7 +235,6 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf := config.New()
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
-			conf.Features["enable_cid_stats"] = struct{}{}
 			if !tt.enableReceiveResourceSpansV2 {
 				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
 			}

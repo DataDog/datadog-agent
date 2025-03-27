@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,8 +90,8 @@ type Tracer struct {
 	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	gwLookup network.GatewayLookup
 
@@ -215,8 +217,8 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		events.RegisterHandler(tr.processCache)
 	}
 
-	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
-	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
+	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
+	tr.destExcludes = filter.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
 		telemetryComponent,
 		cfg.ClientStateExpiry,
@@ -393,9 +395,6 @@ func (t *Tracer) Resume() error {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
-	if t.gwLookup != nil {
-		t.gwLookup.Close()
-	}
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
 	}
@@ -405,6 +404,9 @@ func (t *Tracer) Stop() {
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
+	}
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
@@ -419,7 +421,7 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 	if log.ShouldLog(log.TraceLvl) {
@@ -430,11 +432,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	buffer := network.ClientPool.Get(clientID)
 	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving connections: %s", err)
+		return nil, nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	usmStats, cleaners := t.usmMonitor.GetProtocolStats()
-	defer cleaners()
+	usmStats, cleanup := t.usmMonitor.GetProtocolStats()
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), usmStats)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
@@ -469,7 +470,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return conns, nil
+	return conns, cleanup, nil
 }
 
 // RegisterClient registers a clientID with the tracer
@@ -530,10 +531,19 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	return result
 }
 
+func (t *Tracer) getCachedConntrack() *cachedConntrack {
+	newConntrack := netlink.NewConntrack
+	// if we already established that netlink conntracker is not supported, don't try again
+	if t.conntracker.GetType() == "" {
+		newConntrack = netlink.NewNoOpConntrack
+	}
+	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
+}
+
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
-	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
+	cachedConntrack := t.getCachedConntrack()
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()
@@ -799,7 +809,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -823,7 +833,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +892,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 // GetNetworkID retrieves the vpc_id (network_id) from IMDS
 func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	id := ""
-	err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
 		var err error
 		id, err = ec2.GetNetworkID(context)
 		return err

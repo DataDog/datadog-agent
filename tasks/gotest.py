@@ -205,9 +205,7 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(
-    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
-) -> bool:
+def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -227,10 +225,7 @@ def process_test_result(
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        flakes_configs = ["flakes.yaml"]
-        if extra_flakes_config is not None:
-            flakes_configs.append(extra_flakes_config)
-        tw = TestWasher(flakes_file_paths=flakes_configs)
+        tw = TestWasher()
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -319,6 +314,11 @@ def test(
     build_cpus_opt = f"-p {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
+
+    # Create temporary file for flaky patterns config
+    if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+        with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
+            f.write("{}")
 
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -682,25 +682,57 @@ def get_impacted_packages(ctx, build_tags=None):
 
 
 def create_dependencies(ctx, build_tags=None):
+    """Parallel version of create_dependencies using async ctx.run with batched execution"""
     if build_tags is None:
         build_tags = []
+
     modules_deps = defaultdict(set)
-    for modules in get_default_modules():
-        with ctx.cd(modules):
-            res = ctx.run(
-                'go list '
-                + f'-tags "{" ".join(build_tags)}" '
-                + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...',
-                hide=True,
-                warn=True,
-            )
-            imports = res.stdout.splitlines()
+    modules = list(get_default_modules())
+
+    # Process modules in batches of 16 to avoid too many open files errors
+    batch_size = 8
+    for i in range(0, len(modules), batch_size):
+        batch_modules = modules[i : i + batch_size]
+        running_commands = []
+        results = {}
+
+        # Start commands for current batch asynchronously
+        for module in batch_modules:
+            with ctx.cd(module):
+                cmd = (
+                    'go list '
+                    + f'-tags "{" ".join(build_tags)}" '
+                    + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
+                )
+                running_commands.append((module, ctx.run(cmd, hide=True, warn=True, asynchronous=True)))
+
+        # Wait for all commands in current batch to complete
+        for module, cmd in running_commands:
+            try:
+                result = cmd.join()
+                if result.stdout:
+                    results[module] = result.stdout
+            except Exception as e:
+                print(f"Error processing module {module}: {e}")
+                continue
+
+        # Process results from current batch
+        for module, stdout in results.items():
+            imports = stdout.splitlines()
             for imp in imports:
-                imp = imp.split(" ", 1)
-                package, imported_packages = imp[0], imp[1].replace("[", "").replace("]", "").split(" ")
-                for imported_package in imported_packages:
-                    if imported_package.startswith("github.com/DataDog/datadog-agent"):
-                        modules_deps[imported_package].add(package)
+                if not imp:
+                    continue
+                try:
+                    imp = imp.split(" ", 1)
+                    if len(imp) != 2:
+                        continue
+                    package, imported_packages = imp[0], imp[1].replace("[", "").replace("]", "").split(" ")
+                    for imported_package in imported_packages:
+                        if imported_package and imported_package.startswith("github.com/DataDog/datadog-agent"):
+                            modules_deps[imported_package].add(package)
+                except Exception as e:
+                    print(f"Error processing import {imp} in module {module}: {e}")
+                    continue
 
     return modules_deps
 

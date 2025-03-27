@@ -18,15 +18,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGoRoutines(t *testing.T) {
@@ -69,6 +82,27 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
+}
+
+func setupProcessAPIServer(t *testing.T, port int) {
+	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
+		processapiserver.Module(),
+		core.MockBundle(),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"process_config.cmd_port": port,
+		}}),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return "n/a" },
+			},
+		),
+		taggerfx.Module(),
+		statusimpl.Module(),
+		settingsimpl.MockModule(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		secretsimpl.MockModule(),
+	))
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
@@ -164,8 +198,9 @@ process_config:
   enabled: "true"
 `
 	// Setting an unused port to avoid problem when test run next to running Process Agent
+	port := 56789
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("process_config.cmd_port", 56789)
+	cfg.SetWithoutSource("process_config.cmd_port", port)
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		content, err := getProcessAgentFullConfig()
@@ -191,6 +226,24 @@ process_config:
 		content, err := getProcessAgentFullConfig()
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
+	})
+
+	t.Run("verify auth", func(t *testing.T) {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
+		setupProcessAPIServer(t, port)
+
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
+
+		content, err := getProcessAgentFullConfig()
+		require.NoError(t, err)
+		// if auth is not set, "no session token provided" would appear instead
+		assert.Equal(t, "", string(content))
 	})
 }
 
@@ -234,8 +287,7 @@ func TestProcessAgentChecks(t *testing.T) {
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
-
-		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
+		mock.AssertFileContentMatch("error collecting data for 'process_discovery_check_output.json': .*", "process_discovery_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := configmock.New(t)
@@ -258,9 +310,9 @@ func TestProcessAgentChecks(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		srv := httptest.NewTLSServer(http.HandlerFunc(handler))
-		defer srv.Close()
+		at := authtokenmock.New(t)
 
+		srv := at.NewMockServer(http.HandlerFunc(handler))
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
@@ -269,5 +321,23 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")
 		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
+	})
+	t.Run("verify auth", func(t *testing.T) {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
+		setupProcessAPIServer(t, port)
+
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.cmd_port", port)
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
+
+		// if auth is not set, "no session token provided" would appear instead
+		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")
 	})
 }

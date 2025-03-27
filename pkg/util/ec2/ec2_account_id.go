@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build ec2
-
 package ec2
 
 import (
@@ -12,6 +10,7 @@ import (
 	"fmt"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 // GetAccountID returns the account ID of the current AWS instance
@@ -26,4 +25,13 @@ func GetAccountID(ctx context.Context) (string, error) {
 	}
 
 	return ec2id.AccountID, nil
+}
+
+// EC2Identity holds the instances identity document
+// nolint: revive
+type EC2Identity = ec2internal.EC2Identity
+
+// GetInstanceIdentity returns the instance identity document for the current instance
+func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
+	return ec2internal.GetInstanceIdentity(ctx)
 }

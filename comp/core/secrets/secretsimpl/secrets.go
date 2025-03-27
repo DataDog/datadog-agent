@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdmaps "maps"
+	"math/rand"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -24,6 +26,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
@@ -31,6 +34,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +43,8 @@ import (
 
 const auditFileBasename = "secret-audit-file.json"
 
+var newClock = clock.New
+
 type provides struct {
 	fx.Out
 
@@ -46,6 +52,7 @@ type provides struct {
 	FlareProvider   flaretypes.Provider
 	InfoEndpoint    api.AgentEndpointProvider
 	RefreshEndpoint api.AgentEndpointProvider
+	StatusProvider  status.InformationProvider
 }
 
 type dependencies struct {
@@ -76,6 +83,7 @@ type secretResolver struct {
 	enabled bool
 	lock    sync.Mutex
 	cache   map[string]string
+	clk     clock.Clock
 
 	// list of handles and where they were found
 	origin handleToContext
@@ -88,8 +96,10 @@ type secretResolver struct {
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
 	// refresh secrets at a regular interval
-	refreshInterval time.Duration
-	ticker          *time.Ticker
+	refreshInterval        time.Duration
+	refreshIntervalScatter bool
+	scatterDuration        time.Duration
+	ticker                 *clock.Ticker
 	// filename to write audit records to
 	auditFilename    string
 	auditFileMaxSize int
@@ -118,6 +128,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
+		clk:                     newClock(),
 	}
 }
 
@@ -129,6 +140,7 @@ func newSecretResolverProvider(deps dependencies) provides {
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
 		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
 		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
+		StatusProvider:  status.NewInformationProvider(secretsStatus{resolver: resolver}),
 	}
 }
 
@@ -216,6 +228,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
+	r.refreshIntervalScatter = params.RefreshIntervalScatter
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
@@ -241,12 +254,27 @@ func (r *secretResolver) startRefreshRoutine() {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
-	r.ticker = time.NewTicker(r.refreshInterval)
+
+	if r.refreshIntervalScatter {
+		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval)))
+		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
+	} else {
+		r.scatterDuration = r.refreshInterval
+	}
+	r.ticker = r.clk.Ticker(r.scatterDuration)
+
 	go func() {
+		<-r.ticker.C
+		if _, err := r.Refresh(); err != nil {
+			log.Infof("Error with refreshing secrets: %s", err)
+		}
+		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
+		r.ticker.Reset(r.refreshInterval)
+
 		for {
 			<-r.ticker.C
 			if _, err := r.Refresh(); err != nil {
-				log.Info(err)
+				log.Infof("Error with refreshing secrets: %s", err)
 			}
 		}
 	}()
@@ -384,10 +412,23 @@ var (
 	}
 	// tests override this to test refresh logic
 	allowlistEnabled = true
+	allowlistMutex   sync.RWMutex
 )
 
+func isAllowlistEnabled() bool {
+	allowlistMutex.RLock()
+	defer allowlistMutex.RUnlock()
+	return allowlistEnabled
+}
+
+func setAllowlistEnabled(value bool) {
+	allowlistMutex.Lock()
+	defer allowlistMutex.Unlock()
+	allowlistEnabled = value
+}
+
 func secretMatchesAllowlist(secretCtx secretContext) bool {
-	if !allowlistEnabled {
+	if !isAllowlistEnabled() {
 		return true
 	}
 	for _, allowedKey := range allowlistPaths {
@@ -402,16 +443,10 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 // handle appears at against the allowlist
 func (r *secretResolver) matchesAllowlist(handle string) bool {
 	// if allowlist is disabled, consider every handle a match
-	if !allowlistEnabled {
+	if !isAllowlistEnabled() {
 		return true
 	}
-	for _, secretCtx := range r.origin[handle] {
-		if secretMatchesAllowlist(secretCtx) {
-			return true
-		}
-	}
-	// the handle does not appear for a setting that is in the allowlist
-	return false
+	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
@@ -451,9 +486,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
 	// add results to the cache
-	for handle, secretValue := range secretResponse {
-		r.cache[handle] = secretValue
-	}
+	stdmaps.Copy(r.cache, secretResponse)
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
 		return handleInfoList[i].Name < handleInfoList[j].Name
@@ -468,7 +501,7 @@ func (r *secretResolver) Refresh() (string, error) {
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
-	if allowlistEnabled {
+	if isAllowlistEnabled() {
 		filteredHandles := make([]string, 0, len(newHandles))
 		for _, handle := range newHandles {
 			if r.matchesAllowlist(handle) {
@@ -602,24 +635,24 @@ var secretRefreshTmpl string
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	if !r.enabled {
-		fmt.Fprintf(w, "Agent secrets is disabled by caller")
+		fmt.Fprintf(w, "Agent secrets is disabled by caller\n")
 		return
 	}
 	if r.backendCommand == "" {
-		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled")
+		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled\n")
 		return
 	}
 
 	t := template.New("secret_info")
 	t, err := t.Parse(secretInfoTmpl)
 	if err != nil {
-		fmt.Fprintf(w, "error parsing secret info template: %s", err)
+		fmt.Fprintf(w, "error parsing secret info template: %s\n", err)
 		return
 	}
 
 	t, err = t.Parse(permissionsDetailsTemplate)
 	if err != nil {
-		fmt.Fprintf(w, "error parsing secret permissions details template: %s", err)
+		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
 
@@ -659,6 +692,11 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	err = t.Execute(w, info)
 	if err != nil {
-		fmt.Fprintf(w, "error rendering secret info: %s", err)
+		fmt.Fprintf(w, "error rendering secret info: %s\n", err)
 	}
+
+	if r.refreshIntervalScatter {
+		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
+	}
+
 }

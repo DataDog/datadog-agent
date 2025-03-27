@@ -12,6 +12,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -38,4 +39,5 @@ type FactoryDependencies struct {
 	Telemetry   telemetry.Component
 	Compression logscompression.Component
 	Statsd      ddgostatsd.ClientInterface
+	Hostname    hostname.Component
 }
