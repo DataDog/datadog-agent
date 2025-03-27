@@ -17,8 +17,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -281,16 +282,20 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Find what the previous value used to be, based upon the previous source
-	prevNode, err := c.findPreviousSourceNode(key, source)
-	if err != nil {
-		return
-	}
+	prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
 
 	// Get the parent node of the leaf we're unsetting
 	parentNode, childName, err = c.parentOfNode(c.root, key)
 	if err != nil {
 		return
 	}
+
+	// If there was no previous source with a node of this name, simply remove it from the parent
+	if findPreviousSourceError != nil {
+		parentNode.RemoveChild(childName)
+		return
+	}
+
 	// Replace the child with the node from the previous layer
 	parentNode.InsertChildNode(childName, prevNode.Clone())
 }
@@ -336,10 +341,16 @@ func (c *ntmConfig) SetKnown(key string) {
 	c.addToSchema(key, model.SourceSchema)
 }
 
-// IsKnown returns whether a key is known
+// IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	return c.isKnownKey(key)
+}
+
+// isKnownKey returns whether the key is known.
+// Must be called with the lock read-locked.
+func (c *ntmConfig) isKnownKey(key string) bool {
 	key = strings.ToLower(key)
 	_, found := c.knownKeys[key]
 	return found
@@ -349,9 +360,8 @@ func (c *ntmConfig) IsKnown(key string) bool {
 // Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
-// The lock can be released and re-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.IsKnown(key) {
+	if c.isKnownKey(key) {
 		return
 	}
 
@@ -666,7 +676,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)

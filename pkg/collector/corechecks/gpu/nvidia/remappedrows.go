@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvidia
 
@@ -11,18 +11,18 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-const remappedRowsCollectorName = "remapped_rows"
 const remappedRowsMetricPrefix = "remapped_rows"
 
 type remappedRowsCollector struct {
 	device nvml.Device
-	tags   []string
 }
 
 // newRemappedRowsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
-func newRemappedRowsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newRemappedRowsCollector(device nvml.Device) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
 	_, _, _, _, ret := device.GetRemappedRows()
 	if ret == nvml.ERROR_NOT_SUPPORTED {
@@ -33,8 +33,12 @@ func newRemappedRowsCollector(_ nvml.Interface, device nvml.Device, tags []strin
 
 	return &remappedRowsCollector{
 		device: device,
-		tags:   tags,
 	}, nil
+}
+
+func (c *remappedRowsCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
 }
 
 // Collect collects remapped rows metrics from the NVML device.
@@ -45,22 +49,15 @@ func (c *remappedRowsCollector) Collect() ([]Metric, error) {
 		return nil, fmt.Errorf("cannot get remapped rows: %s", nvml.ErrorString(ret))
 	}
 
-	metrics := []Metric{
-		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetricPrefix), Value: float64(correctable), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetricPrefix), Value: float64(uncorrectable), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.pending", remappedRowsMetricPrefix), Value: boolToFloat(pending), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.failed", remappedRowsMetricPrefix), Value: boolToFloat(failed), Tags: c.tags},
-	}
-
-	return metrics, nil
-}
-
-// Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *remappedRowsCollector) Close() error {
-	return nil
+	return []Metric{
+		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetricPrefix), Value: float64(correctable), Type: metrics.CountType},
+		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetricPrefix), Value: float64(uncorrectable), Type: metrics.CountType},
+		{Name: fmt.Sprintf("%s.pending", remappedRowsMetricPrefix), Value: boolToFloat(pending), Type: metrics.CountType},
+		{Name: fmt.Sprintf("%s.failed", remappedRowsMetricPrefix), Value: boolToFloat(failed), Type: metrics.CountType},
+	}, nil
 }
 
 // Name returns the name of the collector.
-func (c *remappedRowsCollector) Name() string {
-	return remappedRowsCollectorName
+func (c *remappedRowsCollector) Name() CollectorName {
+	return remappedRows
 }

@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -49,8 +50,8 @@ const (
 )
 
 var (
-	errTaggerStreamNotStarted                        = errors.New("tagger stream not started")
-	errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+	errTaggerStreamNotStarted = errors.New("tagger stream not started")
+	errFetchAuthToken         = errors.New("failed to fetch auth token")
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -108,23 +109,23 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
+	remoteTaggerInstance, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {
 		return Provides{}, err
 	}
 
+	// Creates the connection to the remote tagger and starts watching for events.
 	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
-		mainCtx, _ := common.GetMainCtxCancel()
-		return remoteTagger.Start(mainCtx)
+		return start(remoteTaggerInstance)
 	}})
 	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
-		return remoteTagger.Stop()
+		return stop(remoteTaggerInstance)
 	}})
 
 	return Provides{
-		Comp:     remoteTagger,
-		Endpoint: api.NewAgentEndpointProvider(remoteTagger.writeList, "/tagger-list", "GET"),
+		Comp:     remoteTaggerInstance,
+		Endpoint: api.NewAgentEndpointProvider(remoteTaggerInstance.writeList, "/tagger-list", "GET"),
 	}, nil
 }
 
@@ -165,12 +166,12 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 	return remotetagger, nil
 }
 
-// Start creates the connection to the remote tagger and starts watching for
-// events.
-func (t *remoteTagger) Start(ctx context.Context) error {
-	t.telemetryTicker = time.NewTicker(1 * time.Minute)
+func start(remoteTagger *remoteTagger) error {
+	remoteTagger.telemetryTicker = time.NewTicker(1 * time.Minute)
 
-	t.ctx, t.cancel = context.WithCancel(ctx)
+	// Main context passed to components, consistent with the one used in the WorkloadMeta component.
+	mainCtx, _ := common.GetMainCtxCancel()
+	remoteTagger.ctx, remoteTagger.cancel = context.WithCancel(mainCtx)
 
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
@@ -181,47 +182,69 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 		InsecureSkipVerify: true,
 	})
 
-	var err error
-	t.conn, err = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
-		t.ctx,
-		t.options.Target,
+	var onStartErr error
+	remoteTagger.conn, onStartErr = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		remoteTagger.ctx,
+		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
 		}),
 	)
-	if err != nil {
-		return err
+	if onStartErr != nil {
+		return onStartErr
 	}
 
-	t.client = pb.NewAgentSecureClient(t.conn)
+	// Fetch the auth token
+	remoteTagger.log.Debug("fetching auth token")
+	retries := 0
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 500 * time.Millisecond
+	expBackoff.MaxElapsedTime = 30 * time.Second
+	onStartErr = backoff.Retry(func() error {
+		select {
+		case <-remoteTagger.ctx.Done():
+			return &backoff.PermanentError{Err: errFetchAuthToken}
+		default:
+		}
 
-	t.log.Info("remote tagger initialized successfully")
+		remoteTagger.token, onStartErr = remoteTagger.options.TokenFetcher()
+		if onStartErr != nil {
+			retries++
+			remoteTagger.log.Warnf("unable to fetch auth token, will possibly retry: %s", onStartErr)
+			return onStartErr
+		}
+		return nil
+	}, expBackoff)
+	if onStartErr != nil {
+		remoteTagger.log.Errorf("unable to fetch auth token after %d retries: %s", retries, onStartErr)
+		return onStartErr
+	}
+	remoteTagger.log.Debugf("auth token fetched after %d retries", retries)
 
-	go t.run()
+	// Initialize the gRPC client.
+	remoteTagger.client = pb.NewAgentSecureClient(remoteTagger.conn)
 
+	remoteTagger.log.Info("remote tagger initialized successfully")
+
+	// Start the tagger stream.
+	go remoteTagger.run()
 	return nil
 }
 
-// Stop closes the connection to the remote tagger and stops event collection.
-func (t *remoteTagger) Stop() error {
-	t.cancel()
+func stop(remoteTagger *remoteTagger) error {
+	remoteTagger.cancel()
 
-	err := t.conn.Close()
-	if err != nil {
-		return err
+	onStopErr := remoteTagger.conn.Close()
+	if onStopErr != nil {
+		return onStopErr
 	}
 
-	t.telemetryTicker.Stop()
+	remoteTagger.telemetryTicker.Stop()
 
-	t.log.Info("remote tagger stopped successfully")
+	remoteTagger.log.Info("remote tagger stopped successfully")
 
-	return nil
-}
-
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the remote tagger
-func (t *remoteTagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 
@@ -232,6 +255,9 @@ func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.checksCardinality
+	}
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
@@ -241,20 +267,6 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil
-}
-
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
-	if err != nil {
-		return nil, err
-	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
@@ -287,65 +299,47 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 }
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
-func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 50 * time.Millisecond
-	expBackoff.MaxInterval = 200 * time.Millisecond
-	expBackoff.MaxElapsedTime = 500 * time.Millisecond
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	// Check the auth token
+	if t.token == "" {
+		return "", errors.New("RemoteTagger initialization failed: auth token is unset")
+	}
 
-	err = backoff.Retry(func() error {
-		select {
-		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
-		default:
-		}
+	// Create the context with the auth token
+	queryCtx, queryCancel := context.WithTimeout(
+		metadata.NewOutgoingContext(t.ctx, metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+		}),
+		1*time.Second,
+	)
+	defer queryCancel()
 
-		// Fetch the auth token
-		if t.token == "" {
-			var authError error
-			t.token, authError = t.options.TokenFetcher()
-			if authError != nil {
-				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
-				return authError
-			}
-		}
+	// Call the gRPC method to get the container ID from the OriginInfo.
+	containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+		LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
+			ProcessID:   &originInfo.LocalData.ProcessID,
+			ContainerID: &originInfo.LocalData.ContainerID,
+			Inode:       &originInfo.LocalData.Inode,
+			PodUID:      &originInfo.LocalData.PodUID,
+		},
+		ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+			Init:          &originInfo.ExternalData.Init,
+			ContainerName: &originInfo.ExternalData.ContainerName,
+			PodUID:        &originInfo.ExternalData.PodUID,
+		},
+	})
+	if err != nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", err
+	}
 
-		// Create the context with the auth token
-		queryCtx, queryCancel := context.WithCancel(
-			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
-			}),
-		)
-		defer queryCancel()
+	if containerIDResponse == nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", errors.New("containerIDResponse is nil")
+	}
+	containerID := containerIDResponse.ContainerID
 
-		// Call the gRPC method to get the container ID from the OriginInfo.
-		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
-			LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
-				ProcessID:   &originInfo.LocalData.ProcessID,
-				ContainerID: &originInfo.LocalData.ContainerID,
-				Inode:       &originInfo.LocalData.Inode,
-				PodUID:      &originInfo.LocalData.PodUID,
-			},
-			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
-				Init:          &originInfo.ExternalData.Init,
-				ContainerName: &originInfo.ExternalData.ContainerName,
-				PodUID:        &originInfo.ExternalData.PodUID,
-			},
-		})
-		if err != nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return err
-		}
-
-		if containerIDResponse == nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return errors.New("containerIDResponse is nil")
-		}
-		containerID = containerIDResponse.ContainerID
-
-		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
-		return nil
-	}, expBackoff)
+	t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 
 	return containerID, err
 }
@@ -424,10 +418,6 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
-func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *remoteTagger) ResetCaptureTagger() {}
-
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based
 // on the origin info. Only the core agent or dogstatsd can have origin info,
@@ -437,14 +427,6 @@ func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.Origi
 	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
-}
-
-func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
-	return t.checksCardinality
-}
-
-func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
 }
 
 // Subscribe currently returns a non-nil error indicating that the method is not supported
@@ -494,6 +476,8 @@ func (t *remoteTagger) run() {
 
 			continue
 		}
+
+		t.log.Info("tagger stream successfully initialized")
 
 		t.telemetryStore.Receives.Inc()
 
@@ -566,15 +550,16 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		token, err := t.options.TokenFetcher()
-		if err != nil {
-			t.log.Infof("unable to fetch auth token, will possibly retry: %s", err)
-			return err
+		var err error
+
+		// Check the auth token
+		if t.token == "" {
+			return errors.New("RemoteTagger initialization failed: auth token is unset")
 		}
 
 		t.streamCtx, t.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
 			}),
 		)
 
@@ -589,11 +574,9 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 			Prefixes:    prefixes,
 		})
 		if err != nil {
-			t.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			t.log.Debug("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
-
-		t.log.Info("tagger stream established successfully")
 
 		return nil
 	}, expBackoff)

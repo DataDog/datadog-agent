@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add per-process GPU tagging when running process checks on the Core Agent.

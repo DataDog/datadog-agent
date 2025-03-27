@@ -35,7 +35,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"time"
 )
 
 const (
@@ -228,21 +227,8 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
-	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
-	}
-	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
-	if instance.IPAddress != "" {
-		instance.IPAddress = deviceIP
-		return &instance, nil
-	}
-	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
-}
-
 func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
-	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
+	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
 	}
@@ -282,7 +268,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -299,71 +285,16 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
-	// Establish connection
-	snmp, err := snmpparse.NewSNMP(connParams, logger)
-	if err != nil {
-		// newSNMP only returns config errors, so any problem is a usage error
-		return configErr{err}
-	}
 	namespace := conf.GetString("network_devices.namespace")
 	deviceID := namespace + ":" + connParams.IPAddress
-	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
-	// before connecting to the agent
-	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusInProgress,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = snmpScanner.SendPayload(inProgressStatusPayload); err != nil {
-		return fmt.Errorf("unable to send in progress status: %v", err)
-	}
-	if err = snmp.Connect(); err != nil {
-		// Send an error status if we can't connect to the agent
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
-	}
-	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
+	// Start the scan
+	fmt.Printf("Launching scan for device: %s\n", deviceID)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, metadata.ManualScan)
 	if err != nil {
-		// Send an error status if we can't scan the device
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to perform device scan: %v", err)
+		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
 	}
-	// Send a completed status if the scan was successful
-	completedStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusCompleted,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = snmpScanner.SendPayload(completedStatusPayload); err != nil {
-		return fmt.Errorf("unable to send completed status: %v", err)
-	}
-	return nil
+	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
+	return err
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.

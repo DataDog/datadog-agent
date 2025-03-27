@@ -109,12 +109,13 @@ class SlackMessage:
     TEST_SECTION_HEADER = "Failed tests:"
     MAX_JOBS_PER_TEST = 2
 
-    def __init__(self, base: str = "", jobs: FailedJobs = None):
+    def __init__(self, base: str = "", jobs: FailedJobs = None, skipped: list | None = None):
         jobs = jobs if jobs else FailedJobs()
         self.base_message = base
         self.failed_jobs = jobs
         self.failed_tests = defaultdict(list)
         self.coda = ""
+        self.skipped_jobs = skipped or []
 
     def add_test_failure(self, test, job):
         self.failed_tests[test.key].append(job)
@@ -133,7 +134,8 @@ class SlackMessage:
             jobs_info = []
             for job in jobs:
                 num_retries = len(job.retry_summary) - 1
-                job_info = f"<{job.web_url}|{job.name}>"
+                emoji = " :job-skipped-on-pr:" if job.name in self.skipped_jobs else ""
+                job_info = f"<{job.web_url}|{job.name}>{emoji}"
                 if num_retries > 0:
                     job_info += f" ({num_retries} retries)"
 

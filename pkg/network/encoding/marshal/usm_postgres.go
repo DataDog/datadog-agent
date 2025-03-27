@@ -10,8 +10,6 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -65,9 +63,8 @@ func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.
 				statsBuilder.SetTableName(key.Parameters)
 				statsBuilder.SetOperation(uint64(toPostgresModelOperation(key.Operation)))
 				if latencies := stats.Latencies; latencies != nil {
-					blob, _ := proto.Marshal(latencies.ToProto())
 					statsBuilder.SetLatencies(func(b *bytes.Buffer) {
-						b.Write(blob)
+						latencies.EncodeProto(b)
 					})
 				} else {
 					statsBuilder.SetFirstLatencySample(stats.FirstLatencySample)

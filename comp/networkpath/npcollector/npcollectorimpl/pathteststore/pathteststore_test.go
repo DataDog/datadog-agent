@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -101,7 +101,7 @@ func Test_pathtestStore_add(t *testing.T) {
 			}
 
 			setMockTimeNow(mockTimeJan2)
-			store := NewPathtestStore(config, l, statsd.Client, mockTimeNow)
+			store := NewPathtestStore(config, l, &statsd.NoOpClient{}, mockTimeNow)
 
 			for _, pt := range tc.pathtests {
 				store.Add(pt)
@@ -133,7 +133,7 @@ func Test_pathtestStore_add_when_full(t *testing.T) {
 		Interval:      1 * time.Minute,
 	}
 	setMockTimeNow(mockTimeJan2)
-	store := NewPathtestStore(config, logger, statsd.Client, mockTimeNow)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
 
 	// WHEN
 	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
@@ -162,7 +162,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 		TTL:           10 * time.Minute,
 		Interval:      1 * time.Minute,
 	}
-	store := NewPathtestStore(config, logger, statsd.Client, mockTimeNow)
+	store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
 
 	// WHEN
 	pt := &common.Pathtest{Hostname: "host1", Port: 53}
@@ -340,7 +340,7 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 
 			now := time.Now()
 			setMockTimeNow(now)
-			store := NewPathtestStore(config, logger, statsd.Client, mockTimeNow)
+			store := NewPathtestStore(config, logger, &statsd.NoOpClient{}, mockTimeNow)
 
 			for iStep, step := range tc.sequence {
 				for iAdd := range step.addCount {

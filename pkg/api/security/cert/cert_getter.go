@@ -8,11 +8,9 @@ package cert
 
 import (
 	"bytes"
+	"context"
 	"encoding/pem"
-	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -22,8 +20,8 @@ import (
 // defaultCertFileName represent the default IPC certificate root name (without .cert or .key)
 const defaultCertFileName = "ipc_cert.pem"
 
-// GetCertFilepath returns the path to the IPC cert file.
-func GetCertFilepath(config configModel.Reader) string {
+// getCertFilepath returns the path to the IPC cert file.
+func getCertFilepath(config configModel.Reader) string {
 	if configPath := config.GetString("ipc_cert_file_path"); configPath != "" {
 		return configPath
 	}
@@ -37,92 +35,42 @@ func GetCertFilepath(config configModel.Reader) string {
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), defaultCertFileName)
 }
 
-// FetchAgentIPCCert return the IPC certificate and key from the path set in the configuration
-// Requires that the config has been set up before calling
-func FetchAgentIPCCert(config configModel.Reader) ([]byte, []byte, error) {
-	return fetchAgentIPCCert(config, false)
+type certificateFactory struct {
 }
 
-// CreateOrFetchAgentIPCCert return the IPC certificate and key from the path set in the configuration or create if not present
-// Requires that the config has been set up before calling
-func CreateOrFetchAgentIPCCert(config configModel.Reader) ([]byte, []byte, error) {
-	return fetchAgentIPCCert(config, true)
+func (certificateFactory) Generate() (Certificate, []byte, error) {
+	cert, err := generateCertKeyPair()
+	return cert, bytes.Join([][]byte{cert.cert, cert.key}, []byte{}), err
 }
 
-func fetchAgentIPCCert(config configModel.Reader, certCreationAllowed bool) ([]byte, []byte, error) {
-	certPath := GetCertFilepath(config)
-
-	// Create cert&key if it doesn't exist and if permitted by calling func
-	if _, e := os.Stat(certPath); os.IsNotExist(e) && certCreationAllowed {
-		// print the caller to identify what is calling this function
-		if _, file, line, ok := runtime.Caller(2); ok {
-			log.Infof("[%s:%d] Creating a new IPC certificate", file, line)
-		}
-
-		cert, key, err := generateCertKeyPair()
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Write the IPC cert/key in the FS (platform-specific)
-		e = saveIPCCertKey(cert, key, certPath)
-		if e != nil {
-			return nil, nil, fmt.Errorf("error writing IPC cert/key file on fs: %s", e)
-		}
-		log.Infof("Saved a new  IPC certificate/key pair to %s", certPath)
-
-		return cert, key, nil
-	}
-
-	// Read the IPC certAndKey/key
-	certAndKey, e := os.ReadFile(certPath)
-	if e != nil {
-		return nil, nil, fmt.Errorf("unable to read authentication IPC cert/key files: %s", e.Error())
-	}
-
-	// Reading and decoding cert and key from file
-	var block *pem.Block
-
-	block, rest := pem.Decode(certAndKey)
+func (certificateFactory) Deserialize(raw []byte) (Certificate, error) {
+	block, rest := pem.Decode(raw)
 
 	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, nil, log.Error("failed to decode PEM block containing certificate")
+		return Certificate{}, log.Error("failed to decode PEM block containing certificate")
 	}
 	cert := pem.EncodeToMemory(block)
 
 	block, _ = pem.Decode(rest)
 
 	if block == nil || block.Type != "EC PRIVATE KEY" {
-		return nil, nil, log.Error("failed to decode PEM block containing key")
+		return Certificate{}, log.Error("failed to decode PEM block containing key")
 	}
 
 	key := pem.EncodeToMemory(block)
 
-	return cert, key, nil
+	return Certificate{cert, key}, nil
 }
 
-// writes IPC cert/key files to a file with the same permissions as datadog.yaml
-func saveIPCCertKey(cert, key []byte, dest string) (err error) {
-	log.Infof("Saving a new IPC certificate/key pair in %s", dest)
+// FetchIPCCert loads certificate file used to authenticate IPC communicates
+func FetchIPCCert(config configModel.Reader) ([]byte, []byte, error) {
+	cert, err := filesystem.TryFetchArtifact(getCertFilepath(config), &certificateFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
+	return cert.cert, cert.key, err
+}
 
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return err
-	}
-
-	// Concatenating cert and key together
-	certAndKey := bytes.Join([][]byte{cert, key}, []byte{})
-
-	if err = os.WriteFile(dest, certAndKey, 0o600); err != nil {
-		return err
-	}
-
-	if err := perms.RestrictAccessToUser(dest); err != nil {
-		log.Errorf("Failed to set IPC cert permissions: %s", err)
-		return err
-	}
-
-	log.Infof("Wrote IPC certificate/key pair in %s", dest)
-	return nil
+// FetchOrCreateIPCCert loads or creates certificate file used to authenticate IPC communicates
+// It takes a context to allow for cancellation or timeout of the operation
+func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) ([]byte, []byte, error) {
+	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), &certificateFactory{})
+	return cert.cert, cert.key, err
 }

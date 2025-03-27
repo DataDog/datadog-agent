@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -411,6 +411,10 @@ func isRetryableNetworkError(err error) bool {
 				return errno == syscall.ECONNRESET
 			}
 		}
+	}
+
+	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
 	}
 
 	return isStreamResetError(err)

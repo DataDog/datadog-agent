@@ -192,6 +192,7 @@ type RuleAction struct {
 	Kill     *RuleKillAction `json:"kill,omitempty"`
 	Hash     *HashAction     `json:"hash,omitempty"`
 	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
+	Log      *LogAction      `json:"log,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -226,6 +227,13 @@ type CoreDumpAction struct {
 	NoCompression bool `json:"no_compression,omitempty"`
 }
 
+// LogAction is used to report the 'log' action
+// easyjson:json
+type LogAction struct {
+	Level   string `json:"level,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
@@ -256,6 +264,15 @@ func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 		Name:    rule.Policy.Name,
 		Version: rule.Policy.Def.Version,
 		Source:  rule.Policy.Source,
+	}
+}
+
+// PolicyStateFromPolicy returns a policy state based on the policy definition
+func PolicyStateFromPolicy(policy *rules.Policy) *PolicyState {
+	return &PolicyState{
+		Name:    policy.Name,
+		Version: policy.Def.Version,
+		Source:  policy.Source,
 	}
 }
 
@@ -298,6 +315,11 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 				Dentry:        action.Def.CoreDump.Dentry,
 				NoCompression: action.Def.CoreDump.NoCompression,
 			}
+		case action.Def.Log != nil:
+			ruleAction.Log = &LogAction{
+				Level:   action.Def.Log.Level,
+				Message: action.Def.Log.Message,
+			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
 	}
@@ -321,12 +343,13 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 			continue
 		}
 
-		policyName := rule.Policy.Name
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRule(rule.PolicyRule)
-			mp[policyName] = policyState
+		for _, policy := range rule.UsedBy {
+			if policyState, exists = mp[policy.Name]; !exists {
+				policyState = PolicyStateFromPolicy(policy)
+				mp[policy.Name] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 	}
 
 	// rules ignored due to errors

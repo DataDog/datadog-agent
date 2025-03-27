@@ -8,6 +8,7 @@
 package python
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,4 +76,16 @@ func testGetSubprocessOutputError(t *testing.T) {
 	assert.NotEqual(t, "", C.GoString(cStderr))
 	assert.NotEqual(t, C.int(0), cRetCode)
 	assert.Nil(t, exception)
+}
+
+func mockRtloader(t *testing.T) {
+	rtloader = newMockRtLoaderPtr()
+	pythonOnce.Do(func() {})
+	t.Cleanup(func() {
+		// We have to wrap this in locks otherwise the race detector complains
+		pyDestroyLock.Lock()
+		rtloader = nil
+		pythonOnce = sync.Once{}
+		pyDestroyLock.Unlock()
+	})
 }

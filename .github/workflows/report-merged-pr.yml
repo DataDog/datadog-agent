@@ -29,13 +29,15 @@ jobs:
         with:
           python-version-file: .python-version
           cache: "pip"
-          cache-dependency-path: '**/requirements*.txt'
+          cache-dependency-path: '.dda/version'
 
-      - name: Install python dependencies
-        run: pip3 install -r requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
 
       - name: Send merge event to Datadog
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          invoke -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
+          dda inv -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

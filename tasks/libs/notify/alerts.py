@@ -133,7 +133,7 @@ class ConsecutiveJobAlert:
         initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
-            initial_pr = f'<{pr_url}|#{pr_id}>'
+            initial_pr = f'<{pr_url}/s|#{pr_id}>'
         else:
             # Cannot find PR, display the commit sha
             initial_pr = initial_pr_sha[:8]
@@ -233,7 +233,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         if message:
             from slack_sdk import WebClient
 
-            client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+            client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
             client.chat_postMessage(channel=channel, text=message)
 
             # Create metrics for consecutive and cumulative alerts
@@ -258,6 +258,9 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     partition = make_partition(all_alerts, jobowners, get_channels=True)
 
     for channel in partition:
+        if channel == CHANNEL_BROADCAST:
+            # All alerts are sent to the broadcast channel. Continue here to prevent duplicates.
+            continue
         consecutive = ConsecutiveJobAlert(
             {name: jobs for (name, jobs) in alert_jobs["consecutive"].items() if name in partition[channel]}
         )

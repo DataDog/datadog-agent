@@ -736,11 +736,15 @@ Make sure that milestone is open before trying again.""",
 
 
 def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
-    milestone_name = milestone or str(version)
+    if milestone:
+        milestone_name = milestone
+    else:
+        from tasks.libs.releasing.json import get_current_milestone
+
+        milestone_name = get_current_milestone()
 
     labels = [
         "team/agent-delivery",
-        "team/agent-release-management",
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")

@@ -26,6 +26,8 @@ type testTransaction struct {
 	pointCount   int
 	kind         transaction.Kind
 	destination  transaction.Destination
+	shouldBlock  bool
+	Name         string
 }
 
 func newTestTransaction() *testTransaction {
@@ -54,13 +56,23 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(_ context.Context, _ config.Component, _ log.Component, client *http.Client) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, client *http.Client) error {
 	defer func() { t.processed <- true }()
+
+	var ret error
+
 	// we always ignore the context to ease mocking
 	if !t.assertClient {
-		return t.Called().Error(0)
+		ret = t.Called().Error(0)
+	} else {
+		ret = t.Called(client).Error(0)
 	}
-	return t.Called(client).Error(0)
+
+	if t.shouldBlock {
+		<-ctx.Done()
+	}
+
+	return ret
 }
 
 func (t *testTransaction) GetTarget() string {
@@ -80,7 +92,7 @@ func (t *testTransaction) GetDestination() transaction.Destination {
 }
 
 func (t *testTransaction) GetEndpointName() string {
-	return ""
+	return t.Name
 }
 
 func (t *testTransaction) GetPayloadSize() int {

@@ -7,6 +7,7 @@
 package cloudservice
 
 import (
+	"maps"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -38,9 +39,7 @@ func (a *AppService) GetTags() map[string]string {
 		"_dd.origin": a.GetOrigin(),
 	}
 
-	for key, value := range traceutil.GetAppServicesTags() {
-		tags[key] = value
-	}
+	maps.Copy(tags, traceutil.GetAppServicesTags())
 
 	return tags
 }

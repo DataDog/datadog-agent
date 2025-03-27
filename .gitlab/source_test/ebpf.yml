@@ -8,6 +8,7 @@
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  extends: .unit_test_base
   needs: ["go_deps", "go_tools_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -17,11 +18,11 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
   script:
-    - inv -e install-tools
-    - inv -e system-probe.object-files
-    - invoke -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
-    - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
+    - dda inv -e install-tools
+    - dda inv -e system-probe.object-files
+    - dda inv -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
+    - dda inv -e security-agent.run-ebpf-unit-tests --verbose
+    - dda inv -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -54,10 +55,10 @@ tests_ebpf_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e install-tools
+    - dda inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - inv -e kmt.prepare --ci --component="system-probe"
+    - dda inv -e kmt.prepare --ci --component="system-probe"
 
 prepare_sysprobe_ebpf_functional_tests_arm64:
   extends: .prepare_sysprobe_ebpf_functional_tests
@@ -76,6 +77,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
 .prepare_secagent_ebpf_functional_tests:
   stage: source_test
   rules:
+    - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   artifacts:
@@ -86,10 +88,10 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e install-tools
+    - dda inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - inv -e kmt.prepare --ci --component="security-agent"
+    - dda inv -e kmt.prepare --ci --component="security-agent"
     - mkdir -p /opt/datadog-agent/embedded/bin
     - cp /tmp/clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
     - cp /tmp/llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf

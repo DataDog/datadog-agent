@@ -24,9 +24,22 @@ func (v PackageVersion) PackageVersion() string {
 	return v.packageValue
 }
 
-func newVersionFromPackageVersion(packageVersion string) PackageVersion {
+// NewVersionFromPackageVersion creates a new PackageVersion from a package version string
+func NewVersionFromPackageVersion(packageVersion string) PackageVersion {
 	return PackageVersion{
 		value:        strings.TrimSuffix(packageVersion, "-1"),
 		packageValue: packageVersion,
 	}
+}
+
+// PackageEntry is a struct to represent a package entry in the catalog
+type PackageEntry struct {
+	Package string `json:"package"`
+	Version string `json:"version"`
+	URL     string `json:"url"`
+}
+
+// Catalog is a struct to represent a catalog of packages, used with the set-catalog subcommand
+type Catalog struct {
+	Packages []PackageEntry `json:"packages"`
 }

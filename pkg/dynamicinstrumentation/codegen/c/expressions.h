@@ -11,7 +11,7 @@ static __always_inline int read_register(expression_context_t *context, __u64 re
     if (err != 0) {
         log_debug("error when reading data from register: %ld", err);
     }
-    bpf_map_push_elem(&param_stack, &valueHolder, 0);
+    bpf_map_push_elem(context->param_stack, &valueHolder, 0);
     context->stack_counter += 1;
     return err;
 }
@@ -26,7 +26,7 @@ static __always_inline int read_stack(expression_context_t *context, size_t stac
     if (err != 0) {
         log_debug("error when reading data from stack: %ld", err);
     }
-    bpf_map_push_elem(&param_stack, &valueHolder, 0);
+    bpf_map_push_elem(context->param_stack, &valueHolder, 0);
     context->stack_counter += 1;
     return err;
 }
@@ -66,7 +66,7 @@ static __always_inline int pop(expression_context_t *context, __u64 num_elements
     int i;
     __u8 num_elements_byte = (__u8)num_elements;
     for(i = 0; i < num_elements_byte; i++) {
-        bpf_map_pop_elem(&param_stack, &valueHolder);
+        bpf_map_pop_elem(context->param_stack, &valueHolder);
         context->stack_counter -= 1;
         log_debug("Popping to output: %llu", valueHolder);
         err = bpf_probe_read_kernel(&context->event->output[(context->output_offset)+i], element_size, &valueHolder);
@@ -87,7 +87,7 @@ static __always_inline int dereference(expression_context_t *context, __u32 elem
 {
     long err;
     __u64 addressHolder = 0;
-    err = bpf_map_pop_elem(&param_stack, &addressHolder);
+    err = bpf_map_pop_elem(context->param_stack, &addressHolder);
     if (err != 0) {
         log_debug("Error popping: %ld", err);
     } else {
@@ -104,7 +104,7 @@ static __always_inline int dereference(expression_context_t *context, __u32 elem
     __u64 mask = (element_size == 8) ? ~0ULL : (1ULL << (8 * element_size)) - 1;
     __u64 encodedValueHolder = valueHolder & mask;
 
-    bpf_map_push_elem(&param_stack, &encodedValueHolder, 0);
+    bpf_map_push_elem(context->param_stack, &encodedValueHolder, 0);
     context->stack_counter += 1;
     return err;
 }
@@ -118,7 +118,7 @@ static __always_inline int dereference_to_output(expression_context_t *context, 
     long return_err;
     long err;
     __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
+    bpf_map_pop_elem(context->param_stack, &addressHolder);
     context->stack_counter -= 1;
 
     __u64 valueHolder = 0;
@@ -152,7 +152,7 @@ static __always_inline int dereference_large(expression_context_t *context, __u3
     long return_err;
     long err;
     __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
+    bpf_map_pop_elem(context->param_stack, &addressHolder);
     context->stack_counter -= 1;
 
     int i;
@@ -173,7 +173,7 @@ static __always_inline int dereference_large(expression_context_t *context, __u3
     }
 
     for (int i = 0; i < num_chunks; i++) {
-        bpf_map_push_elem(&param_stack, &context->temp_storage[i], 0);
+        bpf_map_push_elem(context->param_stack, &context->temp_storage[i], 0);
         context->stack_counter += 1;
     }
 
@@ -193,7 +193,7 @@ static __always_inline int dereference_large_to_output(expression_context_t *con
 {
     long err;
     __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
+    bpf_map_pop_elem(context->param_stack, &addressHolder);
     context->stack_counter -= 1;
     err = bpf_probe_read_user(&context->event->output[(context->output_offset)], element_size, (void*)(addressHolder));
     if (err != 0) {
@@ -207,11 +207,11 @@ static __always_inline int dereference_large_to_output(expression_context_t *con
 static __always_inline int apply_offset(expression_context_t *context, size_t offset)
 {
     __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
+    bpf_map_pop_elem(context->param_stack, &addressHolder);
     context->stack_counter -= 1;
 
     addressHolder += offset;
-    bpf_map_push_elem(&param_stack, &addressHolder, 0);
+    bpf_map_push_elem(context->param_stack, &addressHolder, 0);
     context->stack_counter += 1;
     return 0;
 }
@@ -223,11 +223,11 @@ static __always_inline int dereference_dynamic_to_output(expression_context_t *c
 {
     long err = 0;
     __u64 lengthToRead = 0;
-    bpf_map_pop_elem(&param_stack, &lengthToRead);
+    bpf_map_pop_elem(context->param_stack, &lengthToRead);
     context->stack_counter -= 1;
 
     __u64 addressHolder = 0;
-    bpf_map_pop_elem(&param_stack, &addressHolder);
+    bpf_map_pop_elem(context->param_stack, &addressHolder);
     context->stack_counter -= 1;
 
     __u32 collection_size;
@@ -255,7 +255,7 @@ static __always_inline int set_limit_entry(expression_context_t *context, __u16 
 {
     // Read the 2 byte length from top of the stack, then set collectionLimit to the minimum of the two
     __u64 length;
-    bpf_map_pop_elem(&param_stack, &length);
+    bpf_map_pop_elem(context->param_stack, &length);
     context->stack_counter -= 1;
 
     __u16 lengthShort = (__u16)length;
@@ -277,8 +277,8 @@ static __always_inline int set_limit_entry(expression_context_t *context, __u16 
 static __always_inline int copy(expression_context_t *context)
 {
     __u64 holder;
-    bpf_map_peek_elem(&param_stack, &holder);
-    bpf_map_push_elem(&param_stack, &holder, 0);
+    bpf_map_peek_elem(context->param_stack, &holder);
+    bpf_map_push_elem(context->param_stack, &holder, 0);
     context->stack_counter += 1;
     return 0;
 }
@@ -291,7 +291,7 @@ static __always_inline int read_str_to_output(expression_context_t *context, __u
 {
     long err;
     __u64 stringStructAddressHolder = 0;
-    err = bpf_map_pop_elem(&param_stack, &stringStructAddressHolder);
+    err = bpf_map_pop_elem(context->param_stack, &stringStructAddressHolder);
     if (err != 0) {
         log_debug("error popping string struct addr: %ld", err);
         return err;

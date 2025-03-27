@@ -14,14 +14,14 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	emrInjectorVersion   = "0.26.0-1"
-	emrJavaTracerVersion = "1.45.2-1"
-	emrAgentVersion      = "7.62.2-1"
+	emrInjectorVersion   = "0.35.0-1"
+	emrJavaTracerVersion = "1.46.1-1"
+	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
@@ -71,11 +71,12 @@ type extraEmrInstanceInfo struct {
 
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
+	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
-	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -84,8 +85,24 @@ func SetupEmr(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
+	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
+		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
+		DSMEnabled := common.InjectTracerConfigEnvVar{
+			Key:   "DD_DATA_STREAMS_ENABLED",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, DSMEnabled)
+	}
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, debugLogs)
+	}
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
@@ -93,16 +110,15 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
-		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
 		enableEmrLogs(s)
-
 	} else {
-		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 	}
 	return nil
 }
@@ -147,10 +163,14 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 func setupResourceManager(s *common.Setup, clusterName string) {
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
-
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
+		hostname = "localhost"
+	}
 	sparkIntegration.Instances = []any{
 		common.IntegrationConfigInstanceSpark{
-			SparkURL:         "http://127.0.0.1:8088",
+			SparkURL:         "http://" + hostname + ":8088",
 			SparkClusterMode: "spark_yarn_mode",
 			ClusterName:      clusterName,
 			StreamingMetrics: false,
@@ -158,7 +178,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 	}
 	yarnIntegration.Instances = []any{
 		common.IntegrationConfigInstanceYarn{
-			ResourceManagerURI: "http://127.0.0.1:8088",
+			ResourceManagerURI: "http://" + hostname + ":8088",
 			ClusterName:        clusterName,
 		},
 	}
@@ -191,6 +211,7 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 
 func enableEmrLogs(s *common.Setup) {
 	s.Config.DatadogYAML.LogsEnabled = true
+	s.Span.SetTag("host_tag_set.logs_enabled", "true")
 	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	// Load the existing integration config and add logs section to it
@@ -201,6 +222,9 @@ func enableEmrLogs(s *common.Setup) {
 			Path:    hadoopLogFolder + "*/*/stdout",
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
+			LogProcessingRules: []common.LogProcessingRule{
+				{Type: "multi_line", Name: "dataframe_show", Pattern: "`\\|[\\sa-zA-Z-_.\\|]+\\|$`gm"},
+			},
 		},
 		{
 			Type:    "file",

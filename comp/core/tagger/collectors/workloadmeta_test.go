@@ -815,6 +815,34 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "datadog autoscaling tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						datadogAutoscalingIDAnnotation: "datadogpodautoscaler",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_autoscaler_kind:datadogpodautoscaler",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "disable kube_service",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -1743,6 +1771,42 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
+			name: "OTel new env convention",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_SERVICE_NAME":        svc,
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment.name=%s", svc, version, env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
 			name: "tags from environment with opentelemetry sdk with whitespace",
 			container: workloadmeta.Container{
 				EntityID: entityID,
@@ -2422,7 +2486,8 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
-		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}},
+	}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{

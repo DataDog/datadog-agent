@@ -58,14 +58,12 @@ type Batch struct {
 	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_failed_connect              uint64
 	Tcp_sent_miscounts              uint64
 	Unbatched_tcp_close             uint64
 	Unbatched_udp_close             uint64
 	Udp_sends_processed             uint64
 	Udp_sends_missed                uint64
 	Udp_dropped_conns               uint64
-	Unsupported_tcp_failures        uint64
 	Tcp_done_missing_pid            uint64
 	Tcp_connect_failed_tuple        uint64
 	Tcp_done_failed_tuple           uint64
@@ -73,6 +71,7 @@ type Telemetry struct {
 	Tcp_close_target_failures       uint64
 	Tcp_done_connection_flush       uint64
 	Tcp_close_connection_flush      uint64
+	Tcp_syn_retransmit              uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -143,11 +142,12 @@ const TCPFailureConnRefused = 0x6f
 const SizeofConn = 0x78
 
 type ClassificationProgram = uint32
+type ClassificationTLSProgram = uint32
 
 const (
-	ClassificationTLSClient ClassificationProgram = 0x7
-	ClassificationTLSServer ClassificationProgram = 0x8
-	ClassificationQueues    ClassificationProgram = 0x2
-	ClassificationDBs       ClassificationProgram = 0x3
-	ClassificationGRPC      ClassificationProgram = 0x5
+	ClassificationTLSClient ClassificationTLSProgram = 0x0
+	ClassificationTLSServer ClassificationTLSProgram = 0x1
+	ClassificationQueues    ClassificationProgram    = 0x2
+	ClassificationDBs       ClassificationProgram    = 0x3
+	ClassificationGRPC      ClassificationProgram    = 0x5
 )

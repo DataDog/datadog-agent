@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	kprobeconfig "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -87,7 +86,7 @@ func getAssetName(module string, debug bool) string {
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/discovery-net.c pkg/ebpf/bytecode/runtime/discovery-net.go runtime
 
 func runtimeCompile(cfg *discoveryConfig) (runtime.CompiledOutput, error) {
-	return runtime.DiscoveryNet.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
+	return runtime.DiscoveryNet.Compile(&cfg.Config, getCFlags(cfg))
 }
 
 func getCFlags(cfg *discoveryConfig) []string {

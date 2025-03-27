@@ -62,13 +62,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		// dentry resolver kprobe callbacks
 		{
 			ProgArrayName: dentryCallbackProgs,
-			Key:           DentryResolverOpenCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_dr_open_callback",
-			},
-		},
-		{
-			ProgArrayName: dentryCallbackProgs,
 			Key:           DentryResolverSetAttrCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tail_call_target_dr_setattr_callback",
@@ -156,13 +149,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 			Key:           DentryResolverChdirCallbackKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tail_call_target_dr_chdir_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
-			Key:           DentryResolverOpenCallbackTracepointKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint_dr_open_callback",
 			},
 		},
 		{

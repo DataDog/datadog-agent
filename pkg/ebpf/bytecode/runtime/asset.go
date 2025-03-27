@@ -11,13 +11,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -45,16 +44,14 @@ type CompileOptions struct {
 	AdditionalFlags []string
 	// ModifyCallback is a callback function that is allowed to modify the contents before compilation
 	ModifyCallback func(in io.Reader, out io.Writer) error
-	// StatsdClient is a statsd client to use for telemetry
-	StatsdClient statsd.ClientInterface
 	// UseKernelHeaders enables the inclusion of kernel headers from the host
 	UseKernelHeaders bool
 }
 
 // Compile compiles the asset to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
-	return a.compile(config, CompileOptions{AdditionalFlags: additionalFlags, StatsdClient: client, UseKernelHeaders: true})
+func (a *asset) Compile(config *ebpf.Config, additionalFlags []string) (CompiledOutput, error) {
+	return a.compile(config, CompileOptions{AdditionalFlags: additionalFlags, UseKernelHeaders: true})
 }
 
 // CompileWithOptions is the same as Compile, but takes an options struct with additional choices.
@@ -69,9 +66,7 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	a.tm.compilationEnabled = true
 	defer func() {
 		a.tm.compilationDuration = time.Since(start)
-		if opts.StatsdClient != nil {
-			a.tm.SubmitTelemetry(a.filename, opts.StatsdClient)
-		}
+		a.tm.SubmitTelemetry(a.filename)
 	}()
 
 	var kernelHeaders []string
@@ -84,10 +79,10 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = kernel.GetKernelHeaders(headerOpts, opts.StatsdClient)
+		kernelHeaders = kernel.GetKernelHeaders(headerOpts)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
-			return nil, fmt.Errorf("unable to find kernel headers")
+			return nil, errors.New("unable to find kernel headers")
 		}
 	}
 
@@ -182,7 +177,7 @@ func (a *asset) verify(source ProtectedFile) error {
 		return fmt.Errorf("hash file %s: %w", source.Name(), err)
 	}
 	if sum != a.hash {
-		return fmt.Errorf("file content hash does not match expected value")
+		return errors.New("file content hash does not match expected value")
 	}
 	return nil
 }

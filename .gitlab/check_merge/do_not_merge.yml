@@ -2,12 +2,8 @@ do-not-merge:
   stage: check_merge
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules: # this should only run on dev branches
-  - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-    when: never
-  - if: $CI_COMMIT_TAG
-    when: never
-  - !reference [.except_main_or_release_branch]
+  rules:
+  - !reference [.on_dev_branches]
   - when: always
   needs: []
   script:
@@ -22,5 +18,5 @@ do-not-merge:
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
           fi
-      - inv -e release.check-omnibus-branches --no-worktree || exit 1
+      - dda inv -e release.check-omnibus-branches --no-worktree || exit 1
       - exit 0

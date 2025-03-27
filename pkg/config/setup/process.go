@@ -117,7 +117,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
 	// This allows for the process check to run in the core agent but is for linux only
-	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
 
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
@@ -172,7 +172,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
 	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
-	config.SetKnown("process_config.intervals.connections")
+	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)

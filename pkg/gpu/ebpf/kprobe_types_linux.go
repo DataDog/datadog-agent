@@ -46,6 +46,16 @@ type CudaSetDeviceEvent struct {
 	Pad_cgo_0 [4]byte
 }
 
+type CudaEventKey struct {
+	Event     uint64
+	Pid       uint32
+	Pad_cgo_0 [4]byte
+}
+type CudaEventValue struct {
+	Stream          uint64
+	Access_ktime_ns uint64
+}
+
 const CudaEventTypeKernelLaunch CudaEventType = 0x0
 const CudaEventTypeMemory CudaEventType = 0x1
 const CudaEventTypeSync CudaEventType = 0x2
