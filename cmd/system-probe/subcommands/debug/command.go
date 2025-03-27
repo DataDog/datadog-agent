@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -62,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{debugCommand}
 }
 
-func debugRuntime(sysprobeconfig sysprobeconfig.Component, at authtoken.Component, cliParams *cliParams) error {
+func debugRuntime(at authtoken.Component, cliParams *cliParams) error {
 	var path string
 	if len(cliParams.args) == 1 {
 		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])

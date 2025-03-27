@@ -75,16 +75,16 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, config.GetInt("cmd_port"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)

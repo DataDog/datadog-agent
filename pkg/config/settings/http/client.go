@@ -67,7 +67,7 @@ func NewClient(c *http.Client, baseURL string, targetProcessName string, clientO
 	return &runtimeSettingsHTTPClient{innerClient, baseURL, targetProcessName}
 }
 
-// NewClient returns a client setup to interact with the standard runtime settings HTTP API
+// NewSecureClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
 func NewSecureClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
 
 	innerClient := &secureHTTPClient{c, clientOptions}

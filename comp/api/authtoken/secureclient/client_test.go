@@ -99,7 +99,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("url error", func(t *testing.T) {
-		client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+		client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		_, err := client.Get(" http://localhost")
 		require.Error(t, err)
 	})

@@ -186,15 +186,15 @@ func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams, client authtoken.SecureClient) error {
+func componentStatusCmd(_ log.Component, cliParams *cliParams, client authtoken.SecureClient) error {
 	if len(cliParams.args) > 1 {
 		return fmt.Errorf("only one section must be specified")
 	}
 
-	return redactError(componentStatus(config, cliParams, cliParams.args[0], client))
+	return redactError(componentStatus(cliParams, cliParams.args[0], client))
 }
 
-func componentStatus(config config.Component, cliParams *cliParams, component string, client authtoken.SecureClient) error {
+func componentStatus(cliParams *cliParams, component string, client authtoken.SecureClient) error {
 
 	v := setIpcURL(cliParams)
 

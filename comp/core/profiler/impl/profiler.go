@@ -90,15 +90,13 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 				}
 				defer resp.Body.Close()
 				return io.ReadAll(resp.Body)
-			} else {
-				auth, ok := p.authToken.Get()
-				if !ok {
-					return nil, logFunc("no auth component found")
-				}
-
-				return auth.GetClient().Get(endpoint.String() + path)
+			}
+			auth, ok := p.authToken.Get()
+			if !ok {
+				return nil, logFunc("no auth component found")
 			}
 
+			return auth.GetClient().Get(endpoint.String() + path)
 		}
 	}
 

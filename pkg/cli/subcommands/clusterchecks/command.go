@@ -128,7 +128,7 @@ func run(_ log.Component, _ config.Component, cliParams *cliParams, at authtoken
 	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, secureClient)
 }
 
-func rebalance(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
+func rebalance(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
@@ -173,7 +173,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams, a
 	return nil
 }
 
-func isolate(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
+func isolate(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}

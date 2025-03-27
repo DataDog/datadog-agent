@@ -74,9 +74,7 @@ func streamEventPlatform(_ log.Component, config config.Component, auth authtoke
 }
 
 func streamRequest(client authtoken.SecureClient, url string, body []byte, onChunk func([]byte)) error {
-	var e error
-
-	e = client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk)
+	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk)
 
 	if e == io.EOF {
 		return nil

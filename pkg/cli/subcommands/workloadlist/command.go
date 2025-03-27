@@ -80,7 +80,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-func workloadList(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
+func workloadList(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
 	url, err := workloadURL(cliParams.verboseList)
 	if err != nil {
 		return err

@@ -60,7 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func showSecretInfo(config config.Component, _ log.Component, auth authtoken.Component) error {
+func showSecretInfo(_ log.Component, auth authtoken.Component) error {
 	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/secrets")
 	if err != nil {
 		return err

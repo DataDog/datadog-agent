@@ -32,6 +32,7 @@ type secureClient struct {
 	config    pkgconfigmodel.Reader
 }
 
+// NewClient creates a new secure client
 func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader, _ ...authtoken.ClientOption) authtoken.SecureClient {
 	tr := &http.Transport{
 		TLSClientConfig: clientTLSConfig,
@@ -306,22 +307,26 @@ func (end *IPCEndpoint) DoGet(options ...authtoken.RequestOption) ([]byte, error
 	return res, err
 }
 
+// WithCloseConnection is a request option that closes the connection after the request
 func WithCloseConnection(req *http.Request, _ func(func())) *http.Request {
 	req.Close = true
 	return req
 }
 
+// WithLeaveConnectionOpen is a request option that leaves the connection open after the request
 func WithLeaveConnectionOpen(req *http.Request, _ func(func())) *http.Request {
 	req.Close = false
 	return req
 }
 
+// WithContext is a request option that sets the context for the request
 func WithContext(ctx context.Context) authtoken.RequestOption {
 	return func(req *http.Request, _ func(func())) *http.Request {
 		return req.WithContext(ctx)
 	}
 }
 
+// WithTimeout is a request option that sets the timeout for the request
 func WithTimeout(to time.Duration) authtoken.RequestOption {
 	return func(req *http.Request, onEnding func(func())) *http.Request {
 		ctx, cncl := context.WithTimeout(context.Background(), to) // TODO IPC: handle call of WithContext and WithTimeout in the same time
@@ -330,6 +335,7 @@ func WithTimeout(to time.Duration) authtoken.RequestOption {
 	}
 }
 
+// WithValues is a request option that sets the values for the request
 func WithValues(values url.Values) authtoken.RequestOption {
 	return func(req *http.Request, _ func(func())) *http.Request {
 		req.URL.RawQuery = values.Encode()

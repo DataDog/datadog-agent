@@ -41,9 +41,13 @@ func NoneModule() fxutil.Module {
 	}))
 }
 
+// ClientOption is a function that modifies a SecureClient
 type ClientOption func(SecureClient) SecureClient
+
+// RequestOption is a function that modifies a request
 type RequestOption func(req *http.Request, onEnding func(func())) *http.Request
 
+// SecureClient is an interface that defines the methods for a secure client
 type SecureClient interface {
 	Do(req *http.Request, opts ...RequestOption) (resp []byte, err error)
 	Get(url string, opts ...RequestOption) (resp []byte, err error)
@@ -54,6 +58,7 @@ type SecureClient interface {
 	NewIPCEndpoint(endpointPath string) (IPCEndpoint, error)
 }
 
+// IPCEndpoint is an interface that defines the methods for an IPC endpoint
 type IPCEndpoint interface {
 	DoGet(options ...RequestOption) ([]byte, error)
 }

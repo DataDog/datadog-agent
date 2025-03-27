@@ -203,7 +203,7 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, at
 	return nil
 }
 
-func showRuntimeConfigurationBySource(_ log.Component, _ config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
+func showRuntimeConfigurationBySource(_ log.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
 	c, err := getSettingsClient(at.GetClient())
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func showRuntimeConfigurationBySource(_ log.Component, _ config.Component, _ sec
 	return nil
 }
 
-func listRuntimeConfigurableValue(_ log.Component, _ config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
+func listRuntimeConfigurableValue(_ log.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
 	c, err := getSettingsClient(at.GetClient())
 	if err != nil {
 		return err

@@ -50,10 +50,7 @@ const (
 	cacheExpiration   = 1 * time.Minute
 )
 
-var (
-	errTaggerStreamNotStarted = errors.New("tagger stream not started")
-	errFetchAuthToken         = errors.New("failed to fetch auth token")
-)
+var errTaggerStreamNotStarted = errors.New("tagger stream not started")
 
 // Requires defines the dependencies for the remote tagger.
 type Requires struct {

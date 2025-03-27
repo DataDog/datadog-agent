@@ -87,14 +87,14 @@ func New(t testing.TB) authtokeninterface.Mock {
 }
 
 // New returns a new authtoken mock
-func (at *inMemoryAuthComponent) Optional() option.Option[authtokeninterface.Component] {
-	return option.New[authtokeninterface.Component](at)
+func (m *inMemoryAuthComponent) Optional() option.Option[authtokeninterface.Component] {
+	return option.New[authtokeninterface.Component](m)
 }
 
-func (at *inMemoryAuthComponent) HTTPMiddleware(next http.Handler) http.Handler {
-	return authtokeninterface.NewHTTPMiddleware(at.t.Logf, at.Get())(next)
+func (m *inMemoryAuthComponent) HTTPMiddleware(next http.Handler) http.Handler {
+	return authtokeninterface.NewHTTPMiddleware(m.t.Logf, m.Get())(next)
 }
 
-func (at *inMemoryAuthComponent) GetClient(_ ...authtokeninterface.ClientOption) authtokeninterface.SecureClient {
-	return secureclient.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
+func (m *inMemoryAuthComponent) GetClient(_ ...authtokeninterface.ClientOption) authtokeninterface.SecureClient {
+	return secureclient.NewClient(m.Get(), m.GetTLSClientConfig(), m.conf)
 }

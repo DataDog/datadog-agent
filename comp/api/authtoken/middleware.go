@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package createandfetchimpl implements the creation and access to the auth_token used to communicate between Agent
-// processes.
 package authtoken
 
 import (
@@ -14,6 +12,7 @@ import (
 	"strings"
 )
 
+// NewHTTPMiddleware returns a middleware that validates the auth token for the given request
 func NewHTTPMiddleware(logger func(format string, params ...interface{}), authtoken string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
