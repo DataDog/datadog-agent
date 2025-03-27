@@ -683,6 +683,69 @@ func TestAggregationVersionData(t *testing.T) {
 	})
 }
 
+func TestAggregationContainerID(t *testing.T) {
+	t.Run("ContainerID empty", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "", "test-version", "abc", "abc123", 5, 10, 3)
+		keyDefault := BucketsAggregationKey{}
+		cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "abc", "abc123", 0, 2, 4)
+
+		assert.Len(msw.payloads, 0)
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.add(testTime, deepCopy(c3))
+		a.add(testTime, deepCopy(cDefault))
+		assert.Len(msw.payloads, 0)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assertAggCountsPayload(t, aggCounts)
+
+		assert.Equal(aggCounts.Stats[0].ContainerID, "")
+		assert.Len(a.buckets, 0)
+	})
+
+	t.Run("ContainerID not empty", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		keyDefault := BucketsAggregationKey{}
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+
+		assert.Len(msw.payloads, 0)
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.add(testTime, deepCopy(c3))
+		a.add(testTime, deepCopy(cDefault))
+		assert.Len(msw.payloads, 0)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+
+		aggCounts := msw.payloads[0]
+		assertAggCountsPayload(t, aggCounts)
+
+		assert.Equal(aggCounts.Stats[0].ContainerID, "1")
+		assert.Len(a.buckets, 0)
+	})
+
+}
+
 func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	// The hash of "peer.service:remote-service".
 	peerTagsHash := uint64(3430395298086625290)
