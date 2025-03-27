@@ -88,14 +88,14 @@ const (
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_connection_mode
 type WLAN_CONNECTION_MODE uint32
 
-const (
-	wlanConnectionModeProfile           WLAN_CONNECTION_MODE = 0 // A profile is used to make the connection
-	wlanConnectionModeTemporaryProfile  WLAN_CONNECTION_MODE = 1 // A temporary profile is used to make the connection
-	wlanConnectionModeDiscoverySecure   WLAN_CONNECTION_MODE = 2 // Secure discovery is used to make the connection
-	wlanConnectionModeDiscoveryUnsecure WLAN_CONNECTION_MODE = 3 // Unsecure discovery is used to make the connection
-	wlanConnectionModeAuto              WLAN_CONNECTION_MODE = 4 // Connection initiated by wireless service automatically using a persistent profile
-	wlanConnectionModeInvalid           WLAN_CONNECTION_MODE = 5 // Invalid connection mode
-)
+// const (
+// 	wlanConnectionModeProfile           WLAN_CONNECTION_MODE = 0 // A profile is used to make the connection
+// 	wlanConnectionModeTemporaryProfile  WLAN_CONNECTION_MODE = 1 // A temporary profile is used to make the connection
+// 	wlanConnectionModeDiscoverySecure   WLAN_CONNECTION_MODE = 2 // Secure discovery is used to make the connection
+// 	wlanConnectionModeDiscoveryUnsecure WLAN_CONNECTION_MODE = 3 // Unsecure discovery is used to make the connection
+// 	wlanConnectionModeAuto              WLAN_CONNECTION_MODE = 4 // Connection initiated by wireless service automatically using a persistent profile
+// 	wlanConnectionModeInvalid           WLAN_CONNECTION_MODE = 5 // Invalid connection mode
+// )
 
 // https://learn.microsoft.com/en-us/windows/win32/nativewifi/dot11-phy-type
 type DOT11_PHY_TYPE uint32
@@ -452,7 +452,7 @@ func getChannel(wlanClient uintptr, itfGuid windows.GUID) (uint32, error) {
 	if ret != 0 {
 		return 0, fmt.Errorf("wlanQueryInterface failed: %d", ret)
 	}
-	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(data)))
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(data))) //nolint:errcheck
 
 	channel := *data
 	return channel, nil
@@ -467,7 +467,7 @@ func getRssi(wlanClient uintptr, itfGuid windows.GUID) (int32, error) {
 	if ret != 0 {
 		return 0, fmt.Errorf("wlanQueryInterface failed: %d", ret)
 	}
-	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(data)))
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(data))) //nolint:errcheck
 
 	rssi := *data
 	return rssi, nil
@@ -513,7 +513,7 @@ func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error
 // 	if ret != 0 {
 // 		return nil
 // 	}
-// 	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(bssList)))
+// 	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(bssList))) //nolint:errcheck
 //
 // 	if bssList.dwNumberOfItems > 0 {
 // 		base := unsafe.Pointer(&bssList.wlanBssEntries[0])
@@ -594,7 +594,7 @@ func getWlanInfo(wlanClient uintptr, itfGuid windows.GUID) (*wlanInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get WLAN connection attributes: %v", err)
 	}
-	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(connAttribs)))
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(connAttribs))) //nolint:errcheck
 
 	var wi wlanInfo
 
@@ -640,14 +640,14 @@ func getFirstConnectedWlanInfo() (*wlanInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get WLAN client handle: %v", err)
 	}
-	defer wlanCloseHandle.Call(wlanClient, 0)
+	defer wlanCloseHandle.Call(wlanClient, 0) //nolint:errcheck
 
 	// Get WLAN interfaces
 	itfs, err := getWlanInterfacesList(wlanClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get WLAN interfaces: %v", err)
 	}
-	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(itfs)))
+	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(itfs))) //nolint:errcheck
 
 	// Check if any WiFi interfaces found
 	if itfs.NumberOfItems == 0 {
