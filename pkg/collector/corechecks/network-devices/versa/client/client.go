@@ -32,8 +32,10 @@ var timeNow = time.Now
 
 // Client is an HTTP Versa client.
 type Client struct {
-	httpClient          *http.Client
-	endpoint            string
+	httpClient *http.Client
+	endpoint   string
+	// TODO: remove when OAuth is implemented
+	analyticsEndpoint   string
 	token               string
 	tokenExpiry         time.Time
 	username            string
@@ -49,7 +51,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+func NewClient(endpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
 	err := validateParams(endpoint, username, password)
 	if err != nil {
 		return nil, err
@@ -78,6 +80,7 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	client := &Client{
 		httpClient:          httpClient,
 		endpoint:            endpointURL.String(),
+		analyticsEndpoint:   analyticsEndpoint,
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
