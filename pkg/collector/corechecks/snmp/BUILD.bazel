@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
+        "//comp/core/diagnose/def",
         "//comp/remote-config/rcclient",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -18,7 +19,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/internal/discovery",
         "//pkg/collector/corechecks/snmp/internal/report",
         "//pkg/collector/corechecks/snmp/internal/session",
-        "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/option",
         "@org_uber_go_atomic//:atomic",

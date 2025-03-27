@@ -35,7 +35,7 @@ go_test(
     ],
     embed = [":journald"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/logs/message",

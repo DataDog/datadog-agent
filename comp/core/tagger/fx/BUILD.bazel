@@ -9,6 +9,5 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/tagger/impl",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
     ],
 )

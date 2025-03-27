@@ -45,6 +45,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
         "@org_uber_go_atomic//:atomic",
     ],
 )
@@ -69,7 +70,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",

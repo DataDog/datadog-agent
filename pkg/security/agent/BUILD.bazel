@@ -24,8 +24,10 @@ go_library(
         "//pkg/security/config",
         "//pkg/security/proto/api",
         "//pkg/security/seclog",
-        "//pkg/security/security_profile/dump",
+        "//pkg/security/security_profile/profile",
+        "//pkg/security/security_profile/storage",
         "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//backoff",
         "@org_golang_google_grpc//codes",
@@ -39,7 +41,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
@@ -50,7 +51,6 @@ go_library(
             "//pkg/security/reporter",
             "//pkg/util/log",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
@@ -58,7 +58,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
@@ -66,7 +65,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/config",
@@ -74,7 +72,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/config",
@@ -82,7 +79,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
@@ -90,7 +86,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/config",
@@ -98,7 +93,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
@@ -109,7 +103,6 @@ go_library(
             "//pkg/security/reporter",
             "//pkg/util/log",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
@@ -117,7 +110,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/config",
@@ -125,7 +117,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:osx": [
             "//comp/core/config",
@@ -133,7 +124,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/core/config",
@@ -141,7 +131,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/core/config",
@@ -149,7 +138,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/config",
@@ -157,7 +145,6 @@ go_library(
             "//comp/core/workloadmeta/def",
             "//comp/serializer/logscompression/def",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/config",
@@ -166,7 +153,6 @@ go_library(
             "//comp/serializer/logscompression/def",
             "//pkg/security/reporter",
             "//pkg/util/startstop",
-            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "//conditions:default": [],
     }),

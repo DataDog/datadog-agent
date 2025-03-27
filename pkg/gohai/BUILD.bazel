@@ -12,6 +12,7 @@ go_library(
         "//pkg/gohai/network",
         "//pkg/gohai/platform",
         "//pkg/gohai/processes",
+        "//pkg/gohai/utils",
         "//pkg/util/log",
     ],
 )

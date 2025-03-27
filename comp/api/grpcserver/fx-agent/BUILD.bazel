@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-agent",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/grpcserver/def",
+        "//comp/api/grpcserver/impl-agent",
+        "//pkg/util/fxutil",
+    ],
+)

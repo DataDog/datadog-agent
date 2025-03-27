@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/networkdevice/integrations",
         "//pkg/snmp/gosnmplib",
         "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
@@ -20,6 +21,7 @@ go_test(
     srcs = ["payload_utils_test.go"],
     embed = [":metadata"],
     deps = [
+        "//pkg/networkdevice/integrations",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -47,7 +47,7 @@ go_test(
     ],
     embed = [":generic"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",
         "//comp/core/tagger/utils",
         "//comp/core/workloadmeta/def",

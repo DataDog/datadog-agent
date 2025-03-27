@@ -8,9 +8,11 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/util/kernel",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/kernel",
+            "@com_github_shirou_gopsutil_v4//cpu",
         ],
         "//conditions:default": [],
     }),

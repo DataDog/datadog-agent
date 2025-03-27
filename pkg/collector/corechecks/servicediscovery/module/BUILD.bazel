@@ -9,8 +9,6 @@ go_library(
         "doc.go",
         "envs.go",
         "impl_linux.go",
-        "injected_process.go",
-        "injected_process_gen.go",
         "kern_types_linux.go",
         "network_linux.go",
         "network_mock_linux.go",
@@ -21,9 +19,7 @@ go_library(
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module",
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_tinylib_msgp//msgp",
-    ] + select({
+    deps = select({
         "@rules_go//go/platform:android": [
             "//cmd/system-probe/api/module",
             "//cmd/system-probe/config",
@@ -83,7 +79,6 @@ go_test(
     srcs = [
         "cmdline_test.go",
         "envs_test.go",
-        "injected_process_gen_test.go",
         "kern_types_linux_test.go",
         "params_test.go",
     ],
@@ -91,7 +86,6 @@ go_test(
     embed = [":module"],
     deps = [
         "@com_github_stretchr_testify//require",
-        "@com_github_tinylib_msgp//msgp",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/collector/corechecks/servicediscovery/envs",
@@ -99,7 +93,6 @@ go_test(
             "//pkg/ebpf/ebpftest",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
-            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/collector/corechecks/servicediscovery/envs",
@@ -107,7 +100,6 @@ go_test(
             "//pkg/ebpf/ebpftest",
             "@com_github_shirou_gopsutil_v4//process",
             "@com_github_stretchr_testify//assert",
-            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

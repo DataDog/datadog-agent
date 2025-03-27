@@ -9,6 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/authtoken",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/settings",
@@ -35,6 +36,8 @@ go_test(
     srcs = ["rcclient_test.go"],
     embed = [":rcclientimpl"],
     deps = [
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",

@@ -26,8 +26,7 @@ go_test(
     srcs = ["status_test.go"],
     embed = [":impl"],
     deps = [
-        "//comp/api/authtoken",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/status",
         "@com_github_stretchr_testify//assert",

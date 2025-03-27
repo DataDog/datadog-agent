@@ -86,7 +86,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/logs/agent/config",

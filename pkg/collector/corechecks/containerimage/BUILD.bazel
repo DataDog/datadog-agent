@@ -34,7 +34,7 @@ go_test(
     srcs = ["processor_test.go"],
     embed = [":containerimage"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/forwarder/eventplatform",
         "//pkg/aggregator/mocksender",

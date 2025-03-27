@@ -5,15 +5,12 @@ go_library(
     srcs = [
         "cloudproviders.go",
         "mock.go",
-        "network.go",
-        "network_mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log/def",
         "//pkg/config/setup",
-        "//pkg/util/cache",
         "//pkg/util/cloudproviders/alibaba",
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/cloudfoundry",
@@ -31,14 +28,7 @@ go_library(
 
 go_test(
     name = "cloudproviders_test",
-    srcs = [
-        "cloudproviders_test.go",
-        "network_test.go",
-    ],
+    srcs = ["cloudproviders_test.go"],
     embed = [":cloudproviders"],
-    deps = [
-        "//pkg/util/cache",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

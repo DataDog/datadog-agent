@@ -7,6 +7,7 @@ go_library(
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
     deps = [
         "//comp/core/config",
+        "//comp/core/diagnose/def",
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/common",
         "//pkg/collector/corechecks/snmp/internal/fetch",
@@ -15,7 +16,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/internal/valuestore",
         "//pkg/collector/externalhost",
         "//pkg/config/utils",
-        "//pkg/diagnose/diagnosis",
         "//pkg/metrics/servicecheck",
         "//pkg/networkdevice/diagnoses",
         "//pkg/networkdevice/metadata",

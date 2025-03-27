@@ -19,6 +19,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/autodiscovery/integration",
+            "//comp/core/diagnose/def",
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/check/id",
@@ -27,7 +28,6 @@ go_library(
             "//pkg/collector/corechecks/embed/common",
             "//pkg/config/setup",
             "//pkg/config/utils",
-            "//pkg/diagnose/diagnosis",
             "//pkg/util/executable",
             "//pkg/util/log",
             "//pkg/util/option",
@@ -48,6 +48,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/autodiscovery/integration",
+            "//comp/core/diagnose/def",
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/check/id",
@@ -56,7 +57,6 @@ go_library(
             "//pkg/collector/corechecks/embed/common",
             "//pkg/config/setup",
             "//pkg/config/utils",
-            "//pkg/diagnose/diagnosis",
             "//pkg/util/executable",
             "//pkg/util/log",
             "//pkg/util/option",

@@ -28,7 +28,7 @@ go_test(
     srcs = ["launcher_test.go"],
     embed = [":container"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/logs/agent/config",
         "//pkg/logs/auditor",

@@ -10,7 +10,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/metadata/host/hostimpl/hosttags",
         "//pkg/collector/corechecks/oracle/common",
+        "//pkg/config/setup",
         "//pkg/obfuscate",
         "//pkg/util/log",
         "@in_gopkg_yaml_v3//:yaml_v3",

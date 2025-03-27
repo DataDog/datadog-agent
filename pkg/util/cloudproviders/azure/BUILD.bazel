@@ -9,9 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
         "//pkg/config/model",
         "//pkg/config/setup",
-        "//pkg/diagnose/diagnosis",
         "//pkg/util/cachedfetch",
         "//pkg/util/hostname/validate",
         "//pkg/util/http",

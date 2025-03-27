@@ -158,7 +158,7 @@ go_test(
     srcs = ["launcher_test.go"],
     embed = [":journald"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//pkg/logs/auditor",

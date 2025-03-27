@@ -12,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
         "//comp/core/tagger/def",
         "//comp/logs/integrations/def",
         "//pkg/aggregator/sender",
@@ -22,7 +23,6 @@ go_library(
         "//pkg/collector/loaders",
         "//pkg/config/setup",
         "//pkg/config/utils",
-        "//pkg/diagnose/diagnosis",
         "//pkg/metrics/servicecheck",
         "//pkg/util/log",
         "//pkg/util/option",
@@ -41,6 +41,7 @@ go_test(
     embed = [":corechecks"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
@@ -49,7 +50,6 @@ go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",
-        "//pkg/diagnose/diagnosis",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

@@ -27,7 +27,7 @@ go_test(
         "//comp/core",
         "//comp/core/config",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/dogstatsd",

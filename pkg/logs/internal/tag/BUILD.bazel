@@ -27,7 +27,7 @@ go_test(
     ],
     embed = [":tag"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",
         "//pkg/config/mock",
         "//pkg/config/model",

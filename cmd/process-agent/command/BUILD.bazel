@@ -16,7 +16,7 @@ go_library(
         "//cmd/process-agent/flags",
         "//comp/agent/autoexit",
         "//comp/agent/autoexit/autoexitimpl",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/createandfetchimpl",
         "//comp/core",
         "//comp/core/config",
         "//comp/core/configsync/configsyncimpl",

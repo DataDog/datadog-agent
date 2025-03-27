@@ -25,11 +25,11 @@ go_test(
     embed = [":hostname"],
     deps = [
         "//cmd/agent/command",
+        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/config",
         "//comp/core/log/mock",
         "//comp/core/secrets",
-        "//pkg/api/util",
         "//pkg/config/model",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",

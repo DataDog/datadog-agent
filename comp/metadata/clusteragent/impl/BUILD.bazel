@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "cluster_agent.go",
+        "cluster_agent_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/metadata/clusteragent/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/flavor",
+        "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/util/installinfo",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/scrubber",
+        "//pkg/util/uuid",
+        "//pkg/version",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["cluster_agent_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//pkg/config/model",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform",
         "//pkg/aggregator/sender",
+        "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "//pkg/util/log",
     ],

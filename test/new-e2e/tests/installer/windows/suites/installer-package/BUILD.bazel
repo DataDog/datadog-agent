@@ -22,19 +22,13 @@ go_test(
     srcs = [
         "install_test.go",
         "rollback_test.go",
-        "system_integrity_test.go",
-        "upgrade_test.go",
     ],
     embed = [":installer-package"],
     deps = [
-        "//pkg/version",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/provisioners/aws/host/windows",
         "//test/new-e2e/tests/installer/windows",
         "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",
-        "//test/new-e2e/tests/windows/common/agent",
-        "//test/new-e2e/tests/windows/common/pipeline",
-        "//test/new-e2e/tests/windows/install-test",
     ],
 )

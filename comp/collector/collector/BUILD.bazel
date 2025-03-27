@@ -5,10 +5,13 @@ go_library(
     srcs = [
         "component.go",
         "component_mock.go",
+        "diagnose.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/log/def",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/util/fxutil",

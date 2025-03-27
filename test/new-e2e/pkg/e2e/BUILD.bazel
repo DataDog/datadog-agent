@@ -18,6 +18,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//common/utils",
         "@com_github_datadog_test_infra_definitions//components",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
         "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
     ],

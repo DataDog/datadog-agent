@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkfilter",
+    srcs = ["network_filter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+go_test(
+    name = "networkfilter_test",
+    srcs = ["network_filter_test.go"],
+    embed = [":networkfilter"],
+    deps = [
+        "//pkg/process/util",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

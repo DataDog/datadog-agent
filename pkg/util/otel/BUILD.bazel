@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otel",
+    srcs = ["gatewayusage.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/otel",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes"],
+)

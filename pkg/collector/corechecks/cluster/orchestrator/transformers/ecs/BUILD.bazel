@@ -21,7 +21,7 @@ go_test(
     srcs = ["task_test.go"],
     embed = [":ecs"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//pkg/util/pointer",
         "@com_github_datadog_agent_payload_v5//process",

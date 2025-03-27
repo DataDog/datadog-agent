@@ -24,7 +24,7 @@ go_test(
         "//comp/core/autodiscovery",
         "//comp/core/autodiscovery/autodiscoveryimpl",
         "//comp/core/secrets/secretsimpl",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/logs/agent/config",

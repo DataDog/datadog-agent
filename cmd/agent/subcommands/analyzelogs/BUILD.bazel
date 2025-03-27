@@ -45,7 +45,7 @@ go_test(
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/config",
         "//comp/core/secrets/secretsimpl",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/logs/processor",

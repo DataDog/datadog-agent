@@ -20,10 +20,12 @@ go_test(
     embed = [":checks"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/api/authtoken",
+            "//comp/api/authtoken/mock",
             "//comp/core",
             "//comp/core/agenttelemetry/fx",
             "//comp/core/tagger/def",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//pkg/util/crashreport",
             "//pkg/util/fxutil",
             "@org_uber_go_fx//:fx",

@@ -14,6 +14,8 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
+        "//comp/core/diagnose/def",
+        "//comp/core/diagnose/format",
         "//comp/core/flare/helpers",
         "//comp/core/flare/types",
         "//comp/core/status",
@@ -22,8 +24,7 @@ go_library(
         "//pkg/clusteragent/autoscaling/custommetrics",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/config/setup",
-        "//pkg/diagnose",
-        "//pkg/diagnose/diagnosis",
+        "//pkg/diagnose/connectivity",
         "//pkg/flare",
         "//pkg/flare/common",
         "//pkg/status/render",

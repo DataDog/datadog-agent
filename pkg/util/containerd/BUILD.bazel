@@ -10,9 +10,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/containerd",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
         "//pkg/config/env",
         "//pkg/config/setup",
-        "//pkg/diagnose/diagnosis",
         "//pkg/errors",
         "//pkg/util/containers/image",
         "//pkg/util/log",

@@ -33,7 +33,7 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/api/authtoken",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",

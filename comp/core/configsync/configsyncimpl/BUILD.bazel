@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/authtoken",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/configsync",
         "//comp/core/log/def",
@@ -38,7 +38,7 @@ go_test(
     embed = [":configsyncimpl"],
     deps = [
         "//comp/api/authtoken",
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/configsync",
         "//comp/core/log/def",

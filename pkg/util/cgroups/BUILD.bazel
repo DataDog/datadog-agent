@@ -38,13 +38,11 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/pointer",
             "@com_github_containerd_cgroups_v3//cgroup1",
-            "@com_github_karrick_godirwalk//:godirwalk",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/log",
             "//pkg/util/pointer",
             "@com_github_containerd_cgroups_v3//cgroup1",
-            "@com_github_karrick_godirwalk//:godirwalk",
         ],
         "//conditions:default": [],
     }),

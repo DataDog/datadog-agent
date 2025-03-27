@@ -28,6 +28,7 @@ go_library(
         "@com_github_secure_systems_lab_go_securesystemslib//cjson",
         "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
         "@io_etcd_go_bbolt//:bbolt",
+        "@io_etcd_go_bbolt//errors",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],
@@ -44,6 +45,7 @@ go_test(
     embed = [":service"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/config/remote/api",
         "//pkg/config/remote/data",
         "//pkg/config/remote/uptane",
         "//pkg/proto/msgpgo",

@@ -22,9 +22,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
         "//pkg/clusteragent/api/v1:api",
         "//pkg/config/setup",
-        "//pkg/diagnose/diagnosis",
         "//pkg/errors",
         "//pkg/telemetry",
         "//pkg/util/cache",

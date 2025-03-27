@@ -8,10 +8,12 @@ go_library(
     deps = [
         "//cmd/agent/common/signals",
         "//comp/core/autodiscovery",
+        "//comp/core/diagnose/def",
         "//comp/core/settings",
         "//comp/core/status",
         "//comp/core/tagger/def",
         "//comp/core/workloadmeta/def",
+        "//comp/metadata/clusteragent/def",
         "//pkg/config/setup",
         "//pkg/flare/clusteragent",
         "//pkg/status/health",

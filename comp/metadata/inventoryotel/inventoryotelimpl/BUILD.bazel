@@ -41,7 +41,8 @@ go_test(
     srcs = ["inventoryotel_test.go"],
     embed = [":inventoryotelimpl"],
     deps = [
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/mock",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",

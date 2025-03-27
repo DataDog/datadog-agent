@@ -27,7 +27,8 @@ go_test(
     srcs = ["bundle_test.go"],
     embed = [":metadata"],
     deps = [
-        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/mock",
         "//comp/collector/collector/collectorimpl",
         "//comp/core",
         "//comp/core/workloadmeta/def",

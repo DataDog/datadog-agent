@@ -8,6 +8,7 @@ go_library(
         "memoize_arg.go",
         "memoize_arg_noerror.go",
         "memoize_noerror.go",
+        "memoize_noerror_unsafe.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/funcs",
     visibility = ["//visibility:public"],

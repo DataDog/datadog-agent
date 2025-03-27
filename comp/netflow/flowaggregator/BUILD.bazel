@@ -23,6 +23,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/logs/message",
         "//pkg/metrics",
+        "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "@com_github_prometheus_client_golang//prometheus",
         "@org_uber_go_atomic//:atomic",

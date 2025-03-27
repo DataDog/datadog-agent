@@ -6,6 +6,7 @@ go_library(
         "doget.go",
         "ipc_endpoint.go",
         "util.go",
+        "util_test_helper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/util",
     visibility = ["//visibility:public"],

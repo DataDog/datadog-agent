@@ -95,7 +95,7 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/telemetry",
         "//comp/core/telemetry/noopsimpl",
         "//comp/dogstatsd/packets",

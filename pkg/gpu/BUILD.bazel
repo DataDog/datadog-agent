@@ -19,7 +19,6 @@ go_library(
             "//pkg/gpu/config",
             "//pkg/security/utils",
             "//pkg/util/log",
-            "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry",
@@ -29,7 +28,6 @@ go_library(
             "//pkg/gpu/config",
             "//pkg/security/utils",
             "//pkg/util/log",
-            "@com_github_nvidia_go_nvml//pkg/nvml",
         ],
         "//conditions:default": [],
     }),

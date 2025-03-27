@@ -39,6 +39,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//components/datadog/operator",
         "@com_github_datadog_test_infra_definitions//components/datadog/operatorparams",
         "@com_github_datadog_test_infra_definitions//components/kubernetes",
+        "@com_github_datadog_test_infra_definitions//components/kubernetes/cilium",
         "@com_github_datadog_test_infra_definitions//components/kubernetes/vpa",
         "@com_github_datadog_test_infra_definitions//resources/aws",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",

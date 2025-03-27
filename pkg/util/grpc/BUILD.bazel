@@ -7,7 +7,6 @@ go_library(
         "auth.go",
         "logger.go",
         "mock_server.go",
-        "server.go",
         "timeout.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/grpc",
@@ -24,8 +23,6 @@ go_library(
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//grpclog",
         "@org_golang_google_grpc//status",
-        "@org_golang_x_net//http2",
-        "@org_golang_x_net//http2/h2c",
     ],
 )
 

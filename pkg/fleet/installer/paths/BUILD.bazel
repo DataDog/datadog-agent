@@ -4,6 +4,7 @@ go_library(
     name = "paths",
     srcs = [
         "installer_paths.go",
+        "installer_paths_utils.go",
         "installer_paths_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",

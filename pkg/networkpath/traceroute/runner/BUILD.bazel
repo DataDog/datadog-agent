@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname",
         "//comp/core/telemetry",
         "//pkg/config/setup",
         "//pkg/network",
@@ -19,9 +20,7 @@ go_library(
         "//pkg/networkpath/traceroute/tcp",
         "//pkg/process/util",
         "//pkg/telemetry",
-        "//pkg/util/cloudproviders",
-        "//pkg/util/ec2",
-        "//pkg/util/hostname",
+        "//pkg/util/cloudproviders/network",
         "//pkg/util/kernel",
         "//pkg/util/log",
         "//pkg/version",

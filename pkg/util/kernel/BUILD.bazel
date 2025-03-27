@@ -25,6 +25,7 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:android": [
+            "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/log",
             "@com_github_cilium_ebpf//features",
@@ -54,6 +55,7 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/log",
             "@com_github_cilium_ebpf//features",

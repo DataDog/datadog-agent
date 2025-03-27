@@ -10,10 +10,10 @@ go_library(
     visibility = ["//comp/collector/collector/collectorimpl:__subpackages__"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
-        "//pkg/diagnose/diagnosis",
     ],
 )

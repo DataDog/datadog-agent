@@ -26,7 +26,8 @@ go_test(
     srcs = ["apiserver_test.go"],
     embed = [":apiserver"],
     deps = [
-        "//comp/api/authtoken/createandfetchimpl",
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/config",
         "//comp/core/secrets/secretsimpl",
@@ -34,7 +35,7 @@ go_test(
         "//comp/core/status",
         "//comp/core/status/statusimpl",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/fx",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx",
         "//pkg/api/util",

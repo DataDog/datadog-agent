@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "exec",
-    srcs = ["installer_exec.go"],
+    srcs = [
+        "installer_exec.go",
+        "installer_exec_nix.go",
+        "installer_exec_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec",
     visibility = ["//pkg/fleet:__subpackages__"],
     deps = [

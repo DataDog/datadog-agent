@@ -9,10 +9,9 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl",
             "//comp/api/authtoken/fetchonlyimpl",
-            "//comp/collector/collector",
             "//comp/core",
-            "//comp/core/autodiscovery/noopimpl",
             "//comp/core/config",
+            "//comp/core/diagnose/fx",
             "//comp/core/flare",
             "//comp/core/log/def",
             "//comp/core/tagger/fx-noop",

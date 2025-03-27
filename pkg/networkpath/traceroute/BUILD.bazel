@@ -27,6 +27,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/telemetry",
             "//pkg/networkpath/payload",
             "//pkg/networkpath/traceroute/config",
@@ -34,6 +35,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/hostname/hostnameimpl",
             "//comp/core/telemetry",
             "//pkg/networkpath/payload",
             "//pkg/networkpath/traceroute/config",

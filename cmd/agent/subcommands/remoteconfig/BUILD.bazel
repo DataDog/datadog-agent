@@ -7,9 +7,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",
+        "//comp/api/authtoken",
+        "//comp/api/authtoken/fetchonlyimpl",
         "//comp/core",
         "//comp/core/config",
-        "//pkg/api/security",
+        "//comp/core/log/def",
         "//pkg/config/setup",
         "//pkg/flare",
         "//pkg/proto/pbgo/core",

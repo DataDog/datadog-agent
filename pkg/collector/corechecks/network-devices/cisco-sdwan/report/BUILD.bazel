@@ -13,6 +13,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "//pkg/networkdevice/utils",
         "//pkg/util/log",

@@ -31,6 +31,7 @@ go_test(
         "//pkg/config/mock",
         "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@io_opentelemetry_go_collector_featuregate//:featuregate",
     ],

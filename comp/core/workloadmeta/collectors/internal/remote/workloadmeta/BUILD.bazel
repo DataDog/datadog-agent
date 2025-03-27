@@ -24,6 +24,7 @@ go_test(
     srcs = ["workloadmeta_test.go"],
     embed = [":workloadmeta"],
     deps = [
+        "//comp/api/authtoken/mock",
         "//comp/core",
         "//comp/core/workloadmeta/collectors/internal/remote",
         "//comp/core/workloadmeta/def",
@@ -31,8 +32,6 @@ go_test(
         "//comp/core/workloadmeta/mock",
         "//comp/core/workloadmeta/proto",
         "//comp/core/workloadmeta/server",
-        "//pkg/api/security",
-        "//pkg/config/setup",
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",

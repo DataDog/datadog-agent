@@ -76,7 +76,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/secrets",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/fx",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/telemetry",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",

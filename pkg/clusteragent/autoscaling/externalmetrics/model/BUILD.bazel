@@ -9,6 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/tags",
         "//pkg/util/hostname",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",

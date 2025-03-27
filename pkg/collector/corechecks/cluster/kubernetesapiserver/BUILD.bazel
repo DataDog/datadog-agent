@@ -55,7 +55,7 @@ go_test(
     embed = [":kubernetesapiserver"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/types",
         "//comp/core/workloadmeta/collectors/util",
         "//pkg/aggregator",

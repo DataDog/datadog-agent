@@ -9,6 +9,7 @@ go_library(
         "circuit_breaker.go",
         "conntrack.go",
         "conntrack_debug.go",
+        "conntrack_noop.go",
         "conntracker.go",
         "consumer.go",
         "decoding.go",

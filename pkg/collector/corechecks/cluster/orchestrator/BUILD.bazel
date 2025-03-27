@@ -59,7 +59,7 @@ go_test(
     embed = [":orchestrator"],
     deps = [
         "//comp/core",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",

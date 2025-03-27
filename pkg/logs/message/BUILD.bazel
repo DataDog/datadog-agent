@@ -27,5 +27,6 @@ go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

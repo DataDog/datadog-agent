@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/otelcol/collector-contrib/def",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_connector_spanmetricsconnector//:spanmetricsconnector",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_exporter_loadbalancingexporter//:loadbalancingexporter",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_exporter_sapmexporter//:sapmexporter",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension//:healthcheckextension",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_dockerobserver//:dockerobserver",

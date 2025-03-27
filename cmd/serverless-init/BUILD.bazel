@@ -612,7 +612,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -623,7 +623,7 @@ go_test(
         ],
         "@rules_go//go/platform:android": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -634,7 +634,7 @@ go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -645,7 +645,7 @@ go_test(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -656,7 +656,7 @@ go_test(
         ],
         "@rules_go//go/platform:freebsd": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -667,7 +667,7 @@ go_test(
         ],
         "@rules_go//go/platform:illumos": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -678,7 +678,7 @@ go_test(
         ],
         "@rules_go//go/platform:ios": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -689,7 +689,7 @@ go_test(
         ],
         "@rules_go//go/platform:js": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -700,7 +700,7 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -711,7 +711,7 @@ go_test(
         ],
         "@rules_go//go/platform:netbsd": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -722,7 +722,7 @@ go_test(
         ],
         "@rules_go//go/platform:openbsd": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -733,7 +733,7 @@ go_test(
         ],
         "@rules_go//go/platform:osx": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -744,7 +744,7 @@ go_test(
         ],
         "@rules_go//go/platform:plan9": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -755,7 +755,7 @@ go_test(
         ],
         "@rules_go//go/platform:qnx": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",
@@ -766,7 +766,7 @@ go_test(
         ],
         "@rules_go//go/platform:solaris": [
             "//cmd/serverless-init/mode",
-            "//comp/core/tagger/mock",
+            "//comp/core/tagger/fx-mock",
             "//comp/logs/agent/agentimpl",
             "//comp/serializer/logscompression/fx-mock",
             "//pkg/config/mock",

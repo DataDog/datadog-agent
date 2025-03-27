@@ -14,8 +14,8 @@ go_library(
         "//pkg/util/testutil",
         "//pkg/util/testutil/docker",
         "@com_github_stretchr_testify//require",
-        "@org_mongodb_go_mongo_driver//bson",
-        "@org_mongodb_go_mongo_driver//mongo",
-        "@org_mongodb_go_mongo_driver//mongo/options",
+        "@org_mongodb_go_mongo_driver_v2//bson",
+        "@org_mongodb_go_mongo_driver_v2//mongo",
+        "@org_mongodb_go_mongo_driver_v2//mongo/options",
     ],
 )

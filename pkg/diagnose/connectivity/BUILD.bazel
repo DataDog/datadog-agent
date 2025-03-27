@@ -11,7 +11,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
         "//comp/core/flare/helpers",
+        "//comp/core/log/def",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/resolver",
@@ -20,7 +22,6 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
-        "//pkg/diagnose/diagnosis",
         "//pkg/logs/client/http",
         "//pkg/logs/client/tcp",
         "//pkg/util/scrubber",
@@ -32,6 +33,7 @@ go_test(
     srcs = ["core_endpoint_test.go"],
     embed = [":connectivity"],
     deps = [
+        "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//pkg/config/setup",

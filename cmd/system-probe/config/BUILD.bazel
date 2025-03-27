@@ -26,14 +26,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
     ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/ebpf/prebuilt",
-            "//pkg/security/ebpf/kernel",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/ebpf/prebuilt",
-            "//pkg/security/ebpf/kernel",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
         ],
@@ -45,7 +37,6 @@ go_test(
     name = "config_test",
     srcs = [
         "adjust_npm_test.go",
-        "config_linux_test.go",
         "config_test.go",
     ],
     embed = [":config"],
@@ -55,13 +46,9 @@ go_test(
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//pkg/ebpf/prebuilt",
-            "//pkg/util/kernel",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/ebpf/prebuilt",
-            "//pkg/util/kernel",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [

@@ -49,7 +49,7 @@ go_test(
     ],
     embed = [":containerd"],
     deps = [
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/utils",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/mocksender",

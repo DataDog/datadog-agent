@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "remote_windows_binary_asserts.go",
         "remote_windows_host_asserts.go",
+        "remote_windows_installer_asserts.go",
         "remote_windows_namedpipe_asserts.go",
         "remote_windows_registry_asserts.go",
         "remote_windows_service_asserts.go",
@@ -15,6 +16,7 @@ go_library(
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/runner/parameters",
+        "//test/new-e2e/pkg/utils/e2e/client",
         "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",
         "@com_github_stretchr_testify//require",

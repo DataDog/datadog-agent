@@ -42,6 +42,7 @@ go_test(
         "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:aix": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -58,6 +59,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:android": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -74,6 +76,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -90,6 +93,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:dragonfly": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -106,6 +110,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -122,6 +127,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:illumos": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -138,6 +144,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -154,6 +161,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:js": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -170,6 +178,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -186,6 +195,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:netbsd": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -202,6 +212,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:openbsd": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -218,6 +229,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:osx": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -234,6 +246,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:plan9": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -250,6 +263,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:qnx": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",
@@ -266,6 +280,7 @@ go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:solaris": [
+            "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
             "//comp/logs/agent/flare",
             "//pkg/config/setup",

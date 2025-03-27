@@ -62,7 +62,7 @@ go_test(
         "//comp/core",
         "//comp/core/status",
         "//comp/core/tagger/def",
-        "//comp/core/tagger/mock",
+        "//comp/core/tagger/fx-mock",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/eventplatform/eventplatformimpl",
         "//comp/forwarder/orchestrator/orchestratorimpl",

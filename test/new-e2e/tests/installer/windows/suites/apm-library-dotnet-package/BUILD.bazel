@@ -1,11 +1,13 @@
-load("@rules_go//go:def.bzl", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_test(
     name = "apm-library-dotnet-package_test",
     srcs = [
         "install_no_iis_test.go",
         "install_test.go",
+        "msi_install_test.go",
     ],
+    embed = [":apm-library-dotnet-package"],
     embedsrcs = [
         "resources/index.aspx",
         "resources/web.config",
@@ -17,6 +19,16 @@ go_test(
         "//test/new-e2e/tests/installer/unix",
         "//test/new-e2e/tests/installer/windows",
         "//test/new-e2e/tests/installer/windows/consts",
+    ],
+)
+
+go_library(
+    name = "apm-library-dotnet-package",
+    srcs = ["base_suite.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suites/apm-library-dotnet-package",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/installer/windows",
         "//test/new-e2e/tests/windows",
     ],
 )

@@ -12,8 +12,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/diagnose/def",
         "//pkg/config/setup",
-        "//pkg/diagnose/diagnosis",
         "//pkg/util/cache",
         "//pkg/util/ecs/common",
         "//pkg/util/ecs/metadata",
