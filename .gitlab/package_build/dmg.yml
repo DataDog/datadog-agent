@@ -123,26 +123,44 @@ new-agent_dmg-x64-a7:
   #   - brew uses gettext --installed || true
   #   - if ! [ -d /usr/local/opt/gettext ]; then sudo mv /tmp/gettext-old /usr/local/opt/gettext; fi
 
-  before_script:
-    # TODO A
-    # - sudo umount /Volumes/Agent || true
-    # - sudo ls /Volumes || true
-    - sudo ls /Volumes/Agent || true
-  after_script:
-    - cat /tmp/debug || true
-    - sudo ls /Volumes/Agent || true
-    # TODO - sudo umount /Volumes/Agent || true
+  # before_script:
+  #   # TODO A
+  #   # - sudo umount /Volumes/Agent || true
+  #   # - sudo ls /Volumes || true
+  #   - sudo ls /Volumes/Agent || true
+  # after_script:
+  #   - cat /tmp/debug || true
+  #   - sudo ls /Volumes/Agent || true
+  #   # TODO - sudo umount /Volumes/Agent || true
   script:
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
     - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
     - ps aux | grep -i finder
     - cp -r /Volumes/Agent volume
-    - set -e
+    - set +e
+    - |
+      sudo osascript -e '
+        tell application "Finder"
+          activate
+        end tell'
+      echo $?
+    - |
+      sudo osascript -e '
+        tell application "Finder"
+          activate
+
+          tell disk "Agent"
+            open
+            set current view of container window to icon view
+          end tell
+        end tell'
+      echo $?
     - |
       osascript -e '
         tell application "Finder"
           activate
         end tell'
+      echo $?
     - |
       osascript -e '
         tell application "Finder"
@@ -153,6 +171,7 @@ new-agent_dmg-x64-a7:
             set current view of container window to icon view
           end tell
         end tell'
+      echo $?
     - exit
 
     # If 1, will isolate the build environment
