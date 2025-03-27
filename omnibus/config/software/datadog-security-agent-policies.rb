@@ -31,15 +31,10 @@ build do
 
   # Copy config files for compliance
   block do
-
     Dir.glob("#{project_dir}/compliance/containers/*").each do |file|
-
       next if !File.file?(file)
-
       copy file, "#{compliance_dir}/"
-
     end
-
   end
 
   runtime_dir = "#{install_dir}/etc/datadog-agent/runtime-security.d"
@@ -47,15 +42,9 @@ build do
 
   # Copy config files for runtime
   block do
-
     Dir.glob("#{project_dir}/runtime/*").each do |file|
-
       next if !File.file?(file)
-
       copy file, "#{runtime_dir}/"
-
     end
-
   end
-
 end
