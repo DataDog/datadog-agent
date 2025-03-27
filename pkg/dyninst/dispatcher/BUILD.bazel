@@ -9,8 +9,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/dyninst/ir",
-        "//pkg/dyninst/output",
         "//pkg/util/log",
         "@com_github_cilium_ebpf//ringbuf",
     ],

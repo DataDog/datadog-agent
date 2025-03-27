@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
 	EventStreamKretprobeMaxActive int
 
+	// EventStreamUseSyscallTaskStorage specifies whether to use a task storage map to store syscall context
+	EventStreamUseSyscallTaskStorage bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -216,6 +219,7 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+		EventStreamUseSyscallTaskStorage:   getBool("event_stream.use_syscall_task_storage"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
