@@ -25,10 +25,22 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Version: {conventions.AttributeServiceVersion},
 }
 
-// processInfraTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
-func processInfraTags(
-	logger *zap.Logger,
+type infraTagsProcessor struct {
+	tagger taggerClient
+}
+
+// newInfraTagsProcessor creates a new infraTagsProcessor instance
+func newInfraTagsProcessor(
 	tagger taggerClient,
+) infraTagsProcessor {
+	return infraTagsProcessor{
+		tagger: tagger,
+	}
+}
+
+// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
+func (p infraTagsProcessor) ProcessTags(
+	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 ) {
@@ -37,7 +49,7 @@ func processInfraTags(
 
 	// Get all unique tags from resource attributes and global tags
 	for _, entityID := range entityIDs {
-		entityTags, err := tagger.Tag(entityID, cardinality)
+		entityTags, err := p.tagger.Tag(entityID, cardinality)
 		if err != nil {
 			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 			continue
@@ -50,7 +62,7 @@ func processInfraTags(
 			}
 		}
 	}
-	globalTags, err := tagger.GlobalTags(cardinality)
+	globalTags, err := p.tagger.GlobalTags(cardinality)
 	if err != nil {
 		logger.Error("Cannot get global tags", zap.Error(err))
 	}
