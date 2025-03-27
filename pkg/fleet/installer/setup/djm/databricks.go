@@ -134,7 +134,9 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
 
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
-	setIfExists(s, "DATABRICKS_WORKSPACE", "workspace", nil)
+	setIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
+		return strings.Trim(v, "\"'")
+	})
 
 	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
