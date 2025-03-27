@@ -15,8 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -144,9 +142,6 @@ func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 		npcollectorimpl.MockModule(),
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}
-		}),
-		fx.Provide(func(t testing.TB) authtoken.Component {
-			return authtokenmock.New(t)
 		}),
 	)
 }

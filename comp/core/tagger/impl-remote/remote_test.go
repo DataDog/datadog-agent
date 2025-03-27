@@ -70,6 +70,7 @@ func TestNewComponentNonBlocking(t *testing.T) {
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		At:        authtokenmock.New(t),
 	}
 	_, err := NewComponent(req)
 	require.NoError(t, err)
@@ -86,6 +87,7 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		At:        authtokenmock.New(t),
 	}
 	provides, err := NewComponent(req)
 	require.NoError(t, err)

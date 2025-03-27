@@ -111,7 +111,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams, auth authtoken.Component) error {
+func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, auth authtoken.Component) error {
 	if cliParams.list {
 		return redactError(requestSections(auth.GetClient()))
 	}
@@ -120,7 +120,7 @@ func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.C
 		return redactError(requestStatus(cliParams, auth.GetClient()))
 	}
 
-	return componentStatusCmd(logger, config, cliParams, auth.GetClient())
+	return componentStatusCmd(logger, cliParams, auth.GetClient())
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {

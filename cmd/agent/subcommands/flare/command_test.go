@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -39,11 +41,13 @@ type commandTestSuite struct {
 	tcpTLSServer       *httptest.Server
 	unixServer         *httptest.Server
 	systemProbeServer  *httptest.Server
+	authMock           authtoken.Mock
 }
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
 	c.sysprobeSocketPath = sysprobeSocketPath(t)
+	c.authMock = authtokenmock.New(t)
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.
@@ -56,10 +60,6 @@ func (c *commandTestSuite) startTestServers() {
 		if c.tcpServer != nil {
 			c.tcpServer.Close()
 			c.tcpServer = nil
-		}
-		if c.tcpTLSServer != nil {
-			c.tcpTLSServer.Close()
-			c.tcpTLSServer = nil
 		}
 		if c.unixServer != nil {
 			c.unixServer.Close()
@@ -78,7 +78,7 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, tcp
 
 	handler := profilermock.NewMockHandler()
 	tcpServer = httptest.NewServer(handler)
-	tcpTLSServer = httptest.NewTLSServer(handler)
+	tcpTLSServer = c.authMock.NewMockServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
 		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)

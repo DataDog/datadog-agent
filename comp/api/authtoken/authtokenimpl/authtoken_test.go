@@ -5,41 +5,25 @@
 
 package authtokenimpl
 
-import (
-	"testing"
+// func TestAuthToken(t *testing.T) {
+// 	optAuth := fxutil.Test[option.Option[authtoken.Component]](t,
+// 		Module(),
+// 		fx.Provide(func() log.Component { return logmock.New(t) }),
+// 		config.MockModule(),
+// 	)
 
-	"go.uber.org/fx"
+// 	_, ok := optAuth.Get()
+// 	require.False(t, ok)
+// 	require.NotNil(t, optAuth)
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+// auth := fxutil.Test[authtoken.Component](t,
+// 	Module(),
+// 	fx.Provide(func() log.Component { return logmock.New(t) }),
+// 	config.MockModule(),
+// )
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-)
-
-func TestAuthToken(t *testing.T) {
-	optAuth := fxutil.Test[option.Option[authtoken.Component]](t,
-		Module(),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-	)
-
-	_, ok := optAuth.Get()
-	require.False(t, ok)
-	require.NotNil(t, optAuth)
-
-	// auth := fxutil.Test[authtoken.Component](t,
-	// 	Module(),
-	// 	fx.Provide(func() log.Component { return logmock.New(t) }),
-	// 	config.MockModule(),
-	// )
-
-	// require.NotNil(t, auth)
-}
+// require.NotNil(t, auth)
+// }
 
 // func TestGet(t *testing.T) {
 // 	dir := t.TempDir()

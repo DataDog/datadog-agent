@@ -86,7 +86,7 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 
 // fetchConfig contacts the url in configSync and parses the returned data
 func fetchConfig(ctx context.Context, client authtoken.SecureClient, url string, to time.Duration) (map[string]interface{}, error) {
-	data, err := client.Get(url, secureclient.WithLeaveConnectionOpen, secureclient.WithTimeout(to), secureclient.WithContext(ctx))
+	data, err := client.Get(url, secureclient.WithLeaveConnectionOpen, secureclient.WithTimeout(to)) // TODO IPC: handle ctx and timeout at same time
 	if err != nil {
 		return nil, err
 	}

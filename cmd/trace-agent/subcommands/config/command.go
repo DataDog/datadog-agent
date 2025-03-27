@@ -13,7 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,8 +34,11 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		RunE: func(*cobra.Command, []string) error {
 			return fxutil.OneShot(printConfig,
 				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
+				logfx.Module(),
+				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
 				fx.Supply(option.None[secrets.Component]()),
 				config.Module(),
+				authtokenimpl.Module(),
 			)
 		},
 		SilenceUsage: true,

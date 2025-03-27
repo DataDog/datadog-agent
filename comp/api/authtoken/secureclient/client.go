@@ -329,6 +329,10 @@ func WithContext(ctx context.Context) authtoken.RequestOption {
 // WithTimeout is a request option that sets the timeout for the request
 func WithTimeout(to time.Duration) authtoken.RequestOption {
 	return func(req *http.Request, onEnding func(func())) *http.Request {
+		if to == 0 {
+			return req
+		}
+
 		ctx, cncl := context.WithTimeout(context.Background(), to) // TODO IPC: handle call of WithContext and WithTimeout in the same time
 		onEnding(cncl)
 		return req.WithContext(ctx)

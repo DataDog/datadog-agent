@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -132,8 +133,9 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	cfg.Set("otelcollector.extension_url", 7777, pkgconfigmodel.SourceAgentRuntime)
 
 	reqs := Requires{
-		Lc:     compdef.NewTestLifecycle(t),
-		Config: cfg,
+		Lc:        compdef.NewTestLifecycle(t),
+		Config:    cfg,
+		Authtoken: authtokenmock.New(t),
 	}
 	provs, _ := NewComponent(reqs)
 	col := provs.Comp.(*collectorImpl)

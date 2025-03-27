@@ -49,7 +49,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 		),
 	)
 }

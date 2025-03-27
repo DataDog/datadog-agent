@@ -39,7 +39,7 @@ type Requires struct {
 	SettingsComponent settings.Component
 	Config            config.Component
 	SysProbeConfig    sysprobeconfig.Component
-	AuthToken         authtoken.Component
+	AuthToken         option.Option[authtoken.Component]
 }
 
 // Provides defines the output of the profiler component
@@ -93,7 +93,9 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			}
 			auth, ok := p.authToken.Get()
 			if !ok {
-				return nil, logFunc("no auth component found")
+				err := fmt.Errorf("no auth component found")
+				logFunc("%v", err)
+				return nil, err
 			}
 
 			return auth.GetClient().Get(endpoint.String() + path)
@@ -346,6 +348,7 @@ func NewComponent(req Requires) (Provides, error) {
 		settingsComponent: req.SettingsComponent,
 		cfg:               req.Config,
 		sysProbeCfg:       req.SysProbeConfig,
+		authToken:         req.AuthToken,
 	}
 	return Provides{
 		Comp:          p,
