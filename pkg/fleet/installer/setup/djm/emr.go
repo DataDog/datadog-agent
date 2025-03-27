@@ -7,6 +7,7 @@
 package djm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -70,7 +71,7 @@ type extraEmrInstanceInfo struct {
 }
 
 // SetupEmr sets up the DJM environment on EMR
-func SetupEmr(s *common.Setup) error {
+func SetupEmr(_ context.Context, s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)

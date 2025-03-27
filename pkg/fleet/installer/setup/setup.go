@@ -21,7 +21,7 @@ import (
 
 type flavor struct {
 	path string // path is used to print the path to the setup script for users.
-	run  func(*common.Setup) error
+	run  func(context.Context, *common.Setup) error
 }
 
 var flavors = map[string]flavor{
@@ -41,7 +41,7 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	if err != nil {
 		return err
 	}
-	err = f.run(s)
+	err = f.run(ctx, s)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@
 package djm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -84,7 +85,7 @@ var (
 )
 
 // SetupDatabricks sets up the Databricks environment
-func SetupDatabricks(s *common.Setup) error {
+func SetupDatabricks(_ context.Context, s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)

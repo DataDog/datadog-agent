@@ -7,28 +7,30 @@
 package defaultscript
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 )
 
 const (
 	defaultAgentVersion    = "7.60.1-1"
-	defaultInjectorVersion = "0.26.0-1"
+	defaultInjectorVersion = "0.35.0-1"
 )
 
 var (
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.44.1-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.8.0-1",
-		common.DatadogAPMLibraryJSPackage:     "5.30.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.7.0-1",
-		common.DatadogAPMLibraryPythonPackage: "2.9.2-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.5.1-1",
+		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
+		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
+		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
+		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
+		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
+		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -68,7 +70,7 @@ var (
 )
 
 // SetupDefaultScript sets up the default installation
-func SetupDefaultScript(s *common.Setup) error {
+func SetupDefaultScript(ctx context.Context, s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
 	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
@@ -76,6 +78,10 @@ func SetupDefaultScript(s *common.Setup) error {
 	}
 
 	// Installer management
+	err := packagemanager.RemovePackage(ctx, common.DatadogInstallerPackage)
+	if err != nil {
+		return fmt.Errorf("error removing the installer package: %w", err)
+	}
 	setConfigInstallerDaemon(s)
 	setConfigInstallerRegistries(s)
 

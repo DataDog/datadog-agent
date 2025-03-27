@@ -45,7 +45,7 @@ var (
 )
 
 // SetupDataproc sets up the DJM environment on Dataproc
-func SetupDataproc(s *common.Setup) error {
+func SetupDataproc(_ context.Context, s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
 	s.Packages.InstallInstaller()
