@@ -198,9 +198,9 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	if err != nil {
 		// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 		if errors.Is(err, context.DeadlineExceeded) {
-			log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
+			log.Debugf("timeout while getting task with tags from metadata %s API: %s", metaVersion, err)
 		} else {
-			log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+			log.Warnf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
 		}
 		return rt
 	}
