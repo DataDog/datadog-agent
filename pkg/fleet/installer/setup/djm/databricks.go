@@ -127,35 +127,35 @@ func SetupDatabricks(s *common.Setup) error {
 }
 
 func setupCommonHostTags(s *common.Setup) {
-	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil, false)
-	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil, false)
-	setIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil, true)
+	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
+	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
+	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
-	}, false)
+	})
 
 	// duplicated for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
-	}, false)
-	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil, false)
+	})
+	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
 
-	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil, true)
-	setIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
+	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
+	setClearIfExists(s, "DATABRICKS_WORKSPACE", "workspace", func(v string) string {
 		return strings.Trim(v, "\"'")
-	}, true)
+	})
 
-	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil, true)
+	setClearIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
 	setIfExists(s, "DB_CLUSTER_NAME", "cluster_name", func(v string) string {
 		return clusterNameRegex.ReplaceAllString(v, "_")
-	}, false)
+	})
 
 	jobID, runID, ok := getJobAndRunIDs()
 	if ok {
-		setHostTag(s, "jobid", jobID, false)
-		setHostTag(s, "runid", runID, false)
+		setHostTag(s, "jobid", jobID)
+		setHostTag(s, "runid", runID)
 	}
-	setHostTag(s, "data_workload_monitoring_trial", "true", false)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 	addCustomHostTags(s)
 }
 
@@ -177,7 +177,7 @@ func getJobAndRunIDs() (jobID, runID string, ok bool) {
 	return parts[1], parts[3], true
 }
 
-func setIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) string, valueOnTag bool) {
+func setIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) string) {
 	value, ok := os.LookupEnv(envKey)
 	if !ok {
 		return
@@ -185,22 +185,33 @@ func setIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) 
 	if normalize != nil {
 		value = normalize(value)
 	}
-	setHostTag(s, tagKey, value, valueOnTag)
+	setHostTag(s, tagKey, value)
 }
 
-func setHostTag(s *common.Setup, tagKey, value string, valueOnTag bool) {
-	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
-	if valueOnTag {
-		s.Span.SetTag("host_tag_set."+tagKey, value)
-	} else {
-		s.Span.SetTag("host_tag_set."+tagKey, "true")
-
+func setClearIfExists(s *common.Setup, envKey, tagKey string, normalize func(string) string) {
+	value, ok := os.LookupEnv(envKey)
+	if !ok {
+		return
 	}
+	if normalize != nil {
+		value = normalize(value)
+	}
+	setClearHostTag(s, tagKey, value)
+}
+
+func setHostTag(s *common.Setup, tagKey, value string) {
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
+	s.Span.SetTag("host_tag_set."+tagKey, "true")
+}
+
+func setClearHostTag(s *common.Setup, tagKey, value string) {
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
+	s.Span.SetTag("host_tag_value."+tagKey, value)
 }
 
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
-	setHostTag(s, "spark_node", "driver", true)
+	setClearHostTag(s, "spark_node", "driver")
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
@@ -223,7 +234,7 @@ func setupDatabricksDriver(s *common.Setup) {
 }
 
 func setupDatabricksWorker(s *common.Setup) {
-	setHostTag(s, "spark_node", "worker", true)
+	setClearHostTag(s, "spark_node", "worker")
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {

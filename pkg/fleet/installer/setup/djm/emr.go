@@ -135,8 +135,8 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 		return false, "", fmt.Errorf("error umarshalling instance file: %w", err)
 	}
 
-	setHostTag(s, "instance_group_id", info.InstanceGroupID, false)
-	setHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster), true)
+	setHostTag(s, "instance_group_id", info.InstanceGroupID)
+	setClearHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
 
 	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
 	if err != nil {
@@ -147,13 +147,13 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	if err = json.Unmarshal(extraInstanceInfoRaw, &extraInfo); err != nil {
 		return info.IsMaster, "", fmt.Errorf("error umarshalling extra instance data file: %w", err)
 	}
-	setHostTag(s, "job_flow_id", extraInfo.JobFlowID, false)
-	setHostTag(s, "cluster_id", extraInfo.JobFlowID, true)
-	setHostTag(s, "emr_version", extraInfo.ReleaseLabel, true)
-	setHostTag(s, "data_workload_monitoring_trial", "true", false)
+	setHostTag(s, "job_flow_id", extraInfo.JobFlowID)
+	setClearHostTag(s, "cluster_id", extraInfo.JobFlowID)
+	setClearHostTag(s, "emr_version", extraInfo.ReleaseLabel)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
-	setHostTag(s, "cluster_name", clusterName, false)
+	setHostTag(s, "cluster_name", clusterName)
 	addCustomHostTags(s)
 	return info.IsMaster, clusterName, nil
 }
