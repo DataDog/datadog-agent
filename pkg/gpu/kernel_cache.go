@@ -249,6 +249,7 @@ func (kc *kernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) 
 // caches are only accessed in the processRequests goroutine, to avoid race issues.
 func (kc *kernelCache) processRequests() {
 	fatbinCleanup := time.NewTicker(fatbinFileCacheCleanupInterval)
+	defer fatbinCleanup.Stop()
 
 	for {
 		select {
@@ -324,9 +325,9 @@ func (kc *kernelCache) cleanupOldEntries() {
 	maxFatbinAge := 5 * time.Minute
 	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
 
-	for path, data := range kc.cudaSymbols {
+	for key, data := range kc.cudaSymbols {
 		if data.lastUsedTime.Before(fatbinExpirationTime) {
-			delete(kc.cudaSymbols, path)
+			delete(kc.cudaSymbols, key)
 		}
 	}
 
