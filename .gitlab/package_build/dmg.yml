@@ -135,7 +135,7 @@ new-agent_dmg-x64-a7:
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
     - |
       osascript -e '
-        set myFile to open for access "hello" with write permission
+        set myFile to open for access "/tmp/hello" with write permission
         write "hello world" to myFile
         close access myFile
       '
