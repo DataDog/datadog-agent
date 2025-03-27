@@ -26,14 +26,16 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE"
 
-  compliance_dir = "#{install_dir}/etc/datadog-agent/compliance.d"
-  mkdir compliance_dir
+  if linux_target?
+    compliance_dir = "#{install_dir}/etc/datadog-agent/compliance.d"
+    mkdir compliance_dir
 
-  # Copy config files for compliance
-  block do
-    Dir.glob("#{project_dir}/compliance/containers/*").each do |file|
-      next if !File.file?(file)
-      copy file, "#{compliance_dir}/"
+    # Copy config files for compliance
+    block do
+      Dir.glob("#{project_dir}/compliance/containers/*").each do |file|
+        next if !File.file?(file)
+        copy file, "#{compliance_dir}/"
+      end
     end
   end
 
