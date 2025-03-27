@@ -205,10 +205,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
+		/*"syscalls": {
 			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
-		},
+		},*/
 		"proc_cache": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,

@@ -83,7 +83,6 @@ BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_s
 BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
-BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
@@ -122,5 +121,12 @@ BPF_PROG_ARRAY(sys_exit_progs, 64)
 BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
+
+#ifdef USE_SYSCALL_TASK_STORAGE
+BPF_TASK_STORAGE_MAP(syscalls_task_storage, struct syscall_cache_t)
+#else
+BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+#endif
+
 
 #endif

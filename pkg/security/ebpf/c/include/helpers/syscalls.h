@@ -118,13 +118,23 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     // handle kill action
     send_signal(pid);
 
+#ifdef USE_SYSCALL_TASK_STORAGE
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+    bpf_task_storage_get(&syscalls_task_storage, task, syscall, BPF_LOCAL_STORAGE_GET_F_CREATE);
+#else
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
+#endif
 
     monitor_syscalls(syscall->type, 1);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls_task_storage, task, NULL, 0);
+#else
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+#endif
     if (!syscall) {
         return NULL;
     }
@@ -140,8 +150,13 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls_task_storage, task, NULL, 0);
+#else
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+#endif
     if (!syscall) {
         return NULL;
     }
@@ -152,13 +167,22 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*p
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls_task_storage, task, NULL, 0);
+#else
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+#endif
     if (!syscall) {
         return NULL;
     }
     if (predicate(syscall->type)) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+        bpf_task_storage_delete(&syscalls_task_storage, (struct task_struct *)bpf_get_current_task_btf());
+#else
         bpf_map_delete_elem(&syscalls, &key);
+#endif
 
         monitor_syscalls(syscall->type, -1);
         return syscall;
@@ -167,13 +191,23 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*pr
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_task_storage_get(&syscalls_task_storage, task, NULL, 0);
+#else
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
+#endif
     if (!syscall) {
         return NULL;
     }
     u64 event_type = syscall->type; // fixes 4.14 verifier issue
     if (!type || event_type == type) {
+#ifdef USE_SYSCALL_TASK_STORAGE
+        struct task_struct *task = (struct task_struct *)bpf_get_current_task_btf();
+        bpf_task_storage_delete(&syscalls_task_storage, task);
+#else
         bpf_map_delete_elem(&syscalls, &pid_tgid);
+#endif
 
         monitor_syscalls(event_type, -1);
         return syscall;
