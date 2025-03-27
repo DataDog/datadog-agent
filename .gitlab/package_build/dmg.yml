@@ -136,41 +136,40 @@ new-agent_dmg-x64-a7:
     # - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
     # - ps aux | grep -i finder
     # - cp -r /Volumes/Agent volume
-    - set +e
-    - |
-      sudo osascript -e '
-        tell application "Finder"
-          activate
-        end tell'
-      echo $?
-    - |
-      sudo osascript -e '
-        tell application "Finder"
-          activate
+    # - set +e
+    # - |
+    #   sudo osascript -e '
+    #     tell application "Finder"
+    #       activate
+    #     end tell'
+    #   echo $?
+    # - |
+    #   sudo osascript -e '
+    #     tell application "Finder"
+    #       activate
 
-          tell disk "Agent"
+    #       tell disk "Agent"
+    #         open
+    #         set current view of container window to icon view
+    #       end tell
+    #     end tell'
+    #   echo $?
+    # - |
+    #   osascript -e '
+    #     tell application "Finder"
+    #       activate
+    #     end tell'
+    #   echo $?
+    - |
+      osascript -e '
+        tell application "Finder"
+          -- activate
+
+          tell disk "Macintosh HD"
             open
             set current view of container window to icon view
           end tell
         end tell'
-      echo $?
-    - |
-      osascript -e '
-        tell application "Finder"
-          activate
-        end tell'
-      echo $?
-    - |
-      osascript -e '
-        tell application "Finder"
-          activate
-
-          tell disk "Agent"
-            open
-            set current view of container window to icon view
-          end tell
-        end tell'
-      echo $?
     - exit
 
     # If 1, will isolate the build environment
