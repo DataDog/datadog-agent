@@ -108,8 +108,8 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 				filter: deps.Params.Filter,
 				Config: pkgconfigsetup.Datadog(),
 			},
-			Catalog:   workloadmeta.Remote,
-			AuthToken: deps.At,
+			Catalog:  workloadmeta.Remote,
+			AuthComp: deps.At,
 		},
 	}, nil
 }

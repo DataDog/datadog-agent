@@ -22,7 +22,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const dummySubscriber = "dummy-subscriber"
@@ -245,13 +246,12 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Create Auth Token for the client
-			authtokenmock.New(t)
-
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,
 				"process_config.run_in_core_agent.enabled": false,
 			}
+
+			var at option.Option[authtoken.Component]
 
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
@@ -259,6 +259,7 @@ func TestCollection(t *testing.T) {
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
+				fx.Populate(&at),
 			))
 
 			time.Sleep(time.Second)
@@ -292,6 +293,7 @@ func TestCollection(t *testing.T) {
 					port:   port,
 				},
 				Insecure: true,
+				AuthComp: at,
 			}
 
 			mockStore.Notify(test.preEvents)

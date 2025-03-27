@@ -124,7 +124,7 @@ func NewCollector(at option.Option[authtoken.Component]) (workloadmeta.Collector
 			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
 			Insecure:      true, // wlm extractor currently does not support TLS
-			AuthToken:     at,
+			AuthComp:      at,
 		},
 	}, nil
 }

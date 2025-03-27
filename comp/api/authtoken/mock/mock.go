@@ -15,12 +15,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	authtokeninterface "github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -64,6 +66,13 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 	})
 
 	return ts
+}
+
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(func(t testing.TB) authtokeninterface.Component { return New(t) }),
+		fxutil.ProvideOptional[authtokeninterface.Component](),
+	)
 }
 
 // New returns a new authtoken mock

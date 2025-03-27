@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/fx"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -42,6 +43,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
+		authtokenmock.Module(),
 	)
 }
 

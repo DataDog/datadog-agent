@@ -189,7 +189,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	authtokenmock.New(t)
+	at := authtokenmock.New(t)
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -224,6 +224,7 @@ func TestCollection(t *testing.T) {
 			port: port,
 		},
 		Insecure: true,
+		AuthComp: at.Optional(),
 	}
 
 	// workloadmeta client store

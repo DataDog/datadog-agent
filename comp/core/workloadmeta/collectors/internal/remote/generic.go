@@ -83,7 +83,8 @@ type GenericCollector struct {
 	cancel context.CancelFunc
 
 	Insecure  bool // for testing
-	AuthToken option.Option[authtoken.Component]
+	AuthComp  option.Option[authtoken.Component]
+	authToken string
 }
 
 // Start starts the generic collector
@@ -91,6 +92,12 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	if !c.StreamHandler.IsEnabled() {
 		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
 	}
+
+	authComp, ok := c.AuthComp.Get()
+	if !ok {
+		return log.Error("no auth component found")
+	}
+	c.authToken = authComp.Get()
 
 	c.store = store
 
@@ -143,11 +150,6 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	expBackoff.MaxInterval = 5 * time.Minute
 	expBackoff.MaxElapsedTime = maxElapsed
 
-	auth, ok := c.AuthToken.Get()
-	if !ok {
-		return log.Error("no auth component found")
-	}
-
 	return backoff.Retry(func() error {
 		select {
 		case <-c.ctx.Done():
@@ -162,7 +164,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", auth.Get()), // TODO IPC: Remove this raw usage of the auth token
+						fmt.Sprintf("Bearer %s", c.authToken), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),
