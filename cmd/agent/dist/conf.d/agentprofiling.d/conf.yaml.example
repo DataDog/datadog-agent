@@ -6,11 +6,12 @@ init_config: {}
 instances:
   - 
 
-    ## @param memory_threshold - integer - required - default: 0
-    ## Set to a value in bytes. When this check runs, it will check if the Core Agent's memory usage is above this threshold.
+    ## @param memory_threshold - integer - required - default: "0"
+    ## Set to either a size (for example, 10MB) or provide value in bytes (for example, 10485760). 
+    ## When this check runs, it will check if the Core Agent's memory usage is above this threshold.
     ## If the threshold is exceeded, the check will generate a flare with memory and CPU profiles.
     #
-    # memory_threshold: 0
+    # memory_threshold: "0"
 
     ## @param user_email - string - optional - default: 0
     ## Set to a value in percent. When this check runs, it will check if the Core Agent's CPU usage is above this threshold.

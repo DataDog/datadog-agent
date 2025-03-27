@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -37,7 +38,7 @@ const (
 
 // AgentProfilingConfig is the configuration for the agentprofiling check
 type AgentProfilingConfig struct {
-	MemoryThreshold int    `yaml:"memory_threshold"`
+	MemoryThreshold string `yaml:"memory_threshold"`
 	CPUThreshold    int    `yaml:"cpu_threshold"`
 	TicketID        string `yaml:"ticket_id"`
 	UserEmail       string `yaml:"user_email"`
@@ -50,6 +51,9 @@ type AgentProfilingCheck struct {
 	profileCaptured bool
 	flareComponent  flare.Component
 	agentConfig     config.Component
+	lastCPUTimes    *cpu.TimesStat
+	lastCheckTime   time.Time
+	memoryThreshold uint // Parsed memory threshold in bytes
 }
 
 // Factory creates a new instance of the agentprofiling check
@@ -72,7 +76,7 @@ func newCheck(flareComponent flare.Component, agentConfig config.Component) chec
 // Parse parses the configuration for the agentprofiling check
 func (c *AgentProfilingConfig) Parse(data []byte) error {
 	// default values
-	c.MemoryThreshold = 0
+	c.MemoryThreshold = "0"
 	c.CPUThreshold = 0
 	c.TicketID = ""
 	c.UserEmail = ""
@@ -86,7 +90,43 @@ func (m *AgentProfilingCheck) Configure(senderManager sender.SenderManager, _ ui
 		return err
 	}
 
-	return m.instance.Parse(config)
+	err = m.instance.Parse(config)
+	if err != nil {
+		return err
+	}
+
+	// Parse the memory threshold into bytes
+	m.memoryThreshold = m.agentConfig.GetSizeInBytes("memory_threshold")
+	return nil
+}
+
+// calculateCPUPercentage calculates the CPU percentage since the last check
+func (m *AgentProfilingCheck) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
+	if m.lastCPUTimes == nil {
+		m.lastCPUTimes = currentTimes
+		m.lastCheckTime = time.Now()
+		return 0.0
+	}
+
+	// Calculate time elapsed since last check
+	elapsed := time.Since(m.lastCheckTime).Seconds()
+	if elapsed <= 0 {
+		return 0.0
+	}
+
+	// Calculate CPU time delta
+	userDelta := currentTimes.User - m.lastCPUTimes.User
+	systemDelta := currentTimes.System - m.lastCPUTimes.System
+	totalDelta := userDelta + systemDelta
+
+	// Calculate percentage
+	cpuPercent := (totalDelta / elapsed) * 100.0
+
+	// Update last values
+	m.lastCPUTimes = currentTimes
+	m.lastCheckTime = time.Now()
+
+	return cpuPercent
 }
 
 // Run runs the agentprofiling check
@@ -98,33 +138,31 @@ func (m *AgentProfilingCheck) Run() error {
 	}
 
 	// Exit early if both thresholds are disabled
-	if m.instance.MemoryThreshold <= 0 && m.instance.CPUThreshold <= 0 {
+	if m.instance.MemoryThreshold == "0" && m.instance.CPUThreshold <= 0 {
 		log.Debugf("Memory and CPU profile thresholds are disabled, skipping check.")
 		return nil
 	}
 
 	// Get Agent memory usage
 	var processMemoryMB float64
-	if m.instance.MemoryThreshold > 0 {
+	if m.instance.MemoryThreshold != "0" {
 		// Get the current process (agent)
 		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
-			log.Errorf("Failed to get agent process: %s", err)
-			return err
+			return fmt.Errorf("Failed to get agent process: %s", err)
 		}
 
 		// Get process memory info
 		memInfo, err := p.MemoryInfo()
 		if err != nil {
-			log.Errorf("Failed to get agent memory info: %s", err)
-			return err
+			return fmt.Errorf("Failed to get agent memory info: %s", err)
 		}
 
 		// RSS (Resident Set Size) represents the total memory allocated to the process
 		// This includes all memory: Go heap, native libraries, and other allocations
 		processMemoryMB = float64(memInfo.RSS) / MB
 
-		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", processMemoryMB, float64(m.instance.MemoryThreshold)/MB)
+		log.Infof("Memory usage check - Current: %.2f MB, Threshold: %.2f MB", processMemoryMB, float64(m.memoryThreshold)/MB)
 	}
 
 	// Get Agent CPU usage
@@ -133,35 +171,31 @@ func (m *AgentProfilingCheck) Run() error {
 		// Get the current process (agent)
 		p, err := process.NewProcess(int32(os.Getpid()))
 		if err != nil {
-			log.Errorf("Failed to get agent process: %s", err)
-			return err
+			return fmt.Errorf("Failed to get agent process: %s", err)
 		}
 
 		// Get the total CPU time used by the process
 		cpuTimes, err := p.Times()
 		if err != nil {
-			log.Errorf("Failed to get agent CPU times: %s", err)
-			return err
+			return fmt.Errorf("Failed to get agent CPU times: %s", err)
 		}
 
-		// Calculate CPU percentage over the last 15 seconds
-		// This gives us a measurement that is closer to default metric system.cpu.user
-		currentCPU = (cpuTimes.User + cpuTimes.System) / 15.0 * 100.0
+		// Calculate CPU percentage since last check
+		currentCPU = m.calculateCPUPercentage(cpuTimes)
 
 		log.Infof("CPU usage check - Current: %.2f%%, Threshold: %d%%", currentCPU, m.instance.CPUThreshold)
 	}
 
 	// Exit early if usage is below thresholds
-	if processMemoryMB < float64(m.instance.MemoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
-		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.instance.MemoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
+	if processMemoryMB < float64(m.memoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
+		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.memoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
 		return nil
 	}
 
 	// If either memory or CPU exceeds threshold, generate flare
 	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Generating flare.", processMemoryMB, currentCPU)
 	if err := m.generateFlare(); err != nil {
-		log.Errorf("Failed to generate flare: %s", err)
-		return err
+		return fmt.Errorf("Failed to generate flare: %w", err)
 	}
 
 	return nil
@@ -169,13 +203,11 @@ func (m *AgentProfilingCheck) Run() error {
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
 func (m *AgentProfilingCheck) generateFlare() error {
-	// Skip flare generation when running via 'agent check' command
-	for _, arg := range os.Args {
-		if arg == "check" {
-			log.Info("Skipping flare generation when running via 'agent check' command")
-			m.profileCaptured = true
-			return nil
-		}
+	// Skip flare generation if flareComponent is not available
+	if m.flareComponent == nil {
+		log.Info("Skipping flare generation: flare component not available")
+		m.profileCaptured = true
+		return nil
 	}
 
 	// Prepare flare arguments

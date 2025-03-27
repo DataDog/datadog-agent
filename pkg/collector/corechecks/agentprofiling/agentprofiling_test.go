@@ -30,7 +30,7 @@ func createTestCheck(t *testing.T) *AgentProfilingCheck {
 func TestConfigParse(t *testing.T) {
 	check := createTestCheck(t)
 	config := []byte(`
-memory_threshold: 10485760
+memory_threshold: "10MB"
 cpu_threshold: 30
 ticket_id: "12345678"
 user_email: "test@datadoghq.com"
@@ -39,7 +39,7 @@ user_email: "test@datadoghq.com"
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err := check.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
 	require.NoError(t, err)
-	assert.Equal(t, 10485760, check.instance.MemoryThreshold)
+	assert.Equal(t, "10MB", check.instance.MemoryThreshold)
 	assert.Equal(t, 30, check.instance.CPUThreshold)
 	assert.Equal(t, "12345678", check.instance.TicketID)
 	assert.Equal(t, "test@datadoghq.com", check.instance.UserEmail)
@@ -48,7 +48,7 @@ user_email: "test@datadoghq.com"
 // TestZeroThresholds tests that the flare is not generated when thresholds are set to zero
 func TestZeroThresholds(t *testing.T) {
 	check := createTestCheck(t)
-	check.instance.MemoryThreshold = 0
+	check.instance.MemoryThreshold = "0"
 	check.instance.CPUThreshold = 0
 
 	err := check.Run()
@@ -59,7 +59,7 @@ func TestZeroThresholds(t *testing.T) {
 // TestMemThreshold tests that the flare is generated when memory threshold is exceeded
 func TestMemThreshold(t *testing.T) {
 	check := createTestCheck(t)
-	check.instance.MemoryThreshold = 1 // 1 byte to force trigger
+	check.instance.MemoryThreshold = "1B" // 1 byte to force trigger
 
 	err := check.Run()
 	require.NoError(t, err)
