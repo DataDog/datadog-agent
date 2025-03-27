@@ -133,8 +133,9 @@ new-agent_dmg-x64-a7:
   #   - sudo ls /Volumes/Agent || true
   #   # TODO - sudo umount /Volumes/Agent || true
   script:
+    - ps aux | grep -i finder
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
-    - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
+    - /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder &
     - ps aux | grep -i finder
     - cp -r /Volumes/Agent volume
     - set +e
