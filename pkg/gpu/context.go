@@ -190,13 +190,18 @@ func (ctx *systemContext) fillDeviceInfo() error {
 func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
-	ctx.kernelCache.cleanDataForPid(pid)
+
+	if ctx.kernelCache != nil {
+		ctx.kernelCache.cleanDataForPid(pid)
+	}
 }
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
 // retaining unused data forever
 func (ctx *systemContext) cleanupOldEntries() {
-	ctx.kernelCache.cleanupOldEntries()
+	if ctx.kernelCache != nil {
+		ctx.kernelCache.cleanupOldEntries()
+	}
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given
