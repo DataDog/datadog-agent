@@ -52,6 +52,7 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
