@@ -131,9 +131,14 @@ new-agent_dmg-x64-a7:
   #   - sudo ls /Volumes/Agent || true
   #   # TODO - sudo umount /Volumes/Agent || true
   script:
-    - whoami
     - ps aux | grep -i finder
     - ls /System/Library/CoreServices/Finder.app/Contents/MacOS
+    - |
+      osascript -e '
+        set myFile to open for access "hello" with write permission
+        write "hello world" to myFile
+        close access myFile
+      '
     - |
       osascript -e '
         tell application "Finder"
