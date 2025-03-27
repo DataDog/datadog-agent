@@ -681,8 +681,15 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 			if isInheritedLayer {
 				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
 			}
-			digest = inspect.RootFS.Layers[inspectIdx]
-			inspectIdx++
+
+			// Check that the index is not out of range to avoid a panic
+			if inspectIdx < len(inspect.RootFS.Layers) {
+				digest = inspect.RootFS.Layers[inspectIdx]
+				inspectIdx++
+			} else {
+				log.Warnf("unable to assign a digest for history layer \"%s\", all have been assigned already", history[i].CreatedBy)
+			}
+
 		}
 
 		layer := workloadmeta.ContainerImageLayer{

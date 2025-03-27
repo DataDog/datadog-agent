@@ -179,6 +179,60 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 			expected: []workloadmeta.ContainerImageLayer{},
 		},
+		{
+			name: "Number of assignable history layers exceeds inspect layers and results in warning",
+			history: []image.HistoryResponseItem{
+				{
+					Size:      nonEmptySize,
+					CreatedBy: cmd,
+					Created:   baseTimeUnix,
+				},
+				{
+					Size:      nonEmptySize,
+					CreatedBy: cmd,
+					Created:   baseTimeUnix,
+				},
+				{
+					Size:      nonEmptySize,
+					CreatedBy: cmd,
+					Created:   baseTimeUnix,
+				},
+			},
+			inspect: types.ImageInspect{
+				RootFS: types.RootFS{
+					Layers: []string{"1", "2"},
+				},
+			},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    "1",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+				{
+					Digest:    "2",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+				{
+					Digest:    "",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
