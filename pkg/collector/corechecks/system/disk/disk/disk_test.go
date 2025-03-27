@@ -1299,6 +1299,53 @@ file_system_include:
 	assert.NotNil(t, err)
 }
 
+func TestGivenADiskCheckWithMountPointGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithBinfmt_miscMountPoints(t *testing.T) {
+	setupDefaultMocks()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "first",
+				Mountpoint: "/host/proc/sys/fs/binfmt_misc",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "second",
+				Mountpoint: "/proc/sys/fs/binfmt_misc",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	}
+	disk.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/host/proc/sys/fs/binfmt_misc",
+			Fstype:            "ext4",
+			Total:             100000000000, // 100 GB
+			Free:              30000000000,  // 30 GB
+			Used:              70000000000,  // 70 GB
+			UsedPercent:       70.0,
+			InodesTotal:       1000000,
+			InodesUsed:        500000,
+			InodesFree:        500000,
+			InodesUsedPercent: 50.0,
+		}, nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:first", "device_name:first"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:first", "device_name:first"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:first", "device_name:first"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:second", "device_name:second"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:second", "device_name:second"})
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:second", "device_name:second"})
+}
+
 func TestGivenADiskCheckWithMountPointGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
