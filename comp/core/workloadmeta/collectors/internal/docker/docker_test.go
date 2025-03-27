@@ -180,7 +180,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			expected: []workloadmeta.ContainerImageLayer{},
 		},
 		{
-			name: "Number of assignable history layers exceeds inspect layers and results in warning",
+			name: "Number of assignable history layers exceeds inspect layers does not result in panic",
 			history: []image.HistoryResponseItem{
 				{
 					Size:      nonEmptySize,
