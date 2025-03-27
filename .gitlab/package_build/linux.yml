@@ -8,8 +8,8 @@
   # Thus, we move the artifacts at the end in a gitlab-friendly dir.
   - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   - mkdir -p /tmp/system-probe
-  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${PACKAGE_ARCH}${CLANG_BUILD_VERSION}" /tmp/system-probe/clang-bpf
-  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
+  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/clang-bpf
+  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
   - dda inv -- -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
