@@ -162,15 +162,15 @@ additional_endpoints:
 
 	// Wait for the agent to send data to each endpoint and verify the API keys
 	endpoints := []string{
-		"intake",
-		"api/v2/series",
+		"/intake",
+		"/api/v2/series",
 	}
 	fakeIntakeURL := v.Env().FakeIntake.Client().URL()
 	v.T().Logf("WACKTEST99 FAKEINTAKE URL IS : %s", fakeIntakeURL)
 	for _, endpoint := range endpoints {
 		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", fakeIntakeURL, endpoint)
 		v.T().Logf("WACKTEST2 Checking FakeIntake payloads for endpoint: %s", endpoint)
-
+		v.T().Logf("WACKTEST555 URL IS: %s", url)
 		// Wait for payloads to appear in FakeIntake
 		assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 			// First check if we have any payloads
