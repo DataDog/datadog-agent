@@ -682,7 +682,7 @@ func GetWiFiInfo() (WiFiInfo, error) {
 				Ssid:         wi.ssid,
 				Bssid:        wi.bssid,
 				Channel:      int(wi.channel),
-				Noise:        0,
+				Noise:        0, // Noise (aka Interference or SNR) are not available on Windows (not found in API or other methods)
 				TransmitRate: float64(wi.txRate),
 				MacAddress:   wi.adapterMac,
 				PHYMode:      wi.phy,
