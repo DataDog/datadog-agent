@@ -68,7 +68,7 @@ TEST_TIMEOUTS = {
     "pkg/network/usm$": "55m",
     "pkg/network/usm/tests$": "55m",
 }
-CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
+CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 11, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 
 is_windows = sys.platform == "win32"
