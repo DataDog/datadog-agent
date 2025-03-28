@@ -17,7 +17,7 @@ import (
 )
 
 // ToDDNVMLDevices converts a slice of nvml.Device to a slice of ddnvml.Device
-func ToDDNVMLDevices(t *testing.T, devices []nvml.Device) []*ddnvml.Device {
+func ToDDNVMLDevices(t testing.TB, devices []nvml.Device) []*ddnvml.Device {
 	ddnvmlDevices := make([]*ddnvml.Device, len(devices))
 	for i, dev := range devices {
 		dev, err := ddnvml.NewDevice(dev)
@@ -28,7 +28,7 @@ func ToDDNVMLDevices(t *testing.T, devices []nvml.Device) []*ddnvml.Device {
 }
 
 // GetDDNVMLMocksWithIndexes returns a slice of ddnvml.Device mocks with the given indexes
-func GetDDNVMLMocksWithIndexes(t *testing.T, indexes ...int) []*ddnvml.Device {
+func GetDDNVMLMocksWithIndexes(t testing.TB, indexes ...int) []*ddnvml.Device {
 	devices := make([]*ddnvml.Device, len(indexes))
 	for i, idx := range indexes {
 		devices[i] = GetDDNVMLMockWithIndex(t, idx)
@@ -38,7 +38,7 @@ func GetDDNVMLMocksWithIndexes(t *testing.T, indexes ...int) []*ddnvml.Device {
 
 // GetDDNVMLMockWithIndex returns a ddnvml.Device mock with the given index, based on the data
 // present in mocks.go
-func GetDDNVMLMockWithIndex(t *testing.T, index int) *ddnvml.Device {
+func GetDDNVMLMockWithIndex(t testing.TB, index int) *ddnvml.Device {
 	dev := GetDeviceMock(index)
 	dddev, err := ddnvml.NewDevice(dev)
 	require.NoError(t, err, "error converting nvml.Device to ddnvml.Device")
