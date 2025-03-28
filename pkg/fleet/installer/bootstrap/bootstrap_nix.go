@@ -54,15 +54,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
-
-	// Backwards compatibility: if the installer binary is not found in the expected path, return ourselves
 	if _, err := os.Stat(installerBinPath); err != nil {
-		if os.IsNotExist(err) {
-			installerBinPath, err = os.Executable()
-			if err != nil {
-				return nil, fmt.Errorf("could not get installer executable path: %w", err)
-			}
-		}
+		return nil, err
 	}
 	return exec.NewInstallerExec(env, installerBinPath), nil
 }

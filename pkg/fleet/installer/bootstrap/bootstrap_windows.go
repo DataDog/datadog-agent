@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -42,25 +43,12 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		// Fall back to the current installer if the download fails
-		cmd, err = getLocalInstaller(env)
-		if err != nil {
-			return fmt.Errorf("failed to get installer executor: %w", err)
-		}
+		return fmt.Errorf("failed to download installer: %w", err)
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
 	}
 	return cmd.ForceInstall(ctx, url, nil)
-}
-
-// getLocalInstaller returns an installer executor from the current binary
-func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
-	installerBin, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
-	}
-	return iexec.NewInstallerExec(env, installerBin), nil
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
@@ -148,10 +136,21 @@ func getInstallerFromOCI(tmpDir string) (string, error) {
 	return installers[0], nil
 }
 
-func getInstallerOCI(_ context.Context, env *env.Env) string {
-	version := "latest"
-	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
-		version = env.DefaultPackagesVersionOverride[AgentPackage]
+func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
+	agentVersion := env.GetAgentVersion()
+	if agentVersion != "latest" {
+		ver, err := version.New(agentVersion, "")
+		if err != nil {
+			return "", fmt.Errorf("failed to parse agent version: %w", err)
+		}
+		if ver.Major < 7 || (ver.Major == 7 && ver.Minor < 65) {
+			return "", fmt.Errorf("agent version %s does not support fleet automation", agentVersion)
+		}
 	}
-	return oci.PackageURL(env, AgentPackage, version)
+	// This override is used for testing purposes
+	// It allows us to specify a pipeline version to install
+	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
+		agentVersion = env.DefaultPackagesVersionOverride[AgentPackage]
+	}
+	return oci.PackageURL(env, AgentPackage, agentVersion), nil
 }
