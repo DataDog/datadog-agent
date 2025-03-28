@@ -17,9 +17,9 @@ oracle:
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
     KUBERNETES_CPU_LIMIT: "3"
-    KUBERNETES_MEMORY_LIMIT: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "6Gi"
     KUBERNETES_SERVICE_CPU_REQUEST: "1"
-    KUBERNETES_SERVICE_MEMORY_LIMIT: "2Gi"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
