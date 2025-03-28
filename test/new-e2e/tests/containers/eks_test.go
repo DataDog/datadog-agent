@@ -37,3 +37,29 @@ func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
+
+func (suite *eksSuite) TestDogstatsdFargate() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				"^kube_deployment:dogstatsd-fargate$",
+				"^kube_namespace:workload-dogstatsd-fargate$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:`,
+				`^kube_qos:Burstable$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_replica_set:dogstatsd-fargate-`,
+				`^kube_deployment:dogstatsd-fargate`,
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^kube_namespace:workload-dogstatsd-fargate$`,
+				`^pod_phase:running$`,
+				`^kube_priority_class:system-node-critical$`,
+				`^series:`,
+			},
+		},
+	})
+}
