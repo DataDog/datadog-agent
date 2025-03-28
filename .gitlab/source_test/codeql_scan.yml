@@ -42,6 +42,7 @@ run_codeql_scan:
     - $CODEQL database analyze ./tmp/datadog-agent.codeql/go "$GO_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif" --verbosity=progress+++
     - mv /tmp/go.sarif .
   artifacts:
+    when: always
     paths:
       - tmp/datadog-agent.codeql
       - go.sarif
