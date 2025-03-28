@@ -45,8 +45,9 @@ type cudaEventConsumer struct {
 }
 
 type cudaEventConsumerTelemetry struct {
-	events      telemetry.Counter
-	eventErrors telemetry.Counter
+	events             telemetry.Counter
+	eventErrors        telemetry.Counter
+	eventCounterByType map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
@@ -65,9 +66,18 @@ func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollectio
 func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTelemetry {
 	subsystem := gpuTelemetryModule + "__consumer"
 
+	events := tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer")
+	eventCounterByType := make(map[gpuebpf.CudaEventType]telemetry.SimpleCounter)
+
+	for i := 0; i < int(gpuebpf.CudaEventTypeCount); i++ {
+		eventType := gpuebpf.CudaEventType(i)
+		eventCounterByType[eventType] = events.WithTags(map[string]string{"event_type": eventType.String()})
+	}
+
 	return &cudaEventConsumerTelemetry{
-		events:      tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer"),
-		eventErrors: tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		events:             events,
+		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		eventCounterByType: eventCounterByType,
 	}
 }
 
@@ -155,7 +165,7 @@ func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
 
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
-	c.telemetry.events.Inc(eventType.String())
+	c.telemetry.eventCounterByType[eventType].Inc()
 	if isStreamSpecificEvent(eventType) {
 		return c.handleStreamEvent(header, dataPtr, dataLen)
 	}

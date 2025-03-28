@@ -43,11 +43,12 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
+	telemetryMock := testutil.GetTelemetryMock(t)
+	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), telemetryMock)
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
+	handlers := newStreamCollection(ctx, telemetryMock)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
 	events := testutil.GetGPUTestEvents(t, testutil.DataSamplePytorchBatchedKernels)
@@ -61,6 +62,16 @@ func TestPytorchBatchedKernels(t *testing.T) {
 
 	// Check that the consumer has the expected number of streams
 	require.Equal(t, 1, handlers.streamCount())
+
+	telemetryMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+	require.Equal(t, 4, len(telemetryMetrics)) // one for each event type
+	expectedEventsByType := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].EventByType
+	for _, metric := range telemetryMetrics {
+		eventTypeTag := metric.Tags()["event_type"]
+		require.NotEmpty(t, eventTypeTag)
+		require.Equal(t, expectedEventsByType[eventTypeTag], int(metric.Value()))
+	}
 
 	// Check the state of those streams. As there's only one we can just get it
 	// by iterating over the map
