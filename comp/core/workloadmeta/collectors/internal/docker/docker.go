@@ -665,6 +665,22 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		return layers
 	}
 
+	// Loop through history and check how many layers should be assigned a corresponding docker inspect digest
+	layersWithDigests := 0
+	for _, layer := range history {
+		if isInheritedLayer(layer) || layer.Size > 0 {
+			layersWithDigests++
+		}
+	}
+
+	// If the number of history layers with digests > the number of total digests, there was a problem, and we should
+	// not assign digests
+	shouldAssignDigests := true
+	if layersWithDigests > len(inspect.RootFS.Layers) {
+		log.Warn("Detected more history layers with possible digests than inspect layers, will not attempt to assign digests")
+		shouldAssignDigests = false
+	}
+
 	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
 	// NOTE: Docker returns the RootFS layers in chronological order
 	inspectIdx := 0
@@ -672,25 +688,19 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 	// Docker returns the history layers in reverse-chronological order
 	for i := len(history) - 1; i >= 0; i-- {
 		created := time.Unix(history[i].Created, 0)
-
 		isEmptyLayer := history[i].Size == 0
 		isInheritedLayer := isInheritedLayer(history[i])
 
 		digest := ""
-		if isInheritedLayer || !isEmptyLayer {
+		if shouldAssignDigests && (isInheritedLayer || !isEmptyLayer) {
 			if isInheritedLayer {
 				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
 			}
-
-			// Check that the index is not out of range to avoid a panic
-			if inspectIdx >= len(inspect.RootFS.Layers) {
-				log.Warn("cannot accurately assign digests to history layers, aborting")
-				return []workloadmeta.ContainerImageLayer{}
-			}
-
 			digest = inspect.RootFS.Layers[inspectIdx]
 			inspectIdx++
-
+		} else {
+			// Fallback to previous behavior
+			digest = history[i].ID
 		}
 
 		layer := workloadmeta.ContainerImageLayer{

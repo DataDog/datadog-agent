@@ -191,6 +191,7 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Size:      nonEmptySize,
 					CreatedBy: cmd,
 					Created:   baseTimeUnix,
+					ID:        "abc",
 				},
 			},
 			inspect: types.ImageInspect{
@@ -198,14 +199,32 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 					Layers: []string{"1"},
 				},
 			},
-			expected: []workloadmeta.ContainerImageLayer{},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    "",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+				{
+					Digest:    "abc",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			layers := layersFromDockerHistoryAndInspect(tt.history, tt.inspect)
 			assert.ElementsMatchf(t, tt.expected, layers, "Expected layers and actual layers returned do not match")
-
 		})
 	}
 }
