@@ -160,9 +160,10 @@ new-agent_dmg-x64-a7:
       sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
       sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
       echo sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
+    - reboot
 
-    - |
-      brew uninstall pstree -y
+    # - |
+    #   brew uninstall pstree -y
     # - python3 -c "import os; os.system(\"osascript -e 'tell application \\\"Finder\\\"\n tell disk \\\"Macintosh HD\\\"\n open \n set current view of container window to icon view \nend tell \nend tell'\")" || echo DOESNT WORK
     # - |
     #   echo Setting up venv
