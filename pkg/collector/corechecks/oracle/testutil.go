@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +68,7 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 		}
 		serviceName := os.Getenv(serviceNameEnvVariable)
 		if serviceName == "" {
-			serviceName = "XE"
+			serviceName = "FREEPDB1"
 		}
 
 		username := os.Getenv(userEnvVariable)
@@ -126,6 +127,7 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 
 func getSysConnection(t *testing.T) (*sql.DB, error) {
 	connection := getConnectData(t, useSysUser)
+	log.Infof("%v", connection)
 	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
 	conn, err := sql.Open("oracle", databaseUrl)
 	return conn, err

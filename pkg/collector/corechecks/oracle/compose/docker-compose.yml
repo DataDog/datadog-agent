@@ -1,7 +1,7 @@
 services:
   oracle:
-    platform: linux/amd64
-    image: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION:-21.3.0-xe}"
+    platform: linux/arm64
+    image: "registry.ddbuild.io/images/mirror/gvenzl/oracle-free:${DBMS_VERSION:-23.5-slim-faststart}"
     ports:
       - "1521:1521"
     healthcheck:
@@ -13,4 +13,4 @@ services:
     # We could just mount init.db but we mimic Gitlab's limitations
     # and rely on TestMain to run the relevant sql
     environment:
-      ORACLE_PWD: datad0g
+      ORACLE_PASSWORD: datad0g
