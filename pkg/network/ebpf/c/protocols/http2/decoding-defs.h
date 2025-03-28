@@ -212,10 +212,28 @@ typedef struct {
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
 
+typedef enum {
+    kIncompleteFrameUnknown,
+    kIncompleteFrameHeader,
+    kIncompleteFramePayload,
+} incomplete_frame_type_t;
+
 typedef struct {
-    __u32 remainder;
-    __u32 header_length;
-    char buf[HTTP2_FRAME_HEADER_SIZE];
+    union {
+        // Incomplete frame header.
+        struct {
+            char buf[HTTP2_FRAME_HEADER_SIZE];
+            __u8 header_bytes_left;
+        };
+        // Incomplete frame payload.
+        struct {
+            http2_frame_t frame;
+            bool interesting_frame;
+            __u32 payload_bytes_left;
+        };
+    };
+
+    incomplete_frame_type_t type;
 } incomplete_frame_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
