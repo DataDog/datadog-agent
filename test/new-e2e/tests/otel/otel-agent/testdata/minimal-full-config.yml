@@ -18,13 +18,6 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
-    auth: null
-    compression: ""
-    compression_params:
-      level: 0
-    cookies: null
-    disable_keep_alives: false
-    endpoint: ""
     headers: {}
     host_metadata:
       enabled: false
@@ -32,17 +25,13 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
-    http2_ping_timeout: 0s
-    http2_read_idle_timeout: 0s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
       compression_level: 6
       dump_payloads: false
       use_compression: true
-    max_conns_per_host: 0
     max_idle_conns: 100
-    max_idle_conns_per_host: 0
     metrics:
       delta_ttl: 3600
       histograms:
@@ -57,8 +46,6 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
-    proxy_url: ""
-    read_buffer_size: 0
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -73,7 +60,6 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls: {}
     traces:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
@@ -84,36 +70,25 @@ exporters:
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0
-    write_buffer_size: 0
 extensions:
   ddflare/dd-autoconfigured:
-    auth: null
-    compression_algorithms: []
     cors: null
     endpoint: localhost:7777
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     read_header_timeout: 0s
-    read_timeout: 0s
     response_headers: {}
     tls: null
     write_timeout: 0s
   health_check/dd-autoconfigured:
-    auth: null
     check_collector_pipeline:
       enabled: false
       exporter_failure_threshold: 5
       interval: 5m
-    compression_algorithms: []
     cors: null
     endpoint: localhost:13133
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     path: /
     read_header_timeout: 0s
-    read_timeout: 0s
     response_body: null
     response_headers: {}
     tls: null
@@ -124,15 +99,10 @@ extensions:
     mutex_profile_fraction: 0
     save_to_file: ""
   zpages/dd-autoconfigured:
-    auth: null
-    compression_algorithms: []
     cors: null
     endpoint: localhost:55679
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     read_header_timeout: 0s
-    read_timeout: 0s
     response_headers: {}
     tls: null
     write_timeout: 0s
@@ -162,20 +132,12 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        auth: null
-        compression_algorithms: []
-        cors:
-          allowed_headers: []
-          allowed_origins: []
-          max_age: 0
+        cors: {}
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
-        include_metadata: false
         logs_url_path: /v1/logs
-        max_request_body_size: 0
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        read_timeout: 0s
         response_headers: {}
         tls: null
         traces_url_path: /v1/traces
@@ -196,17 +158,15 @@ receivers:
       scrape_configs:
         - enable_compression: true
           enable_http2: true
-          fallback_scrape_protocol: PrometheusText1.0.0
+          fallback_scrape_protocol: PrometheusText0.0.4
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
+          metric_name_validation_scheme: legacy
           metrics_path: /metrics
           scheme: http
           scrape_interval: 1m
           scrape_protocols:
-            - OpenMetricsText1.0.0
-            - OpenMetricsText0.0.1
-            - PrometheusText1.0.0
             - PrometheusText0.0.4
           scrape_timeout: 10s
           static_configs:
@@ -266,24 +226,18 @@ service:
         - otlp
   telemetry:
     logs:
-      development: false
-      disable_caller: false
-      disable_stacktrace: false
       encoding: console
       error_output_paths:
         - stderr
-      initial_fields: {}
       level: info
       output_paths:
         - stderr
-      processors: []
       sampling:
         enabled: true
         initial: 10
         thereafter: 100
         tick: 10s
     metrics:
-      address: ""
       level: Normal
       readers:
         - pull:
@@ -296,8 +250,3 @@ service:
                 without_scope_info: true
                 without_type_suffix: true
                 without_units: true
-    resource: {}
-    traces:
-      level: Basic
-      processors: []
-      propagators: []

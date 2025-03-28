@@ -85,8 +85,29 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
+	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
+		var mappings []string
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.enabled_namespaces" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
+	config.ParseEnvAsStringSlice("apm_config.instrumentation.disabled_namespaces", func(in string) []string {
+		var mappings []string
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.disabled_namespaces" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+	config.ParseEnvAsMapStringInterface("apm_config.instrumentation.lib_versions", func(in string) map[string]interface{} {
+		var mappings map[string]interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.lib_versions" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
 	//                  will remain undocumented for the duration of the beta.
 	//                  We intend to only switch back to v1 if beta customers have issues

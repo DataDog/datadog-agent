@@ -5,6 +5,7 @@
 # .rpm: STEP 4 of 6
 
 INSTALL_DIR=/opt/datadog-agent
+CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
 stop_agent()
@@ -119,6 +120,9 @@ case "$*" in
         remove_run_dir
         remove_fips_module
         remove_persist_integration_files
+        rm "$CONFIG_DIR/install_info" || true
+        rm "$CONFIG_DIR/install.json" || true
+        rm -f "/usr/bin/datadog-agent"
     ;;
     1)
         # We're upgrading.

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"google.golang.org/genproto/googleapis/rpc/code"
-	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -134,22 +133,44 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 }
 
+/*
+The gRPC codes Google API checks for "CANCELLED". Sometimes we receive "Canceled" from upstream,
+sometimes "CANCELLED", which is why both spellings appear in the map.
+For multi-word codes, sometimes from upstream we receive them as one word, such as DeadlineExceeded.
+Google's API checks for strings with an underscore and in all caps, and would only recognize codes
+formatted like "ALREADY_EXISTS" or "DEADLINE_EXCEEDED"
+*/
+var grpcStatusMap = map[string]string{
+	"CANCELLED":          "1",
+	"CANCELED":           "1",
+	"INVALIDARGUMENT":    "3",
+	"DEADLINEEXCEEDED":   "4",
+	"NOTFOUND":           "5",
+	"ALREADYEXISTS":      "6",
+	"PERMISSIONDENIED":   "7",
+	"RESOURCEEXHAUSTED":  "8",
+	"FAILEDPRECONDITION": "9",
+	"OUTOFRANGE":         "11",
+	"DATALOSS":           "15",
+}
+
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
-	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
-	for _, key := range metaKeys {
+	for _, key := range statusCodeFields {
 		if strC, exists := meta[key]; exists && strC != "" {
 			c, err := strconv.ParseUint(strC, 10, 32)
 			if err == nil {
 				return strconv.FormatUint(c, 10)
 			}
+			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
 			strCUpper := strings.ToUpper(strC)
-			if strCUpper == "CANCELED" || strCUpper == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
-				return strconv.FormatInt(int64(codes.Canceled), 10)
+			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+				return statusCode
 			}
 
-			// If not integer, check for valid gRPC status string
+			// If not integer or canceled or multi-word, check for valid gRPC status string
 			if codeNum, found := code.Code_value[strCUpper]; found {
 				return strconv.Itoa(int(codeNum))
 			}
@@ -158,7 +179,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 		}
 	}
 
-	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
+	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
 		if code, ok := metrics[key]; ok {
 			return strconv.FormatUint(uint64(code), 10)
 		}

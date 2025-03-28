@@ -80,13 +80,16 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 
     switch (kafka_header->api_key) {
     case KAFKA_FETCH:
+        if (kafka_header->api_version < KAFKA_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+            return false;
+        }
         if (kafka_header->api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
             // Fetch request version 13 and above is not supported.
             return false;
         }
         break;
     case KAFKA_PRODUCE:
-        if (kafka_header->api_version == 0) {
+        if (kafka_header->api_version < KAFKA_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
             // We have seen some false positives when both request_api_version and request_api_key are 0,
             // so dropping support for this case
             return false;

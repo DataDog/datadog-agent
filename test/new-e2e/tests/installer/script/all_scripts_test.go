@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -65,9 +64,6 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 }
 
 func TestScripts(t *testing.T) {
-	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
-	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
-
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		if _, ok := os.LookupEnv("CI_COMMIT_SHA"); !ok {
 			t.Log("CI_COMMIT_SHA & E2E_PIPELINE_ID env var are not set, this test requires one of these two variables to be set to work")

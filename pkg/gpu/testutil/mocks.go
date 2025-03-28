@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 // Package testutil holds different utilities and stubs for testing
 package testutil
@@ -162,7 +162,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 }
 
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
-func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
+func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -170,7 +170,7 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
-func GetTelemetryMock(t *testing.T) telemetry.Component {
+func GetTelemetryMock(t testing.TB) telemetry.Component {
 	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 }
 

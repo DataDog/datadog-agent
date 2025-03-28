@@ -5,6 +5,7 @@ receivers:
       scrape_configs:
         - job_name: 'datadog-agent'
           scrape_interval: 60s
+          metric_name_validation_scheme: legacy
           static_configs:
             - targets: ['0.0.0.0:8888']
 
@@ -23,13 +24,9 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-  ddprofiling:
-    api: 
-      key: ggggg77777
-      site: datadoghq.eu
 
 service:
-  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, ddprofiling]
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
   pipelines:
     traces:
       receivers: [otlp]

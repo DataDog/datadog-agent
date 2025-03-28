@@ -6,7 +6,8 @@
   - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
   - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-  - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+  - dda self dep sync -f legacy-tasks -f legacy-notifications
 
 # Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
 .notify-job:
@@ -23,9 +24,10 @@ notify-on-tagged-success:
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
-    python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    dda self dep sync -f legacy-tasks -f legacy-notifications
     SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    invoke notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
+    dda inv notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
 
 notify:
   extends: .notify-job
@@ -39,8 +41,8 @@ notify:
   script:
     - !reference [.notify_setup]
     - !reference [.setup_agent_github_app]
-    - invoke -e notify.send-message -p $CI_PIPELINE_ID
-    - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
+    - dda inv -e notify.send-message -p $CI_PIPELINE_ID
+    - dda inv -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
   extends: .notify-job
@@ -50,17 +52,15 @@ send_pipeline_stats:
   dependencies: []
   script:
     - !reference [.notify_setup]
-    - invoke -e notify.send-stats
+    - dda inv -e notify.send-stats
 
 notify_github:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_main_or_release_branch]
-    - !reference [.except_no_tests_no_deploy]
-    - if: $RELEASE_VERSION_7 != ""
+    - !reference [.on_dev_branches]
+    - if: $RELEASE_VERSION != ""
       changes:
         paths:
           - '**/*.go'
@@ -76,14 +76,15 @@ notify_github:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
-    - echo "inv aws.create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
+    - echo "dda inv aws.create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
     - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
-    - inv -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
+    - dda inv -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
     - rm "$messagefile"
 
 notify_gitlab_ci_changes:
@@ -102,9 +103,10 @@ notify_gitlab_ci_changes:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
-    - inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
+    - dda inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -125,7 +127,7 @@ notify_failure_summary_on_pipeline:
     - !reference [.on_main_always]
   script:
     - !reference [.notify_setup]
-    - inv -e notify.failure-summary-upload-pipeline-data
+    - dda inv -e notify.failure-summary-upload-pipeline-data
 
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
@@ -141,12 +143,12 @@ notify_failure_summary_daily:
         exit
       fi
     # Daily
-    - inv -e notify.failure-summary-send-notifications --daily-summary
+    - dda inv -e notify.failure-summary-send-notifications --daily-summary
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
-        inv -e notify.failure-summary-send-notifications --weekly-summary
+        dda inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
 
 close_failing_tests_stale_issues:
@@ -168,5 +170,6 @@ close_failing_tests_stale_issues:
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt --break-system-packages # For Atlassian / Jira dependencies
-    - inv -e notify.close-failing-tests-stale-issues
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
+    - dda inv -e notify.close-failing-tests-stale-issues

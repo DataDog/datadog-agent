@@ -54,27 +54,27 @@ send_pkg_size:
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
 
     # Agent 7
-    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-    - inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-    - inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "dogstatsd" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "dogstatsd" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-    - inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "iot-agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "dogstatsd" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "iot-agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - dda inv package.send-size --flavor "dogstatsd" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - dda inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
 
 check_pkg_size:
@@ -85,8 +85,7 @@ check_pkg_size:
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success
       allow_failure: true
-    - !reference [.not_on_release_branch_or_tagged_commit]
-    - !reference [.except_mergequeue]
+    - !reference [.on_dev_branches]
     - when: on_success
   needs:
     - agent_deb-x64-a7
@@ -106,4 +105,4 @@ check_pkg_size:
     - iot_agent_rpm-arm64
   script:
     - !reference [.setup_agent_github_app]
-    - inv package.check-size
+    - dda inv package.check-size

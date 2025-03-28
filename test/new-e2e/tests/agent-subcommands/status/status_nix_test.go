@@ -79,3 +79,7 @@ func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 
 	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }
+
+func (v *linuxStatusSuite) TestDefaultInstallStatus() {
+	v.testDefaultInstallStatus([]string{"Status: Not running or unreachable"}, nil)
+}

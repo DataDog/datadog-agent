@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -31,6 +30,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	kubectlget "k8s.io/kubectl/pkg/cmd/get"
 	kubectlutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func dumpEKSClusterState(ctx context.Context, name string) (ret string, err error) {
@@ -104,6 +105,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 	ec2Client := awsec2.NewFromConfig(cfg)
 
 	user, _ := user.Current()
+	instanceName := name + "-aws-kind"
 	instancesDescription, err := ec2Client.DescribeInstances(ctx, &awsec2.DescribeInstancesInput{
 		Filters: []awsec2types.Filter{
 			{
@@ -116,7 +118,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 			},
 			{
 				Name:   pointer.Ptr("tag:Name"),
-				Values: []string{name + "-aws-kind"},
+				Values: []string{instanceName},
 			},
 		},
 	})
@@ -125,11 +127,18 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 	}
 
 	// instancesDescription.Reservations = []
-	if instancesDescription == nil || len(instancesDescription.Reservations) == 0 || (len(instancesDescription.Reservations) > 0 && len(instancesDescription.Reservations[0].Instances) != 1) {
-		return ret, fmt.Errorf("did not find exactly one instance for cluster %s", name)
+	if instancesDescription == nil {
+		return ret, fmt.Errorf("failed to describe instances, got nil result, err: %w", err)
+	} else if len(instancesDescription.Reservations) == 0 {
+		return ret, fmt.Errorf("did not find any reservations for cluster %s", instanceName)
+	} else if len(instancesDescription.Reservations[0].Instances) != 1 {
+		return ret, fmt.Errorf("did not find exactly one instance for cluster %s, found %d instead and %d reservations", instanceName, len(instancesDescription.Reservations[0].Instances), len(instancesDescription.Reservations))
 	}
 
 	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
+	if instanceIP == nil {
+		return ret, fmt.Errorf("failed to get private IP of instance")
+	}
 
 	auth := []ssh.AuthMethod{}
 

@@ -23,12 +23,20 @@ import (
 // configEvent maps service names to info about the service and their configurations
 func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
+	var inspectedAtLeastOneBinary bool
 	for i := range configEvent {
 		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
-			return fmt.Errorf("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+		} else {
+			inspectedAtLeastOneBinary = true
 		}
 	}
+
+	if !inspectedAtLeastOneBinary {
+		return fmt.Errorf("failed to inspect all tracked go binaries")
+	}
+
 	return nil
 }
 
@@ -60,6 +68,16 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	procInfo.TypeMap = typeMap
 
+	// Enforce limit on number of parameters
+	for funcName := range procInfo.TypeMap.Functions {
+		for i, param := range procInfo.TypeMap.Functions[funcName] {
+			if i >= ditypes.MaxFieldCount {
+				param.DoNotCapture = true
+				param.NotCaptureReason = ditypes.FieldLimitReached
+			}
+		}
+	}
+
 	fieldIDs := make([]bininspect.FieldIdentifier, 0)
 	for _, funcParams := range typeMap.Functions {
 		for _, param := range funcParams {
@@ -81,7 +99,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
-		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
 	return nil
@@ -208,16 +225,17 @@ func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Loc
 		}
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
+		locationToAssign := locations[locationCounter]
 		if len(current.ParameterPieces) != 0 &&
 			current.Kind != uint(reflect.Array) &&
-			current.Kind != uint(reflect.Pointer) {
+			current.Kind != uint(reflect.Pointer) &&
+			!(current.Kind == uint(reflect.Struct) && !locationToAssign.InReg) {
 			for i := range current.ParameterPieces {
 				stack = append(stack, current.ParameterPieces[len(current.ParameterPieces)-1-i])
 			}
 		} else {
 			// Location fields are directly assigned instead of setting the whole
 			// location field to preserve other fields
-			locationToAssign := locations[locationCounter]
 			if current.Location == nil {
 				current.Location = &ditypes.Location{}
 			}

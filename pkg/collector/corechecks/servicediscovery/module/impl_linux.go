@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -568,7 +569,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.Pid = int(proc.Pid)
 	ctx.ContextMap = contextMap
 
-	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx)
 
 	name := nameMeta.DDService
@@ -614,7 +615,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	ns, err := kernel.GetNetNsInoFromPid(context.procRoot, int(pid))
+	ns, err := netns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
 		return nil
 	}
@@ -891,15 +892,16 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	service.ContainerID = id
-
-	// We checked the container tags before, no need to do it again.
-	if service.CheckedContainerData {
+	container, ok := containers[id]
+	if !ok {
 		return
 	}
 
-	container, ok := containers[id]
-	if !ok {
+	service.ContainerID = id
+	service.ContainerTags = container.Tags
+
+	// We checked the container tags before, no need to do it again.
+	if service.CheckedContainerData {
 		return
 	}
 

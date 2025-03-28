@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -33,14 +33,8 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 	return enrichedTags
 }
 
-func newFactory() exp.Factory {
-	return NewFactoryForAgent(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
-		return "", nil
-	}, nil, nil)
-}
-
 func TestNewFactory(t *testing.T) {
-	factory := newFactory()
+	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 	_, ok := factory.CreateDefaultConfig().(*ExporterConfig)
@@ -48,40 +42,40 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewMetricsExporter(t *testing.T) {
-	factory := newFactory()
+	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	exp, err := factory.CreateMetrics(context.Background(), set, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }
 
 func TestNewMetricsExporterInvalid(t *testing.T) {
-	factory := newFactory()
+	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
 
 	expCfg := cfg.(*ExporterConfig)
 	expCfg.Metrics.Metrics.HistConfig.Mode = "InvalidMode"
 
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	_, err := factory.CreateMetrics(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
 
 func TestNewTracesExporter(t *testing.T) {
-	factory := newFactory()
+	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	_, err := factory.CreateTraces(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
 
 func TestNewLogsExporter(t *testing.T) {
-	factory := newFactory()
+	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	_, err := factory.CreateLogs(context.Background(), set, cfg)
 	assert.Error(t, err)
 }

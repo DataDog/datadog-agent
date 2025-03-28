@@ -305,6 +305,7 @@ func TestInfoHandler(t *testing.T) {
 		"evp_proxy_allowed_headers": nil,
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
+		"obfuscation_version":       nil,
 		"config": map[string]interface{}{
 			"default_env":               nil,
 			"target_tps":                nil,

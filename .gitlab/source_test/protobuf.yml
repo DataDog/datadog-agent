@@ -4,5 +4,5 @@ protobuf_test:
   tags: ["arch:amd64"]
   needs: []
   script:
-    - inv install-tools
-    - inv -e protobuf.generate
+    - dda inv install-tools
+    - dda inv -e protobuf.generate

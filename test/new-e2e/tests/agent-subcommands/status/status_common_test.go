@@ -97,7 +97,7 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 	}, 2*time.Minute, 20*time.Second)
 }
 
-func (v *baseStatusSuite) TestDefaultInstallStatus() {
+func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processAgentNotContain []string) {
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
@@ -176,7 +176,8 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:             "Process Agent",
 			shouldBePresent:  true,
-			shouldNotContain: []string{"Status: Not running or unreachable"},
+			shouldContain:    processAgentContain,
+			shouldNotContain: processAgentNotContain,
 		},
 		{
 			name:            "Remote Configuration",

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -165,6 +166,33 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			},
 		},
 		{
+			name:       "can provide DD_SERVICE from arbitrary label",
+			configPath: "testdata/filter_service_env_var_from.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				Version:            "v2",
+				LibVersions:        map[string]string{},
+				Targets: []Target{
+					{
+						Name: "name-services",
+						TracerConfigs: []TracerConfig{
+							{
+								Name: "DD_SERVICE",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.labels['app.kubernetes.io/name']",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:       "both enabled and disabled namespaces",
 			configPath: "testdata/both_enabled_and_disabled.yaml",
 			shouldErr:  true,
@@ -195,6 +223,103 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestLibVersionsEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected map[string]string
+	}{
+		{
+			name: "valid lib versions",
+			expected: map[string]string{
+				"python": "1",
+				"js":     "2",
+				"java":   "3",
+			},
+		},
+		{
+			name:     "empty",
+			expected: map[string]string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_LIB_VERSIONS", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.LibVersions)
+		})
+	}
+}
+
+func TestEnabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"foo", "bar"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.EnabledNamespaces)
+		})
+	}
+}
+
+func TestDisabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"default", "kube-system"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.DisabledNamespaces)
 		})
 	}
 }
@@ -243,6 +368,24 @@ func TestTargetEnvVar(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "target with env valueFrom",
+			expected: []Target{
+				{
+					Name: "default-target",
+					TracerConfigs: []TracerConfig{
+						{
+							Name: "DD_SERVICE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.labels['foo-bar']",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -286,6 +429,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 			},
 		},
@@ -300,6 +444,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -325,6 +470,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				"js":     "default",
 				"dotnet": "default",
 				"ruby":   "default",
+				"php":    "default",
 			},
 			checkDefaults: true,
 			expected: pinnedLibraries{
@@ -334,6 +480,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},
@@ -346,6 +493,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
+				"php":    "v1",
 			},
 			checkDefaults: true,
 			expected: pinnedLibraries{
@@ -355,6 +503,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 					defaultLibInfo(js),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
+					defaultLibInfo(php),
 				},
 				areSetToDefaults: true,
 			},

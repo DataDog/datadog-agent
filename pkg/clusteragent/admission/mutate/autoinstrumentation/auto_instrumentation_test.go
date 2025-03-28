@@ -43,6 +43,7 @@ var (
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",
+		"php":    "v1",
 	}
 
 	// TODO: Add new entry when a new language is supported
@@ -52,6 +53,7 @@ var (
 		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
 		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
 		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 )
 
@@ -131,6 +133,43 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 			}.Create(),
 			expectedInjectorImage:   "docker.io/library/apm-inject-package:v27",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name: "java + debug enabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "true",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLibConfigEnvs: map[string]string{
+				"DD_APM_INSTRUMENTATION_DEBUG": "true",
+				"DD_TRACE_STARTUP_LOGS":        "true",
+				"DD_TRACE_DEBUG":               "true",
+			},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name: "java + debug disabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "false",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -459,6 +498,7 @@ func TestExtractLibInfo(t *testing.T) {
 		defaultLibInfo(python),
 		defaultLibInfo(dotnet),
 		defaultLibInfo(ruby),
+		defaultLibInfo(php),
 	}
 
 	var mockConfig model.Config
@@ -875,7 +915,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "php (opt-in)",
+			name:              "php",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{

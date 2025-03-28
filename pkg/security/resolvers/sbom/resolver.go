@@ -23,11 +23,9 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
-	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -36,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -132,7 +129,7 @@ type Resolver struct {
 	pendingScan     []containerutils.ContainerID
 
 	statsdClient   statsd.ClientInterface
-	sbomScanner    *sbomscanner.Scanner
+	sbomCollector  *host.Collector
 	hostRootDevice uint64
 	hostSBOM       *SBOM
 
@@ -144,7 +141,10 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
+	opts := sbom.ScanOptions{
+		Analyzers: c.SBOMResolverAnalyzers,
+	}
+	sbomCollector, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
 		scanChan:              make(chan *SBOM, 100),
-		sbomScanner:           sbomScanner,
+		sbomCollector:         sbomCollector,
 		hostRootDevice:        stat.Dev,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
@@ -192,8 +192,6 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) error {
-	r.sbomScanner.Start(ctx)
-
 	if r.cfg.SBOMResolverHostEnabled {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
@@ -269,33 +267,19 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 }
 
 // generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string) (report *trivy.Report, err error) {
+func (r *Resolver) generateSBOM(root string) (*trivy.Report, error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.NewScanRequest(root)
-	ch := collectors.GetHostScanner().Channel()
-	if ch == nil {
-		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
-	}
-	if err := r.sbomScanner.Scan(scanRequest); err != nil {
+	report, err := r.sbomCollector.DirectScan(context.Background(), root)
+	if err != nil {
 		r.failedSBOMGenerations.Inc()
-		return nil, fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
-	}
-
-	result, more := <-ch
-	if !more {
-		return nil, fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
-	}
-
-	if result.Error != nil {
-		// TODO: add a retry mechanism for retryable errors
-		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
+		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
 	}
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := result.Report.(*trivy.Report)
+	trivyReport, ok := report.(*trivy.Report)
 	if !ok {
 		return nil, fmt.Errorf("failed to convert report for %s", root)
 	}

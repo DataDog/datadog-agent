@@ -64,7 +64,7 @@ function Exit-RepoRoot() {
 Expands the Go module cache from an archive file.
 
 .DESCRIPTION
-This function expands the Go module cache from an archive file located in the specified root directory. 
+This function expands the Go module cache from an archive file located in the specified root directory.
 It extracts the contents of the archive file into the Go module cache directory defined by the GOMODCACHE environment variable.
 
 .PARAMETER root
@@ -133,13 +133,14 @@ function Expand-ModCache() {
 
 function Install-Deps() {
     Write-Host "Installing python requirements"
-    pip3.exe install -r .\requirements.txt -r .\tasks\libs\requirements-github.txt
+    pip3.exe install dda
+    dda self dep sync -f legacy-tasks
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install python requirements"
         exit 1
     }
     Write-Host "Installing go dependencies"
-    inv -e deps
+    dda inv -e deps
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install dependencies"
         exit 1
@@ -148,7 +149,7 @@ function Install-Deps() {
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
-    inv -e install-tools
+    dda inv -e install-tools
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install testing dependencies"
         exit 1
@@ -306,7 +307,7 @@ function Invoke-BuildScript {
 
         # Expand modcache
         # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
-        #       or is it important that they both be run before `inv deps` ?
+        #       or is it important that they both be run before `dda inv deps` ?
         if ($InstallDeps) {
             Expand-ModCache -modcache modcache
         }
@@ -323,7 +324,7 @@ function Invoke-BuildScript {
         }
 
         if ($CheckGoVersion) {
-            inv -e check-go-version
+            dda inv -e check-go-version
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Go version check failed"
                 exit 1

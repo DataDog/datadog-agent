@@ -1,5 +1,6 @@
+import re
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 from invoke import MockContext, Result
 
@@ -10,6 +11,7 @@ from tasks.libs.common.git import (
     get_current_branch,
     get_last_release_tag,
     get_staged_files,
+    get_unstaged_files,
 )
 
 
@@ -19,19 +21,55 @@ class TestGit(unittest.TestCase):
         self.ctx_mock = MagicMock()
 
     def test_get_staged_files(self):
-        self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
+        diff_mock = MagicMock()
+        diff_mock.stdout = "file1\nfile2\nfile3"
+        rev_parse_mock = MagicMock()
+        rev_parse_mock.stdout = '/root'
+        self.ctx_mock.run.side_effect = [diff_mock, rev_parse_mock]
+
         files = list(get_staged_files(self.ctx_mock, include_deleted_files=True))
 
-        self.assertEqual(files, ["file1", "file2", "file3"])
-        self.ctx_mock.run.assert_called_once_with("git diff --name-only --staged HEAD", hide=True)
+        self.assertEqual(files, ["/root/file1", "/root/file2", "/root/file3"])
+        self.ctx_mock.run.assert_has_calls(
+            [call("git diff --name-only --staged HEAD", hide=True), call("git rev-parse --show-toplevel", hide=True)],
+            any_order=False,
+        )
 
     @unittest.mock.patch("os.path.isfile", side_effect=[True, False, True])
     def test_get_staged_files_without_deleted_files(self, _):
-        self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
+        diff_mock = MagicMock()
+        diff_mock.stdout = "file1\nfile2\nfile3"
+        rev_parse_mock = MagicMock()
+        rev_parse_mock.stdout = '/root'
+        self.ctx_mock.run.side_effect = [diff_mock, rev_parse_mock]
+
         files = list(get_staged_files(self.ctx_mock))
 
+        self.assertEqual(files, ["/root/file1", "/root/file3"])
+        self.ctx_mock.run.assert_has_calls(
+            [call("git diff --name-only --staged HEAD", hide=True), call("git rev-parse --show-toplevel", hide=True)],
+            any_order=False,
+        )
+
+    @unittest.mock.patch("os.path.isfile", side_effect=[True, False, True])
+    def test_get_unstaged_files(self, _):
+        self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
+        files = list(get_unstaged_files(self.ctx_mock))
         self.assertEqual(files, ["file1", "file3"])
-        self.ctx_mock.run.assert_called_once_with("git diff --name-only --staged HEAD", hide=True)
+        self.ctx_mock.run.assert_called_once_with("git diff --name-only", hide=True)
+
+    @unittest.mock.patch("os.path.isfile", side_effect=[True, False, True])
+    def test_get_unstaged_files_with_deleted(self, _):
+        self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
+        files = list(get_unstaged_files(self.ctx_mock, include_deleted_files=True))
+        self.assertEqual(files, ["file1", "file2", "file3"])
+        self.ctx_mock.run.assert_called_once_with("git diff --name-only", hide=True)
+
+    @unittest.mock.patch("os.path.isfile", side_effect=[True, False, True])
+    def test_get_unstaged_files_with_filter(self, _):
+        self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
+        files = list(get_unstaged_files(self.ctx_mock, re_filter=re.compile(r"file[13]")))
+        self.assertEqual(files, ["file1"])
 
     def test_get_current_branch(self):
         self.ctx_mock.run.return_value.stdout = "  main  \n"

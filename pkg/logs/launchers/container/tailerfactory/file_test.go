@@ -317,7 +317,7 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, wildcard, child.Config.Path)
 			require.Equal(t, "src", child.Config.Source)
 			require.Equal(t, "svc", child.Config.Service)
-			require.Equal(t, []string{"tag!"}, child.Config.Tags)
+			require.Equal(t, []string{"tag!"}, []string(child.Config.Tags))
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)

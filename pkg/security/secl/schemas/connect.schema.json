@@ -43,6 +43,9 @@
                                 },
                                 "port": {
                                     "type": "integer"
+                                },
+                                "hostname": {
+                                    "type": "string"
                                 }
                             }
                         },

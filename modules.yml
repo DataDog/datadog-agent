@@ -17,6 +17,7 @@ modules:
   comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
+  comp/core/configsync: default
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -82,6 +83,8 @@ modules:
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
+    used_by_otel: true
+  comp/otelcol/otlp/components/connector/datadogconnector:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
@@ -268,6 +271,8 @@ modules:
   pkg/util/log/setup:
     used_by_otel: true
   pkg/util/option:
+    used_by_otel: true
+  pkg/util/otel:
     used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true

@@ -66,7 +66,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	type agentProfileCollector func(service string) error
 
 	pdata := flaretypes.ProfileData{}
-	c := util.GetClient(false)
+	c := util.GetClient()
 
 	type pprofGetter func(path string) ([]byte, error)
 	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
@@ -260,9 +260,15 @@ func (profiler) securityAgentEnabled() bool {
 }
 
 func (p profiler) processAgentEnabled() bool {
-	return p.cfg.GetBool("process_config.enabled") ||
+	processChecksEnabled := p.cfg.GetBool("process_config.enabled") ||
 		p.cfg.GetBool("process_config.container_collection.enabled") ||
 		p.cfg.GetBool("process_config.process_collection.enabled")
+	processChecksInProcessAgent := !p.cfg.GetBool("process_config.run_in_core_agent.enabled") &&
+		processChecksEnabled
+	npmEnabled := p.sysProbeCfg.GetBool("network_config.enabled")
+	usmEnabled := p.sysProbeCfg.GetBool("service_monitoring_config.enabled")
+
+	return processChecksInProcessAgent || npmEnabled || usmEnabled
 }
 
 func (p profiler) apmEnabled() bool {

@@ -101,6 +101,24 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"1",
 		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"grpc.status.code": "StatusCode.ABORTED"},
+			},
+			"10",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"grpc.status.code": "StatusCodee.ABORTED"},
+			},
+			"",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status_code": "InvalidArgument"},
+			},
+			"3",
+		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
 	}

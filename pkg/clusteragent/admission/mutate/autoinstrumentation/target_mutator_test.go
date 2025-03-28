@@ -657,6 +657,11 @@ func TestGetTargetLibraries(t *testing.T) {
 						lang:    ruby,
 						image:   "registry/dd-lib-ruby-init:v2",
 					},
+					{
+						ctrName: "",
+						lang:    php,
+						image:   "registry/dd-lib-php-init:v1",
+					},
 				},
 			},
 		},

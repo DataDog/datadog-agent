@@ -7,13 +7,14 @@ $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 if ($Env:TARGET_ARCH -eq "x64") {
     & ridk enable
 }
-& $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
+& $Env:Python3_ROOT_DIR\python.exe -m pip install dda
+& $Env:Python3_ROOT_DIR\python.exe -m dda self dep sync -f legacy-tasks
 
 $PROBE_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$PROBE_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:PATH"
 
-& inv -e deps
-& inv -e install-tools
+& dda inv -e deps
+& dda inv -e install-tools
 
 # Must build the rtloader libs cgo depends on before running golangci-lint, which requires code to be compilable
 $archflag = "x64"
@@ -21,7 +22,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 
-& inv -e security-agent.e2e-prepare-win
+& dda inv -e security-agent.e2e-prepare-win
 
 $err = $LASTEXITCODE
 if($err -ne 0){

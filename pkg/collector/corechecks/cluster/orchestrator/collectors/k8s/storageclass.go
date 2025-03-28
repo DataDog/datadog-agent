@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	storagev1Informers "k8s.io/client-go/informers/storage/v1"
@@ -50,6 +51,7 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 storageClassName,
+			Kind:                                 kubernetes.StorageClassKind,
 			NodeType:                             orchestrator.K8sStorageClass,
 			Version:                              storageClassVersion,
 			LabelsAsTags:                         labelsAsTags,

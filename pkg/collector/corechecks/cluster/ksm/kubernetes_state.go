@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -230,6 +231,7 @@ type KSMCheck struct {
 	cancel               context.CancelFunc
 	isCLCRunner          bool
 	isRunningOnNodeAgent bool
+	clusterIDTagValue    string
 	clusterNameTagValue  string
 	clusterNameRFC1123   string
 	metricNamesMapper    map[string]string
@@ -257,11 +259,9 @@ func (jc *JoinsConfigWithoutLabelsMapping) setupGetAllLabels() {
 		return
 	}
 
-	for _, l := range jc.LabelsToGet {
-		if l == "*" {
-			jc.GetAllLabels = true
-			return
-		}
+	if slices.Contains(jc.LabelsToGet, "*") {
+		jc.GetAllLabels = true
+		return
 	}
 }
 
@@ -291,6 +291,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Retrieve cluster name
 	k.getClusterName()
 
+	// Retrieve the ClusterID from the cluster-agent
+	k.getClusterID()
+
 	// Initialize global tags and check tags
 	k.initTags()
 
@@ -300,6 +303,19 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	k.mergeLabelJoins(defaultLabelJoins())
+
+	setupLabelsAndAnnotationsAsTagsFunc := func() {
+		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
+		k.processLabelJoins()
+		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+		k.processLabelsAsTags()
+
+		// We need to merge the user-defined annotations as tags with the default annotations first
+		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
+		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+		k.processAnnotationsAsTags()
+	}
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
@@ -323,6 +339,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				// In this case we don't need to set up anything related to the API
 				// server.
 				collectors = []string{"pods"}
+				setupLabelsAndAnnotationsAsTagsFunc()
 			case defaultPodCollection, clusterUnassignedPodCollection:
 				// We can try to get the API Client directly because this code will be retried if it fails
 				apiServerClient, err = apiserver.GetAPIClient()
@@ -335,16 +352,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 					return err
 				}
 
-				metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
-
-				k.processLabelJoins()
-				k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
-				k.processLabelsAsTags()
-
-				// We need to merge the user-defined annotations as tags with the default annotations first
-				mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
-				k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
-				k.processAnnotationsAsTags()
+				setupLabelsAndAnnotationsAsTagsFunc()
 
 				// Discover resources that are currently available
 				resources, err = discoverResources(apiServerClient.Cl.Discovery())
@@ -894,12 +902,26 @@ func (k *KSMCheck) getClusterName() {
 	}
 }
 
+func (k *KSMCheck) getClusterID() {
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		log.Warnf("Error retrieving the cluster ID: %s", err)
+		return
+	}
+	k.clusterIDTagValue = clusterID
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
+// Sets the orch_cluster_id tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.clusterNameTagValue != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
+		k.instance.Tags = append(k.instance.Tags, tags.KubeClusterName+":"+k.clusterNameTagValue)
+	}
+
+	if k.clusterIDTagValue != "" {
+		k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+k.clusterIDTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {

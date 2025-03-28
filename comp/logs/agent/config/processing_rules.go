@@ -23,7 +23,7 @@ const (
 type ProcessingRule struct {
 	Type               string
 	Name               string
-	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
+	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
 	// TODO: should be moved out
 	Regex       *regexp.Regexp

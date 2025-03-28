@@ -1332,6 +1332,11 @@
           "property_doc_link": "accept-addr-family-doc"
         },
         {
+          "name": "accept.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
           "name": "accept.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -1878,6 +1883,11 @@
           "name": "connect.addr.family",
           "definition": "Address family",
           "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "connect-addr-hostname-doc"
         },
         {
           "name": "connect.addr.ip",
@@ -7284,6 +7294,55 @@
       ]
     },
     {
+      "name": "sysctl",
+      "definition": "A sysctl parameter was read or modified",
+      "type": "Kernel",
+      "from_agent_version": "7.65",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "sysctl.action",
+          "definition": "Action performed on the system control parameter",
+          "property_doc_link": "sysctl-action-doc"
+        },
+        {
+          "name": "sysctl.file_position",
+          "definition": "Position in the sysctl control parameter file at which the action occurred",
+          "property_doc_link": "sysctl-file_position-doc"
+        },
+        {
+          "name": "sysctl.name",
+          "definition": "Name of the system control parameter",
+          "property_doc_link": "sysctl-name-doc"
+        },
+        {
+          "name": "sysctl.name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "sysctl-name_truncated-doc"
+        },
+        {
+          "name": "sysctl.old_value",
+          "definition": "Old value of the system control parameter",
+          "property_doc_link": "sysctl-old_value-doc"
+        },
+        {
+          "name": "sysctl.old_value_truncated",
+          "definition": "Indicates that the old value field is truncated",
+          "property_doc_link": "sysctl-old_value_truncated-doc"
+        },
+        {
+          "name": "sysctl.value",
+          "definition": "New and/or current value for the system control parameter depending on the action type",
+          "property_doc_link": "sysctl-value-doc"
+        },
+        {
+          "name": "sysctl.value_truncated",
+          "definition": "Indicates that the value field is truncated",
+          "property_doc_link": "sysctl-value_truncated-doc"
+        }
+      ]
+    },
+    {
       "name": "unlink",
       "definition": "A file was deleted",
       "type": "File",
@@ -9727,6 +9786,18 @@
       "examples": []
     },
     {
+      "name": "accept.addr.hostname",
+      "link": "accept-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
@@ -10019,6 +10090,18 @@
       "link": "connect-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.hostname",
+      "link": "connect-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
       "prefixes": [
         "connect"
       ],
@@ -11020,6 +11103,102 @@
       ],
       "constants": "Pipe buffer flags",
       "constants_link": "pipe-buffer-flags",
+      "examples": []
+    },
+    {
+      "name": "sysctl.action",
+      "link": "sysctl-action-doc",
+      "type": "int",
+      "definition": "Action performed on the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "SysCtl Actions",
+      "constants_link": "sysctl-actions",
+      "examples": []
+    },
+    {
+      "name": "sysctl.file_position",
+      "link": "sysctl-file_position-doc",
+      "type": "int",
+      "definition": "Position in the sysctl control parameter file at which the action occurred",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name",
+      "link": "sysctl-name-doc",
+      "type": "string",
+      "definition": "Name of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name_truncated",
+      "link": "sysctl-name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value",
+      "link": "sysctl-old_value-doc",
+      "type": "string",
+      "definition": "Old value of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value_truncated",
+      "link": "sysctl-old_value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the old value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value",
+      "link": "sysctl-value-doc",
+      "type": "string",
+      "definition": "New and/or current value for the system control parameter depending on the action type",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value_truncated",
+      "link": "sysctl-value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -14954,6 +15133,21 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SysCtl Actions",
+      "link": "sysctl-actions",
+      "description": "SysCtl Actions are the supported actions for the sysctl event.",
+      "all": [
+        {
+          "name": "SYSCTL_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "SYSCTL_WRITE",
           "architecture": "all"
         }
       ]
