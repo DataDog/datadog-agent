@@ -533,13 +533,15 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 
 		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
-			// at least one test failed, diagnose the environment
-			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-			if diagnoseErr != nil {
-				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-			} else {
-				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+		if bs.env != nil {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
+				// at least one test failed, diagnose the environment
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
 			}
 		}
 
