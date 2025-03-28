@@ -148,6 +148,9 @@ func setConfigTags(s *common.Setup) {
 			s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
 		}
 	}
+	if tags, ok := os.LookupEnv("DD_EXTRA_TAGS"); ok {
+		s.Config.DatadogYAML.ExtraTags = strings.Split(tags, ",")
+	}
 }
 
 // installAgentPackage installs the agent package
