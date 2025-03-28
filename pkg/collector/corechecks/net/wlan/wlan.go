@@ -25,15 +25,14 @@ var getWiFiInfo = GetWiFiInfo
 
 // WiFiInfo contains information about the WiFi connection as defined in wlan_darwin.h
 type WiFiInfo struct {
-	Rssi            int
-	Ssid            string
-	Bssid           string
-	Channel         int
-	Noise           int
-	TransmitRate    float64
-	HardwareAddress string
-	// See: https://developer.apple.com/documentation/corewlan/cwphymode?language=objc
-	ActivePHYMode int
+	Rssi         int
+	Ssid         string
+	Bssid        string
+	Channel      int
+	Noise        int
+	TransmitRate float64 // in Mbps
+	MacAddress   string
+	PHYMode      string
 }
 
 // WLANCheck monitors the status of the WLAN interface
@@ -61,8 +60,8 @@ func (c *WLANCheck) Run() error {
 		return err
 	}
 
-	if wifiInfo.ActivePHYMode == 0 {
-		log.Warn("No active Wi-Fi interface detected: ActivePHYMode is none.")
+	if wifiInfo.PHYMode == "None" {
+		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
 		return nil
 	}
 
@@ -75,15 +74,15 @@ func (c *WLANCheck) Run() error {
 		bssid = "unknown"
 	}
 
-	hardwareAddress := strings.ToLower(strings.Replace(wifiInfo.HardwareAddress, " ", "_", -1))
-	if hardwareAddress == "" {
-		hardwareAddress = "unknown"
+	macAddress := strings.ToLower(strings.Replace(wifiInfo.MacAddress, " ", "_", -1))
+	if macAddress == "" {
+		macAddress = "unknown"
 	}
 
 	tags := []string{}
 	tags = append(tags, "ssid:"+ssid)
 	tags = append(tags, "bssid:"+bssid)
-	tags = append(tags, "mac_address:"+hardwareAddress)
+	tags = append(tags, "mac_address:"+macAddress)
 
 	sender.Gauge("wlan.rssi", float64(wifiInfo.Rssi), "", tags)
 	sender.Gauge("wlan.noise", float64(wifiInfo.Noise), "", tags)
