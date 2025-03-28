@@ -50,6 +50,10 @@ const (
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
+	gzipCompressionKind  = "gzip"
+	gzipCompressionLevel = 6
+	zstdCompressionKind  = "zstd"
+	zstdCompressionLevel = 1
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -66,6 +70,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		compressionKind:      gzipCompressionKind,
+		compressionLevel:     gzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -80,6 +86,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		compressionKind:      gzipCompressionKind,
+		compressionLevel:     gzipCompressionLevel,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -97,6 +105,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		compressionKind:      gzipCompressionKind,
+		compressionLevel:     gzipCompressionLevel,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -111,6 +121,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 		defaultInputChanSize: 500,
+		compressionKind:      gzipCompressionKind,
+		compressionLevel:     gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
@@ -123,6 +135,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeSnmpTraps,
@@ -135,6 +149,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkDevicesNetFlow,
@@ -149,7 +165,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// Each NetFlow flow is about 500 bytes
 		// 10k BatchMaxSize is about 5Mo of content size
 		defaultBatchMaxSize: 10000,
-
+		//
 		// High input chan is needed to handle high number of flows being flushed by NetFlow Server every 10s
 		// Customers might need to set `network_devices.forwarder.input_chan_size` to higher value if flows are dropped
 		// due to input channel being full.
@@ -158,6 +174,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
 		//   by aggregator.
 		defaultInputChanSize: 10000,
+		compressionKind:      gzipCompressionKind,
+		compressionLevel:     gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeNetworkPath,
@@ -170,6 +188,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeContainerLifecycle,
@@ -182,6 +202,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeContainerImages,
@@ -194,6 +216,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeContainerSBOM,
@@ -206,6 +230,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 	{
 		eventType:                     eventplatform.EventTypeServiceDiscovery,
@@ -218,6 +244,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		compressionKind:               "gzip",
+		compressionLevel:              gzipCompressionLevel,
 	},
 }
 
@@ -364,6 +392,8 @@ type passthroughPipelineDesc struct {
 	category    string
 	contentType string
 	// intakeTrackType is the track type to use for the v2 intake api. When blank, v1 is used instead.
+	compressionKind               string
+	compressionLevel              int
 	intakeTrackType               config.IntakeTrackType
 	endpointsConfigPrefix         string
 	hostnameEndpointPrefix        string
@@ -371,6 +401,8 @@ type passthroughPipelineDesc struct {
 	defaultBatchMaxContentSize    int
 	defaultBatchMaxSize           int
 	defaultInputChanSize          int
+	defaultCompressionKind        string
+	defaultCompressionLevel       int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -432,7 +464,7 @@ func newHTTPPassthroughPipeline(
 	var encoder compressioncommon.Compressor
 	encoder = compressor.NewCompressor("none", 0)
 	if endpoints.Main.UseCompression {
-		encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		encoder = compressor.NewCompressor(desc.compressionKind, desc.compressionLevel)
 	}
 
 	var strategy sender.Strategy
