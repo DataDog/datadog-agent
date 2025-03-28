@@ -14,6 +14,14 @@ oracle:
   variables:
     CI_DEBUG_SERVICES: "true"
     DD_HOSTNAME: "oracle-test"
+    KUBERNETES_CPU_REQUEST: "3"
+    KUBERNETES_CPU_LIMIT: "3"
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "2Gi"
+    KUBERNETES_SERVICE_CPU_REQUEST: "1"
+    KUBERNETES_SERVICE_CPU_LIMIT: "1"
+    KUBERNETES_SERVICE_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "2Gi"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
@@ -21,5 +29,4 @@ oracle:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv oracle.test
-    - sleep 3600
 
