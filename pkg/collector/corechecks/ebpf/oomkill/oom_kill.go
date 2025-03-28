@@ -9,6 +9,7 @@
 package oomkill
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -89,8 +90,11 @@ func (m *OOMKillCheck) Run() error {
 		return nil
 	}
 
-	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfig.OOMKillProbeModule)
+	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](&m.CheckBase, m.sysProbeClient, sysconfig.OOMKillProbeModule)
 	if err != nil {
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return nil
+		}
 		return err
 	}
 

@@ -9,6 +9,7 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -76,9 +77,12 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 
 // Run executes the check
 func (m *EBPFCheck) Run() error {
-	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
+	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](&m.CheckBase, m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
-		return fmt.Errorf("get ebpf check: %s", err)
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return nil
+		}
+		return err
 	}
 
 	sender, err := m.GetSender()

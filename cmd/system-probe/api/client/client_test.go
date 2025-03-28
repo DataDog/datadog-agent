@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,30 +62,32 @@ func TestGetCheck(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
+	var check corechecks.CheckBase
+
 	client := &http.Client{Transport: &http.Transport{DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 		return net.Dial("tcp", server.Listener.Addr().String())
 	}}}
 
 	//test happy flow
-	resp, err := GetCheck[testData](client, "test")
+	resp, err := GetCheck[testData](&check, client, "test")
 	require.NoError(t, err)
 	assert.Equal(t, "asdf", resp.Str)
 	assert.Equal(t, 42, resp.Num)
 	validateTelemetry(t, "test", expectedTelemetryValues{1, 0, 0, 0, 0})
 
 	//test responseError counter
-	resp, err = GetCheck[testData](client, "foo")
+	resp, err = GetCheck[testData](&check, client, "foo")
 	require.Error(t, err)
 	validateTelemetry(t, "foo", expectedTelemetryValues{1, 0, 0, 1, 0})
 
 	//test malformedResponses counter
-	resp, err = GetCheck[testData](client, "malformed")
+	resp, err = GetCheck[testData](&check, client, "malformed")
 	require.Error(t, err)
 	validateTelemetry(t, "malformed", expectedTelemetryValues{1, 0, 0, 0, 1})
 
 	//test failedRequests counter
 	server.Close()
-	resp, err = GetCheck[testData](client, "test")
+	resp, err = GetCheck[testData](&check, client, "test")
 	require.Error(t, err)
 	validateTelemetry(t, "test", expectedTelemetryValues{2, 1, 0, 0, 0})
 }

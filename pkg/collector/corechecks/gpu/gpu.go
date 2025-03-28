@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -189,8 +190,11 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 	}()
 
-	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](&c.CheckBase, c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return nil
+		}
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 
