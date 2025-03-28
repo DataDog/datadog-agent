@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"hash/fnv"
+
 	"github.com/gosnmp/gosnmp"
 	"go.uber.org/atomic"
 
@@ -57,11 +59,12 @@ const (
 // SNMPListener implements SNMP discovery
 type SNMPListener struct {
 	sync.RWMutex
-	newService chan<- Service
-	delService chan<- Service
-	stop       chan bool
-	config     snmp.ListenerConfig
-	services   map[string]*SNMPService
+	newService           chan<- Service
+	delService           chan<- Service
+	stop                 chan bool
+	config               snmp.ListenerConfig
+	services             map[string]*SNMPService
+	devicesByFingerprint map[string]bool
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -104,9 +107,10 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		return nil, err
 	}
 	return &SNMPListener{
-		services: map[string]*SNMPService{},
-		stop:     make(chan bool),
-		config:   snmpConfig,
+		services:             map[string]*SNMPService{},
+		stop:                 make(chan bool),
+		config:               snmpConfig,
+		devicesByFingerprint: map[string]bool{},
 	}, nil
 }
 
@@ -233,6 +237,43 @@ func (l *SNMPListener) checkDeviceForParams(params *gosnmp.GoSNMP, deviceIP stri
 
 	log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 	return true
+}
+
+func (l *SNMPListener) getDeviceFingerprint(params *gosnmp.GoSNMP, deviceIP string) (string, error) {
+	if err := params.Connect(); err != nil {
+		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		return "", err
+	}
+
+	defer params.Conn.Close()
+
+	value, err := params.Get([]string{snmp.DeviceSysNameOid, snmp.DeviceSysUptimeOid, snmp.DeviceSysObjectIDOid})
+	if err != nil {
+		log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+		return "", err
+	}
+	if len(value.Variables) < 3 || value.Variables[0].Value == nil {
+		log.Debugf("SNMP get to %s no data", deviceIP)
+		return "", fmt.Errorf("no data")
+	}
+
+	sysName := string(value.Variables[0].Value.([]byte))
+	sysUptime := value.Variables[1].Value.(uint32)
+	sysObjectID := value.Variables[2].Value.(string)
+
+	log.Debugf("SNMP get sys infos to %s success: %s, %d, %s", deviceIP, sysName, sysUptime, sysObjectID)
+
+	// sysUptime is in hundredths of a second, we compute the boot timestamp in milliseconds
+	bootTimestamp := time.Now().Truncate(10 * time.Millisecond).Add(-time.Duration(sysUptime) * 10 * time.Millisecond).UnixMilli()
+
+	h := fnv.New64()
+	h.Write([]byte(sysName))                              //nolint:errcheck
+	h.Write([]byte(sysObjectID))                          //nolint:errcheck
+	h.Write([]byte(strconv.FormatInt(bootTimestamp, 16))) //nolint:errcheck
+
+	hash := strconv.FormatUint(h.Sum64(), 16)
+
+	return hash, nil
 }
 
 func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
@@ -365,6 +406,23 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	config.PrivProtocol = authentication.PrivProtocol
 	config.ContextEngineID = authentication.ContextEngineID
 	config.ContextName = authentication.ContextName
+
+	params, err := authentication.BuildSNMPParams(deviceIP, subnet.config.Port)
+	if err != nil {
+		log.Errorf("Error building params for device %s: %v", deviceIP, err)
+	}
+
+	deviceHash, err := l.getDeviceFingerprint(params, deviceIP)
+	if err != nil {
+		log.Errorf("Error getting device fingerprint for device %s: %v", deviceIP, err)
+		return
+	}
+
+	if _, present := l.devicesByFingerprint[deviceHash]; present {
+		log.Debugf("Device %s already discovered", deviceIP)
+		return
+	}
+	l.devicesByFingerprint[deviceHash] = true
 
 	svc := &SNMPService{
 		adIdentifier: subnet.adIdentifier,
