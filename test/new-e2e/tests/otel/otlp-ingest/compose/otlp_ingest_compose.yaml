@@ -18,7 +18,7 @@ services:
     depends_on:
       agent:
         condition: service_healthy
-    image: ghcr.io/datadog/apps-calendar-go:main
+    image: ghcr.io/datadog/apps-calendar-go:main@sha256:5334a3b5940aa2a213a5c8970cc8d91899deafddf32e8df27cb0441dd9d4bc0f
     environment:
       OTEL_SERVICE_NAME: calendar-rest-go
       OTEL_EXPORTER_OTLP_ENDPOINT: http://datadog-agent:4317
