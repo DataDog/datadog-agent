@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -50,7 +51,8 @@ func StartWorkloadAutoscaling(
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
-	_, err := workload.NewConfigRetriever(store, isLeaderFunc, rcClient)
+	clock := clock.RealClock{}
+	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
@@ -64,7 +66,7 @@ func StartWorkloadAutoscaling(
 
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
 
-	controller, err := workload.NewController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -79,7 +81,7 @@ func StartWorkloadAutoscaling(
 
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
-		localRecommender := local.NewRecommender(podWatcher, store)
+		localRecommender := local.NewRecommender(clock, podWatcher, store)
 		go localRecommender.Run(ctx)
 	}
 
