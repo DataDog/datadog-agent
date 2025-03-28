@@ -90,7 +90,7 @@ require (
 	github.com/go-delve/delve v1.24.0
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.3.0
-	github.com/go-sql-driver/mysql v1.8.1
+	github.com/go-sql-driver/mysql v1.9.1
 	github.com/gobwas/glob v0.2.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
