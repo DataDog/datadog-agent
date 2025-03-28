@@ -19,9 +19,7 @@ from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 
-def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
-):
+def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
@@ -37,19 +35,13 @@ def omnibus_run_task(
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
 
-        if omnibus_s3_cache:
-            populate_s3_cache = "--populate-s3-cache"
-        else:
-            populate_s3_cache = ""
-
-        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
+        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
             "overrides": overrides_cmd,
-            "populate_s3_cache": populate_s3_cache,
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -193,7 +185,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -317,7 +308,6 @@ def build(
             target_project=target_project,
             base_dir=base_dir,
             env=env,
-            omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
             host_distribution=host_distribution,
         )
@@ -401,7 +391,6 @@ def manifest(
         target_project=target_project,
         base_dir=base_dir,
         env=env,
-        omnibus_s3_cache=False,
         log_level=log_level,
     )
 

@@ -2,6 +2,7 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Datadog.CustomActions
@@ -49,7 +50,7 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Runs command and logs stdout/stderr to MSI log, returns the process object.
         /// </summary>
-        public Process RunCommand(string filename, string arguments)
+        public Process RunCommand(string filename, string arguments, IDictionary<string, string> environment)
         {
             var psi = new ProcessStartInfo
             {
@@ -60,6 +61,13 @@ namespace Datadog.CustomActions
                 FileName = filename,
                 Arguments = arguments
             };
+            if (environment != null)
+            {
+                foreach (var kvp in environment)
+                {
+                    psi.Environment[kvp.Key] = kvp.Value;
+                }
+            }
             var proc = new Process();
             proc.StartInfo = psi;
             proc.OutputDataReceived += (_, args) => Log(args.Data);
@@ -69,6 +77,14 @@ namespace Datadog.CustomActions
             proc.BeginErrorReadLine();
             proc.WaitForExit();
             return proc;
+        }
+
+        /// <summary>
+        /// Runs command and logs stdout/stderr to MSI log, returns the process object.
+        /// </summary>
+        public Process RunCommand(string filename, string arguments)
+        {
+            return RunCommand(filename, arguments, new Dictionary<string, string>());
         }
 
         public CustomActionData CustomActionData => _session.CustomActionData;

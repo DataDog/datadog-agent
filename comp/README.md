@@ -66,6 +66,10 @@ Package authtoken implements the creation and access to the auth_token used to c
 This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
 auth_token file but can fetch it it's available.
 
+### [comp/api/grpcserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/grpcserver)
+
+Package grpcserver defines the component interface for the grpcserver component.
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-metric-pipelines
@@ -129,6 +133,10 @@ component temporarily wraps pkg/config.
 *Datadog Team*: agent-configuration
 
 Package configsync implements synchronizing the configuration using the core agent config API
+
+### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
+
+Package diagnose provides the diagnose suite for the agent.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
@@ -316,6 +324,12 @@ Package streamlogs is metadata provider for streamlogs
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
+
+### [comp/metadata/clusteragent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusteragent)
+
+*Datadog Team*: container-platform
+
+Package clusteragent is the metadata provider for datadog-cluster-agent process
 
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 

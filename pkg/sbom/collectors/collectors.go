@@ -33,6 +33,8 @@ const (
 	DockerCollector = "docker"
 	// HostCollector is the name of the host collector
 	HostCollector = "host"
+	// ProcfsCollector is the name of the procfs collector
+	ProcfsCollector = "procfs"
 )
 
 // Collector interface
@@ -83,6 +85,11 @@ func GetCrioScanner() Collector {
 // GetHostScanner returns the host scanner
 func GetHostScanner() Collector {
 	return Collectors[HostCollector]
+}
+
+// GetProcfsScanner returns the fargate scanner
+func GetProcfsScanner() Collector {
+	return Collectors[ProcfsCollector]
 }
 
 // NewSBOMContainerFilter returns a new include/exclude filter for containers

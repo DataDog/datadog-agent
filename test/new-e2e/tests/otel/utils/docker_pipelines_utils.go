@@ -33,7 +33,7 @@ func TestCalendarAppDocker(s OTelDockerTestSuite) {
 	s.T().Log("Waiting for calendar app to start")
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
@@ -65,7 +65,7 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), calendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
@@ -78,11 +78,15 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), calendarService, sp.Service)
+		assert.Equal(s.T(), CalendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+		if sp.Meta["span.kind"] == "client" {
+			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		} else {
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+		}
 		assert.Equal(s.T(), traces[0].HostName, tp.Hostname)
 	}
 }
@@ -95,7 +99,7 @@ func TestMetricsDocker(s OTelDockerTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		tags := []string{fmt.Sprintf("service:%v", calendarService)}
+		tags := []string{fmt.Sprintf("service:%v", CalendarService)}
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
@@ -104,7 +108,7 @@ func TestMetricsDocker(s OTelDockerTestSuite) {
 
 	for _, metricSeries := range metrics {
 		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
@@ -127,7 +131,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 	var logs []*aggregator.Log
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 5*time.Minute, 10*time.Second)
@@ -145,7 +149,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 			tags[k] = fmt.Sprint(v)
 		}
 		assert.Contains(s.T(), log.Message, logBody)
-		assert.Equal(s.T(), calendarService, tags["service"])
+		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])

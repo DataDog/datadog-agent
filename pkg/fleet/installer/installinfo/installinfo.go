@@ -90,15 +90,17 @@ func getToolVersion(installType string) (tool string, toolVersion string, instal
 		tool = "dpkg"
 		toolVersion, err = getDpkgVersion()
 		if err != nil {
-			toolVersion = "dpkg-unknown"
+			toolVersion = "unknown"
 		}
+		toolVersion = fmt.Sprintf("dpkg-%s", toolVersion)
 	}
 	if _, err := exec.LookPath("rpm"); err == nil {
 		tool = "rpm"
 		toolVersion, err = getRPMVersion()
 		if err != nil {
-			toolVersion = "rpm-unknown"
+			toolVersion = "unknown"
 		}
+		toolVersion = fmt.Sprintf("rpm-%s", toolVersion)
 	}
 	return
 }

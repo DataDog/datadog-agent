@@ -73,8 +73,7 @@ type Profile struct {
 	selector cgroupModel.WorkloadSelector
 	tags     []string
 
-	versionContextsLock sync.Mutex
-	versionContexts     map[string]*VersionContext
+	versionContexts map[string]*VersionContext
 
 	eventTypes []model.EventType
 
@@ -135,7 +134,7 @@ func New(opts ...Opts) *Profile {
 		LoadedInKernel:  atomic.NewBool(false),
 		LoadedNano:      atomic.NewUint64(0),
 		versionContexts: make(map[string]*VersionContext),
-		profileCookie:   utils.NewCookie(),
+		profileCookie:   utils.RandNonZeroUint64(),
 	}
 
 	for _, opt := range opts {
@@ -415,8 +414,8 @@ func (p *Profile) GetProfileCookie() uint64 {
 
 // GenerateSyscallsFilters generates the syscall filters for the profile
 func (p *Profile) GenerateSyscallsFilters() [64]byte {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	var output [64]byte
 	for _, pCtxt := range p.versionContexts {
@@ -468,8 +467,8 @@ func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 
 // GetVersionContext returns the context of the givent version if any
 func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	ctx, ok := p.versionContexts[imageTag]
 	return ctx, ok
@@ -477,8 +476,8 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 
 // GetVersions returns the number of versions stored in the profile (debug purpose only)
 func (p *Profile) GetVersions() []string {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 	versions := []string{}
 	for version := range p.versionContexts {
 		versions = append(versions, version)
@@ -488,8 +487,8 @@ func (p *Profile) GetVersions() []string {
 
 // SetVersionState force a state for a given version (debug purpose only)
 func (p *Profile) SetVersionState(imageTag string, state model.EventFilteringProfileState, lastAnomalyNano uint64) error {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	ctx, found := p.versionContexts[imageTag]
 	if !found {
@@ -515,6 +514,9 @@ func (p *Profile) IsEventTypeValid(evtType model.EventType) bool {
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
 func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	globalState := model.AutoLearning
 	for _, ctx := range p.versionContexts {
 		s, ok := ctx.EventTypeState[et]
@@ -532,6 +534,9 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 
 // PrepareNewVersion prepares a new version of the profile
 func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	// prepare new profile context to be inserted
 	newProfileCtx := &VersionContext{
 		EventTypeState: make(map[model.EventType]*EventTypeState),
@@ -541,7 +546,6 @@ func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageT
 	}
 
 	// add the new profile context to the list
-	// (versionContextsLock already locked here)
 	evictedVersions := p.makeRoomForNewVersion(maxImageTags)
 	p.versionContexts[newImageTag] = newProfileCtx
 	return evictedVersions
@@ -549,8 +553,8 @@ func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageT
 
 // AddVersionContext adds a new version context to the profile
 func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	p.versionContexts[version] = ctx
 }
@@ -624,8 +628,8 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 func (p *Profile) Reset() {
 	p.LoadedInKernel.Store(false)
 	p.LoadedNano.Store(0)
-	p.profileCookie = 0
 	p.Instances = nil
+	// keep the profileCookie in case we end up reloading the profile from the cache
 }
 
 // ComputeSyscallsList computes the top level list of syscalls
@@ -676,9 +680,9 @@ func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 
 // GetVersionContextIndex returns the context of the givent version if any
 func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
-	p.versionContextsLock.Lock()
+	p.m.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()
-	p.versionContextsLock.Unlock()
+	p.m.Unlock()
 
 	if index >= len(orderedVersions) {
 		return nil
@@ -688,8 +692,8 @@ func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
 
 // ListAllVersionStates prints the state of all versions of the profile
 func (p *Profile) ListAllVersionStates() {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+	p.m.Lock()
+	defer p.m.Unlock()
 
 	if len(p.versionContexts) > 0 {
 		fmt.Printf("### Profile: %+v\n", p.GetSelectorStr())

@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -331,9 +332,7 @@ type PlanRows struct {
 
 func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB) {
 	c.statementMetricsMonotonicCountsPrevious = make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-	for k, v := range newMap {
-		c.statementMetricsMonotonicCountsPrevious[k] = v
-	}
+	maps.Copy(c.statementMetricsMonotonicCountsPrevious, newMap)
 }
 
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {

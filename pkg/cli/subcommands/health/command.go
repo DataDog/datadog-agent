@@ -71,7 +71,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
