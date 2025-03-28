@@ -354,12 +354,17 @@ def ls(_, distro=True, custom=False):
 @task(
     help={
         "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
+        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None):
+def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
+    if not lite and not all_images and images is None:
+        raise Exit(
+            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
+        )
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images)
+        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
