@@ -5,7 +5,8 @@
 
 //go:build linux && linux_bpf
 
-package kernel
+// Package headers is utilities for downloading Linux kernel headers
+package headers
 
 import (
 	"bufio"
@@ -14,17 +15,18 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -147,7 +149,7 @@ func GetKernelHeaders(opts HeaderOptions) []string {
 		return HeaderProvider.kernelHeaders
 	}
 
-	hv, err := HostVersion()
+	hv, err := kernel.HostVersion()
 	if err != nil {
 		HeaderProvider.result = hostVersionErr
 		log.Warnf("Unable to find kernel headers: unable to determine host kernel version: %s", err)
@@ -178,7 +180,7 @@ func (h *headerProvider) GetResult() headerFetchResult {
 	return h.result
 }
 
-func (h *headerProvider) getKernelHeaders(hv Version) ([]string, headerFetchResult, error) {
+func (h *headerProvider) getKernelHeaders(hv kernel.Version) ([]string, headerFetchResult, error) {
 	log.Debugf("beginning search for kernel headers")
 
 	if len(h.headerDirs) > 0 {
@@ -225,7 +227,7 @@ func (h *headerProvider) getKernelHeaders(hv Version) ([]string, headerFetchResu
 	return h.downloadHeaders(hv)
 }
 
-func (h *headerProvider) downloadHeaders(hv Version) ([]string, headerFetchResult, error) {
+func (h *headerProvider) downloadHeaders(hv kernel.Version) ([]string, headerFetchResult, error) {
 	if err := h.downloader.downloadHeaders(h.headerDownloadDir); err != nil {
 		if errors.Is(err, errReposDirInaccessible) {
 			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
@@ -242,7 +244,7 @@ func (h *headerProvider) downloadHeaders(hv Version) ([]string, headerFetchResul
 
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
 // headers matching the kernel version of the running host
-func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool) []string {
+func validateHeaderDirs(hv kernel.Version, dirs []string, checkForCriticalHeaders bool) []string {
 	valid := make(map[string]struct{})
 	for _, rd := range dirs {
 		if _, err := os.Stat(rd); errors.Is(err, fs.ErrNotExist) {
@@ -280,7 +282,7 @@ func validateHeaderDirs(hv Version, dirs []string, checkForCriticalHeaders bool)
 		valid[d] = struct{}{}
 	}
 
-	dirlist := maps.Keys(valid)
+	dirlist := slices.Collect(maps.Keys(valid))
 	if checkForCriticalHeaders && len(dirlist) != 0 && !containsCriticalHeaders(dirlist) {
 		log.Debugf("error validating %s: missing critical headers", dirlist)
 		return nil
@@ -332,7 +334,7 @@ func deleteKernelHeaderDirectory(dir string) {
 	}
 }
 
-func getHeaderVersion(path string) (Version, error) {
+func getHeaderVersion(path string) (kernel.Version, error) {
 	vh := filepath.Join(path, "include/generated/uapi/linux/version.h")
 	f, err := os.Open(vh)
 	if err != nil {
@@ -347,7 +349,7 @@ func getHeaderVersion(path string) (Version, error) {
 	return parseHeaderVersion(f)
 }
 
-func parseHeaderVersion(r io.Reader) (Version, error) {
+func parseHeaderVersion(r io.Reader) (kernel.Version, error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		if matches := versionCodeRegexp.FindSubmatch(scanner.Bytes()); matches != nil {
@@ -355,7 +357,7 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 			if err != nil {
 				continue
 			}
-			return Version(code), nil
+			return kernel.Version(code), nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -365,7 +367,7 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 }
 
 func getDefaultHeaderDirs() []string {
-	hi, err := Release()
+	hi, err := kernel.Release()
 	if err != nil {
 		return []string{}
 	}
@@ -387,7 +389,7 @@ func getDownloadedHeaderDirs(headerDownloadDir string) []string {
 	return dirs
 }
 
-func getSysfsHeaderDirs(v Version) ([]string, error) {
+func getSysfsHeaderDirs(v kernel.Version) ([]string, error) {
 	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("linux-headers-%s", v))
 	fi, err := os.Stat(tmpPath)
 	if err == nil && fi.IsDir() {
@@ -454,22 +456,22 @@ func submitTelemetry(result headerFetchResult) {
 		return
 	}
 
-	platform, err := Platform()
+	platform, err := kernel.Platform()
 	if err != nil {
 		log.Warnf("failed to retrieve host platform information: %s", err)
 		return
 	}
-	platformVersion, err := PlatformVersion()
+	platformVersion, err := kernel.PlatformVersion()
 	if err != nil {
 		log.Warnf("failed to get platform version: %s", err)
 		return
 	}
-	kernelVersion, err := Release()
+	kernelVersion, err := kernel.Release()
 	if err != nil {
 		log.Warnf("failed to get kernel version: %s", err)
 		return
 	}
-	arch, err := Machine()
+	arch, err := kernel.Machine()
 	if err != nil {
 		log.Warnf("failed to get kernel architecture: %s", err)
 		return
