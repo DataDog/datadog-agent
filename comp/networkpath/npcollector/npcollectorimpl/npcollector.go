@@ -286,7 +286,7 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		return nil
 	default:
 		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1)
-		// TODO (alexandre.yang): Temporarily disabling this error due to excessive error and log as debug instead.
+		// TODO (alexandre.yang): Temporarily disabling this error due to excessive error and log as trace instead.
 		//   In the meantime, the drops can be monitored using datadog.network_path.collector.schedule.pathtest_dropped.
 		//   1/ The error can returned again once traceroute performance is good enough to handle all traffic with high # of workers.
 		//   2/ We likely also want to also throttle this error log.
