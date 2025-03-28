@@ -8,14 +8,14 @@ oracle:
     - when: on_success
   services:
     - alias: "oracle"
-      name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      name: "registry.ddbuild.io/images/mirror/gvenzl/oracle-free:${DBMS_VERSION}"
       variables:
-        ORACLE_PWD: "datad0g"
+        ORACLE_PASSWORD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
   parallel:
     matrix:
-      - DBMS_VERSION: "21.3.0-xe"
+      - DBMS_VERSION: "23.5-slim-faststart}"
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
