@@ -210,6 +210,18 @@ func (kc *kernelCache) getExistingKernelData(key kernelKey) *kernelData {
 	return kc.cache[key]
 }
 
+
+func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
+	for _, m := range procMaps {
+		if addr >= m.StartAddr && addr < m.EndAddr {
+			return m
+		}
+	}
+
+	return nil
+}
+
+
 // loadKernelData loads the kernel data for a given key. This function uses some internal caches
 // for symbols and CUDA files, so it should only be called in the processRequests goroutine, to avoid race issues.
 func (kc *kernelCache) loadKernelData(key kernelKey) (*cuda.CubinKernel, error) {

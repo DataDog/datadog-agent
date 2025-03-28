@@ -169,16 +169,6 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
 }
 
-func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
-	for _, m := range procMaps {
-		if addr >= m.StartAddr && addr < m.EndAddr {
-			return m
-		}
-	}
-
-	return nil
-}
-
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	if event.Type == gpuebpf.CudaMemAlloc {
 		sh.memAllocEvents[event.Addr] = *event
