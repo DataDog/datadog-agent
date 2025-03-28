@@ -110,7 +110,12 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
 func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	tagsMapping := make(map[string][]string, deviceCache.DeviceCount())
+	devCount := deviceCache.DeviceCount()
+	if devCount == 0 {
+		return nil
+	}
+
+	tagsMapping := make(map[string][]string, devCount)
 
 	for _, dev := range deviceCache.GetAllDevices() {
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
