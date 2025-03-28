@@ -72,6 +72,7 @@ type systemContextConfig struct {
 	wmeta                workloadmeta.Component
 	tm                   telemetry.Component
 	fatbinParsingEnabled bool
+	config               *config.Config
 }
 
 type systemContextConfigOption func(*systemContextConfig)
@@ -103,6 +104,12 @@ func withTelemetry(tm telemetry.Component) systemContextConfigOption {
 func withFatbinParsingEnabled(enabled bool) systemContextConfigOption {
 	return func(cfg *systemContextConfig) {
 		cfg.fatbinParsingEnabled = enabled
+	}
+}
+
+func withConfig(config *config.Config) systemContextConfigOption {
+	return func(cfg *systemContextConfig) {
+		cfg.config = config
 	}
 }
 
@@ -145,7 +152,7 @@ func getSystemContext(opts ...systemContextConfigOption) (*systemContext, error)
 	}
 
 	if cfg.fatbinParsingEnabled {
-		ctx.cudaKernelCache = newKernelCache(ctx, cfg.tm)
+		ctx.cudaKernelCache = newKernelCache(ctx, cfg.tm, cfg.config.KernelCacheQueueSize)
 	}
 
 	return ctx, nil

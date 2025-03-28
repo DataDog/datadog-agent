@@ -108,13 +108,13 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 }
 
 // newKernelCache creates a new kernel cache with background processing
-func newKernelCache(sysCtx *systemContext, tm telemetry.Component) *kernelCache {
+func newKernelCache(sysCtx *systemContext, tm telemetry.Component, queueSize int) *kernelCache {
 	kc := &kernelCache{
 		cache:        make(map[kernelKey]*kernelData),
 		cudaSymbols:  make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:      make(map[int][]*procfs.ProcMap),
-		requests:     make(chan kernelKey, 100),
-		pidsToDelete: make(chan int, 100),
+		requests:     make(chan kernelKey, queueSize),
+		pidsToDelete: make(chan int, queueSize),
 		sysCtx:       sysCtx,
 		telemetry:    newKernelCacheTelemetry(tm),
 		done:         make(chan struct{}),

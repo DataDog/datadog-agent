@@ -36,6 +36,8 @@ type Config struct {
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
 	EnableFatbinParsing bool
+	// KernelCacheQueueSize is the size of the kernel cache queue for parsing requests
+	KernelCacheQueueSize int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -49,5 +51,6 @@ func New() *Config {
 		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
 		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
+		KernelCacheQueueSize:  spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "kernel_cache_queue_size")),
 	}
 }
