@@ -108,6 +108,8 @@ type ntmConfig struct {
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
 	knownKeys map[string]struct{}
+	// processedKeys are all the config keys that have been processed (i.e. set to a value)
+	processedKeys map[string]bool
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
@@ -455,18 +457,15 @@ func (c *ntmConfig) isReady() bool {
 func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
 	envWarnings := []string{}
-	for _, e := range os.Environ() {
-		pair := strings.SplitN(e, "=", 2)
-		if len(pair) != 2 {
-			continue
-		}
-		envkey := pair[0]
-		envval := pair[1]
 
-		if configKeyList, found := c.configEnvVars[envkey]; found {
-			for _, configKey := range configKeyList {
-				if err := c.insertNodeFromString(root, configKey, envval); err != nil {
-					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+	for envVar, listConfigKey := range c.configEnvVars {
+		for _, configKey := range listConfigKey {
+			if _, ok := c.processedKeys[configKey]; !ok {
+				if _, ok := os.LookupEnv(envVar); ok {
+					if err := c.insertNodeFromString(root, configKey, os.Getenv(envVar)); err != nil {
+						envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+					}
+					c.processedKeys[configKey] = true
 				}
 			}
 		}
@@ -876,6 +875,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		ready:              atomic.NewBool(false),
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
+		processedKeys:      map[string]bool{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},
 		schema:             newInnerNode(nil),
