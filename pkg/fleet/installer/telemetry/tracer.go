@@ -23,6 +23,7 @@ var (
 		"cdn":             0.1,
 		"garbage_collect": 0.05,
 		"HTTPClient":      0.05,
+		"agent.startup":   0.01,
 	}
 )
 
