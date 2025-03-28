@@ -3,68 +3,89 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && nvml
+//go:build linux
 
 package tags
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 )
 
-type mockNVML struct {
-	nvml.Interface
-	deviceCount int
-	countError  nvml.Return
-	initError   nvml.Return
-}
-
-func (m *mockNVML) DeviceGetCount() (int, nvml.Return) {
-	return m.deviceCount, m.countError
-}
-
-func (m *mockNVML) Init() nvml.Return {
-	return m.initError
-}
-
 func TestGetTags(t *testing.T) {
+	// Create a temporary directory for our test
+	tmpDir := t.TempDir()
+
+	// Override procFSRoot to use our temporary directory
+	originalProcFSRoot := procFSRoot
+	procFSRoot = func() string { return tmpDir }
+	defer func() { procFSRoot = originalProcFSRoot }()
+
 	tests := []struct {
 		name     string
-		nvml     mockNVML
+		setup    func() error
 		wantTags []string
 	}{
 		{
-			name: "no GPUs",
-			nvml: mockNVML{
-				deviceCount: 0,
-				countError:  nvml.SUCCESS,
+			name: "no NVIDIA directory",
+			setup: func() error {
+				// Don't create anything, directory should not exist
+				return nil
 			},
 			wantTags: nil,
 		},
 		{
-			name: "has GPUs",
-			nvml: mockNVML{
-				deviceCount: 2,
-				countError:  nvml.SUCCESS,
+			name: "NVIDIA directory exists but empty",
+			setup: func() error {
+				nvidiaPath := filepath.Join(tmpDir, "driver", "nvidia", "gpus")
+				return os.MkdirAll(nvidiaPath, 0755)
+			},
+			wantTags: nil,
+		},
+		{
+			name: "NVIDIA directory with one GPU",
+			setup: func() error {
+				nvidiaPath := filepath.Join(tmpDir, "driver", "nvidia", "gpus")
+				if err := os.MkdirAll(nvidiaPath, 0755); err != nil {
+					return err
+				}
+				// Create a dummy GPU entry
+				return os.WriteFile(filepath.Join(nvidiaPath, "0"), []byte("dummy"), 0644)
 			},
 			wantTags: []string{"gpu_host:true"},
 		},
 		{
-			name: "device count error",
-			nvml: mockNVML{
-				countError: nvml.ERROR_UNKNOWN,
+			name: "NVIDIA directory with multiple GPUs",
+			setup: func() error {
+				nvidiaPath := filepath.Join(tmpDir, "driver", "nvidia", "gpus")
+				if err := os.MkdirAll(nvidiaPath, 0755); err != nil {
+					return err
+				}
+				// Create multiple dummy GPU entries
+				for i := 0; i < 2; i++ {
+					if err := os.WriteFile(filepath.Join(nvidiaPath, fmt.Sprintf("%d", i)), []byte("dummy"), 0644); err != nil {
+						return err
+					}
+				}
+				return nil
 			},
-			wantTags: nil,
+			wantTags: []string{"gpu_host:true"},
 		},
 		{
-			name: "init error",
-			nvml: mockNVML{
-				initError:   nvml.ERROR_UNKNOWN,
-				countError:  nvml.SUCCESS,
-				deviceCount: 10, // If the init check is not correct, we'll report the tag and the test will fail
+			name: "NVIDIA directory exists but not readable",
+			setup: func() error {
+				nvidiaPath := filepath.Join(tmpDir, "driver", "nvidia", "gpus")
+				if err := os.MkdirAll(nvidiaPath, 0755); err != nil {
+					return err
+				}
+				if err := os.Chmod(nvidiaPath, 0000); err != nil {
+					return err
+				}
+				return nil
 			},
 			wantTags: nil,
 		},
@@ -72,84 +93,20 @@ func TestGetTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nvmlLibrary = nil
-			gotTags := getTags(func(_ ...nvml.LibraryOption) nvml.Interface { return &tt.nvml })
+			defer func() {
+				// Clean up any existing files before each test
+				if err := os.RemoveAll(filepath.Join(tmpDir, "driver")); err != nil {
+					t.Fatalf("Failed to clean up test directory: %v", err)
+				}
+			}()
+
+			if tt.setup != nil {
+				if err := tt.setup(); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
+			}
+			gotTags := GetTags()
 			assert.Equal(t, tt.wantTags, gotTags)
 		})
 	}
-}
-
-// BenchmarkGetTags requires libnvidia-ml.so to be present on the host.
-// This benchmark uses the real NVML library to measure actual performance,
-// as loading the native library is potentially the main bottleneck.
-func BenchmarkGetTags(b *testing.B) {
-	if res := nvml.Init(); res != nvml.SUCCESS && res != nvml.ERROR_ALREADY_INITIALIZED {
-		b.Fatalf("Failed to initialize NVML library")
-	}
-	_ = nvml.Shutdown()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		nvmlLibrary = nil
-		_ = GetTags()
-	}
-
-	// Verify the function completes within 500ms
-	b.StopTimer()
-	nvmlLibrary = nil
-	start := time.Now()
-	GetTags()
-	duration := time.Since(start)
-	if duration > 500*time.Millisecond {
-		b.Errorf("GetTags took %v, expected less than 500ms", duration)
-	} else {
-		b.Logf("GetTags took %v", duration)
-	}
-}
-
-func TestEnsureNvmlLibrary(t *testing.T) {
-	t.Run("library present", func(t *testing.T) {
-		// reset nvmlLibrary to nil to avoid interference from previous tests
-		nvmlLibrary = nil
-		mockLib := &mockNVML{
-			initError: nvml.SUCCESS,
-		}
-		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
-		assert.NoError(t, ensureNvmlLibrary(newFunc))
-	})
-	t.Run("library absent", func(t *testing.T) {
-		// reset nvmlLibrary to nil to avoid interference from previous tests
-		nvmlLibrary = nil
-		mockLib := &mockNVML{
-			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
-		}
-		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
-		assert.Error(t, ensureNvmlLibrary(newFunc))
-	})
-
-	t.Run("library absent, second call fails too", func(t *testing.T) {
-		// reset nvmlLibrary to nil to avoid interference from previous tests
-		nvmlLibrary = nil
-		mockLib := &mockNVML{
-			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
-		}
-		newFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLib }
-		assert.Error(t, ensureNvmlLibrary(newFunc))
-		assert.Error(t, ensureNvmlLibrary(newFunc))
-	})
-
-	t.Run("library absent, second call succeeds", func(t *testing.T) {
-		// reset nvmlLibrary to nil to avoid interference from previous tests
-		nvmlLibrary = nil
-		mockLibFail := &mockNVML{
-			initError: nvml.ERROR_LIBRARY_NOT_FOUND,
-		}
-		mockLibSuccess := &mockNVML{
-			initError: nvml.SUCCESS,
-		}
-		failFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLibFail }
-		successFunc := func(_ ...nvml.LibraryOption) nvml.Interface { return mockLibSuccess }
-		assert.Error(t, ensureNvmlLibrary(failFunc))
-		assert.NoError(t, ensureNvmlLibrary(successFunc))
-	})
 }

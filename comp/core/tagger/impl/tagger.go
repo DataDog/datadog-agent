@@ -192,6 +192,9 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 
 // getTags returns a read only list of tags for a given entity.
 func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
+	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
@@ -518,10 +521,4 @@ func taggerCardinality(cardinality string,
 	}
 
 	return taggerCardinality
-}
-
-// ChecksCardinality defines the cardinality of tags we should send for check metrics
-// this can still be overridden when calling get_tags in python checks.
-func (t *localTagger) ChecksCardinality() types.TagCardinality {
-	return t.datadogConfig.checksCardinality
 }

@@ -104,8 +104,8 @@ type ProbeDependencies struct {
 }
 
 // NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib := nvml.New(nvml.WithLibraryPath(cfg.NVMLLibraryPath))
+func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
+	nvmlLib := nvml.New()
 	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
 		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)

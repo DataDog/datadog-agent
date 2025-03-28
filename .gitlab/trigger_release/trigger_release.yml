@@ -33,6 +33,7 @@
 
 trigger_auto_staging_release:
   extends: .agent_release_management_trigger
+  timeout: 2h 30
   variables:
     AUTO_RELEASE: "true"
     TARGET_REPO: staging
@@ -43,6 +44,7 @@ trigger_auto_staging_release:
 
 trigger_auto_staging_release_on_failure:
   extends: .agent_release_management_trigger
+  timeout: 2h 30
   variables:
     AUTO_RELEASE: "false"
     TARGET_REPO: staging

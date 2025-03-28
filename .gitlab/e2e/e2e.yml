@@ -437,7 +437,7 @@ new-e2e-discovery:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/discovery
-    TEAM: universal-service-monitoring
+    TEAM: agent-discovery
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-process:
@@ -578,6 +578,7 @@ new-e2e-installer-windows:
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
