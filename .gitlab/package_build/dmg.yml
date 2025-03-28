@@ -134,13 +134,15 @@ new-agent_dmg-x64-a7:
     - SCRIPT=/tmp/script.sh
     - |
       echo '#!/bin/bash' > $SCRIPT
+      cat <<EOF >> $SCRIPT
       echo osascript -e '
         tell application "Finder"
           tell disk "Macintosh HD"
             open
             set current view of container window to icon view
           end tell
-        end tell' >> $SCRIPT
+        end tell'
+      EOF
       chmod +x $SCRIPT
       cat $SCRIPT
     - |
