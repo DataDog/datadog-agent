@@ -286,7 +286,13 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		return nil
 	default:
 		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1)
-		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		// TODO (alexandre.yang): Temporarily disabling this log due to excess log.
+		//   In the meantime, the drops can be monitored using datadog.network_path.collector.schedule.pathtest_dropped.
+		//   1/ Can be re-enabled once traceroute performance is good enough to handle all traffic with high # of workers.
+		//   2/ We likely also want to also throttle this log.
+		//   log to re-enable later:
+		//   fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		return nil
 	}
 }
 
