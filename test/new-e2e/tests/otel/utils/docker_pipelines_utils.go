@@ -33,7 +33,7 @@ func TestCalendarAppDocker(s OTelDockerTestSuite) {
 	s.T().Log("Waiting for calendar app to start")
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
@@ -131,7 +131,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 	var logs []*aggregator.Log
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 5*time.Minute, 10*time.Second)
@@ -148,7 +148,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 		for k, v := range attrs {
 			tags[k] = fmt.Sprint(v)
 		}
-		assert.Contains(s.T(), log.Message, logBody)
+		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])

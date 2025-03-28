@@ -38,7 +38,8 @@ const (
 	version              = "1.0"
 	customAttribute      = "custom.attribute"
 	customAttributeValue = "true"
-	logBody              = "random date"
+	log1Body             = "getting random date"
+	log2Body             = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -305,9 +306,9 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		if iaParams.InfraAttributes {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
 		} else {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
@@ -325,7 +326,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		for k, v := range attrs {
 			tags[k] = fmt.Sprint(v)
 		}
-		assert.Contains(s.T(), log.Message, logBody)
+		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
@@ -360,7 +361,7 @@ func TestHosts(s OTelTestSuite) {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(CalendarService, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -481,7 +482,7 @@ func TestHostMetrics(s OTelTestSuite) {
 	}, 1*time.Minute, 10*time.Second)
 }
 
-func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
+func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
 	spanMap := make(map[string][]*trace.Span)
 	spans := 0
 	for _, tracePayload := range traces {
@@ -499,11 +500,48 @@ func getLoadBalancingSpans(t assert.TestingT, traces []*aggregator.TracePayload)
 			}
 		}
 	}
-	assert.Equal(t, 12, spans)
+	require.Equal(t, 12, spans)
 	return spanMap
 }
 
-func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeries) map[string][]map[string]string {
+func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
+	logs1, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log1Body))
+	require.NoError(c, err)
+	require.NotEmpty(c, logs1)
+	log1 := logs1[0]
+	log1Tags := getTagMapFromSlice(c, log1.Tags)
+	attrs := make(map[string]interface{})
+	err = json.Unmarshal([]byte(log1.Message), &attrs)
+	require.NoError(c, err)
+	for k, v := range attrs {
+		log1Tags[k] = fmt.Sprint(v)
+	}
+
+	logs2, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
+	require.NoError(c, err)
+	require.NotEmpty(c, logs2)
+	matchedLog := false
+	for _, log2 := range logs2 {
+		// Find second log with the same trace id
+		log2Tags := getTagMapFromSlice(c, log2.Tags)
+		attrs = make(map[string]interface{})
+		err = json.Unmarshal([]byte(log2.Message), &attrs)
+		require.NoError(c, err)
+		for k, v := range attrs {
+			log2Tags[k] = fmt.Sprint(v)
+		}
+		if log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
+			//
+			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
+			require.Equal(c, log1Tags["backend"], log2Tags["backend"])
+			matchedLog = true
+			break
+		}
+	}
+	require.True(c, matchedLog)
+}
+
+func getLoadBalancingMetrics(t require.TestingT, metrics []*aggregator.MetricSeries) map[string][]map[string]string {
 	metricTagsMap := make(map[string][]map[string]string)
 	ms := 0
 	for _, metricSeries := range metrics {
@@ -517,7 +555,7 @@ func getLoadBalancingMetrics(t assert.TestingT, metrics []*aggregator.MetricSeri
 			return metricTagsMap
 		}
 	}
-	assert.Equal(t, 12, ms)
+	require.Equal(t, 12, ms)
 	return metricTagsMap
 }
 
@@ -539,6 +577,10 @@ func TestLoadBalancing(s OTelTestSuite) {
 		require.NoError(c, err)
 		require.NotEmpty(c, metrics)
 		metricTagsMap = getLoadBalancingMetrics(c, metrics)
+
+		for service := range spanMap {
+			getLoadBalancingLogs(c, s, service)
+		}
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
 	for service, spans := range spanMap {
@@ -576,7 +618,7 @@ func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
