@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *Check) configureCreateMounts(instanceConfig map[interface{}]interface{}) {
+func (c *Check) configureCreateMounts(_instanceConfig map[interface{}]interface{}) {
 }
 
 // LsblkCommand specifies the command used to retrieve block device information.
