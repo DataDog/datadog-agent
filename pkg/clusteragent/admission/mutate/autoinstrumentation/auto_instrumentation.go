@@ -300,16 +300,24 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				// we need to add it's resources to the main container's resources
 				continue
 			}
-			if limit, ok := c.Resources.Limits[k]; ok {
-				existing := ressourceRequirement.Limits[k]
-				if limit.Cmp(existing) == 1 {
-					ressourceRequirement.Limits[k] = limit
+
+			request, requestFound := c.Resources.Requests[k]
+			limit, limitFound := c.Resources.Limits[k]
+
+			if requestFound {
+				maxRequest := ressourceRequirement.Requests[k]
+				if request.Cmp(maxRequest) == 1 {
+					ressourceRequirement.Requests[k] = request
 				}
 			}
-			if request, ok := c.Resources.Requests[k]; ok {
-				existing := ressourceRequirement.Requests[k]
-				if request.Cmp(existing) == 1 {
-					ressourceRequirement.Requests[k] = request
+
+			if limitFound || requestFound {
+				if !limitFound {
+					limit = request
+				}
+				maxLimit := ressourceRequirement.Limits[k]
+				if limit.Cmp(maxLimit) == 1 {
+					ressourceRequirement.Limits[k] = limit
 				}
 			}
 		}
@@ -318,11 +326,19 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 		reqSum := resource.Quantity{}
 		for i := range pod.Spec.Containers {
 			c := &pod.Spec.Containers[i]
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
+
+			request, requestFound := c.Resources.Requests[k]
+			limit, limitFound := c.Resources.Limits[k]
+
+			if requestFound {
+				reqSum.Add(request)
 			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
+
+			if requestFound || limitFound {
+				if !limitFound {
+					limit = request
+				}
+				limitSum.Add(limit)
 			}
 		}
 		for i := range pod.Spec.InitContainers {
@@ -330,11 +346,19 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 			if !initContainerIsSidecar(c) {
 				continue
 			}
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
+
+			request, requestFound := c.Resources.Requests[k]
+			limit, limitFound := c.Resources.Limits[k]
+
+			if requestFound {
+				reqSum.Add(request)
 			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
+
+			if requestFound || limitFound {
+				if !limitFound {
+					limit = request
+				}
+				limitSum.Add(limit)
 			}
 		}
 
