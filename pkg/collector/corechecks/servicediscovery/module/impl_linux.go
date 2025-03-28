@@ -48,6 +48,10 @@ const (
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
 	containerCacheValidity = 2 * time.Second
+
+	// The maximum number of times that we check if a process has open ports
+	// before ignoring it forever.
+	maxPortCheckTries = 10
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -149,6 +153,10 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
+	// noPortTries stores the number of times in a row that we did not find
+	// open ports for this process.
+	noPortTries map[int32]int
+
 	// potentialServices stores processes that we have seen once in the previous
 	// iteration, but not yet confirmed to be a running service.
 	potentialServices pidSet
@@ -202,6 +210,7 @@ func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider,
 		config:             cfg,
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		noPortTries:        make(map[int32]int),
 		potentialServices:  make(pidSet),
 		runningServices:    make(pidSet),
 		ignorePids:         make(pidSet),
@@ -597,27 +606,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 // service.
 const maxNumberOfPorts = 50
 
-// getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	if s.shouldIgnorePid(pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(pid) {
-		s.addIgnoredPid(pid)
-		return nil
-	}
-
+func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
 	sockets, err := getSockets(pid)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	if len(sockets) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	ns, err := netns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	// The socket and network address information are different for each
@@ -628,7 +628,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if !ok {
 		nsInfo, err = getNsInfo(int(pid))
 		if err != nil {
-			return nil
+			return nil, err
 		}
 
 		context.netNsInfo[ns] = nsInfo
@@ -649,7 +649,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	if len(ports) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if len(ports) > maxNumberOfPorts {
@@ -660,6 +660,39 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		}
 		slices.SortFunc(ports, portCmp)
 		ports = ports[:maxNumberOfPorts]
+	}
+
+	return ports, nil
+}
+
+// getService gets information for a single service.
+func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnorePid(pid) {
+		return nil
+	}
+	if s.shouldIgnoreComm(pid) {
+		s.addIgnoredPid(pid)
+		return nil
+	}
+
+	ports, err := s.getPorts(context, pid)
+	if err != nil {
+		return nil
+	}
+	if len(ports) == 0 {
+		tries := s.noPortTries[pid]
+		tries++
+		s.noPortTries[pid] = tries
+
+		if tries >= maxPortCheckTries {
+			log.Tracef("ignoring %v due to no ports", pid)
+			s.addIgnoredPid(pid)
+			delete(s.noPortTries, pid)
+		}
+		return nil
+	} else {
+		// Reset the try counter since we only count tries in a row.
+		delete(s.noPortTries, pid)
 	}
 
 	rss, err := getRSS(pid)
@@ -711,6 +744,7 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 		}
 
 		delete(s.cache, pid)
+		delete(s.noPortTries, pid)
 	}
 }
 
