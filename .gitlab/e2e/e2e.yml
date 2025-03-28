@@ -437,7 +437,7 @@ new-e2e-discovery:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/discovery
-    TEAM: universal-service-monitoring
+    TEAM: agent-discovery
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-process:
