@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
-package docker
+package container
 
 import (
 	"context"
@@ -16,11 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/docker/docker/api/types/container"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -78,16 +80,18 @@ func NewTestDecoder() *decoder.Decoder {
 	}
 }
 
-func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelFunc context.CancelFunc) *Tailer {
+func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	containerID := "1234567890abcdef"
 	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
-		ContainerID:        containerID,
-		outputChan:         make(chan *message.Message, 100),
-		decoder:            NewTestDecoder(),
+		ContainerID: containerID,
+		outputChan:  make(chan *message.Message, 100),
+		decoder:     NewTestDecoder(),
+		unsafeLogReader: func(ctx context.Context, t time.Time) (io.ReadCloser, error) { //nolint
+			return unsafeReader, nil
+		},
 		Source:             source,
 		tagProvider:        tag.NewLocalProvider([]string{}),
-		dockerutil:         dockerClient,
 		readTimeout:        time.Millisecond,
 		sleepDuration:      time.Second,
 		stop:               make(chan struct{}, 1),
@@ -107,8 +111,9 @@ func TestTailerIdentifier(t *testing.T) {
 }
 
 func TestGetLastSince(t *testing.T) {
-	tailer := &Tailer{lastSince: "2008-01-12T01:01:01.000000001Z"}
-	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", tailer.getLastSince())
+	_time := time.Date(2008, 1, 12, 1, 1, 1, 1, time.UTC)
+	tailer := &Tailer{lastSince: _time.Format(config.DateFormat)}
+	assert.Equal(t, _time.Add(time.Nanosecond), tailer.getLastSince())
 }
 
 func TestRead(t *testing.T) {
@@ -160,8 +165,7 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("http: read on closed response body"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -176,8 +180,7 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -193,10 +196,9 @@ func TestTailer_readForever(t *testing.T) {
 				_, cancelFunc := context.WithCancel(context.Background())
 				// init the fake reader with an io.EOF
 				initialReader := NewTestReader("", io.EOF, nil)
-				// then the new reader return by the docker client will return close network connection to simulate stop agent
+				// then the new reader return by the unsafeReader client will return close network connection to simulate stop agent
 				connectionCloseReader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
-				dockerClient := NewTestDockerClient(connectionCloseReader, nil)
-				tailer := NewTestTailer(initialReader, dockerClient, cancelFunc)
+				tailer := NewTestTailer(initialReader, connectionCloseReader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
@@ -211,8 +213,7 @@ func TestTailer_readForever(t *testing.T) {
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
 				reader := NewTestReader("", fmt.Errorf("this is a random error"), nil)
-				dockerClient := NewTestDockerClient(reader, nil)
-				tailer := NewTestTailer(reader, dockerClient, cancelFunc)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},
 			wantFunc: func(tailer *Tailer) error {
