@@ -131,6 +131,11 @@ new-agent_dmg-x64-a7:
   #   - sudo ls /Volumes/Agent || true
   #   # TODO - sudo umount /Volumes/Agent || true
   script:
+    - |
+      brew remove --force --ignore-dependencies --formula aria2 || true
+      brew remove --force --ignore-dependencies --formula libidn2 || true
+      brew remove --force --ignore-dependencies --formula wget || true
+      brew remove --force --ignore-dependencies --formula gettext || true
     # - |
     #   # This sets the permission to send apple events to the Finder (required when using osascript)
     #   # TODO: vvv Verify if true vvv
