@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
+type factory struct{}
+
 func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 	return nil, errors.New("socket tailing is unavailable")
 }
