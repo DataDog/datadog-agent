@@ -8,10 +8,9 @@
 package tailerfactory
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
-	return &tailers.DockerSocketTailer{}, nil
+	return nil, errors.New("socket tailing is unavailable")
 }
