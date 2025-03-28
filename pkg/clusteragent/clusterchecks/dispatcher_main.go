@@ -220,13 +220,20 @@ func (d *dispatcher) scanUnscheduledChecks() {
 	d.store.Lock()
 	defer d.store.Unlock()
 
+	totalUnscheduledChecks := 0
 	for _, c := range d.store.danglingConfigs {
 		if !c.unscheduledCheck && c.isStuckScheduling(d.unscheduledCheckThresholdSeconds) {
-			log.Warnf("Detected unscheduled check config. Name:%s, Source:%s", c.config.Name, c.config.Source)
+			log.Warnf("Detected unscheduled check config. Name:%s, Source:%s, TimeCreated:%s", c.config.Name, c.config.Source, c.timeCreated)
 			c.unscheduledCheck = true
 			unscheduledCheck.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
 		}
+		if c.unscheduledCheck {
+			totalUnscheduledChecks++
+		}
 	}
+	log.Infof("Total unscheduled checks: %d", totalUnscheduledChecks)
+	log.Infof("Total dangling checks: %d", len(d.store.danglingConfigs))
+	danglingConfigs.Set(float64(len(d.store.danglingConfigs)), le.JoinLeaderValue)
 }
 
 // run is the main management goroutine for the dispatcher

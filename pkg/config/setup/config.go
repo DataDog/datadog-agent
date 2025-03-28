@@ -741,7 +741,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30)     // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)             // value in seconds
-	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
+	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds	//TODO: increase this timeout to 120
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
