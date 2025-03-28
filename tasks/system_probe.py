@@ -829,10 +829,15 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     if not is_windows and bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
 
-    # Temporary until we have a way to build libpcap dependencies on KMT
-    # and we understand whether it's needed or not
-    if "pcap" in build_tags:
-        build_tags.remove("pcap")
+    # Some flags are not supported on KMT testing, so we remove them
+    # until we have extra fixes (mainly coming from the unified build images)
+    temporarily_unsupported_build_tags = [
+        "pcap",  # libpcap headers not supported yet, specially for cross-compilation
+        "trivy",  # trivy introduces dependencies on a higher version of glibc
+    ]
+    for tag in temporarily_unsupported_build_tags:
+        if tag in build_tags:
+            build_tags.remove(tag)
 
     build_tags.extend(UNIT_TEST_TAGS)
 
