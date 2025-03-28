@@ -17,8 +17,8 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
-    trigger_buildenv_workflow,
     trigger_macos_workflow,
+    trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
@@ -72,7 +72,7 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=None,
-    release_version="nightly-a7",
+    release_version="nightly",
     major_version="7",
     destination=".",
     version_cache=None,
@@ -113,17 +113,30 @@ def trigger_macos(
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
-def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
+def _update_windows_runner_version(new_version=None, repo="buildenv"):
     if new_version is None:
-        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+        raise Exit(message="workflow needs the 'new_version' field value to be not None")
+    args_per_repo = {
+        "buildenv": {
+            "workflow_name": "runner-bump.yml",
+            "github_action_ref": "master",
+        },
+        "ci-platform-machine-images": {
+            "workflow_name": "windows-runner-agent-bump.yml",
+            "github_action_ref": "main",
+        },
+    }
 
-    run = trigger_buildenv_workflow(
-        workflow_name="runner-bump.yml",
-        github_action_ref=buildenv_ref,
+    run = trigger_windows_bump_workflow(
+        repo=repo,
+        workflow_name=args_per_repo[repo]["workflow_name"],
+        github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
-    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
+    # We are only waiting 0.5min between each status check because buildenv
+    # or ci-platform-machine-images are much faster than macOS builds
+    full_repo = f"DataDog/{repo}"
+    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
     if workflow_conclusion != "success":
         if workflow_conclusion == "failure":
@@ -132,7 +145,7 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
-    download_with_retry(download_artifacts, run, ".", 3, 5, "DataDog/buildenv")
+    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
 
     with open("PR_URL_ARTIFACT") as f:
         PR_URL = f.read().strip()
@@ -153,17 +166,17 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 def update_windows_runner_version(
     ctx,
     new_version=None,
-    buildenv_ref="master",
 ):
     """
-    Trigger a workflow on the buildenv repository to bump windows gitlab runner
+    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
     """
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    conclusion = _update_windows_runner_version(new_version, buildenv_ref)
-    if conclusion != "success":
-        raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
+    for repo in ["buildenv", "ci-platform-machine-images"]:
+        conclusion = _update_windows_runner_version(new_version, repo)
+        if conclusion != "success":
+            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task

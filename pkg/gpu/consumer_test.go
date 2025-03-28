@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -26,7 +26,8 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 	cfg := config.New()
 	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
-	consumer := newCudaEventConsumer(ctx, handler, cfg, testutil.GetTelemetryMock(t))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
@@ -39,7 +40,9 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
-	consumer := newCudaEventConsumer(ctx, nil, nil, testutil.GetTelemetryMock(t))
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
+
+	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -50,34 +53,34 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 		Stream_id: streamID,
 	}
 
-	globalStream := uint64(0)
+	globalStreamID := uint64(0)
 	headerGlobalStream := gpuebpf.CudaEventHeader{
 		Pid_tgid:  pidTgid,
-		Stream_id: globalStream,
+		Stream_id: globalStreamID,
 	}
 
 	// Configure the visible devices for our process
 	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
 
-	streamKey, err := consumer.getStreamKey(&headerStreamSpecific)
+	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
-	require.NotNil(t, streamKey)
-	require.Equal(t, pid, streamKey.pid)
-	require.Equal(t, streamID, streamKey.stream)
+	require.NotNil(t, stream)
+	require.Equal(t, pid, stream.metadata.pid)
+	require.Equal(t, streamID, stream.metadata.streamID)
 
 	// The stream should have the default selected device, which is 0
-	require.Equal(t, testutil.GPUUUIDs[0], streamKey.gpuUUID)
+	require.Equal(t, testutil.GPUUUIDs[0], stream.metadata.gpuUUID)
 
 	// Check the same thing happens with the global stream
-	globalStreamKey, err := consumer.getStreamKey(&headerGlobalStream)
+	globalStream, err := handlers.getStream(&headerGlobalStream)
 
 	require.NoError(t, err)
-	require.NotNil(t, globalStreamKey)
-	require.Equal(t, pid, globalStreamKey.pid)
-	require.Equal(t, globalStream, globalStreamKey.stream)
+	require.NotNil(t, globalStream)
+	require.Equal(t, pid, globalStream.metadata.pid)
+	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 
 	// Again, this should be on the default device
-	require.Equal(t, testutil.GPUUUIDs[0], globalStreamKey.gpuUUID)
+	require.Equal(t, testutil.GPUUUIDs[0], globalStream.metadata.gpuUUID)
 
 	// Now we trigger a setDevice event on this process
 	setDev := gpuebpf.CudaSetDeviceEvent{
@@ -90,18 +93,48 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 
 	// The stream key for the specific stream should not change, as streams are per-device
 	// and cannot change devices during its lifetime
-	streamKey, err = consumer.getStreamKey(&headerStreamSpecific)
+	stream, err = handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
-	require.NotNil(t, streamKey)
-	require.Equal(t, pid, streamKey.pid)
-	require.Equal(t, streamID, streamKey.stream)
-	require.Equal(t, testutil.GPUUUIDs[0], streamKey.gpuUUID)
+	require.NotNil(t, stream)
+	require.Equal(t, pid, stream.metadata.pid)
+	require.Equal(t, streamID, stream.metadata.streamID)
+	require.Equal(t, testutil.GPUUUIDs[0], stream.metadata.gpuUUID)
 
 	// The global stream should change, as the global stream can change devices
-	globalStreamKey, err = consumer.getStreamKey(&headerGlobalStream)
+	globalStream, err = handlers.getStream(&headerGlobalStream)
 	require.NoError(t, err)
-	require.NotNil(t, globalStreamKey)
-	require.Equal(t, pid, globalStreamKey.pid)
-	require.Equal(t, globalStream, globalStreamKey.stream)
-	require.Equal(t, testutil.GPUUUIDs[1], globalStreamKey.gpuUUID)
+	require.NotNil(t, globalStream)
+	require.Equal(t, pid, globalStream.metadata.pid)
+	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
+	require.Equal(t, testutil.GPUUUIDs[1], globalStream.metadata.gpuUUID)
+}
+
+// BenchmarkConsumer benchmarks the consumer with a data sample, with and without fatbin parsing enabled
+// Note that the NVML library is mocked here, so if some of the API calls are slow in the real implementation
+// the results will not reflect that. This benchmark is useful to measure the performance of the event intake,
+// such as the event parsing, stream handling, the effect of the fatbin parsing and the related caches, etc
+func BenchmarkConsumer(b *testing.B) {
+	events := testutil.GetGPUTestEvents(b, testutil.DataSamplePytorchBatchedKernels)
+	for _, fatbinParsingEnabled := range []bool{true, false} {
+		name := "fatbinParsingDisabled"
+		if fatbinParsingEnabled {
+			name = "fatbinParsingEnabled"
+		}
+		b.Run(name, func(b *testing.B) {
+			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			require.NoError(b, err)
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
+
+			ctx.fatbinParsingEnabled = fatbinParsingEnabled
+
+			cfg := config.New()
+			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
+			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.pidMaps[pid] = nil
+
+			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
+			b.ResetTimer()
+			injectEventsToConsumer(b, consumer, events, b.N)
+		})
+	}
 }

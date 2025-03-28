@@ -71,7 +71,7 @@ var PackagesConfig = []TestPackageConfig{
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
 	{Name: "datadog-apm-library-js", Version: "latest"},
-	{Name: "datadog-apm-library-dotnet", Version: "latest"},
+	{Name: "datadog-apm-library-dotnet", Alias: "apm-library-dotnet-package", Version: "latest"},
 	{Name: "datadog-apm-library-python", Version: "latest"},
 }
 

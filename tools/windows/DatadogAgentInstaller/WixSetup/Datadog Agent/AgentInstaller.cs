@@ -106,6 +106,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("FLEET_INSTALL", "0")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Set the flavor so CustomActions can adjust their behavior.
                 // For example, we only run openssl fipsinstall in the FIPS flavor.
                 new Property("AgentFlavor", _agentFlavor.FlavorName),
@@ -113,6 +117,18 @@ namespace WixSetup.Datadog_Agent
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),
                 new Property("DDDRIVERROLLBACK_PROCMON", "1"),
+                new Property("DD_APM_INSTRUMENTATION_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_APM_INSTRUMENTATION_LIBRARIES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_INSTALLER_REGISTRY_URL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -412,7 +428,6 @@ namespace WixSetup.Datadog_Agent
                     new Files($@"{InstallerSource}\python-scripts\*")
                 )
             );
-
             // Recursively delete/backup all files/folders in these paths, they will be restored
             // on rollback. By default WindowsInstller only removes the files it tracks, and these paths
             // may contain untracked files.
@@ -591,7 +606,30 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
                 agentBinDir,
-                new WixSharp.File(_agentBinaries.LibDatadogAgentThree)
+                new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
+                new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
+                    new ServiceInstaller
+                    {
+                        Name = Constants.InstallerServiceName,
+                        // Tell MSI not to start the services. We handle service start manually in StartDDServices custom action.
+                        StartOn = null,
+                        // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
+                        StopOn = null,
+                        RemoveOn = SvcEvent.Uninstall_Wait,
+                        Start = SvcStartType.auto,
+                        DelayedAutoStart = true,
+                        ServiceSid = ServiceSid.none,
+                        FirstFailureActionType = FailureActionType.restart,
+                        SecondFailureActionType = FailureActionType.restart,
+                        ThirdFailureActionType = FailureActionType.restart,
+                        Arguments = "run",
+                        RestartServiceDelayInSeconds = 30,
+                        ResetPeriodInDays = 1,
+                        PreShutdownDelay = 1000 * 60 * 3,
+                        Account = "LocalSystem",
+                        Vital = true
+                    }
+                )
             );
 
             return targetBinFolder;
@@ -610,9 +648,10 @@ namespace WixSetup.Datadog_Agent
                 ));
 
             appData.AddDir(new Dir(new Id("security.d"),
-                                    "runtime-security.d",
-                                    new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                       "runtime-security.d",
+                       new Files($@"{EtcSource}\runtime-security.d\*.*")
             ));
+
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

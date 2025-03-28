@@ -277,10 +277,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     if (ssl_ctx_map_val == NULL) {
         return;
     }
-
-    // copy map value to stack. required for older kernels
-    void *ssl_ctx = *ssl_ctx_map_val;
-
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
 
     ssl_sock_t ssl_sock = {};
@@ -288,6 +284,8 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
         return;
     }
 
+    // copy map value to stack. required for older kernels
+    void *ssl_ctx = *ssl_ctx_map_val;
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 

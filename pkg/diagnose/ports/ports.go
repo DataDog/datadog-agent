@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/port"
 )
 
@@ -21,12 +21,12 @@ var agentNames = map[string]struct{}{
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
-func DiagnosePortSuite() []diagnosis.Diagnosis {
+func DiagnosePortSuite() []diagnose.Diagnosis {
 	ports, err := port.GetUsedPorts()
 	if err != nil {
-		return []diagnosis.Diagnosis{{
+		return []diagnose.Diagnosis{{
 			Name:      "ports",
-			Result:    diagnosis.DiagnosisUnexpectedError,
+			Status:    diagnose.DiagnosisUnexpectedError,
 			Diagnosis: fmt.Sprintf("Unable to get the list of used ports: %v", err),
 		}}
 	}
@@ -36,7 +36,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		portMap[port.Port] = port
 	}
 
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	for _, key := range pkgconfigsetup.Datadog().AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
@@ -52,9 +52,9 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		port, ok := portMap[uint16(value)]
 		// if the port is used for several protocols, add a diagnose for each
 		if !ok {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisSuccess,
+				Status:    diagnose.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is not used", value),
 			})
 			continue
@@ -63,9 +63,9 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		// TODO: check process user/group
 		processName, ok := isAgentProcess(port.Pid, port.Process)
 		if ok {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisSuccess,
+				Status:    diagnose.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
 			})
 			continue
@@ -73,17 +73,17 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 
 		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
 		if port.Pid == 0 {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisWarning,
+				Status:    diagnose.DiagnosisWarning,
 				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Ensure this is the expected process.", value),
 			})
 			continue
 		}
 
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
+		diagnoses = append(diagnoses, diagnose.Diagnosis{
 			Name:      key,
-			Result:    diagnosis.DiagnosisFail,
+			Status:    diagnose.DiagnosisFail,
 			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, port.Pid, port.Proto),
 		})
 	}

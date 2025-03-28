@@ -822,13 +822,25 @@ def build_sysprobe_binary(
     ctx.run(cmd.format(**args), env=env)
 
 
-def get_sysprobe_buildtags(is_windows, bundle_ebpf):
-    build_tags = [NPM_TAG]
+def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
+    platform = "windows" if is_windows else "linux"
+    build_tags = get_default_build_tags(build="system-probe", platform=platform)
+
+    if not is_windows and bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+
+    # Some flags are not supported on KMT testing, so we remove them
+    # until we have extra fixes (mainly coming from the unified build images)
+    temporarily_unsupported_build_tags = [
+        "pcap",  # libpcap headers not supported yet, specially for cross-compilation
+        "trivy",  # trivy introduces dependencies on a higher version of glibc
+    ]
+    for tag in temporarily_unsupported_build_tags:
+        if tag in build_tags:
+            build_tags.remove(tag)
+
     build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+
     return build_tags
 
 
@@ -864,7 +876,7 @@ def test(
             kernel_release=kernel_release,
         )
 
-    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
+    build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""

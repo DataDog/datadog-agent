@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -24,7 +25,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -247,15 +247,15 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 }
 
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
-func Diagnose() []diagnosis.Diagnosis {
-	var diagnoses []diagnosis.Diagnosis
+func Diagnose() []diagnose.Diagnosis {
+	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
@@ -267,15 +267,15 @@ func Diagnose() []diagnosis.Diagnosis {
 		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:    diagnosis.DiagnosisSuccess,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:    diagnose.DiagnosisSuccess,
 				Category:  desc.category,
 				Name:      name,
 				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
 			})
 		} else {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Category:    desc.category,
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
@@ -418,12 +418,12 @@ func newHTTPPassthroughPipeline(
 	reliable := []client.Destination{}
 	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, destMeta, pkgconfigsetup.Datadog(), pipelineMonitor))
+		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, true, destMeta, pkgconfigsetup.Datadog(), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
 	}
 	additionals := []client.Destination{}
 	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, destMeta, pkgconfigsetup.Datadog(), pipelineMonitor))
+		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, false, destMeta, pkgconfigsetup.Datadog(), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)

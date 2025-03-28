@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -40,6 +41,14 @@ var (
 		"4XX status code. This might be related to the proxy settings. " +
 			"Please make sure the agent can reach Remote Configuration with the proxy setup",
 	)
+	// ErrGatewayTimeout is the error that will be logged if there is a gateway timeout
+	ErrGatewayTimeout = fmt.Errorf(
+		"non-200 response code: 504",
+	)
+	// ErrServiceUnavailable is the error that will be logged if there is the service is unavailable
+	ErrServiceUnavailable = fmt.Errorf(
+		"non-200 response code: 503",
+	)
 )
 
 // API is the interface to implement for a configuration fetcher
@@ -48,6 +57,7 @@ type API interface {
 	FetchOrgData(context.Context) (*pbgo.OrgDataResponse, error)
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 	UpdatePARJWT(string)
+	UpdateAPIKey(string)
 }
 
 // Auth defines the possible Authentication data to access the RC backend
@@ -238,11 +248,17 @@ func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Unlock()
 }
 
+// UpdateAPIKey allows for dynamic setting of a Private Action Runners JWT
+// Token for authentication to the RC backend.
+func (c *HTTPClient) UpdateAPIKey(apiKey string) {
+	c.headerLock.Lock()
+	c.header["DD-Api-Key"] = []string{apiKey}
+	c.headerLock.Unlock()
+}
+
 func (c *HTTPClient) addHeaders(req *http.Request) {
 	c.headerLock.RLock()
-	for k, v := range c.header {
-		req.Header[k] = v
-	}
+	maps.Copy(req.Header, c.header)
 	c.headerLock.RUnlock()
 }
 

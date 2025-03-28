@@ -91,13 +91,13 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "dda inv -e rtloader.clean"
-    command "dda inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
+    command "dda inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
     command "dda inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "dda inv -e systray.build --major-version #{major_version_arg}", env: env
   else
     command "dda inv -e rtloader.clean"
-    command "dda inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
+    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "dda inv -e rtloader.install"
     bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
@@ -182,6 +182,30 @@ build do
     end
 
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  end
+
+  # System-probe eBPF files
+  if sysprobe_enabled?
+    mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
+    mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
+    mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
+    mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
+    mkdir "#{install_dir}/embedded/share/system-probe/java"
+
+    arch = `uname -m`.strip
+    if arch == "aarch64"
+      arch = "arm64"
+    end
+    copy "pkg/ebpf/bytecode/build/#{arch}/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
+    copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
+    copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
+
+    copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
+
   end
 
   # Security agent

@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -153,7 +153,7 @@ func TestGPUDetection(t *testing.T) {
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
-			fakeTagger := taggerMock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 			gpuDetector := NewGPUSubscriber(mockWmeta, fakeTagger)
 			go gpuDetector.Run(context.Background())
@@ -293,7 +293,7 @@ func TestGetGPUTags(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			fakeTagger := taggerMock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			gpuDetector := NewGPUSubscriber(mockWmeta, fakeTagger)
 			gpuDetector.SetGPUDetected(tt.detectedGPU)
 

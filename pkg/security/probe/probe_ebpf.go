@@ -12,8 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"math"
 	"net"
 	"net/netip"
@@ -23,6 +21,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
@@ -67,7 +68,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -116,12 +118,12 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event           *model.Event
-	monitors        *EBPFMonitors
-	profileManagers *SecurityProfileManagers
-	fieldHandlers   *EBPFFieldHandlers
-	eventPool       *ddsync.TypedPool[model.Event]
-	numCPU          int
+	event          *model.Event
+	monitors       *EBPFMonitors
+	profileManager *securityprofile.Manager
+	fieldHandlers  *EBPFFieldHandlers
+	eventPool      *ddsync.TypedPool[model.Event]
+	numCPU         int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -135,7 +137,7 @@ type EBPFProbe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler dump.ActivityDumpHandler
+	activityDumpHandler storage.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                     *erpc.ERPC
@@ -162,7 +164,7 @@ type EBPFProbe struct {
 	useMmapableMaps    bool
 	cgroup2MountPath   string
 
-	// On demand
+	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
 
@@ -177,11 +179,6 @@ type EBPFProbe struct {
 // GetUseRingBuffers returns p.useRingBuffers
 func (p *EBPFProbe) GetUseRingBuffers() bool {
 	return p.useRingBuffers
-}
-
-// GetProfileManager returns the Profile Managers
-func (p *EBPFProbe) GetProfileManager() interface{} {
-	return p.profileManagers
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -470,11 +467,10 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManagers, err = NewSecurityProfileManagers(p)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
 	if err != nil {
 		return err
 	}
-	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
 
@@ -484,7 +480,14 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.processKiller.Start(p.ctx, &p.wg)
-	p.profileManagers.Start(p.ctx, &p.wg)
+
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.profileManager.Start(p.ctx)
+		}()
+	}
 
 	return nil
 }
@@ -669,7 +672,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
+func (p *EBPFProbe) AddActivityDumpHandler(handler storage.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
@@ -678,16 +681,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	if p.config.RuntimeSecurity.SecurityProfileEnabled {
-		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
-	}
+	p.profileManager.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
 	// this is needed for auto suppressions performed by the CWS rule engine
-	if p.profileManagers.activityDumpManager != nil {
-		if p.profileManagers.activityDumpManager.HasActiveActivityDump(event) {
-			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
-		}
+	if p.profileManager.HasActiveActivityDump(event) {
+		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -701,15 +700,13 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
 		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		p.profileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-		if p.profileManagers.activityDumpManager != nil {
-			p.profileManagers.activityDumpManager.ProcessEvent(event)
-		}
+		p.profileManager.ProcessEvent(event)
 	}
 	p.monitors.ProcessEvent(event)
 }
@@ -720,7 +717,7 @@ func (p *EBPFProbe) SendStats() error {
 
 	p.processKiller.SendStats(p.statsdClient)
 
-	if err := p.profileManagers.SendStats(); err != nil {
+	if err := p.profileManager.SendStats(); err != nil {
 		return err
 	}
 
@@ -740,7 +737,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -748,23 +745,30 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
-func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
+var dnsLayer = new(layers.DNS)
 
-	for _, layer := range packet.Layers() {
-		switch layer := layer.(type) {
-		case *layers.DNS:
-			for _, answer := range layer.Answers {
-				if answer.Type == layers.DNSTypeCNAME {
-					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-				} else {
-					ip, ok := netip.AddrFromSlice(answer.IP)
-					if ok {
-						p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
-					} else {
-						seclog.Errorf("DNS response with an invalid IP received: %v", ip)
-					}
-				}
+func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	if !p.config.Probe.DNSResolutionEnabled {
+		return
+	}
+
+	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
+		// this is currently pretty common, so only trace log it for now
+		if seclog.DefaultLogger.IsTracing() {
+			seclog.Errorf("failed to decode DNS response: %s", err)
+		}
+		return
+	}
+
+	for _, answer := range dnsLayer.Answers {
+		if answer.Type == layers.DNSTypeCNAME {
+			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+			ip, ok := netip.AddrFromSlice(answer.IP)
+			if ok {
+				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
+			} else {
+				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
 			}
 		}
 	}
@@ -809,7 +813,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		p.profileManagers.SnapshotTracedCgroups()
+		p.profileManager.SnapshotTracedCgroups()
 	}
 }
 
@@ -829,7 +833,6 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	// do the same with cgroup context
 	event.CGroupContext = &event.ProcessCacheEntry.CGroup
-	event.ContainerContext.ContainerID = event.ProcessContext.ContainerID
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -857,16 +860,17 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
-func (p *EBPFProbe) resolveCGroupAndContainer(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, containerutils.ContainerID, error) {
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
 	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
+		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
-	pce := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
-	if pce == nil {
-		return nil, "", fmt.Errorf("failed to update cgroup for pid %d", pid)
+	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
+	if !updated {
+		return nil, fmt.Errorf("failed to update cgroup for pid %d", pid)
 	}
-	return cgroupContext, pce.ContainerID, nil
+
+	return cgroupContext, nil
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -952,21 +956,25 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if cgroupContext, containerID, err := p.resolveCGroupAndContainer(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
+		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
+			if cgroupContext.CGroupFlags.IsContainer() {
+				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+				event.CgroupTracing.ContainerContext.ContainerID = containerID
+			}
+
 			event.CGroupContext = cgroupContext
-			event.CgroupTracing.ContainerContext.ContainerID = containerID
-			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return
 	case model.CgroupWriteEventType:
 		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write event: %s (offset %d, len %d)", err, offset, dataLen)
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if _, _, err := p.resolveCGroupAndContainer(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return
@@ -1020,23 +1028,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-	default:
-		if !event.CGroupContext.CGroupFile.IsNull() {
-			cgroupContext, _, err := p.resolveCGroupAndContainer(event.PIDContext.Pid, event.CGroupContext.CGroupFile, event.CGroupContext.CGroupFlags, newEntryCb)
-			if err != nil {
-				seclog.Debugf("failed to resolve cgroup context for event %s: %s", err, eventType.String())
-			} else {
-				event.CGroupContext.Merge(cgroupContext)
-			}
-		}
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
-
-	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	switch eventType {
 
@@ -1402,6 +1398,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	}
+
+	// resolve the container context
+	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
@@ -1823,7 +1822,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			return
 		case <-ticker.C:
 			// create the sysctl snapshot
-			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames)
+			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
 			if err != nil {
 				seclog.Errorf("sysctl snapshot failed: %v", err)
 				continue
@@ -2145,10 +2144,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "vfs_mkdir_dentry_position",
 			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_link_target_dentry_position",
-			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",
@@ -2491,9 +2486,9 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 	return uint64(argc)
 }
 
-// GetProfileManagers returns the security profile managers
-func (p *EBPFProbe) GetProfileManagers() *SecurityProfileManagers {
-	return p.profileManagers
+// GetProfileManager returns the security profile manager
+func (p *EBPFProbe) GetProfileManager() *securityprofile.Manager {
+	return p.profileManager
 }
 
 const (

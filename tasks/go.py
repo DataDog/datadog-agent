@@ -42,7 +42,7 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
-    module_path,
+    base_path,
     targets,
     rtloader_root=None,
     build_tags=None,
@@ -79,7 +79,7 @@ def run_golangci_lint(
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
             res = ctx.run(
-                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
@@ -89,7 +89,7 @@ def run_golangci_lint(
                 raise KeyboardInterrupt()
             return res
 
-        target_path = Path(module_path) / target
+        target_path = Path(base_path) / target
         result, time_result = TimedOperationResult.run(
             lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
         )
@@ -343,7 +343,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.23.6 linux/amd64"
+    # result is like "go version go1.23.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

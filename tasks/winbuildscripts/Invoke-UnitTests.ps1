@@ -119,7 +119,7 @@ Invoke-BuildScript `
     }
 
     # Run python-script unit tests
-    & inv -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
+    & dda inv -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
     $err = $LASTEXITCODE
     Write-Host Python-script test result is $err
     if($err -ne 0){
@@ -137,7 +137,7 @@ Invoke-BuildScript `
     & dda inv -e test --junit-tar="$Env:JUNIT_TAR" `
         --race --profile --rerun-fails=2 --coverage --cpus 8 `
         --python-home-3=$Env:Python3_ROOT_DIR `
-        --save-result-json C:\mnt\$test_output_file `
+        --result-json C:\mnt\$test_output_file `
         --build-stdlib `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
@@ -159,7 +159,7 @@ Invoke-BuildScript `
             Copy-Item -Path $_.FullName -Destination C:\mnt
         }
         $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
-        & dda inv -e junit-upload --tgz-path $Env:JUNIT_TAR
+        & dda inv -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
             Write-Host -ForegroundColor Red "junit upload failed $localErr"

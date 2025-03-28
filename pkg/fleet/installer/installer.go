@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -36,6 +37,7 @@ const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
+	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
 
 // Installer is a package manager that installs and uninstalls packages.
@@ -50,6 +52,7 @@ type Installer interface {
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
+	SetupInstaller(ctx context.Context, path string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -65,6 +68,8 @@ type Installer interface {
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
+
+	Postinst(ctx context.Context, pkg string, caller string) error
 
 	Close() error
 }
@@ -177,6 +182,81 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		}
 		return true
 	})
+}
+
+// SetupInstaller with given path sets up the installer/agent package.
+func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	// make sure data directory is set up correctly
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	_, err = i.db.GetPackage(packageDatadogAgent)
+	if err == nil {
+		// need to remove the agent before installing the installer
+		err = i.db.DeletePackage(packageDatadogAgent)
+		if err != nil {
+			return fmt.Errorf("could not remove agent: %w", err)
+		}
+
+	} else if !errors.Is(err, db.ErrPackageNotFound) {
+		// there was a real error
+		return fmt.Errorf("could not get package: %w", err)
+	}
+
+	// remove the agent from the repository no matter database state
+	pkgState, err := i.packages.Get(packageDatadogAgent).GetState()
+	if err != nil {
+		return fmt.Errorf("could not get agent state: %w", err)
+	}
+
+	// need to make sure there is an agent package
+	// in the repository before we can call Delete
+	if pkgState.HasStable() {
+		err = i.packages.Delete(ctx, packageDatadogAgent)
+		if err != nil {
+			return fmt.Errorf("could not delete agent repository: %w", err)
+		}
+	}
+
+	// if windows we need to copy the MSI to temp directory
+	if runtime.GOOS == "windows" {
+		// copy the MSI to the temp directory
+		tmpDir, err := i.packages.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+		msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
+		if err != nil {
+			return fmt.Errorf("could not copy installer: %w", err)
+		}
+		path = tmpDir
+	}
+
+	// create the installer package
+	err = i.packages.Create(ctx, packageDatadogAgent, version.AgentPackageVersion, path)
+	if err != nil {
+		return fmt.Errorf("could not create installer repository: %w", err)
+	}
+
+	// add to the db
+	err = i.db.SetPackage(db.Package{
+		Name:             packageDatadogAgent,
+		Version:          version.AgentPackageVersion,
+		InstallerVersion: version.AgentVersion,
+	})
+	if err != nil {
+		return fmt.Errorf("could not store package installation in db: %w", err)
+	}
+
+	return nil
+
 }
 
 func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
@@ -368,7 +448,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	tmpDir, err := i.packages.MkdirTemp()
+	tmpDir, err := i.configs.MkdirTemp()
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -453,6 +533,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
+		if pkg.Name == packageDatadogAgent {
+			continue
+		}
 		err := i.removePackage(ctx, pkg.Name)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
@@ -466,9 +549,17 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.removePackage(ctx, packageDatadogInstaller)
+	err = i.removePackage(ctx, packageDatadogAgent)
 	if err != nil {
-		log.Warnf("could not remove installer: %v", err)
+		log.Warnf("could not remove agent: %v", err)
+	}
+	// TODO: wont need this when Linux packages are merged
+	if runtime.GOOS != "windows" {
+		// on windows the installer package has been merged with the agent package
+		err = i.removePackage(ctx, packageDatadogInstaller)
+		if err != nil {
+			log.Warnf("could not remove installer: %v", err)
+		}
 	}
 
 	// Must close dependencies before removing the rest of the files,
@@ -591,6 +682,27 @@ func (i *installerImpl) close() error {
 	return nil
 }
 
+// Postinst runs the post-install script for a package.
+func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if caller != "deb" && caller != "rpm" && caller != "oci" {
+		return fmt.Errorf("invalid caller: %s", caller)
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
+		if caller == "deb" || caller == "rpm" {
+			installPath = "/opt/datadog-agent"
+		}
+		return packages.PostInstallAgent(ctx, installPath, caller)
+	default:
+		return nil
+	}
+}
+
 // Close cleans up the Installer's dependencies
 func (i *installerImpl) Close() error {
 	i.m.Lock()
@@ -601,9 +713,13 @@ func (i *installerImpl) Close() error {
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
+		// close so package can be updated as watchdog runs
+		i.db.Close()
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StartInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StartAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -615,6 +731,8 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 		return packages.StopAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StopInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.StopAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -626,6 +744,8 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 		return packages.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.PromoteInstallerExperiment(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.PromoteAPMLibraryDotnetExperiment(ctx)
 	default:
 		return nil
 	}
@@ -650,6 +770,8 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 		return packages.SetupAgent(ctx, args)
 	case packageAPMInjector:
 		return packages.SetupAPMInjector(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.SetupAPMLibraryDotnet(ctx, pkg)
 	default:
 		return nil
 	}
@@ -663,6 +785,8 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 		return packages.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
 		return packages.RemoveInstaller(ctx)
+	case packageAPMLibraryDotnet:
+		return packages.RemoveAPMLibraryDotnet(ctx)
 	default:
 		return nil
 	}

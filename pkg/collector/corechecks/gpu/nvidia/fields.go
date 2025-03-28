@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvidia
 
@@ -72,9 +72,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	}
 
 	ret := c.device.GetFieldValues(fields)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, errUnsupportedDevice
-	} else if ret != nvml.SUCCESS {
+	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get field values: %s", nvml.ErrorString(ret))
 	}
 
@@ -136,6 +134,13 @@ var metricNameToFieldID = []fieldValueMetric{
 	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType},
 	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType},
 	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType},
+	{"nvlink.speed", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType},
+	{"nvlink.nvswitch_connected", nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, 0, metrics.GaugeType},
+	{"nvlink.errors.crc.data", nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, 0, metrics.CountType},
+	{"nvlink.errors.crc.flit", nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, 0, metrics.CountType},
+	{"nvlink.errors.ecc", nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, 0, metrics.CountType},
+	{"nvlink.errors.recovery", nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, 0, metrics.CountType},
+	{"nvlink.errors.replay", nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, 0, metrics.CountType},
 	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0, metrics.CountType},
 	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0, metrics.GaugeType},
 }

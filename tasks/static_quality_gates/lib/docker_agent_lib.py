@@ -13,18 +13,19 @@ def calculate_image_on_disk_size(ctx, url):
     ctx.run("tar -xf output.tar")
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
     total_size = 0
-    image_tar_gz = None
+    image_tar_gz = []
     print("Image on disk content :")
     for k, line in enumerate(image_content):
         if k % 2 == 0:
             if "tar.gz" in image_content[k + 1]:
-                image_tar_gz = image_content[k + 1]
+                image_tar_gz.append(image_content[k + 1])
             else:
                 total_size += int(line)
         else:
             print(f"  - {line}")
     if image_tar_gz:
-        total_size += int(ctx.run(f"tar -xf {image_tar_gz} --to-stdout | wc -c", hide=True).stdout)
+        for image in image_tar_gz:
+            total_size += int(ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
     else:
         print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
@@ -35,7 +36,7 @@ def get_image_url_size(ctx, metric_handler, gate_name, url):
     image_on_wire_size = ctx.run(
         "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
         + url
-        + " | grep size | awk -F ':' '{sum+=$NF} END {print sum}'"
+        + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'"
     )
     image_on_wire_size = int(image_on_wire_size.stdout)
     # Calculate image on disk size
@@ -75,14 +76,20 @@ def check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, m
         raise AssertionError(error_message)
 
 
-def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", **kwargs):
+def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
     arguments = argument_extractor(
-        kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
+        kwargs,
+        max_on_wire_size=read_byte_input,
+        max_on_disk_size=read_byte_input,
+        ctx=None,
+        metricHandler=None,
+        nightly=None,
     )
     ctx = arguments.ctx
     metric_handler = arguments.metricHandler
     max_on_wire_size = arguments.max_on_wire_size
     max_on_disk_size = arguments.max_on_disk_size
+    is_nightly_run = arguments.nightly
 
     metric_handler.register_gate_tags(gate_name, gate_name=gate_name, arch=arch, os="docker")
 
@@ -98,7 +105,10 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
                 "orange",
             )
         )
-    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{'-7' if flavor == 'agent' else ''}{'-jmx' if jmx else ''}-{arch}"
+    image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    if flavor != "dogstatsd" and is_nightly_run:
+        flavor += "-nightly"
+    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     # Fetch the on wire and on disk size of the image from the url
     image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
     # Check if the docker image is within acceptable bounds

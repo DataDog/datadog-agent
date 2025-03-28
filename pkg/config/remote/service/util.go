@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"go.etcd.io/bbolt"
+	bbolterr "go.etcd.io/bbolt/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -65,7 +66,7 @@ func recreate(path string, agentVersion string, apiKeyHash string, url string) (
 		Timeout: databaseLockTimeout,
 	})
 	if err != nil {
-		if errors.Is(err, bbolt.ErrTimeout) {
+		if errors.Is(err, bbolterr.ErrTimeout) {
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
 		return nil, err
@@ -99,7 +100,7 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 		Timeout: databaseLockTimeout,
 	})
 	if err != nil {
-		if errors.Is(err, bbolt.ErrTimeout) {
+		if errors.Is(err, bbolterr.ErrTimeout) {
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
 		log.Infof("Failed to open remote configuration database %s", err)
@@ -111,12 +112,12 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 		bucket := tx.Bucket([]byte(metaBucket))
 		if bucket == nil {
 			log.Infof("Missing meta bucket")
-			return err
+			return fmt.Errorf("Could not get RC metadata: missing bucket")
 		}
 		metadataBytes := bucket.Get([]byte(metaFile))
 		if metadataBytes == nil {
 			log.Infof("Missing meta file in meta bucket")
-			return err
+			return fmt.Errorf("Could not get RC metadata: missing meta file")
 		}
 		err = json.Unmarshal(metadataBytes, &metadata)
 		if err != nil {

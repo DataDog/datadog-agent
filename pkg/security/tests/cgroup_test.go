@@ -423,7 +423,7 @@ func TestCGroupVariables(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skipf("Skipping created time in containers tests: Docker not available: %s", err)
+		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
 	}
 	defer dockerWrapper.stop()
@@ -431,10 +431,7 @@ func TestCGroupVariables(t *testing.T) {
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("error while executing %s: %s (%s)", cmd.String(), err, string(output))
-			}
-			return nil
+			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_set_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile)

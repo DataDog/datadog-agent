@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -233,7 +233,7 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	staticFilePath := path.Join(setup.InstallPath, "bin", "agent", "dist", "views")
+	staticFilePath := path.Join(defaultpaths.GetDistPath(), "views")
 
 	// checking against path traversal
 	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)

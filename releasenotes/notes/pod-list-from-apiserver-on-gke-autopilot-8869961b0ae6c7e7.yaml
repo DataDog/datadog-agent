@@ -1,0 +1,9 @@
+
+---
+enhancements:
+  - |
+    Added support for querying the pod list through the API server. This feature, enabled by setting `kubeletUseApiServer`
+    to `true`, allows the Agent to retrieve pod metadata directly from the API server instead of the kubelet. 
+    This resolves issues when direct access to the kubelet `/pods` endpoint is restricted. 
+    The agent will continue to query the kubelet for `/metrics` and `/stats/summary`.
+    Must add `pods` to Agent cluster role.

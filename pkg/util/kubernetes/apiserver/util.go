@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -110,15 +108,6 @@ func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, 
 	}
 
 	return errors
-}
-
-// UnstructuredIntoWPA converts an unstructured into a WPA
-func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
-	unstrObj, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		return fmt.Errorf("could not cast Unstructured object: %v", obj)
-	}
-	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
 // UnstructuredFromAutoscaler converts a WPA object into an Unstructured

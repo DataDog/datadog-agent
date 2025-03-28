@@ -97,11 +97,6 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 				datadogMap = componentMap[component].(map[string]any)
 			}
 			api, ok := datadogMap["api"]
-			if !ok && compName == "ddprofiling" {
-				// in otel-agent path, ddprofiling does not need api key/site,
-				// so it's expected not to be present. don't add it.
-				return
-			}
 			// ok can be true if api section is there but contains nothing (api == nil).
 			// In which case, we need to add it so we can add to it.
 			if !ok || api == nil {
@@ -115,13 +110,15 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 
 			// api::site
 			apiSite := apiMap["site"]
-			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-				apiMap["site"] = coreCfg.Get("site")
-			} else if (apiSite == nil || apiSite == "") && coreCfg.Get("site") == nil {
-				// if site is nil or empty string, and core config site is unset, set default
-				// site. Site defaults to an empty string in helm chart:
-				// https://github.com/DataDog/helm-charts/blob/datadog-3.86.0/charts/datadog/templates/_otel_agent_config.yaml#L24.
-				apiMap["site"] = "datadoghq.com"
+			if apiSite == nil || apiSite == "" {
+				if coreCfg.Get("site") != nil && coreCfg.Get("site") != "" {
+					apiMap["site"] = coreCfg.Get("site")
+				} else {
+					// if site is nil or empty string, and core config site is unset, set default
+					// site. Site defaults to an empty string in helm chart:
+					// https://github.com/DataDog/helm-charts/blob/datadog-3.86.0/charts/datadog/templates/_otel_agent_config.yaml#L24.
+					apiMap["site"] = "datadoghq.com"
+				}
 			}
 
 			// api::key

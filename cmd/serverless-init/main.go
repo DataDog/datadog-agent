@@ -77,7 +77,7 @@ func main() {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		localTaggerFx.Module(tagger.Params{}),
+		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),

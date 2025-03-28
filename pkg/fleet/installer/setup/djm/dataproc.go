@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	dataprocInjectorVersion   = "0.26.0-1"
-	dataprocJavaTracerVersion = "1.45.2-1"
-	dataprocAgentVersion      = "7.62.2-1"
+	dataprocInjectorVersion   = "0.35.0-1"
+	dataprocJavaTracerVersion = "1.46.1-1"
+	dataprocAgentVersion      = "7.63.3-1"
 )
 
 var (
@@ -62,6 +62,14 @@ func SetupDataproc(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigDataproc, debugLogs)
+	}
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDataproc
 
 	// Ensure tags are always attached with the metrics
@@ -84,7 +92,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if err != nil {
 		return "", "", err
 	}
-	setHostTag(s, "cluster_id", clusterID)
+	setClearHostTag(s, "cluster_id", clusterID)
 	setHostTag(s, "dataproc_cluster_id", clusterID)
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
@@ -96,8 +104,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if dataprocRole == "Master" {
 		isMaster = "true"
 	}
-	setHostTag(s, "is_master_node", isMaster)
-	s.Span.SetTag("host."+"is_master_node", isMaster)
+	setClearHostTag(s, "is_master_node", isMaster)
 
 	clusterName, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-cluster-name")
 	if err != nil {
@@ -105,6 +112,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 		return isMaster, clusterID, nil
 	}
 	setHostTag(s, "cluster_name", clusterName)
+	addCustomHostTags(s)
 
 	return isMaster, clusterName, nil
 }

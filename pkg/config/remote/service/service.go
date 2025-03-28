@@ -17,29 +17,28 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
+	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"go.etcd.io/bbolt"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,6 +53,11 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
+	// Number of /configurations where we get 503 or 504 errors until the log level is increased to ERROR
+	maxFetchConfigsUntilLogLevelErrors = 5
+	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
+	maxFetchOrgStatusUntilLogLevelErrors = 5
+	initialUpdateDeadline                = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -134,6 +138,9 @@ type CoreAgentService struct {
 	Service
 	firstUpdate bool
 
+	// We record the startup time to ensure we flush client configs if we can't contact the backend in time
+	startupTime time.Time
+
 	defaultRefreshInterval         time.Duration
 	refreshIntervalOverrideAllowed bool
 
@@ -161,11 +168,17 @@ type CoreAgentService struct {
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
 
-	lastUpdateErr error
+	lastUpdateTimestamp time.Time
+	lastUpdateErr       error
 
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
 	lastFetchErrorType error
+	//  Number of /configurations calls where we get 503 or 504 errors
+	fetchConfigs503And504ErrCount uint64
+
+	//  Number of /status calls where we get 503 or 504 errors
+	fetchOrgStatus503And504ErrCount uint64
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
@@ -440,12 +453,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	return &CoreAgentService{
+	now := clock.Now().UTC()
+	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
 			db:     db,
 		},
 		firstUpdate:                    true,
+		startupTime:                    now,
 		defaultRefreshInterval:         options.refresh,
 		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
 		backoffErrorCount:              0,
@@ -475,7 +490,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopOrgPoller:         make(chan struct{}),
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
-	}, nil
+	}
+
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+
+	return cas, nil
 }
 
 func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
@@ -571,7 +590,11 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 func logRefreshError(s *CoreAgentService, err error) {
 	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 		exportedLastUpdateErr.Set(err.Error())
-		log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+		if s.fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+		} else {
+			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+		}
 	} else {
 		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
 	}
@@ -591,11 +614,18 @@ func (s *CoreAgentService) pollOrgStatus() {
 	if err != nil {
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
 		// and it limits the error log.
-		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			s.fetchOrgStatus503And504ErrCount++
+		}
+
+		if s.fetchOrgStatus503And504ErrCount < maxFetchOrgStatusUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+		} else {
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 		return
 	}
+	s.fetchOrgStatus503And504ErrCount = 0
 
 	// Print info log when the new status is different from the previous one, or if it's the first run
 	if s.previousOrgStatus == nil ||
@@ -632,6 +662,16 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 
 func (s *CoreAgentService) refresh() error {
 	s.Lock()
+
+	// We can't let the backend process an update twice in the same second due to the fact that we
+	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
+	// the update will appear to TUF as being identical to the previous update and it will be dropped.
+	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
+	if timeSinceUpdate < time.Second {
+		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
+		time.Sleep(time.Second - timeSinceUpdate)
+	}
+
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -677,9 +717,14 @@ func (s *CoreAgentService) refresh() error {
 			log.Debugf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 			return nil
 		}
+
+		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
+			s.fetchConfigs503And504ErrCount++
+		}
 		return err
 	}
 	s.fetchErrorCount = 0
+	s.fetchConfigs503And504ErrCount = 0
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
@@ -696,6 +741,8 @@ func (s *CoreAgentService) refresh() error {
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
+
+	s.lastUpdateTimestamp = time.Now()
 
 	s.firstUpdate = false
 	for product := range s.newProducts {
@@ -822,13 +869,19 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	expires, err := s.uptane.TimestampExpires()
-	if err != nil {
-		return nil, err
-	}
-	if expires.Before(time.Now()) {
-		log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
-		return s.flushCacheResponse()
+	// If we have made our initial update (or the deadline has expired)
+	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+		// get the expiration time of timestamp.json
+		expires, err := s.uptane.TimestampExpires()
+		if err != nil {
+			return nil, err
+		}
+		// If timestamp.json has expired and we've waited to ensure connection to the backend,
+		// all clients must flush their configuration state.
+		if expires.Before(time.Now()) {
+			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+			return s.flushCacheResponse()
+		}
 	}
 
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
@@ -907,6 +960,41 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
+	return func(setting string, _, newvalue any) {
+		if setting != "api_key" {
+			return
+		}
+
+		newKey, ok := newvalue.(string)
+
+		if !ok {
+			log.Errorf("Could not convert API key to string")
+			return
+		}
+		s.Lock()
+		defer s.Unlock()
+
+		s.api.UpdateAPIKey(newKey)
+
+		// Verify that the Org UUID hasn't changed
+		storedOrgUUID, err := s.uptane.StoredOrgUUID()
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+		newOrgUUID, err := s.api.FetchOrgData(context.Background())
+		if err != nil {
+			log.Warnf("Could not get org uuid: %s", err)
+			return
+		}
+
+		if storedOrgUUID != newOrgUUID.Uuid {
+			log.Errorf("Error switching API key: new API key is from a different organization")
+		}
+	}
+}
+
 // ConfigGetState returns the state of the configuration and the director repos in the local store
 func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	state, err := s.uptane.State()
@@ -929,9 +1017,7 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
 
-	for targetName, targetHash := range state.TargetFilenames {
-		response.TargetFilenames[targetName] = targetHash
-	}
+	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
 	return response, nil
 }

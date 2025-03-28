@@ -1,6 +1,7 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "enabledManagers": ["custom.regex"],
+    "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "customManagers" : [
       {
         "customType": "regex",
@@ -20,9 +21,30 @@
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+)"
         ],
-        "depNameTemplate": "protoc",
-        "versioningTemplate": "loose",
-        "datasourceTemplate": "custom.protoc"
+        "depNameTemplate": "protocolbuffers/protobuf",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": ["release.json"],
+        "matchStrings": [
+          "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
+        ],
+        "currentValueTemplate": "datadog-5.5.0",
+        "depNameTemplate": "omnibus-ruby",
+        "packageNameTemplate": "https://github.com/DataDog/omnibus-ruby",
+        "datasourceTemplate": "git-refs"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": ["release.json"],
+        "matchStrings": [
+          "[ ]+\"INTEGRATIONS_CORE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
+        ],
+        "currentValueTemplate": "master",
+        "depNameTemplate": "integrations-core",
+        "packageNameTemplate": "https://github.com/DataDog/integrations-core",
+        "datasourceTemplate": "git-refs"
       }
     ],
     "customDatasources": {
@@ -30,12 +52,6 @@
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
-        ]
-      },
-      "protoc": {
-        "defaultRegistryUrlTemplate": "https://api.github.com/repos/protocolbuffers/protobuf/releases",
-        "transformTemplates": [
-          "{\"releases\": $map($.[tag_name,published_at], function($v) { {\"version\": $v[0], \"releaseTimestamp\": $v[1] } }) }"
         ]
       }
     }

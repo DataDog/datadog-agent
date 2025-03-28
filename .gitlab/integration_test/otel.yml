@@ -21,7 +21,7 @@ docker_image_build_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["go_deps","integration_tests_otel"]
-  tags: ["runner:docker"]  # Still required because the otel_agent_build_tests.py is doing a container run
+  tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
@@ -36,7 +36,8 @@ docker_image_build_otel:
     - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod"
       "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor ${OTELCOL_VERSION}"
   script:
-    - docker build --build-arg AGENT_BRANCH=$CI_COMMIT_BRANCH --tag agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - !reference [.login_to_docker_readonly]
+    - docker build --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME --tag agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
     - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
   rules:
     - !reference [.except_mergequeue]

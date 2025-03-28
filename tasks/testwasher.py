@@ -13,8 +13,9 @@ from tasks.libs.ciproviders.gitlab_api import (
     resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.utils import gitlab_section
-from tasks.libs.testing.flakes import get_tests_family_if_failing_tests, is_known_flaky_test
-from tasks.test_core import ModuleTestResult
+from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
+from tasks.libs.testing.flakes import consolidate_flaky_failures
+from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult
 
 FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
 
@@ -22,7 +23,7 @@ FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
 class TestWasher:
     def __init__(
         self,
-        test_output_json_file="module_test_output.json",
+        test_output_json_file=DEFAULT_TEST_OUTPUT_JSON,
         flaky_test_indicator=FLAKY_TEST_INDICATOR,
         flakes_file_paths: list[str] | None = None,
     ):
@@ -31,10 +32,14 @@ class TestWasher:
         Args:
             - flakes_file_paths: Paths to flake configuration files that will be merged. ["flakes.yaml"] by default
         """
+        # If FLAKY_PATTERNS_CONFIG is set in the environment, it will be used to determine which tests are flaky. Should have the same format as flakes.yaml
 
         self.test_output_json_file = test_output_json_file
         self.flaky_test_indicator = flaky_test_indicator
         self.flakes_file_paths = flakes_file_paths or ["flakes.yaml"]
+        if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+            self.flakes_file_paths.append(os.environ.get("FLAKY_PATTERNS_CONFIG"))
+
         self.known_flaky_tests = defaultdict(set)
         # flaky_log_patterns[package][test] = [pattern1, pattern2...]
         self.flaky_log_patterns = defaultdict(lambda: defaultdict(list))
@@ -43,37 +48,135 @@ class TestWasher:
 
         self.parse_flaky_files()
 
-    def get_non_flaky_failing_tests(self, failing_tests: dict, flaky_marked_tests: dict):
+    def get_flaky_marked_tests(self) -> dict:
+        """
+        Read the test output json file and return the tests that are marked as flaky, tests that succeeded but are marked as flaky will be returned
+        """
+        marked_flaky_test = defaultdict(set)  # dict[package] =  {TestName, TestName2}
+
+        with open(self.test_output_json_file, encoding='utf-8') as f:
+            for line in f:
+                test_result = json.loads(line)
+                if "Test" not in test_result:
+                    continue
+                if "Output" in test_result and self.is_marked_flaky(
+                    test_result["Package"], test_result["Test"], test_result["Output"]
+                ):
+                    print("Test is marked as flaky", test_result["Package"], test_result["Test"])
+                    marked_flaky_test[test_result["Package"]].add(test_result["Test"])
+        return marked_flaky_test
+
+    def is_marked_flaky(self, package: str, test: str, log: str) -> bool:
+        """Returns whether the test is marked as flaky based on the log output."""
+        return (
+            self.flaky_test_indicator in log
+            or (
+                package in self.flaky_log_patterns
+                and test in self.flaky_log_patterns[package]
+                and len(self.flaky_log_patterns[package][test]) > 0
+            )
+            or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
+        )
+
+    def get_failing_tests(self) -> dict:
+        """
+        Read the test output json file and return the tests that are failing
+        """
+        failing_tests = defaultdict(set)
+        with open(self.test_output_json_file, encoding='utf-8') as f:
+            for line in f:
+                test_result = json.loads(line)
+                if "Test" not in test_result:
+                    continue
+                if "Action" in test_result and test_result["Action"] == "fail":
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+                if "Output" in test_result and "panic:" in test_result["Output"]:
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
+        return failing_tests
+
+    def get_flaky_failures(self) -> dict:
+        """
+        Return failures that are due to flakiness. A test is considered flaky if it failed because of a flake.
+        In the following cases the test failure is considered a flaky failure:
+        - The test failed and is marked as flaky
+        - Test failed and is not marked as flaky but all its failing children are marked as flaky or are flaky failures.
+        """
+        flaky_failures = defaultdict(set)  # dict[package] =  {TestName, TestName2}
+        failing_tests = defaultdict(set)
+        with open(self.test_output_json_file, encoding='utf-8') as f:
+            for line in f:
+                test_result = json.loads(line)
+                if "Test" not in test_result:
+                    continue
+                if "Package" not in test_result:
+                    continue
+                if "Action" in test_result and test_result["Action"] == "fail":
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
+                if "Output" in test_result and "panic:" in test_result["Output"]:
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
+                if (
+                    test_result["Package"] in flaky_failures
+                    and test_result["Test"] in flaky_failures[test_result["Package"]]
+                ):
+                    # Already added to the flaky failures, no need to try again
+                    continue
+
+                if "Output" in test_result and self.is_flaky_failure(
+                    test_result["Package"], test_result["Test"], test_result["Output"]
+                ):
+                    flaky_failures[test_result["Package"]].add(test_result["Test"])
+
+        for pkg, test in failing_tests.items():
+            if pkg not in flaky_failures:
+                continue
+            flaky_failures[pkg] = consolidate_flaky_failures(flaky_failures[pkg], test)
+
+        return flaky_failures
+
+    def is_flaky_failure(self, package: str, test: str, log: str) -> bool:
+        """
+        Returns whether the test is a flaky failure:
+        - on-log: pattern is matching the log
+        - test is marked as flaky no matter the log
+        """
+        if package in self.known_flaky_tests and test in self.known_flaky_tests[package]:
+            return True
+        if self.flaky_test_indicator in log:
+            return True
+
+        # flake.MarkOnLog can be used in a parent test to mark a subtest.
+        # As a consequence we need to append parent test information.
+        all_flaky_log_patterns = []
+        test_parts = test.split('/')
+        for i_part in range(len(test_parts)):
+            parent_test = '/'.join(test_parts[: i_part + 1])
+            if parent_test in self.flaky_log_patterns[package]:
+                all_flaky_log_patterns += self.flaky_log_patterns[package][parent_test]
+
+        for pattern in self.flaky_log_main_patterns + all_flaky_log_patterns:
+            if re.search(pattern, log, re.IGNORECASE):
+                return True
+
+        return False
+
+    def get_non_flaky_failing_tests(self):
         """
         Parse the test output json file and compute the failing tests and the one known flaky
         """
+        failing_tests = self.get_failing_tests()
+        flaky_failures = self.get_flaky_failures()
 
-        all_known_flakes = self.merge_known_flakes(flaky_marked_tests)
-        non_flaky_failing_tests = defaultdict(set)
-
+        non_flaky_failures = defaultdict(set)
         for package, tests in failing_tests.items():
-            non_flaky_failing_tests_in_package = set()
-            known_flaky_tests_parents = get_tests_family_if_failing_tests(
-                all_known_flakes[package], failing_tests[package]
-            )
-            for failing_test in tests:
-                if not is_known_flaky_test(failing_test, all_known_flakes[package], known_flaky_tests_parents):
-                    non_flaky_failing_tests_in_package.add(failing_test)
-            if non_flaky_failing_tests_in_package:
-                non_flaky_failing_tests[package] = non_flaky_failing_tests_in_package
-        return non_flaky_failing_tests
+            non_flaky_failures[package] = tests - flaky_failures[package]
 
-    def merge_known_flakes(self, marked_flakes):
-        """
-        Merge flakes marked in the go code and the ones from the flakes.yaml file
-        """
-        known_flakes = self.known_flaky_tests.copy()
-        for package, tests in marked_flakes.items():
-            if package in known_flakes:
-                known_flakes[package] = known_flakes[package].union(tests)
-            else:
-                known_flakes[package] = tests
-        return known_flakes
+        # Clean empty packages
+        non_flaky_failures = {k: v for k, v in non_flaky_failures.items() if v}
+
+        return non_flaky_failures
 
     def parse_flaky_files(self):
         """
@@ -109,79 +212,32 @@ class TestWasher:
                 main_patterns = [main_patterns]
             self.flaky_log_main_patterns += main_patterns
 
-    def parse_test_results(self, module_path: str) -> tuple[dict, dict]:
-        failing_tests = defaultdict(set)
-        flaky_marked_tests = defaultdict(set)
-
-        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
-            for line in f:
-                test_result = json.loads(line)
-                if "Test" not in test_result:
-                    continue
-                if test_result["Action"] == "fail":
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
-                if test_result["Action"] == "success":
-                    if test_result["Test"] in failing_tests[test_result["Package"]]:
-                        failing_tests[test_result["Package"]].remove(test_result["Test"])
-                # Tests that have a go routine that panicked does not have an Action field with the result of the test, let's try to catch them from their Output
-                if "Output" in test_result and "panic:" in test_result["Output"]:
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
-
-                if "Output" in test_result and self.is_flaky_from_log(
-                    test_result["Package"], test_result["Test"], test_result["Output"]
-                ):
-                    flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
-        return failing_tests, flaky_marked_tests
-
-    def is_flaky_from_log(self, package: str, test: str, log: str) -> bool:
-        """Returns whether the test is flaky based on the log output."""
-
-        if self.flaky_test_indicator in log:
-            return True
-
-        # Check if the log contains any of the flaky patterns
-        patterns = self.flaky_log_main_patterns
-
-        if test in self.flaky_log_patterns[package]:
-            patterns += self.flaky_log_patterns[package][test]
-
-        for pattern in patterns:
-            if re.search(pattern, log, re.IGNORECASE):
-                return True
-
-        return False
-
-    def process_module_results(self, module_results: list[ModuleTestResult]):
+    def process_result(self, result: TestResult):
         """
-        Process the module test results and decide whether we should succeed or not.
+        Process the test results and decide whether we should succeed or not.
         If only known flaky tests are failing, we should succeed.
         If failing, displays the failing tests that are not known to be flaky
         """
 
         should_succeed = True
+        failed_command = False
         failed_tests = []
-        failed_command_modules = []
-        for module_result in module_results:
-            failing_tests, flaky_marked_tests = self.parse_test_results(module_result.path)
-            non_flaky_failing_tests = self.get_non_flaky_failing_tests(
-                failing_tests=failing_tests, flaky_marked_tests=flaky_marked_tests
-            )
-            if (
-                not failing_tests and module_result.failed
-            ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
-                should_succeed = False
-                failed_command_modules.append(module_result.path)
-            if non_flaky_failing_tests:
-                should_succeed = False
-                for package, tests in non_flaky_failing_tests.items():
-                    failed_tests.extend(f"- {package} {test}" for test in tests)
+        non_flaky_failing_tests = self.get_non_flaky_failing_tests()
+        if (
+            not self.get_failing_tests() and result.failed
+        ):  # In this case the Go test command failed but no test failed, it means that the test command itself failed (build errors,...)
+            should_succeed = False
+            failed_command = True
+        if non_flaky_failing_tests:
+            should_succeed = False
+            for package, tests in non_flaky_failing_tests.items():
+                failed_tests.extend(f"- {package} {test}" for test in tests)
         if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
             print("\n".join(sorted(failed_tests)))
-        if failed_command_modules:
-            print("The test command failed, before test execution on the following modules:")
-            print("\n".join(sorted(failed_command_modules)))
-            print("Please check the job logs for more information")
+        if failed_command:
+            print("The test command failed, before test execution.")
+            print("Please check the job logs for more information.")
 
         return should_succeed
 
@@ -219,93 +275,36 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
 
     # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
     for job in list(kept_job.values()):
-        _clean_job(job)
+        remove_fields(job)
+        if "needs" in job:
+            job["needs"] = update_needs_parent(
+                job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
+            )
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
+    new_jobs['default'] = copy.deepcopy(config['default'])
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
     new_jobs['stages'] = [f'flake-finder-{i}' for i in range(n)]
 
+    updated_jobs = update_child_job_variables(kept_job)
     # Create n jobs with the same configuration
     for job in kept_job:
         for i in range(n):
-            new_job = copy.deepcopy(kept_job[job])
-            new_job["stage"] = f"flake-finder-{i}"
-            if 'variables' in new_job:
-                # Variables that reference the parent pipeline should be updated
-                for key, value in new_job['variables'].items():
-                    new_value = value
-                    if not isinstance(value, str):
-                        continue
-                    if "CI_PIPELINE_ID" in value:
-                        new_value = new_value.replace("CI_PIPELINE_ID", "PARENT_PIPELINE_ID")
-                    if "CI_COMMIT_SHA" in value:
-                        new_value = new_value.replace("CI_COMMIT_SHA", "PARENT_COMMIT_SHA")
-                    if "CI_COMMIT_SHORT_SHA" in value:
-                        new_value = new_value.replace("CI_COMMIT_SHORT_SHA", "PARENT_COMMIT_SHORT_SHA")
+            new_jobs[f"{job}-{i}"] = copy.deepcopy(updated_jobs[job])
+            new_jobs[f"{job}-{i}"]["stage"] = f"flake-finder-{i}"
 
-                    new_job['variables'][key] = new_value
+            if 'E2E_PRE_INITIALIZED' in new_jobs[f"{job}-{i}"]['variables']:
+                del new_jobs[f"{job}-{i}"]['variables']['E2E_PRE_INITIALIZED']
 
-                if (
-                    'E2E_PIPELINE_ID' in new_job['variables']
-                    and new_job['variables']['E2E_PIPELINE_ID'] == "$CI_PIPELINE_ID"
-                ):
-                    new_job['variables']['E2E_PIPELINE_ID'] = "$PARENT_PIPELINE_ID"
-                if (
-                    'E2E_COMMIT_SHA' in new_job['variables']
-                    and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
-                ):
-                    new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
-                if 'E2E_PRE_INITIALIZED' in new_job['variables']:
-                    del new_job['variables']['E2E_PRE_INITIALIZED']
-            new_job["rules"] = [{"when": "always"}]
+            new_jobs[f"{job}-{i}"]["rules"] = [{"when": "always"}]
             if i > 0:
-                new_job["needs"].append({"job": f"{job}-{i - 1}", "artifacts": False})
-            new_jobs[f"{job}-{i}"] = new_job
+                new_jobs[f"{job}-{i}"]["needs"].append({"job": f"{job}-{i - 1}", "artifacts": False})
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
 
     with gitlab_section("Flake finder generated pipeline", collapsed=True):
         print(yaml.safe_dump(new_jobs))
-
-
-def _clean_job(job):
-    """
-    Remove the needs, rules, extends and retry from the job
-    """
-    for step in ('rules', 'extends', 'retry'):
-        if step in job:
-            del job[step]
-
-    if 'needs' in job:
-        job["needs"] = _add_parent_pipeline(job["needs"])
-    return job
-
-
-def _add_parent_pipeline(needs):
-    """
-    Add the parent pipeline to the need, only for the jobs that are not the artifacts deploy jobs.
-    """
-
-    deps_to_keep = [
-        "tests_windows_secagent_x64",
-        "tests_windows_sysprobe_x64",
-        "go_e2e_deps",
-    ]  # Needs that should be kept on jobs, because the e2e test actually needs the artifact from these jobs
-
-    new_needs = []
-    for need in needs:
-        if isinstance(need, str):
-            if need not in deps_to_keep:
-                continue
-            new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
-        elif isinstance(need, dict):
-            if "job" in need and need["job"] not in deps_to_keep:
-                continue
-            new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
-        elif isinstance(need, list):
-            new_needs.extend(_add_parent_pipeline(need))
-    return new_needs

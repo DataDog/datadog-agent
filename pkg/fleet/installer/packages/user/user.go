@@ -16,7 +16,7 @@ import (
 )
 
 // EnsureAgentUserAndGroup ensures that the user and group required by the agent are present on the system.
-func EnsureAgentUserAndGroup(ctx context.Context) error {
+func EnsureAgentUserAndGroup(ctx context.Context, installPath string) error {
 	if _, err := user.LookupGroup("dd-agent"); err == nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func EnsureAgentUserAndGroup(ctx context.Context) error {
 	if _, err := user.Lookup("dd-agent"); err == nil {
 		return nil
 	}
-	err = exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
+	err = exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", installPath, "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {
 		return fmt.Errorf("error creating dd-agent user: %w", err)
 	}

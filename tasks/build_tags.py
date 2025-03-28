@@ -42,6 +42,7 @@ ALL_TAGS = {
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "npm",
+    "nvml",  # used for the nvidia go-nvml library
     "oracle",
     "orchestrator",
     "osusergo",
@@ -52,9 +53,11 @@ ALL_TAGS = {
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "sds",
     "serverless",
+    "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
     "test",  # used for unit-tests
     "trivy",
+    "trivy_no_javadb",
     "wmi",
     "zk",
     "zlib",
@@ -80,6 +83,7 @@ AGENT_TAGS = {
     "kubeapiserver",
     "kubelet",
     "netcgo",
+    "nvml",
     "oracle",
     "orchestrator",
     "otlp",
@@ -87,6 +91,7 @@ AGENT_TAGS = {
     "python",
     "systemd",
     "trivy",
+    "trivy_no_javadb",
     "zk",
     "zlib",
     "zstd",
@@ -95,7 +100,6 @@ AGENT_TAGS = {
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
-        "bundle_installer",
         "containerd",
         "no_dynamic_plugins",
         "cri",
@@ -105,6 +109,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "jetson",
         "kubeapiserver",
         "kubelet",
+        "nvml",
         "oracle",
         "orchestrator",
         "podman",
@@ -163,14 +168,15 @@ SECURITY_AGENT_TAGS = {
     "docker",
     "zlib",
     "zstd",
-    "kubelet",
     "ec2",
 }
 
 # SBOMGEN_TAGS lists the tags necessary to build sbomgen
 SBOMGEN_TAGS = {
     "trivy",
+    "trivy_no_javadb",
     "grpcnotrace",
+    "no_dynamic_plugins",
     "containerd",
     "docker",
     "crio",
@@ -186,8 +192,10 @@ SYSTEM_PROBE_TAGS = {
     "linux_bpf",
     "netcgo",
     "npm",
+    "nvml",
     "pcap",
     "trivy",
+    "trivy_no_javadb",
     "zlib",
     "zstd",
 }
@@ -226,13 +234,13 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "pcap", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {"linux_bpf", "requirefips"}
+WINDOWS_EXCLUDE_TAGS = {"linux_bpf", "nvml", "requirefips"}
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "cri", "crio"}
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "nvml", "cri", "crio"}
 
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}

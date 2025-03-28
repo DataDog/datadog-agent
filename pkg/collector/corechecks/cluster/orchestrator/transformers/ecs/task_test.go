@@ -15,7 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -23,7 +23,7 @@ import (
 func TestExtractECSTask(t *testing.T) {
 	now := time.Date(2024, 1, 1, 11, 1, 1, 1, time.UTC)
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	actual := ExtractECSTask(TaskWithContainers{
 		Task: &workloadmeta.ECSTask{
@@ -144,6 +144,7 @@ func TestExtractECSTask(t *testing.T) {
 		ServiceName:     "redis",
 		PullStartedAt:   now.Unix(),
 		Limits:          map[string]float64{"CPU": 1, "Memory": 2048},
+		Tags:            []string{},
 		EcsTags: []string{
 			"ecs.cluster:ecs-cluster",
 			"region:us-east-1",

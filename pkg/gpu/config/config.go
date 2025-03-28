@@ -13,10 +13,8 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 )
-
-// GPUNS is the namespace for the GPU monitoring probe.
-const GPUNS = "gpu_monitoring"
 
 // ErrNotSupported is the error returned if GPU monitoring is not supported on this platform
 var ErrNotSupported = errors.New("GPU Monitoring is not supported")
@@ -30,10 +28,10 @@ type Config struct {
 	ScanProcessesInterval time.Duration
 	// InitialProcessSync indicates whether the probe should sync the process list on startup.
 	InitialProcessSync bool
-	// NVMLLibraryPath is the path of the native libnvidia-ml.so library
-	NVMLLibraryPath string
 	// ConfigureCgroupPerms indicates whether the probe should configure cgroup permissions for GPU monitoring
 	ConfigureCgroupPerms bool
+	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
+	EnableFatbinParsing bool
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -41,10 +39,10 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	return &Config{
 		Config:                *ebpf.NewConfig(),
-		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
-		NVMLLibraryPath:       spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
-		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
-		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
+		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
+		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
+		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
+		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 	}
 }

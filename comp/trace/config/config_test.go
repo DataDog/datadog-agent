@@ -31,9 +31,17 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -265,7 +273,7 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
-		taggerComponent := taggermock.SetupFakeTagger(t)
+		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
 			corecomp.MockModule(),
@@ -277,6 +285,7 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -2361,8 +2370,11 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	}
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
-		fx.Replace(coreConfig),
-		taggermock.Module(),
+		fx.Provide(func() corecomp.Component { return coreConfig }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	c := fxutil.Test[Component](t, fx.Options(
@@ -2372,6 +2384,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		MockModule(),
 	))
 	return c

@@ -14,7 +14,7 @@ repos:
       args: [ --fix ]
     - id: ruff-format
 - repo: https://github.com/jendrikseipp/vulture
-  rev: 44aed44e226ec0e5660851462f764ec5d5da957c # v2.3
+  rev: e454d2ef39fc23e72549ff23a1a14e31c3a75605 # v2.14
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
@@ -84,7 +84,7 @@ repos:
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
-      entry: 'dda inv tidy'
+      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv tidy'
       language: system
       require_serial: true
       files: (\.go|^go\.mod|^go\.sum)$
@@ -93,7 +93,7 @@ repos:
     - id: go-test
       name: go-test
       description: run go test on modified packages
-      entry: 'dda inv test --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
       language: system
       require_serial: true
       always_run: true
@@ -102,7 +102,7 @@ repos:
     - id: go-linter
       name: go-linter
       description: run go linter on modified packages
-      entry: 'dda inv linter.go --only-modified-packages'
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
       language: system
       require_serial: true
       always_run: true
@@ -149,7 +149,14 @@ repos:
     - id: protocol-buffer
       name: validate-protocol-buffer-generated-files
       description: Validate that the generated protocol buffer files are up to date
-      entry: 'dda inv protobuf.generate --no-do-mockgen'
+      entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$
+    - id: experiment-systemd-units
+      name: validate-experiment-systemd-units
+      description: Validate that the generated systemd experimrent units are up to date
+      entry: 'dda inv installer.generate-experiment-units --check'
+      language: system
+      pass_filenames: false
+      files: ^pkg/fleet/installer/packages/embedded/.*\.service$

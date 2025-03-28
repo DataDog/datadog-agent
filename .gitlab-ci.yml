@@ -134,8 +134,7 @@ variables:
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
-  WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -151,7 +150,6 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
-  USE_S3_CACHING: --omnibus-s3-cache
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
@@ -163,54 +161,53 @@ variables:
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_6: nightly
-  RELEASE_VERSION_7: nightly-a7
+  RELEASE_VERSION: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v57956792-9c6a3311
+  DATADOG_AGENT_BUILDIMAGES: v60221061-324ab098
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v57956792-9c6a3311
+  DATADOG_AGENT_WINBUILDIMAGES: v60221061-324ab098
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v57956792-9c6a3311
+  DATADOG_AGENT_ARMBUILDIMAGES: v60221061-324ab098
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v57956792-9c6a3311
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v60221061-324ab098
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v57956792-9c6a3311
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v60221061-324ab098
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v57956792-9c6a3311
+  CI_IMAGE_BTF_GEN: v60221061-324ab098
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v57956792-9c6a3311
+  CI_IMAGE_DEB_X64: v60221061-324ab098
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v57956792-9c6a3311
+  CI_IMAGE_DEB_ARM64: v60221061-324ab098
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v57956792-9c6a3311
+  CI_IMAGE_DEB_ARMHF: v60221061-324ab098
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v57956792-9c6a3311
+  CI_IMAGE_DD_AGENT_TESTING: v60221061-324ab098
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v57956792-9c6a3311
+  CI_IMAGE_DOCKER_X64: v60221061-324ab098
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v57956792-9c6a3311
+  CI_IMAGE_DOCKER_ARM64: v60221061-324ab098
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v57956792-9c6a3311
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v60221061-324ab098
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v57956792-9c6a3311
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v60221061-324ab098
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v57956792-9c6a3311
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v60221061-324ab098
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v57956792-9c6a3311
+  CI_IMAGE_SYSTEM_PROBE_X64: v60221061-324ab098
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v57956792-9c6a3311
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v60221061-324ab098
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v57956792-9c6a3311
+  CI_IMAGE_RPM_X64: v60221061-324ab098
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v57956792-9c6a3311
+  CI_IMAGE_RPM_ARM64: v60221061-324ab098
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v57956792-9c6a3311
+  CI_IMAGE_RPM_ARMHF: v60221061-324ab098
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v57956792-9c6a3311
+  CI_IMAGE_WIN_LTSC2022_X64: v60221061-324ab098
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -264,6 +261,7 @@ variables:
   # End vault variables
 
   DD_PKG_VERSION: "latest"
+  PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -286,12 +284,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -437,11 +429,6 @@ workflow:
 .on_main_always:
   - <<: *if_main_branch
     when: always
-
-.on_tag_or_a7:
-  - !reference [.except_mergequeue]
-  - <<: *if_tagged_commit
-  - <<: *if_version_7
 
 .on_deploy:
   - <<: *if_deploy
@@ -607,6 +594,12 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.not_on_release_branch_or_tagged_commit:
+  - <<: *if_release_branch
+    when: never
+  - <<: *if_tagged_commit
+    when: never
 
 .only_main:
   - <<: *if_not_main_branch
@@ -860,8 +853,10 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/agent/dist/conf.d/service_discovery.d/*
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/servicediscovery/**/*
+        - pkg/discovery/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_amp_or_e2e_changes:
@@ -922,7 +917,8 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for orchestrator
+        - pkg/collector/corechecks/cluster/orchestrator/**/*
+        - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
@@ -1184,6 +1180,16 @@ workflow:
         - comp/core/autodiscovery/providers/gpu.go
         - pkg/config/autodiscovery/autodiscovery.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_installer_systemd_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - pkg/fleet/installer/packages/embedded/*.service
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true
 
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
 # Use in jobs that need to run on Windows Server 2022 runners.

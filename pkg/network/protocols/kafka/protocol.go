@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,6 +68,8 @@ const (
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
+	netifProbe414    = "netif_receive_skb_core_kafka_4_14"
+	netifProbe       = "tracepoint__net__netif_receive_skb_kafka"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -99,6 +102,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "kafka_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStreamName,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStreamName,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -255,6 +273,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStreamName,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	events.Configure(p.cfg, eventStreamName, p.mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }

@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.26.0-1"
-	emrJavaTracerVersion = "1.45.2-1"
-	emrAgentVersion      = "7.62.2-1"
+	emrInjectorVersion   = "0.35.0-1"
+	emrJavaTracerVersion = "1.46.1-1"
+	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
@@ -85,7 +85,6 @@ func SetupEmr(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
@@ -93,9 +92,17 @@ func SetupEmr(s *common.Setup) error {
 			Key:   "DD_DATA_STREAMS_ENABLED",
 			Value: "true",
 		}
-		s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = append(tracerEnvConfigEmr, DSMEnabled)
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, DSMEnabled)
 	}
-
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		debugLogs := common.InjectTracerConfigEnvVar{
+			Key:   "DD_TRACE_DEBUG",
+			Value: "true",
+		}
+		tracerEnvConfigEmr = append(tracerEnvConfigEmr, debugLogs)
+	}
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
@@ -129,8 +136,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	}
 
 	setHostTag(s, "instance_group_id", info.InstanceGroupID)
-	setHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
-	s.Span.SetTag("host."+"is_master_node", info.IsMaster)
+	setClearHostTag(s, "is_master_node", strconv.FormatBool(info.IsMaster))
 
 	extraInstanceInfoRaw, err := os.ReadFile(filepath.Join(emrInfoPath, "extraInstanceData.json"))
 	if err != nil {
@@ -142,14 +148,13 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 		return info.IsMaster, "", fmt.Errorf("error umarshalling extra instance data file: %w", err)
 	}
 	setHostTag(s, "job_flow_id", extraInfo.JobFlowID)
-	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
-	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
-	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
+	setClearHostTag(s, "cluster_id", extraInfo.JobFlowID)
+	setClearHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
 	setHostTag(s, "cluster_name", clusterName)
-
+	addCustomHostTags(s)
 	return info.IsMaster, clusterName, nil
 }
 
@@ -215,6 +220,9 @@ func enableEmrLogs(s *common.Setup) {
 			Path:    hadoopLogFolder + "*/*/stdout",
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
+			LogProcessingRules: []common.LogProcessingRule{
+				{Type: "multi_line", Name: "dataframe_show", Pattern: "`\\|[\\sa-zA-Z-_.\\|]+\\|$`gm"},
+			},
 		},
 		{
 			Type:    "file",

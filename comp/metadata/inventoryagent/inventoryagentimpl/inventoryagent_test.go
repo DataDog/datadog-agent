@@ -17,7 +17,8 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -28,6 +29,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -47,7 +49,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		),
 	)
 }
@@ -174,11 +176,14 @@ func TestInitData(t *testing.T) {
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
+	isFips, err := fips.Enabled()
+	assert.Nil(t, err)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",
@@ -190,7 +195,6 @@ func TestInitData(t *testing.T) {
 		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
-		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
 		"feature_cspm_host_benchmarks_enabled":       true,
@@ -526,7 +530,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

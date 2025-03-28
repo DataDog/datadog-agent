@@ -65,10 +65,11 @@ def read_byte_input(byte_input):
         return byte_input
 
 
-def find_package_path(flavor, package_os, arch):
+def find_package_path(flavor, package_os, arch, extension=None):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
-    extension = "deb" if package_os == 'debian' else "rpm"
+    if not extension:
+        extension = "deb" if package_os == 'debian' else "rpm"
     glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
@@ -156,9 +157,6 @@ class GateMetricHandler:
     def send_metrics_to_datadog(self):
         series = self._generate_series()
 
-        print(color_message("Data collected:", "blue"))
-        print(series)
         if series:
-            print(color_message("Sending metrics to Datadog", "blue"))
             send_metrics(series=series)
-            print(color_message("Done", "green"))
+        print(color_message("Metric sending finished !", "blue"))

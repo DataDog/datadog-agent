@@ -27,7 +27,7 @@ checks:
   - name: memory_usage
     description: "Memory usage"
     bounds:
-      series: total_rss_bytes
+      series: total_pss_bytes
       # The machine has 12GiB free.
       upper_bound: 1.2GiB
 
