@@ -37,5 +37,5 @@ func NewSettingsClient(client authtoken.SecureClient) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", secureclient.WithLeaveConnectionOpen), nil
+	return settingshttp.NewHTTPSClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", secureclient.WithLeaveConnectionOpen), nil
 }

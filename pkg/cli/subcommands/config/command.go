@@ -114,7 +114,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func showRuntimeConfiguration(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
-	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
+	c := settingshttp.NewHTTPSClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	runtimeConfig, err := c.FullConfig()
 	if err != nil {
@@ -127,7 +127,7 @@ func showRuntimeConfiguration(_ log.Component, at authtoken.Component, cliParams
 }
 
 func listRuntimeConfigurableValue(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
-	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
+	c := settingshttp.NewHTTPSClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	settingsList, err := c.List()
 	if err != nil {
@@ -149,7 +149,7 @@ func setConfigValue(_ log.Component, at authtoken.Component, cliParams *cliParam
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
+	c := settingshttp.NewHTTPSClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	hidden, err := c.Set(cliParams.args[0], cliParams.args[1])
 	if err != nil {
@@ -170,7 +170,7 @@ func getConfigValue(_ log.Component, at authtoken.Component, cliParams *cliParam
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
+	c := settingshttp.NewHTTPSClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	resp, err := c.GetWithSources(cliParams.args[0])
 	if err != nil {

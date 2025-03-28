@@ -104,7 +104,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 		),
 	)
 	// Missing params
@@ -123,7 +123,7 @@ func TestRCClientCreate(t *testing.T) {
 				},
 			),
 			settingsimpl.MockModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 		),
 	)
 	assert.NoError(t, err)
@@ -158,7 +158,7 @@ func TestAgentConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 			fx.Populate(&at),
 		),
 	)
@@ -261,7 +261,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 			fx.Populate(&at),
 		),
 	)

@@ -21,7 +21,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -64,7 +63,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
-				authtokenimpl.Module(),
 			)
 		},
 	}

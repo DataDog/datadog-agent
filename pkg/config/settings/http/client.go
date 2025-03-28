@@ -8,6 +8,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
@@ -27,55 +27,94 @@ type httpClient interface {
 	DoPost(url string, contentType string, body io.Reader) (resp []byte, e error)
 }
 
-type insecureHTTPClient struct {
+type HTTPClient struct {
 	c             *http.Client
 	clientOptions ClientOptions
 }
 
-func (c *insecureHTTPClient) DoGet(url string) (body []byte, e error) {
-	return util.DoGet(c.c, url, util.CloseConnection)
+func (c *HTTPClient) DoGet(url string) (body []byte, e error) {
+	ctx := context.Background()
+
+	req, e := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if e != nil {
+		return body, e
+	}
+	if c.clientOptions.CloseConnection == CloseConnection {
+		req.Close = true
+	}
+
+	r, e := c.c.Do(req)
+	if e != nil {
+		return body, e
+	}
+	body, e = io.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		return body, e
+	}
+	if r.StatusCode >= 400 {
+		return body, errors.New(string(body))
+	}
+	return body, nil
 }
 
-func (c *insecureHTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	return util.DoPost(c.c, url, contentType, body)
+func (c *HTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+	req, e := http.NewRequest("POST", url, body)
+	if e != nil {
+		return resp, e
+	}
+
+	r, e := c.c.Do(req)
+	if e != nil {
+		return resp, e
+	}
+	resp, e = io.ReadAll(r.Body)
+	r.Body.Close()
+	if e != nil {
+		return resp, e
+	}
+	if r.StatusCode >= 400 {
+		return resp, errors.New(string(resp))
+	}
+	return resp, nil
 }
 
-type secureHTTPClient struct {
+type HTTPSClient struct {
 	c             authtoken.SecureClient
 	clientOptions []authtoken.RequestOption
 }
 
-func (c *secureHTTPClient) DoGet(url string) (body []byte, e error) {
+func (c *HTTPSClient) DoGet(url string) (body []byte, e error) {
 	return c.c.Get(url, secureclient.WithLeaveConnectionOpen)
 }
 
-func (c *secureHTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+func (c *HTTPSClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
 	return c.c.Post(url, contentType, body, secureclient.WithLeaveConnectionOpen)
 }
 
-type runtimeSettingsHTTPClient struct {
+type runtimeSettingsClient struct {
 	c                 httpClient
 	baseURL           string
 	targetProcessName string
 }
 
-// NewClient returns a client setup to interact with the standard runtime settings HTTP API
-func NewClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
+// NewHTTPClient returns a client setup to interact with the standard runtime settings HTTP API
+func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
 
-	innerClient := &insecureHTTPClient{c, clientOptions}
+	innerClient := &HTTPClient{c, clientOptions}
 
-	return &runtimeSettingsHTTPClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
 }
 
-// NewSecureClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
-func NewSecureClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
+// NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
+func NewHTTPSClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
 
-	innerClient := &secureHTTPClient{c, clientOptions}
+	innerClient := &HTTPSClient{c, clientOptions}
 
-	return &runtimeSettingsHTTPClient{innerClient, baseURL, targetProcessName}
+	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
 }
 
-func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string, error) {
+func (rc *runtimeSettingsClient) doGet(url string, formatError bool) (string, error) {
 	var r []byte
 	var err error
 
@@ -96,7 +135,7 @@ func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
+func (rc *runtimeSettingsClient) FullConfig() (string, error) {
 	r, err := rc.doGet(rc.baseURL, true)
 	if err != nil {
 		return "", err
@@ -104,7 +143,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsHTTPClient) FullConfigBySource() (string, error) {
+func (rc *runtimeSettingsClient) FullConfigBySource() (string, error) {
 	r, err := rc.doGet(fmt.Sprintf("%s/by-source", rc.baseURL), true)
 	if err != nil {
 		return "", err
@@ -112,7 +151,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfigBySource() (string, error) {
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsHTTPClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
+func (rc *runtimeSettingsClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
 	r, err := rc.doGet(fmt.Sprintf("%s/list-runtime", rc.baseURL), false)
 	if err != nil {
 		return nil, err
@@ -126,7 +165,7 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settingsComponent.Runtim
 	return settingsList, nil
 }
 
-func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
+func (rc *runtimeSettingsClient) Get(key string) (interface{}, error) {
 	r, err := rc.doGet(fmt.Sprintf("%s/%s", rc.baseURL, key), false)
 	if err != nil {
 		return nil, err
@@ -143,7 +182,7 @@ func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
 	return nil, fmt.Errorf("unable to get value for this setting: %v", key)
 }
 
-func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]interface{}, error) {
+func (rc *runtimeSettingsClient) GetWithSources(key string) (map[string]interface{}, error) {
 	r, err := rc.doGet(fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), false)
 	if err != nil {
 		return nil, err
@@ -166,7 +205,7 @@ func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]inte
 	return setting, nil
 }
 
-func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error) {
+func (rc *runtimeSettingsClient) Set(key string, value string) (bool, error) {
 	settingsList, err := rc.List()
 	if err != nil {
 		return false, err

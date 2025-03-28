@@ -17,7 +17,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -54,7 +53,6 @@ func TestLifecycle(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Populate(&at),
 		secretsimpl.MockModule(),
 	))
@@ -72,7 +70,7 @@ func TestPostAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
-	var at authtoken.Mock
+	var at authtoken.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -89,7 +87,6 @@ func TestPostAuthentication(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Populate(&at),
 		secretsimpl.MockModule(),
 	))

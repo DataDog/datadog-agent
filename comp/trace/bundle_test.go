@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -46,7 +45,6 @@ func TestBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 	)
 }
 
@@ -77,7 +75,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		authtokenmock.Module(),
 	))
 
 	require.NotNil(t, cfg.Object())

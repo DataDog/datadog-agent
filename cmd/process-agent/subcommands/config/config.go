@@ -193,6 +193,6 @@ func getClient(deps dependencies) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewSecureClient(deps.At.GetClient(), ipcAddressWithPort, "process-agent", secureclient.WithLeaveConnectionOpen)
+	settingsClient := settingshttp.NewHTTPSClient(deps.At.GetClient(), ipcAddressWithPort, "process-agent", secureclient.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

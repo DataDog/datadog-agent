@@ -530,7 +530,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

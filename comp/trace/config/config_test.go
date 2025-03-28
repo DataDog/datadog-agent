@@ -31,7 +31,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -42,7 +41,6 @@ import (
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -285,7 +283,7 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			authtokenmock.Module(),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -2272,23 +2270,9 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
-	// Refuse missing auth token
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/config", nil)
-	handler(resp, req)
-	assert.Equal(t, http.StatusUnauthorized, resp.Code)
-
-	// Refuse invalid auth token
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer ABCDE")
-	handler(resp, req)
-	assert.Equal(t, http.StatusForbidden, resp.Code)
-
 	// Accept valid auth token and returning a valid YAML conf
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -2309,23 +2293,9 @@ func TestSetConfigHandler(t *testing.T) {
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
-	// Refuse missing auth token
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/config", nil)
-	handler(resp, req)
-	assert.Equal(t, http.StatusUnauthorized, resp.Code)
-
-	// Refuse invalid auth token
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer ABCDE")
-	handler(resp, req)
-	assert.Equal(t, http.StatusForbidden, resp.Code)
-
 	// Accept valid auth token return OK
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
@@ -2384,7 +2354,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		authtokenmock.Module(),
 		MockModule(),
 	))
 	return c

@@ -22,7 +22,6 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -104,7 +103,6 @@ func setupProcessAPIServer(t *testing.T, port int) {
 		taggerfx.Module(),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		secretsimpl.MockModule(),
 	))
 }

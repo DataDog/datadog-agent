@@ -11,7 +11,6 @@ package sysprobe
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
@@ -19,7 +18,7 @@ import (
 func SystemProbeConfig(config config.Reader) (string, error) {
 	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
 
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	c := settingshttp.NewHTTPClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(settingshttp.CloseConnection))
 	return c.FullConfig()
 }
 
@@ -27,6 +26,6 @@ func SystemProbeConfig(config config.Reader) (string, error) {
 func SystemProbeConfigBySource(config config.Reader) (string, error) {
 	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
 
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	c := settingshttp.NewHTTPClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(settingshttp.CloseConnection))
 	return c.FullConfigBySource()
 }

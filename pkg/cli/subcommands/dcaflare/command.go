@@ -171,7 +171,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
-		settingsClient := settingshttp.NewSecureClient(auth.GetClient(), configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
+		settingsClient := settingshttp.NewHTTPSClient(auth.GetClient(), configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,
