@@ -54,7 +54,7 @@ type diskConfig struct {
 	allPartitions       bool
 	deviceTagRe         map[*regexp.Regexp][]string
 	includeAllDevices   bool
-	minDiskSize         uint64
+	minDiskSizeBytes    uint64
 	tagByLabel          bool
 	useLsblk            bool
 	blkidCacheFile      string
@@ -90,7 +90,7 @@ func newDiskConfig() *diskConfig {
 		allPartitions:       false,
 		deviceTagRe:         make(map[*regexp.Regexp][]string),
 		includeAllDevices:   true,
-		minDiskSize:         0,
+		minDiskSizeBytes:    0,
 		tagByLabel:          true,
 		useLsblk:            false,
 		blkidCacheFile:      "",
@@ -186,9 +186,9 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	if allPartitions, ok := allPartitions.(bool); found && ok {
 		c.cfg.allPartitions = allPartitions
 	}
-	minDiskSize, found := unmarshalledInstanceConfig["min_disk_size"]
-	if minDiskSize, ok := minDiskSize.(int); found && ok {
-		c.cfg.minDiskSize = uint64(minDiskSize)
+	minDiskSizeMiB, found := unmarshalledInstanceConfig["min_disk_size"]
+	if minDiskSizeMiB, ok := minDiskSizeMiB.(int); found && ok {
+		c.cfg.minDiskSizeBytes = uint64(minDiskSizeMiB) * 1024 * 1024
 	}
 	tagByFilesystem, found := unmarshalledInstanceConfig["tag_by_filesystem"]
 	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
@@ -453,11 +453,13 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		log.Debugf("usage %s", usage)
 		// Exclude disks with total disk size 0
-		if usage.Total <= c.cfg.minDiskSize {
-			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
-			if usage.Total > 0 {
-				log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
-			}
+		if usage.Total == 0 {
+			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+			continue
+		}
+		// Exclude disks with total disk size smaller than 'min_disk_size'
+		if usage.Total < c.cfg.minDiskSizeBytes {
+			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
 			continue
 		}
 		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)

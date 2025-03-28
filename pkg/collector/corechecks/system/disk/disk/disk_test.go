@@ -1572,15 +1572,23 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 			InodesUsedPercent: 0,
 		}, nil
 	}
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "info")
 
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	err := diskCheck.Run()
+	err = diskCheck.Run()
 
 	assert.Nil(t, err)
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	w.Flush()
+	assert.Contains(t, b.String(), "Excluding partition: [device: shm] [mountpoint: /dev/shm] [fstype: tmpfs] with total disk size 0 bytes")
 }
 
-func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith10Total_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
+func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith1024Total_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
@@ -1598,8 +1606,8 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsa
 		return &gopsutil_disk.UsageStat{
 			Path:              "/dev/shm",
 			Fstype:            "tmpfs",
-			Total:             10,
-			Free:              10,
+			Total:             1024,
+			Free:              1024,
 			Used:              0,
 			UsedPercent:       0,
 			InodesTotal:       0,
@@ -1608,7 +1616,7 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsa
 			InodesUsedPercent: 0,
 		}, nil
 	}
-	config := integration.Data([]byte(`min_disk_size: 100`))
+	config := integration.Data([]byte(`min_disk_size: 1`))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
@@ -1622,7 +1630,44 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo100Config_WhenCheckRunsAndUsa
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 
 	w.Flush()
-	assert.Contains(t, b.String(), "Excluding partition: [device: shm] [mountpoint: /dev/shm] [fstype: tmpfs] with total disk size 10")
+	assert.Contains(t, b.String(), "Excluding partition: [device: shm] [mountpoint: /dev/shm] [fstype: tmpfs] with total disk size 1024 bytes")
+}
+
+func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUsageSystemCallReturnsAPartitionWith1048576Total_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	disk.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "shm",
+				Mountpoint: "/dev/shm",
+				Fstype:     "tmpfs",
+				Opts:       []string{"rw", "nosuid", "nodev"},
+			}}, nil
+	}
+	disk.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:              "/dev/shm",
+			Fstype:            "tmpfs",
+			Total:             1048576,
+			Free:              1048576,
+			Used:              0,
+			UsedPercent:       0,
+			InodesTotal:       0,
+			InodesUsed:        0,
+			InodesFree:        0,
+			InodesUsedPercent: 0,
+		}, nil
+	}
+	config := integration.Data([]byte(`min_disk_size: 1`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(1024), "", []string{"device:shm", "device_name:shm"})
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenUsageMetricsAreNotReportedWithFileSystemTags(t *testing.T) {
