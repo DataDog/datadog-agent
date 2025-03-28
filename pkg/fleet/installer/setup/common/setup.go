@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -49,6 +48,7 @@ type Setup struct {
 	Ctx                     context.Context
 	Span                    *telemetry.Span
 	Packages                Packages
+	PackagesDebRPMToRemove  []string
 	Config                  Config
 	DdAgentAdditionalGroups []string
 }
@@ -133,23 +133,19 @@ func (s *Setup) Run() (err error) {
 		}
 	}
 
+	// This is broken. This deletes /opt/datadog-package & we're ded.
+	for _, p := range s.PackagesDebRPMToRemove {
+		err := packagemanager.RemovePackage(s.Ctx, p)
+		if err != nil {
+			return fmt.Errorf("failed to remove package %s: %w", p, err)
+		}
+	}
+
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
-		}
-
-		if p.name == DatadogAgentPackage {
-			// Check if the installer exists in the package, copy ourselves at the right place if not
-			// This is temporary and will be removed after next release
-			installerPath := filepath.Join(paths.PackagesPath, DatadogAgentPackage, "stable", "embedded/bin/installer")
-			if _, err := os.Stat(installerPath); os.IsNotExist(err) {
-				err = selfCopy(installerPath)
-				if err != nil {
-					return fmt.Errorf("failed to copy installer: %w", err)
-				}
-			}
 		}
 	}
 	err = s.restartServices(packages)
@@ -197,40 +193,4 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 		return nil, err
 	}
 	return output, nil
-}
-
-func selfCopy(path string) error {
-	// Copy the current executable to the installer path
-	// This is temporary and will be removed after next release
-	currentExecutable, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get current executable: %w", err)
-	}
-
-	sourceFile, err := os.Open(currentExecutable)
-	if err != nil {
-		return fmt.Errorf("failed to open current executable: %w", err)
-	}
-	defer sourceFile.Close()
-
-	err = os.MkdirAll(filepath.Dir(path), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create installer directory: %w", err)
-	}
-	destinationFile, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destinationFile.Close()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("failed to copy executable: %w", err)
-	}
-
-	err = destinationFile.Chmod(0750)
-	if err != nil {
-		return fmt.Errorf("failed to set permissions on destination file: %w", err)
-	}
-	return nil
 }

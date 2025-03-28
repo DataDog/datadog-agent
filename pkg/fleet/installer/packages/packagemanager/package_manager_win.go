@@ -5,12 +5,14 @@
 
 //go:build windows
 
+// Package packagemanager provides an interface over the OS package manager
 package packagemanager
 
 import (
 	"context"
 )
 
+// RemovePackage removes a package installed via deb/rpm package manager
 func RemovePackage(_ context.Context, _ string) (err error) {
 	return nil // Noop on Windows
 }

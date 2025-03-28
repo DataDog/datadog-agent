@@ -7,14 +7,12 @@
 package defaultscript
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 )
 
@@ -70,7 +68,7 @@ var (
 )
 
 // SetupDefaultScript sets up the default installation
-func SetupDefaultScript(ctx context.Context, s *common.Setup) error {
+func SetupDefaultScript(s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
 	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
@@ -78,10 +76,7 @@ func SetupDefaultScript(ctx context.Context, s *common.Setup) error {
 	}
 
 	// Installer management
-	err := packagemanager.RemovePackage(ctx, common.DatadogInstallerPackage)
-	if err != nil {
-		return fmt.Errorf("error removing the installer package: %w", err)
-	}
+	s.PackagesDebRPMToRemove = append(s.PackagesDebRPMToRemove, common.DatadogInstallerPackage)
 	setConfigInstallerDaemon(s)
 	setConfigInstallerRegistries(s)
 
