@@ -110,15 +110,22 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
-	compressionKind := l.getConfig().GetString(l.getConfigKey("compression_kind"))
-	switch compressionKind {
-	case "zstd", "gzip":
-		log.Debugf("Logs agent is using: %s compression", compressionKind)
-		return compressionKind
-	default:
-		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
-		return pkgconfigsetup.DefaultLogCompressionKind
+	configKey := l.getConfigKey("compression_kind")
+	compressionKind := l.getConfig().GetString(configKey)
+
+	if l.prefix != "logs_config." {
+		pipelineCompressionKind := l.getConfig().GetString(l.prefix + "compression_kind")
+		log.Debugf("Pipeline %s compression settings - configured: %s", l.prefix, pipelineCompressionKind)
 	}
+
+	if compressionKind == "zstd" || compressionKind == "gzip" {
+		log.Debugf("Agent is using configured compression: %s", compressionKind)
+		return compressionKind
+	}
+
+	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
+	return pkgconfigsetup.DefaultLogCompressionKind
+
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
