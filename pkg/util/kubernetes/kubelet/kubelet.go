@@ -52,7 +52,6 @@ type Time struct {
 
 // StreamLogOptions is used to mirror the options we need from PodLogOptions in "k8s.io/api/core/v1"
 // without importing the entire package
-
 type StreamLogOptions struct {
 	SinceTime  *Time
 	Follow     bool

@@ -83,7 +83,6 @@ func TestQuery(t *testing.T) {
 		name         string
 		status       int
 		desiredPath  string
-		desiredUrl   string
 		desiredQuery string
 		useAPIServer bool
 	}{
