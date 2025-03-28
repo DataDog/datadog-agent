@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getTestSystemContext(t *testing.T, extraOpts ...systemContextConfigOption) *systemContext {
-	opts := []systemContextConfigOption{
+func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+	opts := []systemContextOption{
 		withNvmlLib(testutil.GetBasicNvmlMock()),
 		withProcRoot(kernel.ProcFSRoot()),
 		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),

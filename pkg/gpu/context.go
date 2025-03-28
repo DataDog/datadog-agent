@@ -66,7 +66,7 @@ type systemContext struct {
 	cudaKernelCache *kernelCache
 }
 
-type systemContextConfig struct {
+type systemContextOptions struct {
 	nvmlLib              nvml.Interface
 	procRoot             string
 	wmeta                workloadmeta.Component
@@ -75,65 +75,65 @@ type systemContextConfig struct {
 	config               *config.Config
 }
 
-type systemContextConfigOption func(*systemContextConfig)
+type systemContextOption func(*systemContextOptions)
 
-func withNvmlLib(nvmlLib nvml.Interface) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.nvmlLib = nvmlLib
+func withNvmlLib(nvmlLib nvml.Interface) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.nvmlLib = nvmlLib
 	}
 }
 
-func withProcRoot(procRoot string) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.procRoot = procRoot
+func withProcRoot(procRoot string) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.procRoot = procRoot
 	}
 }
 
-func withWorkloadMeta(wmeta workloadmeta.Component) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.wmeta = wmeta
+func withWorkloadMeta(wmeta workloadmeta.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.wmeta = wmeta
 	}
 }
 
-func withTelemetry(tm telemetry.Component) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.tm = tm
+func withTelemetry(tm telemetry.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.tm = tm
 	}
 }
 
-func withFatbinParsingEnabled(enabled bool) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.fatbinParsingEnabled = enabled
+func withFatbinParsingEnabled(enabled bool) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.fatbinParsingEnabled = enabled
 	}
 }
 
-func withConfig(config *config.Config) systemContextConfigOption {
-	return func(cfg *systemContextConfig) {
-		cfg.config = config
+func withConfig(config *config.Config) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.config = config
 	}
 }
 
-func newSystemContextConfig(opts ...systemContextConfigOption) *systemContextConfig {
-	cfg := &systemContextConfig{
+func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
+	opts := &systemContextOptions{
 		fatbinParsingEnabled: false,
 	}
-	for _, opt := range opts {
-		opt(cfg)
+	for _, opt := range optList {
+		opt(opts)
 	}
-	return cfg
+	return opts
 }
 
-func getSystemContext(opts ...systemContextConfigOption) (*systemContext, error) {
-	cfg := newSystemContextConfig(opts...)
+func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
+	opts := newSystemContextOptions(optList...)
 
 	ctx := &systemContext{
 		deviceSmVersions:          make(map[string]uint32),
 		smVersionSet:              make(map[uint32]struct{}),
-		nvmlLib:                   cfg.nvmlLib,
-		procRoot:                  cfg.procRoot,
+		nvmlLib:                   opts.nvmlLib,
+		procRoot:                  opts.procRoot,
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]nvml.Device),
-		workloadmeta:              cfg.wmeta,
+		workloadmeta:              opts.wmeta,
 	}
 
 	if err := ctx.fillDeviceInfo(); err != nil {
@@ -146,13 +146,13 @@ func getSystemContext(opts ...systemContextConfigOption) (*systemContext, error)
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
-	ctx.procfsObj, err = procfs.NewFS(cfg.procRoot)
+	ctx.procfsObj, err = procfs.NewFS(opts.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
 	}
 
-	if cfg.fatbinParsingEnabled {
-		ctx.cudaKernelCache = newKernelCache(ctx, cfg.tm, cfg.config.KernelCacheQueueSize)
+	if opts.fatbinParsingEnabled {
+		ctx.cudaKernelCache = newKernelCache(ctx, opts.tm, opts.config.KernelCacheQueueSize)
 	}
 
 	return ctx, nil
