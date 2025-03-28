@@ -132,7 +132,7 @@ new-agent_dmg-x64-a7:
   #   # TODO - sudo umount /Volumes/Agent || true
   script:
     # - SCRIPT=/tmp/script.sh
-    - SCRIPT="$SHELL"
+    - SCRIPT="$(which python3)"
     # - |
     #   echo '#!/bin/bash' > $SCRIPT
     #   cat <<EOF >> $SCRIPT
@@ -154,13 +154,14 @@ new-agent_dmg-x64-a7:
       echo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$SCRIPT',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
     # - $SCRIPT
     - |
-      osascript -e '
-        tell application "Finder"
-          tell disk "Macintosh HD"
-            open
-            set current view of container window to icon view
-          end tell
-        end tell'
+      python3 -c "import os; os.system(\"osascript -e 'tell application \\\"Finder\\\"\nactivate\nend tell'\")"
+      # osascript -e '
+      #   tell application "Finder"
+      #     tell disk "Macintosh HD"
+      #       open
+      #       set current view of container window to icon view
+      #     end tell
+      #   end tell'
     - exit
 
     # If 1, will isolate the build environment
