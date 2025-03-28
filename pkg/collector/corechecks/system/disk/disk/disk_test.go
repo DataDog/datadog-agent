@@ -134,27 +134,6 @@ var ioCountersData = map[string]gopsutil_disk.IOCountersStat{
 	},
 }
 
-const LsblkData = string(`
-sda1 MYLABEL1
-sda2 MYLABEL2
-
-sda3
-`)
-const blkidCacheData = string(`
-<device DEVNO="0x0801" LABEL="MYLABEL" UUID="1234-5678" TYPE="ext4">/dev/sda1</device>
-<device DEVNO="0x0802" LABEL="BACKUP" UUID="8765-4321" TYPE="ext4">/dev/sda2</device>
-<device DEVNO="0x0811" LABEL="USB_DRIVE" UUID="abcd-efgh" TYPE="vfat">/dev/sdb1</device>
-<device DEVNO="0x0812" LABEL="DATA_DISK" UUID="ijkl-mnop" TYPE="ntfs">/dev/sdb2</device>
-`)
-const blkidData = string(`
-/dev/sda1: UUID="abc-123" LABEL="MYLABEL1"
-/dev/sda2: UUID=\"def-456\" LABEL="MYLABEL2"
-/dev/sda3: UUID=\"def-789\"
-
-/dev/sda4:
-/dev/sda5
-`)
-
 func setupDefaultMocks() {
 	disk.DiskPartitions = func(all bool) ([]gopsutil_disk.PartitionStat, error) {
 		if all {
