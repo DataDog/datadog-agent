@@ -6,6 +6,7 @@
 package infraattributesprocessor
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 var unifiedServiceTagMap = map[string][]string{
@@ -43,6 +45,7 @@ func (p infraTagsProcessor) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
+	allowHostnameOverride bool,
 ) {
 	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
@@ -92,6 +95,12 @@ func (p infraTagsProcessor) ProcessTags(
 		}
 		if !hasOTelAttr {
 			resourceAttributes.PutStr(otelAttrs[0], v)
+		}
+	}
+
+	if allowHostnameOverride {
+		if hostname, err := hostname.Get(context.Background()); err == nil {
+			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
 	}
 }

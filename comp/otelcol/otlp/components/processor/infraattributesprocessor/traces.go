@@ -18,6 +18,7 @@ type infraAttributesSpanProcessor struct {
 	infraTags   infraTagsProcessor
 	logger      *zap.Logger
 	cardinality types.TagCardinality
+	cfg         *Config
 }
 
 func newInfraAttributesSpanProcessor(
@@ -29,6 +30,7 @@ func newInfraAttributesSpanProcessor(
 		infraTags:   infraTags,
 		logger:      set.Logger,
 		cardinality: cfg.Cardinality,
+		cfg:         cfg,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
 	return iasp, nil
@@ -38,7 +40,7 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		iasp.infraTags.ProcessTags(iasp.logger, iasp.cardinality, resourceAttributes)
+		iasp.infraTags.ProcessTags(iasp.logger, iasp.cardinality, resourceAttributes, iasp.cfg.AllowHostnameOverride)
 	}
 	return td, nil
 }
