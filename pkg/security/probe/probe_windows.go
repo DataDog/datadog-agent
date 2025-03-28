@@ -109,7 +109,7 @@ type WindowsProbe struct {
 	enabledEventTypesLock sync.RWMutex
 	enabledEventTypes     map[string]bool
 
-	// channel handling.  Currently configurable, but should probably be set
+	// channel handling. Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
 
@@ -793,6 +793,18 @@ func (p *WindowsProbe) preChanETWHandle(arg interface{}) bool {
 	}
 }
 
+func (p *WindowsProbe) enqueueNotification(notification etwNotification) {
+	if p.blockonchannelsend {
+		p.onETWNotification <- notification
+	} else {
+		select {
+		case p.onETWNotification <- notification:
+		default:
+			p.stats.etwChannelBlocked++
+		}
+	}
+}
+
 // Start processing events
 func (p *WindowsProbe) Start() error {
 
@@ -809,15 +821,7 @@ func (p *WindowsProbe) Start() error {
 					return
 				}
 
-				if p.blockonchannelsend {
-					p.onETWNotification <- etwNotification{n, pid}
-				} else {
-					select {
-					case p.onETWNotification <- etwNotification{n, pid}:
-					default:
-						p.stats.etwChannelBlocked++
-					}
-				}
+				p.enqueueNotification(etwNotification{n, pid})
 			})
 			log.Infof("Done FRIM tracing %v, lost events: %d", err, p.stats.etwChannelBlocked)
 		}()
@@ -828,7 +832,7 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.tracingWg.Done()
 			err := p.startAuditTracing(func(n interface{}, pid uint32) {
-				p.onETWNotification <- etwNotification{n, pid}
+				p.enqueueNotification(etwNotification{n, pid})
 			})
 			log.Infof("Done Audit tracing %v", err)
 		}()
