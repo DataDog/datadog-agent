@@ -154,11 +154,11 @@ additional_endpoints:
 		assert.Contains(t, status.Content, "API key ending with 54321")
 
 		// Check additional endpoints with specific API key counts
-		assert.Contains(t, status.Content, `/intake - API Keys ending with:
-      - 54321
-      - 54321`)
-		assert.Contains(t, status.Content, `/api/v2/series - API Key ending with:
-      - 54321`)
+		assert.Contains(t, status.Content, `intake - API Keys ending with:
+              - 54321
+              - 54321`)
+		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
+              - 54321`)
 	}, 1*time.Minute, 10*time.Second)
 
 	// Wait for the agent to send data to each endpoint and verify the API keys
