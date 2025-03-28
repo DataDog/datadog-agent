@@ -12,9 +12,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"io"
 	"math/bits"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -1084,6 +1088,40 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 		e.Destination.IPNet = *eval.IPNetFromIP(dstIP[:])
 	}
 	return read + 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSResponse) UnmarshalBinary(data []byte, dnsResolver *dns.Resolver) (int, error) {
+	var dnsLayer = new(layers.DNS)
+	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
+		return 0, fmt.Errorf("failed to decode DNS response: %s", err)
+	}
+
+	if dnsLayer.ResponseCode != 0 {
+		e.ResponseCode = uint8(dnsLayer.ResponseCode)
+		e.Question.Count = dnsLayer.QDCount
+		e.Question.ID = dnsLayer.ID
+		e.Question.Name = string(dnsLayer.Questions[0].Name)
+		e.Question.Class = uint16(dnsLayer.Questions[0].Class)
+		e.Question.Type = uint16(dnsLayer.Questions[0].Type)
+		e.Question.Size = uint16(len(data))
+		fmt.Println("DNS received something with responsecode ", dnsLayer.ResponseCode)
+	}
+
+	for _, answer := range dnsLayer.Answers {
+		if answer.Type == layers.DNSTypeCNAME {
+			dnsResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+			ip, ok := netip.AddrFromSlice(answer.IP)
+			if ok {
+				dnsResolver.AddNew(string(answer.Name), ip)
+			} else {
+				return 0, fmt.Errorf("DNS response with an invalid IP received: %v", ip)
+			}
+		}
+	}
+
+	return len(data), nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
