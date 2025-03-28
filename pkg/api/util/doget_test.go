@@ -8,12 +8,9 @@ package util
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func makeTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
@@ -56,31 +53,12 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("check auth token", func(t *testing.T) {
+		token = "mytoken"
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "Bearer mytoken", r.Header.Get("Authorization"))
+			require.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
 			w.WriteHeader(http.StatusOK)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
-
-		data, err := DoGet(server.Client(), server.URL, CloseConnection)
-		require.NoError(t, err)
-		require.Empty(t, data)
-	})
-
-	t.Run("check global auth token", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "Bearer 0123456789abcdef0123456789abcdef", r.Header.Get("Authorization"))
-			w.WriteHeader(http.StatusOK)
-		}
-		server := makeTestServer(t, http.HandlerFunc(handler))
-
-		cfg := configmock.New(t)
-		dir := t.TempDir()
-		authTokenPath := dir + "/auth_token"
-		err := os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0644)
-		require.NoError(t, err)
-		cfg.SetWithoutSource("auth_token_file_path", authTokenPath)
-		SetAuthToken(cfg)
 
 		data, err := DoGet(server.Client(), server.URL, CloseConnection)
 		require.NoError(t, err)

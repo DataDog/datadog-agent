@@ -24,8 +24,6 @@ const (
 )
 
 // DoGet is a wrapper around performing HTTP GET requests
-//
-// Deprecated: DoGet is deprecated. Please use authtoken.Component and authtoken.SecureClient instead.
 func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
 
 	token = GetAuthToken()
@@ -58,8 +56,6 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 }
 
 // DoPost is a wrapper around performing HTTP POST requests
-//
-// Deprecated: DoPost is deprecated. Please use authtoken.Component and authtoken.SecureClient instead.
 func DoPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
 	req, e := http.NewRequest("POST", url, body)
 	if e != nil {

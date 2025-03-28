@@ -35,13 +35,12 @@ func makeDeps(t *testing.T) dependencies {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Supply(NewParams(0, false, 0)),
+		authtokenmock.Module(),
 	))
 }
 
-func makeConfigSync(t *testing.T) *configSync {
-	deps := makeDeps(t)
+func makeConfigSync(t *testing.T, deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
@@ -68,10 +67,13 @@ func makeServer(t *testing.T, authtoken authtoken.Mock, handler http.HandlerFunc
 }
 
 //nolint:revive
-func makeConfigSyncWithServer(t *testing.T, ctx context.Context, authtoken authtoken.Mock, handler http.HandlerFunc) *configSync {
-	_, client, url := makeServer(t, authtoken, handler)
+func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
+	deps := makeDeps(t)
+	cs := makeConfigSync(t, deps)
 
-	cs := makeConfigSync(t)
+	authmock, ok := deps.Authtoken.(authtoken.Mock)
+	require.True(t, ok)
+	_, client, url := makeServer(t, authmock, handler)
 	cs.ctx = ctx
 	cs.client = client
 	cs.url = url

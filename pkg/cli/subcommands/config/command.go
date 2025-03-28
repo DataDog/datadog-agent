@@ -198,7 +198,7 @@ func getConfigValue(_ log.Component, at authtoken.Component, cliParams *cliParam
 	return nil
 }
 
-func otelAgentCfg(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
+func otelAgentCfg(_ log.Component, config config.Component, at authtoken.Component, _ *cliParams) error {
 	if !config.GetBool("otelcollector.enabled") {
 		return errors.New("otel-agent is not enabled")
 	}

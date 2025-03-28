@@ -134,9 +134,7 @@ func streamLogs(lc log.Component, config config.Component, auth authtoken.Compon
 }
 
 func streamRequest(client authtoken.SecureClient, url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
-	var e error
-
-	e = client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, secureclient.WithTimeout(duration))
+	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, secureclient.WithTimeout(duration))
 
 	if e == io.EOF {
 		return nil

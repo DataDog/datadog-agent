@@ -17,23 +17,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 func TestRunWithChan(t *testing.T) {
-	authtoken := authtokenmock.New(t)
-
 	t.Run("success", func(t *testing.T) {
 		var called bool
 		handler := func(w http.ResponseWriter, _ *http.Request) {
+			t.Logf("handler called")
 			called = true
 			w.Write([]byte(`{"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"}`))
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
+		cs := makeConfigSyncWithServer(t, ctx, handler)
 
 		cs.Config.Set("key0", "value0", pkgconfigmodel.SourceFile)
 		cs.Config.Set("key1", "value1", pkgconfigmodel.SourceFile)
@@ -60,17 +58,21 @@ func TestRunWithChan(t *testing.T) {
 		handler := func(w http.ResponseWriter, _ *http.Request) {
 			nb := callnb.Inc()
 			if nb <= errnums {
+				t.Logf("returning error for the %d time", nb)
 				w.WriteHeader(http.StatusInternalServerError)
 			} else {
+				t.Logf("returning success for the %d time", nb)
 				w.Write([]byte(`{"key1": "value1"}`))
 			}
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
+		cs := makeConfigSyncWithServer(t, ctx, handler)
 
 		cs.Config.Set("key1", "not-value1", pkgconfigmodel.SourceFile)
+
+		t.Logf("value: %v", cs.Config.GetString("key1"))
 
 		ch := make(chan time.Time, 1)
 		go cs.runWithChan(ch)
@@ -101,12 +103,10 @@ func TestRunWithInterval(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, key)))
 	})
 
-	authtoken := authtokenmock.New(t)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cs := makeConfigSyncWithServer(t, ctx, authtoken, handler)
+	cs := makeConfigSyncWithServer(t, ctx, handler)
 	cs.Config.Set("api_key", "api_key_remote", pkgconfigmodel.SourceEnvVar)
 
 	refreshInterval := time.Millisecond * 200

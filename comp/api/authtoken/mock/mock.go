@@ -15,8 +15,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
@@ -55,6 +56,8 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 	ts.StartTLS()
 	m.t.Cleanup(ts.Close)
 
+	m.t.Logf("Starting mock server at %v", ts.URL)
+
 	// set the cmd_host and cmd_port in the config
 	addr, err := url.Parse(ts.URL)
 	require.NoError(m.t, err)
@@ -69,6 +72,7 @@ func (m *inMemoryAuthComponent) NewMockServer(handler http.Handler) *httptest.Se
 	return ts
 }
 
+// Module returns a fx module that provides constructors for the optional and normal authtoken mock components
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(func(t testing.TB) option.Option[authtoken.Component] { return New(t).Optional() }),
