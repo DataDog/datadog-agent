@@ -5,11 +5,11 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/metrics"
-      bytes_per_second: "6 Mb"
-      parallel_connections: 5
+      bytes_per_second: "1 Mb"
+      parallel_connections: 1
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "512 Mb"
+          maximum_prebuild_cache_size_bytes: "1 Mb"
           variant: "opentelemetry_metrics"
 
 blackhole:
