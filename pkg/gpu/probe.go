@@ -160,12 +160,16 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
+	sysCtx, err := getSystemContext(
+		withNvmlLib(deps.NvmlLib),
+		withProcRoot(cfg.ProcRoot),
+		withWorkloadMeta(deps.WorkloadMeta),
+		withTelemetry(deps.Telemetry),
+		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
-
-	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
 
 	p := &Probe{
 		cfg:       cfg,

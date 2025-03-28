@@ -24,8 +24,7 @@ import (
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
 	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
 
@@ -37,11 +36,8 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-
 	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
@@ -121,16 +117,28 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			ctx, err := getSystemContext(
+				withNvmlLib(testutil.GetBasicNvmlMock()),
+				withProcRoot(kernel.ProcFSRoot()),
+				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
+				withTelemetry(testutil.GetTelemetryMock(b)),
+				withFatbinParsingEnabled(fatbinParsingEnabled),
+			)
 			require.NoError(b, err)
 			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
-
-			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			cfg := config.New()
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
 			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-			ctx.pidMaps[pid] = nil
+
+			if ctx.kernelCache != nil {
+				ctx.kernelCache.pidMaps[pid] = nil
+
+				// If we don't start the kernel cache, the request channel will be full and we'll run into
+				// errors, falsifying the results of the benchmark
+				ctx.kernelCache.Start()
+				b.Cleanup(ctx.kernelCache.Stop)
+			}
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()

@@ -43,7 +43,12 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
+	ctx, err := getSystemContext(
+		withNvmlLib(testutil.GetBasicNvmlMock()),
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(testutil.GetTelemetryMock(t)),
+	)
 	require.NoError(t, err)
 
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
