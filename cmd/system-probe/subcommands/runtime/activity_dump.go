@@ -11,6 +11,7 @@ package runtime
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -48,7 +49,8 @@ type activityDumpCliParams struct {
 	remoteStorageCompression bool
 }
 
-func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// ActivityDumpCommand returns the CLI command for "runtime activity-dump"
+func ActivityDumpCommand(globalParams *command.GlobalParams) *cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
@@ -58,10 +60,11 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
-	return []*cobra.Command{activityDumpCmd}
+
+	return activityDumpCmd
 }
 
-func listCommands(_ *command.GlobalParams) []*cobra.Command {
+func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
@@ -70,7 +73,7 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -93,7 +96,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -146,7 +149,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -224,7 +227,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -285,7 +288,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -588,6 +591,29 @@ func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component)
 	return nil
 }
 
+func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
+	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
+	if len(msg.GetMetadata().GetContainerID()) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
+	}
+	if len(msg.GetMetadata().GetCGroupID()) > 0 {
+		fmt.Printf("%s  cgroup ID: %s\n", prefix, msg.GetMetadata().GetCGroupID())
+	}
+	if len(msg.GetTags()) > 0 {
+		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
+	}
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	printActivityTreeStats(prefix, msg.GetStats())
+	if len(msg.GetStorage()) > 0 {
+		fmt.Printf("%s  storage:\n", prefix)
+		for _, storage := range msg.GetStorage() {
+			printStorageRequestMessage(prefix+"\t", storage)
+		}
+	}
+}
+
 func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageRequestParams, error) {
 	// parse local storage formats
 	_, err := secconfig.ParseStorageFormats(activityDumpArgs.localStorageFormats)
@@ -626,4 +652,11 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 
 	fmt.Println("done!")
 	return nil
+}
+
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }

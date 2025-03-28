@@ -27,6 +27,9 @@ type GlobalParams struct {
 
 	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
 	FleetPoliciesDirPath string
+
+	// LoggerName holds the name of the logger
+	LoggerName string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -50,6 +53,8 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to directory containing system-probe.yaml")
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 	_ = sysprobeCmd.PersistentFlags().MarkHidden("fleetcfgpath")
+	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.LoggerName, "logger", "", "SYS-PROBE", "name of the logger to use")
+	_ = sysprobeCmd.PersistentFlags().MarkHidden("logger")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
