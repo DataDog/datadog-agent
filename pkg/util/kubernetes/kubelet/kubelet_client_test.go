@@ -53,11 +53,10 @@ func TestRawQuery(t *testing.T) {
 			defer server.Close()
 
 			kc := &kubeletClient{
-				client:     http.Client{},
-				kubeletURL: server.URL,
+				client: http.Client{},
 			}
 
-			_, resp, err := kc.rawQuery(tt.ctx, tt.path)
+			_, resp, err := kc.rawQuery(tt.ctx, server.URL, tt.path)
 
 			if tt.wantErr {
 				// Check that we have en error when we want one
@@ -84,6 +83,7 @@ func TestQuery(t *testing.T) {
 		name         string
 		status       int
 		desiredPath  string
+		desiredUrl   string
 		desiredQuery string
 		useAPIServer bool
 	}{
@@ -104,7 +104,10 @@ func TestQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			kubelet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.useAPIServer {
+					t.Error("expected to hit API server but hit the kubelet")
+				}
 				if r.URL.Path != tt.desiredPath {
 					t.Errorf("expected path: %s, got: %s", tt.desiredPath, r.URL.Path)
 				}
@@ -113,16 +116,30 @@ func TestQuery(t *testing.T) {
 				}
 				w.WriteHeader(tt.status)
 			}))
+			defer kubelet.Close()
 
-			defer server.Close()
+			APIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !tt.useAPIServer {
+					t.Error("expected to hit kubelet but hit the API server")
+				}
+				if r.URL.Path != tt.desiredPath {
+					t.Errorf("expected path: %s, got: %s", tt.desiredPath, r.URL.Path)
+				}
+				if r.URL.RawQuery != tt.desiredQuery {
+					t.Errorf("expected query: %s, got: %s", tt.desiredQuery, r.URL.RawQuery)
+				}
+				w.WriteHeader(tt.status)
+			}))
+			defer APIServer.Close()
 
 			kc := &kubeletClient{
 				client: http.Client{},
 				config: kubeletClientConfig{
-					useAPIServer: tt.useAPIServer,
-					nodeName:     "abc",
+					useAPIServer:  tt.useAPIServer,
+					apiServerHost: APIServer.URL,
+					nodeName:      "abc",
 				},
-				kubeletURL: server.URL,
+				kubeletURL: kubelet.URL,
 			}
 
 			_, status, err := kc.query(context.Background(), kubeletPodPath)

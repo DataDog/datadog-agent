@@ -132,7 +132,7 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 }
 
 func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
-	_, response, err := kc.rawQuery(ctx, path)
+	_, response, err := kc.rawQuery(ctx, kc.kubeletURL, path)
 
 	if err != nil {
 		return nil, err
@@ -141,9 +141,9 @@ func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.Rea
 	return response.Body, nil
 }
 
-func (kc *kubeletClient) rawQuery(ctx context.Context, path string) (*http.Request, *http.Response, error) {
+func (kc *kubeletClient) rawQuery(ctx context.Context, _url string, path string) (*http.Request, *http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
-		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
+		fmt.Sprintf("%s%s", _url, path), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to create new request: %w", err)
 	}
@@ -171,11 +171,13 @@ func (kc *kubeletClient) rawQuery(ctx context.Context, path string) (*http.Reque
 
 func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
 	// Redirect pod list requests to the API server when `useAPIServer` is enabled
+	_url := kc.kubeletURL
 	if kc.config.useAPIServer && path == kubeletPodPath {
 		path = fmt.Sprintf(apiServerQuery, url.QueryEscape(kc.config.nodeName))
+		_url = kc.config.apiServerHost
 	}
 
-	req, response, err := kc.rawQuery(ctx, path)
+	req, response, err := kc.rawQuery(ctx, _url, path)
 	if err != nil {
 		return nil, 0, err
 	}
