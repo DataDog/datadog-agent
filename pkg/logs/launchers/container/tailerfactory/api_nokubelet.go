@@ -8,6 +8,7 @@
 package tailerfactory
 
 import (
+	"errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
