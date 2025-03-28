@@ -292,7 +292,7 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		//   2/ We likely also want to also throttle this error log.
 		//   error to re-enable later:
 		//   return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
-		s.logger.Debugf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		s.logger.Tracef("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 		return nil
 	}
 }
