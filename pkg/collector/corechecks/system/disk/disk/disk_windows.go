@@ -9,7 +9,10 @@ package disk
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/mitchellh/mapstructure"
 	win "golang.org/x/sys/windows"
+	"strings"
 	"unsafe"
 )
 
@@ -37,6 +40,67 @@ type netResource struct {
 	remoteName  *uint16
 	comment     *uint16
 	provider    *uint16
+}
+
+// Mount represents a network mount configuration.
+type mount struct {
+	Host       string
+	Share      string
+	User       string
+	Password   string
+	Type       string
+	MountPoint string
+}
+
+// RemotePath constructs the remote path based on the mount type.
+// It converts the Type to uppercase to ensure case-insensitive evaluation.
+func (m mount) RemotePath() (string, string) {
+	if strings.TrimSpace(m.Type) == "" {
+		m.Type = "SMB"
+	}
+	// Convert Type to uppercase for case-insensitive comparison
+	normalizedType := strings.ToUpper(strings.TrimSpace(m.Type))
+	if normalizedType == "NFS" {
+		return normalizedType, fmt.Sprintf(`%s:%s`, m.Host, m.Share)
+	}
+	var userAndPassword string
+	if len(m.User) > 0 {
+		userAndPassword += m.User
+	}
+	if len(m.Password) > 0 {
+		userAndPassword += fmt.Sprintf(":%s", m.Password)
+	}
+	if len(userAndPassword) > 0 {
+		return normalizedType, fmt.Sprintf(`\\%s@%s\%s`, userAndPassword, m.Host, m.Share)
+	}
+	return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
+}
+
+func (c *Check) configureCreateMounts(instanceConfig map[interface{}]interface{}) {
+	createMounts, found := instanceConfig["create_mounts"]
+	if createMounts, ok := createMounts.([]interface{}); found && ok {
+		for _, createMount := range createMounts {
+			var m mount
+			err := mapstructure.Decode(createMount, &m)
+			if err != nil {
+				log.Debugf("Error decoding: %s\n", err)
+				continue
+			}
+			if len(m.Host) == 0 || len(m.Share) == 0 {
+				log.Errorf("Invalid configuration. Drive mount requires remote machine and share point")
+				continue
+			}
+			log.Debugf("Mounting: %s\n", m)
+			mountType, remoteName := m.RemotePath()
+			log.Debugf("mountType: %s\n", mountType)
+			err = NetAddConnection(mountType, m.MountPoint, remoteName, m.Password, m.User)
+			if err != nil {
+				log.Errorf("Failed to mount %s on %s: %s", m.MountPoint, remoteName, err)
+				continue
+			}
+			log.Debugf("Successfully mounted %s as %s\n", m.MountPoint, remoteName)
+		}
+	}
 }
 
 // NetAddConnection specifies the command used to add a new network connection.

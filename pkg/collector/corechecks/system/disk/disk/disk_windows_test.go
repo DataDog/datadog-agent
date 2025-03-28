@@ -8,14 +8,22 @@
 package disk_test
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupPlatformMocks() {
+	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+		return nil
+	}
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
@@ -36,4 +44,147 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
 	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
 	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
+}
+
+func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "p:"
+  host: smbserver
+  share: space
+- mountpoint: "s:"
+  user: auser
+  password: "somepassword"
+  host: smbserver
+  share: space
+  type: smb
+- mountpoint: "n:"
+  host: nfsserver
+  share: /mnt/nfs_share
+  type: nfs
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(netAddConnectionCalls))
+	expectedNetAddConnectionCalls := []NetAddConnectionCall{
+		{
+			Name: "mount",
+			Args: []string{"-t", "SMB", `\\smbserver\space`, "p:"},
+		},
+		{
+			Name: "mount",
+			Args: []string{"-t", "SMB", `\\auser:somepassword@smbserver\space`, "s:"},
+		},
+		{
+			Name: "mount",
+			Args: []string{"-t", "NFS", `nfsserver:/mnt/nfs_share`, "n:"},
+		},
+	}
+	for i, mountCall := range netAddConnectionCalls {
+		assert.Equal(t, expectedNetAddConnectionCalls[i], mountCall)
+	}
+}
+
+func TestGivenADiskCheckWithCreateMountsConfiguredWithBadType_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "n:"
+  host: smbserver
+  share: /mnt/nfs_share
+  type: 12
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(netAddConnectionCalls))
+}
+
+func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
+	setupDefaultMocks()
+	var netAddConnectionCalls []NetAddConnectionCall
+	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
+			Name: "mount",
+			Args: []string{"-t", mountType, remoteName, localName},
+		})
+		return nil
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "n:"
+  share: /mnt/nfs_share
+  type: nfs
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	err = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(netAddConnectionCalls))
+	w.Flush()
+	assert.Contains(t, b.String(), "Invalid configuration. Drive mount requires remote machine and share point")
+}
+
+func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorMessagedIsLogged(t *testing.T) {
+	setupDefaultMocks()
+	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+		return errors.New("error calling NetAddConnection")
+	}
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+create_mounts:
+- mountpoint: "p:"
+  host: smbserver
+  share: space
+`))
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(logger, "debug")
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Run()
+
+	assert.Nil(t, err)
+	w.Flush()
+	assert.Contains(t, b.String(), `Failed to mount p: on \\smbserver\space`)
 }

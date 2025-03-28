@@ -8,7 +8,6 @@
 package disk
 
 import (
-	"bytes"
 	"encoding/xml"
 	"io"
 	"os"
@@ -18,6 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func (c *Check) configureCreateMounts(instanceConfig map[interface{}]interface{}) {
+}
 
 // LsblkCommand specifies the command used to retrieve block device information.
 var LsblkCommand = func() (string, error) {
@@ -157,23 +159,4 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 
 	}
 	return nil
-}
-
-// NetAddConnection specifies the command used to add a new network connection.
-var NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
-	args := []string{}
-	args = append(args, "-t")
-	if mountType == "SMB" {
-		args = append(args, "smbfs")
-	} else {
-		args = append(args, mountType)
-	}
-	args = append(args, remoteName)
-	args = append(args, localName)
-	cmd := exec.Command("mount", args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	err := cmd.Run()
-	return err
 }
