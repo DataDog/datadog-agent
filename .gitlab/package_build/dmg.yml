@@ -145,31 +145,41 @@ new-agent_dmg-x64-a7:
     #   EOF
     #   chmod +x $SCRIPT
     #   cat $SCRIPT
+
+    # - |
+    #   BINARY="$(which gitlab-runner)"
+    #   # identifier "com.apple.finder" and anchor apple
+    #   CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
+    #   sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
+    #   sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
+
     - |
-      BINARY="$(which gitlab-runner)"
+      BINARY="$(which python3)"
       # identifier "com.apple.finder" and anchor apple
       CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
       sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
       sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
 
-    # - |
-    #   BINARY="$(which python3)"
-    #   # identifier "com.apple.finder" and anchor apple
-    #   CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
-    #   sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-    #   sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-    # # - $SCRIPT
-    # - |
-    #   python3 -c "import os; os.system(\"osascript -e 'tell application \\\"Finder\\\"\nactivate\nend tell'\")"
     - |
-      osascript -e '
-        tell application "Finder"
-          tell disk "Macintosh HD"
-            open
-            set current view of container window to icon view
-          end tell
-        end tell'
-    # - exit
+      brew install pstree
+      pstree -p "$PPID"
+    - python3 -c "import os; os.system(\"osascript -e 'tell application \\\"Finder\\\"\n tell disk \\\"Macintosh HD\\\"\n open \n set current view of container window to icon view \nend tell \nend tell'\")" || echo DOESNT WORK
+    - |
+      echo Setting up venv
+      python3 -m venv .venv
+      source .venv/bin/activate
+    - |
+      which python3
+      python3 -c "import os; os.system(\"osascript -e 'tell application \\\"Finder\\\"\nactivate\nend tell'\")"
+    # - |
+    #   osascript -e '
+    #     tell application "Finder"
+    #       tell disk "Macintosh HD"
+    #         open
+    #         set current view of container window to icon view
+    #       end tell
+    #     end tell'
+    - exit
 
     # If 1, will isolate the build environment
     - export CUSTOM_HOMEBREW=
