@@ -22,9 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
@@ -745,35 +742,6 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
-var dnsLayer = new(layers.DNS)
-
-func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	if !p.config.Probe.DNSResolutionEnabled {
-		return
-	}
-
-	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
-		// this is currently pretty common, so only trace log it for now
-		if seclog.DefaultLogger.IsTracing() {
-			seclog.Errorf("failed to decode DNS response: %s", err)
-		}
-		return
-	}
-
-	for _, answer := range dnsLayer.Answers {
-		if answer.Type == layers.DNSTypeCNAME {
-			p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
-		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
-			ip, ok := netip.AddrFromSlice(answer.IP)
-			if ok {
-				p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
-			} else {
-				seclog.Errorf("DNS response with an invalid IP received: %v", ip)
-			}
-		}
-	}
-}
-
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSResponseEventType || eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
 }
@@ -988,7 +956,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		return
 	case model.DNSResponseEventType:
-		p.unmarshalDNSResponse(data[offset:])
+		if p.config.Probe.DNSResolutionEnabled {
+			_, err := event.DNSResponse.UnmarshalBinary(data[offset:], p.Resolvers.DNSResolver)
+			seclog.Errorf("failed to decode dns response: %v", err)
+		}
 		return
 	}
 

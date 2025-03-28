@@ -548,6 +548,11 @@ type ExitEvent struct {
 	Code  uint32 `field:"code,opts:gen_getters"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
+type DNSResponse struct {
+	Question     DNSEvent `field:"question"`
+	ResponseCode uint8    `field:"response_code"`
+}
+
 // DNSEvent represents a DNS event
 type DNSEvent struct {
 	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
