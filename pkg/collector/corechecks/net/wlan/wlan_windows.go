@@ -336,14 +336,12 @@ func formatSSID(dot11Ssid DOT11_SSID) string {
 	return string(dot11Ssid.UcSSID[:ssidLen])
 }
 
-func formatMacAddress(mac []byte) string {
-	if len(mac) == 6 {
-		return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
-	} else if len(mac) >= 8 {
-		return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mac[6], mac[7])
-	} else {
-		return ""
+func formatMacAddress(mac []byte) (string, error) {
+	// MAC address should be 6 bytes
+	if len(mac) != 6 {
+		return "", fmt.Errorf("invalid MAC address length (provided %d, expected 6)", len(mac))
 	}
+	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]), nil
 }
 
 func formatPhy(phy DOT11_PHY_TYPE) string {
@@ -521,7 +519,9 @@ func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error
 // 		var i uint32 = 0
 // 		for i = 0; i < bssList.dwNumberOfItems; i++ {
 // 			bssEntry := (*WLAN_BSS_ENTRY)(unsafe.Pointer(uintptr(base) + uintptr(i)*size))
-// 			if strings.ToUpper(formatMacAddress(bssEntry.dot11Bssid[:])) == strings.ToUpper(formatMacAddress(dot11Bssid)) {
+//			bssMac, _ := formatMacAddress(bssEntry.dot11Bssid[:])
+//			itfMac, _ := formatMacAddress(dot11Bssid)
+// 			if bssMac == dot11Bssid && len(itfMac) > 0 {
 // 				return &BssInfo{
 // 					lrssi:               bssEntry.lrssi,
 // 					linkQuality:         bssEntry.linkQuality,
@@ -565,7 +565,7 @@ func getAdapter(adapterGuid windows.GUID) (*adapterInfo, error) {
 		if *curAdapterGuid == adapterGuid {
 			var macAddress string
 			if adapter.AddressLength > 0 && adapter.AddressLength < MAX_ADAPTER_ADDRESS_LENGTH {
-				macAddress = formatMacAddress(adapter.Address[:adapter.AddressLength])
+				macAddress, _ = formatMacAddress(adapter.Address[:adapter.AddressLength])
 			}
 
 			var ipAddress string
@@ -607,7 +607,7 @@ func getWlanInfo(wlanClient uintptr, itfGuid windows.GUID) (*wlanInfo, error) {
 
 	// Extract connection attributes
 	wi.ssid = formatSSID(connAttribs.wlanAssociationAttributes.dot11Ssid)
-	wi.bssid = formatMacAddress(connAttribs.wlanAssociationAttributes.dot11Bssid[:])
+	wi.bssid, _ = formatMacAddress(connAttribs.wlanAssociationAttributes.dot11Bssid[:])
 	wi.phy = formatPhy(connAttribs.wlanAssociationAttributes.dot11PhyType)
 	wi.auth = formatAuthAlgo(connAttribs.wlanSecurityAttributes.dot11AuthAlgorithm)
 	wi.signal = connAttribs.wlanAssociationAttributes.wlanSignalQuality
