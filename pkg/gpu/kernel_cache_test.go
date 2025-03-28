@@ -162,7 +162,7 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	require.NoError(t, cachedData.err)
 
 	// Cleanup should remove the entry
-	kc.cleanDataForPid(key.pid)
+	kc.cleanProcessData(key.pid)
 	kc.cacheMutex.RLock()
 	_, exists = kc.cache[key]
 	kc.cacheMutex.RUnlock()

@@ -199,7 +199,7 @@ func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.visibleDevicesCache, pid)
 
 	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.cleanDataForPid(pid)
+		ctx.cudaKernelCache.cleanProcessData(pid)
 	}
 }
 
