@@ -846,3 +846,33 @@ func TestSetConfigFile(t *testing.T) {
 
 	assert.Equal(t, "datadog.yaml", config.ConfigFileUsed())
 }
+
+func TestEnvVarOrdering(t *testing.T) {
+	// Test scenario 1: DD_DD_URL set before DD_URL
+	t.Run("DD_DD_URL set first", func(t *testing.T) {
+		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("DD_API_KEY", "fakeapikey")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		config.BindEnv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+
+	// Test scenario 2: DD_URL set before DD_DD_URL
+	t.Run("DD_URL set first", func(t *testing.T) {
+		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("DD_API_KEY", "fakeapikey")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		config.BindEnv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+}
