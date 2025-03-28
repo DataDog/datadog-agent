@@ -10,7 +10,6 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -40,7 +39,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[int(pid)] = testutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)

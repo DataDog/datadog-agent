@@ -14,7 +14,6 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -55,7 +54,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
 	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-	ctx.visibleDevicesCache[executingPID] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[executingPID] = testutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	injectEventsToConsumer(t, consumer, events, 0)
 
