@@ -33,7 +33,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to download installer: %w", err)
+		return err
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -47,6 +47,9 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
+	}
+	if downloadedPackage.Name != AgentPackage {
+		return getLocalInstaller(env)
 	}
 
 	installerBinPath := filepath.Join(tmpDir, "installer")

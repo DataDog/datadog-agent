@@ -352,17 +352,17 @@ func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 }
 
 func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting installer experiment for package from %s", url)
+	log.Infof("Daemon: Starting experiment for package from %s", url)
 	err = installExperimentFunc(ctx, d.env, url)
 	if err != nil {
-		return fmt.Errorf("could not install installer experiment: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started installer experiment for package from %s", url)
+	log.Infof("Daemon: Successfully started experiment for package from %s", url)
 	return nil
 }
 
