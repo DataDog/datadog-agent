@@ -47,10 +47,10 @@ jobs:
         git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
     - name: Validate documentation
-      run: dda inv docs.build --validate
+      run: dda inv -- docs.build --validate
 
     - name: Build documentation
-      run: dda inv docs.build
+      run: dda inv -- docs.build
 
     - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
