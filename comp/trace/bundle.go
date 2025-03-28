@@ -14,6 +14,7 @@ package trace
 import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	ssi "github.com/DataDog/datadog-agent/comp/trace/ssi/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,5 +24,7 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		config.Module(),
-		traceagentfx.Module())
+		traceagentfx.Module(),
+		ssi.Module(),
+	)
 }
