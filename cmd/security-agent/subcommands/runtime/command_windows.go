@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
