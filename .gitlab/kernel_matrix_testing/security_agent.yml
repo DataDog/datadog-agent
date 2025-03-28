@@ -47,7 +47,6 @@ kmt_setup_env_secagent_x64:
 
 .upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
-  allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -103,7 +102,6 @@ upload_secagent_tests_arm64:
 
 .kmt_run_secagent_tests_base:
   extends: .kmt_run_tests
-  allow_failure: true
   stage: kernel_matrix_testing_security_agent
   rules: !reference [.on_security_agent_changes_or_manual]
   timeout: 1h 30m
@@ -112,11 +110,9 @@ upload_secagent_tests_arm64:
 
 .kmt_run_secagent_tests:
   extends: .kmt_run_secagent_tests_base
-  allow_failure: true
 
 .kmt_run_secagent_tests_required:
   extends: .kmt_run_secagent_tests_base
-  allow_failure: false
 
 kmt_run_secagent_tests_x64:
   extends:

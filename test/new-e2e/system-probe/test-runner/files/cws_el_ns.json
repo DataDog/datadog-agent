@@ -7,5 +7,8 @@
     "additional_test_args": [
         "-trace",
         "-disable-seccomp"
-    ]
+    ],
+    "additional_env_vars": [
+		"GO_TEST_SKIP_FLAKE=false"
+	]
 }

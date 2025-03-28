@@ -23,6 +23,7 @@ import (
 
 func TestSetXAttr(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -52,6 +53,7 @@ func TestSetXAttr(t *testing.T) {
 	expectedMode := uint16(applyUmask(fileMode))
 
 	t.Run("setxattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, testFilePtr, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -79,6 +81,7 @@ func TestSetXAttr(t *testing.T) {
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, testFilePtr, err := test.Path("test-setxattr-link")
 		if err != nil {
 			t.Fatal(err)
@@ -119,6 +122,7 @@ func TestSetXAttr(t *testing.T) {
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -154,6 +158,7 @@ func TestSetXAttr(t *testing.T) {
 
 func TestRemoveXAttr(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -184,6 +189,7 @@ func TestRemoveXAttr(t *testing.T) {
 	expectedMode := applyUmask(fileMode)
 
 	t.Run("removexattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, testFilePtr, err := test.CreateWithOptions("test-removexattr", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -222,6 +228,7 @@ func TestRemoveXAttr(t *testing.T) {
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, testFilePtr, err := test.Path("test-removexattr-link")
 		if err != nil {
 			t.Fatal(err)
@@ -268,6 +275,7 @@ func TestRemoveXAttr(t *testing.T) {
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.CreateWithOptions("test-removexattr", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)

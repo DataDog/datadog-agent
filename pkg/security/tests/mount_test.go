@@ -30,6 +30,7 @@ import (
 
 func TestMount(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	dstMntBasename := "test-dest-mount"
 
@@ -63,6 +64,7 @@ func TestMount(t *testing.T) {
 
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetProbeEvent(func() error {
 			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
@@ -90,6 +92,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
+		CheckFlakyTest(t)
 		file := testDrive.Path(dstMntBasename, "test-mount")
 
 		f, err := os.Create(file)
@@ -117,6 +120,7 @@ func TestMount(t *testing.T) {
 	defer releaseFile.Close()
 
 	t.Run("umount", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetProbeEvent(func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
@@ -141,6 +145,7 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -152,6 +157,7 @@ func TestMount(t *testing.T) {
 
 func TestMountPropagated(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// - testroot
 	// 		/ dir1
@@ -237,6 +243,7 @@ func TestMountPropagated(t *testing.T) {
 	}
 
 	t.Run("bind-mounted-chmod", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -248,6 +255,7 @@ func TestMountPropagated(t *testing.T) {
 
 func TestMountSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	//      / testDrive
 	//        / rootA
@@ -400,6 +408,7 @@ func TestMountSnapshot(t *testing.T) {
 
 func TestMountEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -453,6 +462,8 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-tmpfs", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		tmpfsMount := newTestMount(
 			tmpfsMountPointPath,
 			withFSType("tmpfs"),
@@ -477,6 +488,8 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	t.Run("mount-bind", func(t *testing.T) {
+		CheckFlakyTest(t)
+
 		bindMount := newTestMount(
 			bindMountPointPath,
 			withSource(bindMountSourcePath),
@@ -511,6 +524,7 @@ func TestMountEvent(t *testing.T) {
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
@@ -543,6 +557,7 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-in-container-legitimate", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err = test.GetSignal(t, func() error {
 			if _, err := wrapperFalsePositive.start(); err != nil {
 				return err

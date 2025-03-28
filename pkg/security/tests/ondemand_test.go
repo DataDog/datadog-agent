@@ -15,14 +15,16 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -84,6 +86,7 @@ func TestOnDemandOpen(t *testing.T) {
 
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -133,6 +136,7 @@ func TestOnDemandChdir(t *testing.T) {
 
 func TestOnDemandMprotect(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{

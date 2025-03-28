@@ -96,6 +96,7 @@ func TestCGroup(t *testing.T) {
 	}
 
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -139,6 +140,7 @@ func TestCGroup(t *testing.T) {
 	}
 
 	t.Run("cgroup-id", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
@@ -160,7 +162,7 @@ func TestCGroup(t *testing.T) {
 	})
 
 	t.Run("systemd", func(t *testing.T) {
-
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
@@ -200,6 +202,7 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 	})
 
 	t.Run("podman", func(t *testing.T) {
+		CheckFlakyTest(t)
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
@@ -245,6 +248,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	}
 
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	_, cgroupContext, err := utils.GetProcContainerContext(uint32(os.Getpid()), uint32(os.Getpid()))
 	if err != nil {
@@ -384,6 +388,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 func TestCGroupVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -429,6 +434,7 @@ func TestCGroupVariables(t *testing.T) {
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()

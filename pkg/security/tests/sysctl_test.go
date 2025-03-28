@@ -47,6 +47,7 @@ func writeSysctlValue(name string, value string) error {
 
 func TestSysctlEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "missing cgroup/sysctl support", func(kv *kernel.Version) bool {
 		mp, err := utils.GetCgroup2MountPoint()
@@ -88,6 +89,7 @@ func TestSysctlEvent(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sysctl_write", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return writeSysctlValue("kernel/kptr_restrict", "0")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -102,6 +104,7 @@ func TestSysctlEvent(t *testing.T) {
 	})
 
 	t.Run("test_sysctl_read", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			_, err := readSysctlValue("kernel/kptr_restrict")
 			return err

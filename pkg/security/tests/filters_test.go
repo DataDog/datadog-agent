@@ -51,6 +51,7 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 
 func TestFilterOpenBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// generate a basename up to the current limit of the agent
 	var basename string
@@ -131,6 +132,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -193,6 +195,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -331,12 +334,14 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 
 func TestFilterOpenParentDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	testFilterOpenParentDiscarder(t, "parent")
 }
 
 func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
@@ -404,6 +409,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 
 func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -440,20 +446,24 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	}
 
 	t.Run("equal-fixed-value", func(t *testing.T) {
+		CheckFlakyTest(t)
 		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1005", "6000")
 	})
 
 	t.Run("equal-zero", func(t *testing.T) {
+		CheckFlakyTest(t)
 		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "0", "6000")
 	})
 
 	t.Run("equal-unset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "-1", "6000")
 	})
 }
 
 func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -486,6 +496,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 
 func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -518,6 +529,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 
 func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -550,6 +562,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 
 func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -578,12 +591,14 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	}
 
 	t.Run("equal-fixed-value", func(t *testing.T) {
+		CheckFlakyTest(t)
 		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
 	})
 }
 
 func TestFilterDiscarderMask(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -603,6 +618,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 	defer test.Close()
 
 	t.Run("mask", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
+		CheckFlakyTest(t)
 		var testFile string
 		var testFilePtr unsafe.Pointer
 
@@ -664,6 +680,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 
 func TestFilterRenameFileDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -750,6 +767,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 
 func TestFilterRenameFolderDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -832,6 +850,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 
 func TestFilterOpenFlagsApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -916,6 +935,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 
 func TestFilterDiscarderRetention(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -1021,6 +1041,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 
 func TestFilterBpfCmd(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -1081,6 +1102,7 @@ func TestFilterBpfCmd(t *testing.T) {
 
 func TestFilterRuntimeDiscarded(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

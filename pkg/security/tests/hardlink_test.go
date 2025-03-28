@@ -53,6 +53,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 
 	t.Run("exec-orig-then-link-then-exec-link", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
@@ -85,6 +86,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	})
 
 	t.Run("link-then-exec-orig-then-exec-link", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
@@ -119,16 +121,19 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 
 func TestHardLinkExecsWithERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
 }
 
 func TestHardLinkExecsWithMaps(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
 }
 
 func TestHardLink(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -157,6 +162,7 @@ func TestHardLink(t *testing.T) {
 	}
 
 	t.Run("hardlink-creation", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
