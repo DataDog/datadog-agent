@@ -12,6 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
+func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	return nil, errors.New("API tailing is unavailable")
 }
