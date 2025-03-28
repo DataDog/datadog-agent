@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -53,8 +54,8 @@ var errShortErrorMessage = errors.New("not enough data for netlink error code")
 var pre315Kernel bool
 
 func init() {
-	if vers, err := kernel.HostVersion(); err == nil {
-		pre315Kernel = vers < kernel.VersionCode(3, 15, 0)
+	if vers, err := kernelversion.Host(); err == nil {
+		pre315Kernel = vers < kernelversion.FromCode(3, 15, 0)
 	}
 }
 
@@ -440,7 +441,7 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 }
 
 func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
-	return netnsutil.WithNS(ns, func() error {
+	return kernel.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 

@@ -8,11 +8,11 @@ package ebpftest
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 // RequireKernelVersion skips a test if the minimum kernel version is not met
-func RequireKernelVersion(tb testing.TB, version kernel.Version) {
+func RequireKernelVersion(tb testing.TB, version kernelversion.Version) {
 	if kv < version {
 		tb.Skipf("skipping test; it requires kernel version %s or later, running on: %s", version, kv)
 	}

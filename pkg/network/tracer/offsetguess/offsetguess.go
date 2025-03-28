@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -135,11 +135,11 @@ func getIpv6Configuration(c *config.Config) (bool, bool) {
 		tcpv6Enabled = c.CollectTCPv6Conns
 		udpv6Enabled = c.CollectUDPv6Conns
 		if c.CollectUDPv6Conns {
-			kv, err := kernel.HostVersion()
+			kv, err := kernelversion.Host()
 			if err != nil {
 				return
 			}
-			if kv >= kernel.VersionCode(5, 18, 0) {
+			if kv >= kernelversion.FromCode(5, 18, 0) {
 				udpv6Enabled = false
 			}
 		}

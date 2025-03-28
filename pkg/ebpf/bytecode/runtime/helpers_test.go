@@ -16,20 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestGetAvailableHelpers(t *testing.T) {
-	kv, err := kernel.HostVersion()
+	kv, err := kernelversion.Host()
 	require.NoError(t, err)
-	family, err := kernel.Family()
+	family, err := kernelversion.Family()
 	require.NoError(t, err)
-	if kv < kernel.VersionCode(4, 10, 0) && family != "rhel" {
+	if kv < kernelversion.FromCode(4, 10, 0) && family != "rhel" {
 		t.Skip("__BPF_FUNC_MAPPER macro not available on vanilla kernels < 4.10.0")
 	}
 
 	cfg := ebpf.NewConfig()
-	opts := kernel.HeaderOptions{
+	opts := kernelversion.HeaderOptions{
 		DownloadEnabled: cfg.EnableKernelHeaderDownload,
 		Dirs:            cfg.KernelHeadersDirs,
 		DownloadDir:     cfg.KernelHeadersDownloadDir,
@@ -37,7 +37,7 @@ func TestGetAvailableHelpers(t *testing.T) {
 		YumReposDir:     cfg.YumReposDir,
 		ZypperReposDir:  cfg.ZypperReposDir,
 	}
-	kernelHeaders := kernel.GetKernelHeaders(opts)
+	kernelHeaders := kernelversion.GetKernelHeaders(opts)
 	fns, err := getAvailableHelpers(kernelHeaders)
 	require.NoError(t, err)
 	assert.NotEmpty(t, fns, "number of available helpers")

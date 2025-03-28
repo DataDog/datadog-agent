@@ -14,14 +14,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 var hostPlatform string
-var kv = kernel.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 func init() {
-	hostPlatform, _ = kernel.Platform()
+	hostPlatform, _ = kernelversion.Platform()
 }
 
 // SupportedBuildModes returns the build modes supported on the current host

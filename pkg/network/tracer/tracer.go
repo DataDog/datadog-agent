@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -126,14 +127,14 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := kernel.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the kernel version, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+	pre410Kernel := currKernelVersion < kernelversion.FromCode(4, 1, 0)
 	if pre410Kernel {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
@@ -465,7 +466,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
-	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	conns.KernelHeaderFetchResult = int32(kernelversion.HeaderProvider.GetResult())
 	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
@@ -531,19 +532,10 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	return result
 }
 
-func (t *Tracer) getCachedConntrack() *cachedConntrack {
-	newConntrack := netlink.NewConntrack
-	// if we already established that netlink conntracker is not supported, don't try again
-	if t.conntracker.GetType() == "" {
-		newConntrack = netlink.NewNoOpConntrack
-	}
-	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
-}
-
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
-	cachedConntrack := t.getCachedConntrack()
+	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()

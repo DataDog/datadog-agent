@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -339,9 +339,9 @@ func eBPFHelperErrorKey(h hash.Hash64, name telemetryKey) uint64 {
 
 // EBPFTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
 func EBPFTelemetrySupported() (bool, error) {
-	kversion, err := kernel.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return false, err
 	}
-	return kversion >= kernel.VersionCode(4, 14, 0), nil
+	return kversion >= kernelversion.FromCode(4, 14, 0), nil
 }

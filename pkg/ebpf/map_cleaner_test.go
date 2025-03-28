@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -138,9 +138,9 @@ func TestMapCleanerBatchSize1ForcesSingleItem(t *testing.T) {
 	})
 
 	t.Run("map does not support batches", func(t *testing.T) {
-		kernelVersion, err := kernel.HostVersion()
+		kernelVersion, err := kernelversion.Host()
 		require.NoError(t, err)
-		if kernelVersion < kernel.VersionCode(4, 6, 0) {
+		if kernelVersion < kernelversion.FromCode(4, 6, 0) {
 			t.Skip("Kernel version does not support per-CPU maps")
 		}
 

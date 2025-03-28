@@ -39,7 +39,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,7 +59,7 @@ const (
 
 var (
 	emptyBody = []byte(nil)
-	kv        = kernel.MustHostVersion()
+	kv        = kernelversion.MustHost()
 )
 
 func TestMonitorProtocolFail(t *testing.T) {

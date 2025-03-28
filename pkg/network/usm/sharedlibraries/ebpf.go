@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -119,18 +119,18 @@ type EbpfProgram struct {
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
 func IsSupported(cfg *ddebpf.Config) bool {
-	kversion, err := kernel.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. shared libraries monitoring disabled.")
 		return false
 	}
 
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
-		return kversion >= kernel.VersionCode(5, 5, 0) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
+		return kversion >= kernelversion.FromCode(5, 5, 0) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
 	}
 
 	// Minimum version for shared libraries monitoring is 4.14
-	return kversion >= kernel.VersionCode(4, 14, 0)
+	return kversion >= kernelversion.FromCode(4, 14, 0)
 }
 
 // GetEBPFProgram returns an instance of the shared libraries eBPF program singleton

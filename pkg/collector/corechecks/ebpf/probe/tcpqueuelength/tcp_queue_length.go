@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -144,11 +145,11 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 }
 
 func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
-	kv, err := kernel.HostVersion()
+	kv, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
-	if kv < kernel.VersionCode(4, 8, 0) {
+	if kv < kernelversion.FromCode(4, 8, 0) {
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 

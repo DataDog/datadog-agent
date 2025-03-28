@@ -47,6 +47,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 const (
@@ -106,9 +107,9 @@ type groupInfo struct {
 // As of now, we don’t support Kafka TLS with Ubuntu 24.10, so this function identifies
 // if the current platform and version match this unsupported configuration.
 func isUnsupportedUbuntu(t *testing.T) bool {
-	platform, err := kernel.Platform()
+	platform, err := kernelversion.Platform()
 	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
+	platformVersion, err := kernelversion.PlatformVersion()
 	require.NoError(t, err)
 	arch := kernel.Arch()
 
@@ -116,7 +117,7 @@ func isUnsupportedUbuntu(t *testing.T) bool {
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
+	currKernelVersion, err := kernelversion.Host()
 	require.NoError(t, err)
 	if currKernelVersion < usmconfig.MinimumKernelVersion {
 		t.Skipf("Kafka feature not available on pre %s kernels", usmconfig.MinimumKernelVersion.String())

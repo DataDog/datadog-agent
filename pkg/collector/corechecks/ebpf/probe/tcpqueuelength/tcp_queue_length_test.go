@@ -20,14 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
-var kv = kernel.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 func TestTCPQueueLengthCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		if kv < kernel.VersionCode(4, 8, 0) {
+		if kv < kernelversion.FromCode(4, 8, 0) {
 			t.Skipf("Kernel version %v is not supported by the TCP Queue Length probe", kv)
 		}
 
@@ -41,7 +41,7 @@ func TestTCPQueueLengthCompile(t *testing.T) {
 
 func TestTCPQueueLengthTracer(t *testing.T) {
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		if kv < kernel.VersionCode(4, 8, 0) {
+		if kv < kernelversion.FromCode(4, 8, 0) {
 			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 		}
 

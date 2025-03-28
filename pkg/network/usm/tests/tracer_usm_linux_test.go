@@ -69,10 +69,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
-var kv = kernel.MustHostVersion()
+var kv = kernelversion.MustHost()
 
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
@@ -2636,7 +2636,7 @@ var (
 	httpURL = "http://" + httpServerAddr + "/200/request-0"
 )
 
-func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion kernel.Version) {
+func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion kernelversion.Version) {
 	if kv < minimalKernelVersion {
 		t.Skipf("skipping test, kernel version %s is not supported", kv)
 	}

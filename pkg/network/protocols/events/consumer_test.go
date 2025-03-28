@@ -22,13 +22,13 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 )
 
 func TestConsumer(t *testing.T) {
-	kversion, err := kernel.HostVersion()
+	kversion, err := kernelversion.Host()
 	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := kernelversion.FromCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 
@@ -75,9 +75,9 @@ func TestConsumer(t *testing.T) {
 }
 
 func TestInvalidBatchCountMetric(t *testing.T) {
-	kversion, err := kernel.HostVersion()
+	kversion, err := kernelversion.Host()
 	require.NoError(t, err)
-	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+	if minVersion := kernelversion.FromCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
 

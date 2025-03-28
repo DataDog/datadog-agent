@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	kernelversion "github.com/DataDog/datadog-agent/pkg/util/kernel/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -114,7 +114,7 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 		return nil, nil
 	}
 
-	kversion, err := kernel.HostVersion()
+	kversion, err := kernelversion.Host()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't determine current kernel version: %w", err)
 	}
