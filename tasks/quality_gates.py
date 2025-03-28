@@ -10,8 +10,8 @@ from invoke.exceptions import Exit
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import InfraError
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
+from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
 
 BUFFER_SIZE = 500000
