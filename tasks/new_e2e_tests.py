@@ -234,7 +234,7 @@ def run(
                     if password_cmd is not None:
                         params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
 
-        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
             f"To run this test locally, use: `{command}`. "
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'

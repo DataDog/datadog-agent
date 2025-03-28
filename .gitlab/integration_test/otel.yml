@@ -9,9 +9,9 @@ integration_tests_otel:
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
-    - dda inv check-otel-build
-    - dda inv check-otel-module-versions
-    - dda inv otel-agent.integration-test
+    - dda inv -- check-otel-build
+    - dda inv -- check-otel-module-versions
+    - dda inv -- otel-agent.integration-test
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

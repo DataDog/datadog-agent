@@ -56,6 +56,6 @@
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
     - pyenv rehash
-    - dda inv -e rtloader.make
-    - dda inv -e rtloader.install
-    - dda inv -e install-tools
+    - dda inv -- -e rtloader.make
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools
