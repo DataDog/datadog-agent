@@ -42,12 +42,25 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to download installer: %w", err)
+		// Fall back to the current installer if the download fails
+		cmd, err = getLocalInstaller(env)
+		if err != nil {
+			return fmt.Errorf("failed to get installer executor: %w", err)
+		}
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
 	}
 	return cmd.ForceInstall(ctx, url, nil)
+}
+
+// getLocalInstaller returns an installer executor from the current binary
+func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
+	installerBin, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	return iexec.NewInstallerExec(env, installerBin), nil
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.

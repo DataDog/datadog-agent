@@ -25,7 +25,9 @@ func Install(ctx context.Context, env *env.Env, url string) error {
 	return install(ctx, env, url, false)
 }
 
-// InstallExperiment self-installs the installer package from the given URL as an experiment.
+// InstallExperiment installs a package from the given URL as an experiment.
+// It first tries to grab the installer from a specific layer to start the experiment with,
+// and falls back to the current installer if it doesn't exist.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
 	return install(ctx, env, url, true)
 }
