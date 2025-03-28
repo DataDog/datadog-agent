@@ -795,5 +795,9 @@ func configType(c integration.Config) string {
 		return "clustercheck"
 	}
 
+	if c.HAAgentCheck {
+		return "haagentcheck"
+	}
+
 	return "unknown"
 }
