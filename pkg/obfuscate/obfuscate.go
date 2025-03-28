@@ -126,6 +126,7 @@ type ObfuscationMode string
 
 // ObfuscationMode valid values
 const (
+	Legacy                = ObfuscationMode("legacy")
 	NormalizeOnly         = ObfuscationMode("normalize_only")
 	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
 	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
