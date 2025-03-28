@@ -8,8 +8,8 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
-	"net/http"
 
 	"gopkg.in/yaml.v2"
 
@@ -47,15 +47,15 @@ const (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig            // config for the check
-	sysProbeClient *http.Client            // sysProbeClient is used to communicate with system probe
-	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
-	collectors     []nvidia.Collector      // collectors for NVML metrics
-	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
-	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
-	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
-	deviceTags     map[string][]string     // deviceTags is a map of device UUID to tags
-	deviceCache    ddnvml.DeviceCache      // deviceCache is a cache of GPU devices
+	config         *CheckConfig                // config for the check
+	sysProbeClient *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
+	activeMetrics  map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors     []nvidia.Collector          // collectors for NVML metrics
+	tagger         tagger.Component            // Tagger instance to add tags to outgoing metrics
+	telemetry      *checkTelemetry             // Telemetry component to emit internal telemetry
+	wmeta          workloadmeta.Component      // Workloadmeta store to get the list of containers
+	deviceTags     map[string][]string         // deviceTags is a map of device UUID to tags
+	deviceCache    ddnvml.DeviceCache          // deviceCache is a cache of GPU devices
 }
 
 type checkTelemetry struct {
@@ -101,7 +101,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -181,8 +181,11 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		return err
 	}
 
-	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](&c.CheckBase, c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return nil
+		}
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 

@@ -9,7 +9,7 @@
 package tcpqueuelength
 
 import (
-	"net/http"
+	"errors"
 
 	"gopkg.in/yaml.v2"
 
@@ -43,7 +43,7 @@ type TCPQueueLengthCheck struct {
 	core.CheckBase
 	instance       *TCPQueueLengthConfig
 	tagger         tagger.Component
-	sysProbeClient *http.Client
+	sysProbeClient *sysprobeclient.CheckClient
 }
 
 // Factory creates a new check factory
@@ -75,7 +75,7 @@ func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ ui
 	if err != nil {
 		return err
 	}
-	t.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	t.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 	return t.instance.Parse(config)
 }
@@ -86,8 +86,11 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return nil
 	}
 
-	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](t.sysProbeClient, sysconfig.TCPQueueLengthTracerModule)
+	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](&t.CheckBase, t.sysProbeClient, sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
+		if errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return nil
+		}
 		return err
 	}
 
