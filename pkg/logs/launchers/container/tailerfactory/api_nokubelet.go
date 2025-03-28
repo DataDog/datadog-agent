@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !kubelet
+//go:build !kubelet && docker
 
 package tailerfactory
 
@@ -11,8 +11,6 @@ import (
 	"errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
-
-type factory struct{}
 
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
 	return nil, errors.New("API tailing is unavailable")
