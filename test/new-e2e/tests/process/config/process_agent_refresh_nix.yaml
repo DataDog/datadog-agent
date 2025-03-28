@@ -1,7 +1,4 @@
-secret_backend_command: /tmp/test-secret/secret-resolver.py
-secret_backend_arguments:
-  - /tmp/test-secret
-api_key: ENC[api_key]
+api_key: ENC[/tmp/api_key]
 
 process_config:
   process_collection:
