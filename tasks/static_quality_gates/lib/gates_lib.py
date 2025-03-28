@@ -157,9 +157,6 @@ class GateMetricHandler:
     def send_metrics_to_datadog(self):
         series = self._generate_series()
 
-        print(color_message("Data collected:", "blue"))
-        print(series)
         if series:
-            print(color_message("Sending metrics to Datadog", "blue"))
             send_metrics(series=series)
-            print(color_message("Done", "green"))
+        print(color_message("Metric sending finished !", "blue"))

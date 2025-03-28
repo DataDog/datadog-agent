@@ -11,6 +11,7 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
+from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 500000
@@ -137,6 +138,10 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
             print(f"Gate {gate} failed ! (AssertionError)")
             final_state = "failure"
             gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
+        except InfraError as e:
+            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
+            raise Exit(code=42) from e
         except Exception:
             print(f"Gate {gate} failed ! (StackTrace)")
             final_state = "failure"
