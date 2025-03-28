@@ -549,8 +549,8 @@ type ExitEvent struct {
 }
 
 type DNSResponse struct {
-	Question     DNSEvent `field:"question"`
-	ResponseCode uint8    `field:"response_code"`
+	Question     DNSEvent `field:"question"`      // SECLDoc[question] Definition:`Question that generated the response`
+	ResponseCode uint8    `field:"response_code"` // SECLDoc[response_code] Definition:`Response code of the DNS response`
 }
 
 // DNSEvent represents a DNS event

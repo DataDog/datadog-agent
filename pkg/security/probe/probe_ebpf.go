@@ -676,7 +676,6 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler storage.ActivityDumpHandler) 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
-
 	// filter out event if already present on a profile
 	p.profileManager.LookupEventInProfiles(event)
 
