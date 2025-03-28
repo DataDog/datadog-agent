@@ -16,13 +16,13 @@ BPF_HASH_MAP(map_addr_fd, struct lock_range, u32, 0);
 
 /* .rodata */
 /** Ksyms **/
-static volatile const u64 bpf_map_fops = 0;
-static volatile const u64 bpf_dummy_read = 0;
-static volatile const u64 __per_cpu_offset = 0;
+volatile const u64 bpf_map_fops = 0;
+volatile const u64 bpf_dummy_read = 0;
+volatile const u64 __per_cpu_offset = 0;
 /** control data **/
-static volatile const u64 num_of_ranges = 0;
-static volatile const u64 log2_num_of_ranges = 0;
-static volatile const u64 num_cpus = 0;
+volatile const u64 num_of_ranges = 0;
+volatile const u64 log2_num_of_ranges = 0;
+volatile const u64 num_cpus = 0;
 
 static __always_inline bool is_bpf_map(u32 fd, struct file** bpf_map_file) {
     struct file **fdarray;
@@ -348,7 +348,7 @@ BPF_PERCPU_ARRAY_MAP(tstamp_cpu, struct tstamp_data, 1);
 BPF_HASH_MAP(lock_stat, struct lock_range, struct contention_data, 0);
 BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
-int data_map_full;
+__hidden int data_map_full;
 
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 {
