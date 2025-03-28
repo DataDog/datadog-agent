@@ -203,11 +203,11 @@ func (ctx *systemContext) removeProcess(pid int) {
 	}
 }
 
-// cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
+// cleanOld removes any old entries that have not been accessed in a while, to avoid
 // retaining unused data forever
-func (ctx *systemContext) cleanupOldEntries() {
+func (ctx *systemContext) cleanOld() {
 	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.cleanupOldEntries()
+		ctx.cudaKernelCache.cleanOld()
 	}
 }
 
