@@ -375,7 +375,11 @@ func TestInjectSocket(t *testing.T) {
 			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{"csi.enabled": test.withCSIDriver},
+				Overrides: map[string]interface{}{
+					"csi.enabled":                                    test.withCSIDriver,
+					"admission_controller.csi.enabled":               test.withCSIDriver,
+					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
+				},
 			}))
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)
@@ -500,7 +504,11 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 				}),
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle(), fx.Replace(config.MockParams{
-				Overrides: map[string]interface{}{"csi.enabled": test.withCSIDriver},
+				Overrides: map[string]interface{}{
+					"csi.enabled":                                    test.withCSIDriver,
+					"admission_controller.csi.enabled":               test.withCSIDriver,
+					"admission_controller.inject_config.csi.enabled": test.withCSIDriver,
+				},
 			}))
 			filter, err := NewFilter(datadogConfig)
 			require.NoError(t, err)

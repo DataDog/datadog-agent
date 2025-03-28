@@ -10,7 +10,6 @@ package ksm
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -358,7 +357,7 @@ func cronJobLastScheduleTransformer(s sender.Sender, _ string, metric ksmstore.D
 func jobCompleteTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
-			tags = slices.Delete(tags, i, i+1)
+			tags = append(tags[:i], tags[i+1:]...)
 			break
 		}
 	}
@@ -382,7 +381,7 @@ func jobDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 func jobFailedTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
-			tags = slices.Delete(tags, i, i+1)
+			tags = append(tags[:i], tags[i+1:]...)
 			break
 		}
 	}
@@ -423,7 +422,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 	for i, tag := range tags {
 		if strings.HasPrefix(tag, "reason:") {
 			if v := strings.TrimPrefix(tag, "reason:"); !validJobFailureReason(v) {
-				tags = slices.Delete(tags, i, i+1)
+				tags = append(tags[:i], tags[i+1:]...)
 				continue
 			}
 		}
