@@ -103,8 +103,10 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return 2, nvml.SUCCESS
 					},
 					DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-						// off by 1 on index will return error for device with index==1 and succeed for the device with index==0
-						return testutil.GetDeviceMock(index + 1), nvml.SUCCESS
+						if index == 0 {
+							return testutil.GetDeviceMock(index), nvml.SUCCESS
+						}
+						return nil, nvml.ERROR_INVALID_ARGUMENT
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
