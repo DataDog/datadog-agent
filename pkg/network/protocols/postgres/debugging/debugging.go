@@ -58,7 +58,7 @@ func Postgres(stats map[postgres.Key]*postgres.RequestStat) []RequestSummary {
 				IP:   serverAddr.String(),
 				Port: k.DstPort,
 			},
-			Parameters: k.Parameters,
+			Parameters: k.Parameters.Get(),
 		}
 		if _, ok := resMap[tempKey]; !ok {
 			resMap[tempKey] = make(map[string]Stats)
