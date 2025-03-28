@@ -325,10 +325,10 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 			if fatbinParsingEnabled {
 				// Ensure the kernel cache is running so we can load the kernel data
-				sysCtx.kernelCache.Start()
-				t.Cleanup(sysCtx.kernelCache.Stop)
+				sysCtx.cudaKernelCache.Start()
+				t.Cleanup(sysCtx.cudaKernelCache.Stop)
 			} else {
-				require.Nil(t, sysCtx.kernelCache)
+				require.Nil(t, sysCtx.cudaKernelCache)
 			}
 
 			// Set up the caches in system context so no actual queries are done
@@ -341,7 +341,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			sharedMem := uint64(100)
 			constantMem := uint64(200)
 
-			sysCtx.kernelCache.pidMaps[int(pid)] = []*procfs.ProcMap{
+			sysCtx.cudaKernelCache.pidMaps[int(pid)] = []*procfs.ProcMap{
 				{StartAddr: 0, EndAddr: 1000, Offset: 0, Pathname: binPath},
 			}
 
@@ -359,7 +359,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
 			require.NoError(t, err)
 
-			sysCtx.kernelCache.cudaSymbols[procBinIdent] = &symbolsEntry{
+			sysCtx.cudaKernelCache.cudaSymbols[procBinIdent] = &symbolsEntry{
 				Symbols: &cuda.Symbols{
 					SymbolTable: map[uint64]string{kernAddress: kernName},
 					Fatbin:      fatbin,
@@ -396,12 +396,12 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 					smVersion: smVersion,
 				}
 				require.Eventually(t, func() bool {
-					return sysCtx.kernelCache.getExistingKernelData(cacheKey) != nil
+					return sysCtx.cudaKernelCache.getExistingKernelData(cacheKey) != nil
 				}, 10000*time.Millisecond, 10*time.Millisecond)
 
 				// Ensure the kernel has been loaded correctly
-				require.NoError(t, sysCtx.kernelCache.cache[cacheKey].err)
-				require.NotNil(t, sysCtx.kernelCache.cache[cacheKey].kernel)
+				require.NoError(t, sysCtx.cudaKernelCache.cache[cacheKey].err)
+				require.NotNil(t, sysCtx.cudaKernelCache.cache[cacheKey].kernel)
 			}
 
 			// No sync, so we should have data

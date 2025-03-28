@@ -131,13 +131,13 @@ func BenchmarkConsumer(b *testing.B) {
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
 			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
 
-			if ctx.kernelCache != nil {
-				ctx.kernelCache.pidMaps[pid] = nil
+			if ctx.cudaKernelCache != nil {
+				ctx.cudaKernelCache.pidMaps[pid] = nil
 
 				// If we don't start the kernel cache, the request channel will be full and we'll run into
 				// errors, falsifying the results of the benchmark
-				ctx.kernelCache.Start()
-				b.Cleanup(ctx.kernelCache.Stop)
+				ctx.cudaKernelCache.Start()
+				b.Cleanup(ctx.cudaKernelCache.Stop)
 			}
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))

@@ -110,9 +110,9 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	require.NotZero(t, kernelAddress, "kernel address should be found")
 
 	sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), withProcRoot(procRoot))
-	require.NotNil(t, sysCtx.kernelCache)
+	require.NotNil(t, sysCtx.cudaKernelCache)
 
-	kc := sysCtx.kernelCache
+	kc := sysCtx.cudaKernelCache
 	kc.Start()
 	t.Cleanup(kc.Stop)
 
@@ -171,9 +171,9 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 
 func TestKernelCacheLoadKernelDataError(t *testing.T) {
 	sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	require.NotNil(t, sysCtx.kernelCache)
+	require.NotNil(t, sysCtx.cudaKernelCache)
 
-	kc := sysCtx.kernelCache
+	kc := sysCtx.cudaKernelCache
 	kc.Start()
 	t.Cleanup(kc.Stop)
 

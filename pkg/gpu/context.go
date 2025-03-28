@@ -62,8 +62,8 @@ type systemContext struct {
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
-	// kernelCache caches kernel data and handles background loading
-	kernelCache *kernelCache
+	// cudaKernelCache caches kernel data and handles background loading
+	cudaKernelCache *kernelCache
 }
 
 type systemContextConfig struct {
@@ -145,7 +145,7 @@ func getSystemContext(opts ...systemContextConfigOption) (*systemContext, error)
 	}
 
 	if cfg.fatbinParsingEnabled {
-		ctx.kernelCache = newKernelCache(ctx, cfg.tm)
+		ctx.cudaKernelCache = newKernelCache(ctx, cfg.tm)
 	}
 
 	return ctx, nil
@@ -191,16 +191,16 @@ func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
 
-	if ctx.kernelCache != nil {
-		ctx.kernelCache.cleanDataForPid(pid)
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.cleanDataForPid(pid)
 	}
 }
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
 // retaining unused data forever
 func (ctx *systemContext) cleanupOldEntries() {
-	if ctx.kernelCache != nil {
-		ctx.kernelCache.cleanupOldEntries()
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.cleanupOldEntries()
 	}
 }
 
