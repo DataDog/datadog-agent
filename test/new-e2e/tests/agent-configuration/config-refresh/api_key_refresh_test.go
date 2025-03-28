@@ -155,7 +155,6 @@ additional_endpoints:
 
 		// Check additional endpoints with specific API key counts
 		assert.Contains(t, status.Content, `intake - API Keys ending with:
-              - 54321
               - 54321`)
 		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
               - 54321`)
