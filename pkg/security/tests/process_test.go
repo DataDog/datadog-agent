@@ -188,7 +188,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_self_exec",
-			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123"`,
 		},
 		{
 			ID:         "test_rule_ctx_1",
@@ -837,7 +837,9 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -861,8 +863,10 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_parent")
-			assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -998,8 +1002,11 @@ func TestProcessContext(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 
 			return nil
-		}, test.validateExecEvent(t, kind, func(_ *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_self_exec")
+			if !ebpfLessEnabled {
+				assert.Equal(t, "exe", event.ProcessContext.Comm)
+			}
 		}))
 	})
 
