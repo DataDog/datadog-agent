@@ -128,7 +128,7 @@ func BenchmarkConsumer(b *testing.B) {
 
 			cfg := config.New()
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.visibleDevicesCache[pid] = testutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
 			ctx.pidMaps[pid] = nil
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
