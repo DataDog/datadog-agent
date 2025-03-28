@@ -381,7 +381,7 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{
-				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c \"%s\"", kindCluster.ClusterName, image, pullCmd),
+				Create: pulumi.Sprintf("kind get nodes --name %s | xargs -I {} docker exec {} /bin/bash -c \"%s\"", kindCluster.ClusterName, pullCmd),
 			},
 			utils.PulumiDependsOn(dependsOn...),
 		)

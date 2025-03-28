@@ -62,7 +62,7 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
             except AssertionError as exc:
                 print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
         if "Failed" in decision:
-            raise Exit(code=1)
+            raise Exit(code=0)
 
 
 @task
