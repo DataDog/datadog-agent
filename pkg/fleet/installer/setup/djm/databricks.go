@@ -266,4 +266,6 @@ func addCustomHostTags(s *common.Setup) {
 			s.Config.DatadogYAML.ExtraTags = append(s.Config.DatadogYAML.ExtraTags, tag)
 		}
 	}
+	s.Span.SetTag("host_tag_set.dd_tags", len(tagsArray))
+	s.Span.SetTag("host_tag_set.dd_extra_tags", len(extraTagsArray))
 }
