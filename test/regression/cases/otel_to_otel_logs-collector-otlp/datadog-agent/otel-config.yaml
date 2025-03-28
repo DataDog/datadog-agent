@@ -12,7 +12,7 @@ exporters:
       endpoint: "http://127.0.0.1:9091"
     hostname: "smp-regression"    
     api:
-      key: "123456789"
+      key: "12345678901234567890123456789012"
       site: 127.0.0.1:9092
     metrics:
       resource_attributes_as_tags: true

@@ -7,7 +7,7 @@ target:
   memory_allotment: 24GiB
 
   environment:
-    DD_API_KEY: "123456789"
+    DD_API_KEY: "12345678901234567890123456789012"
     DD_HOSTNAME: smp-regression
     DD_OTEL_ENABLED: true
     DD_SITE: datadoghq.com
