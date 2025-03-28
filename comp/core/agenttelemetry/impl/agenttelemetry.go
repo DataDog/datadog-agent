@@ -599,9 +599,6 @@ func (a *atel) start() error {
 		})
 	}
 
-	// Start the tracer
-	a.lightTracer.Start()
-
 	return nil
 }
 
