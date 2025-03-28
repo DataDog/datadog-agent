@@ -531,7 +531,7 @@ func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
 			log2Tags[k] = fmt.Sprint(v)
 		}
 		if log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
-			//
+			// Verify that logs with the same trace id are sent to the same backend
 			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
 			require.Equal(c, log1Tags["backend"], log2Tags["backend"])
 			matchedLog = true
