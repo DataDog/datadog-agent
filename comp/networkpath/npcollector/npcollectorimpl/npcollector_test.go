@@ -244,7 +244,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 		"network_path.collector.workers":              100,
 		"network_devices.namespace":                   "my-ns1",
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
+	app, npCollector := newTestNpCollector(t, agentConfigs)
 
 	app.RequireStart()
 
