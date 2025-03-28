@@ -368,6 +368,8 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 }
 
 func (c *Check) configureExcludeMountPoint(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	// https://github.com/DataDog/datadog-agent/issues/1961
+	// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
 	defaultMountPoints := []interface{}{"(/host)?/proc/sys/fs/binfmt_misc$"}
 	var mountPointExclude []interface{}
 	for _, key := range []string{"mount_point_global_exclude", "mount_point_global_blacklist"} {
