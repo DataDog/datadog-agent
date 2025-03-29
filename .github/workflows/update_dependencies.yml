@@ -50,8 +50,8 @@ jobs:
                     golang.org/x/exp golang.org/x/oauth2
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
-          dda inv -e tidy
-          dda inv -e tidy
+          dda inv -- -e tidy
+          dda inv -- -e tidy
       - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: autocommit
         with:

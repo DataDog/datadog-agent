@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -64,13 +65,14 @@ type npCollectorImpl struct {
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 
 	// Scheduling related
-	running       bool
-	workers       int
-	stopChan      chan struct{}
-	flushLoopDone chan struct{}
-	workersDone   chan struct{}
-	runDone       chan struct{}
-	flushInterval time.Duration
+	running               bool
+	workers               int
+	stopChan              chan struct{}
+	flushLoopDone         chan struct{}
+	workersDone           chan struct{}
+	runDone               chan struct{}
+	flushInterval         time.Duration
+	inputChanFullLogLimit *utillog.Limit
 
 	// Telemetry component
 	telemetrycomp telemetryComp.Component
@@ -108,6 +110,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
+		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
 
 		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
 
@@ -286,7 +289,10 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		return nil
 	default:
 		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1)
-		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		if s.inputChanFullLogLimit.ShouldLog() {
+			s.logger.Warnf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		}
+		return nil
 	}
 }
 

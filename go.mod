@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250218182124-bd4ad0b8d2fd
-	github.com/DataDog/ebpf-manager v0.7.7
+	github.com/DataDog/ebpf-manager v0.7.10
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
@@ -70,7 +70,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.16.0
+	github.com/cilium/ebpf v0.17.4-0.20250317113418-0bfb15fb2261
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.27
 	github.com/containernetworking/cni v1.2.3
@@ -456,7 +456,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/configsync v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote v0.0.0-20250129172314-517df3f51a84
@@ -464,15 +464,15 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1
-	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.64.0
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector v0.65.0-devel
-	github.com/DataDog/datadog-agent/comp/otelcol/status/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/status/impl v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/status/def v0.64.0
+	github.com/DataDog/datadog-agent/comp/otelcol/status/impl v0.64.0
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
+	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/kraken-hpc/go-fork v0.1.1
@@ -549,7 +549,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
