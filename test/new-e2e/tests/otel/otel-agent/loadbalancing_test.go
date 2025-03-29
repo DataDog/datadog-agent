@@ -38,6 +38,9 @@ datadog:
 
 func (s *loadBalancingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, "calendar-rest-go-1")
 	utils.TestCalendarApp(s, false, "calendar-rest-go-2")
 	utils.TestCalendarApp(s, false, "calendar-rest-go-3")
