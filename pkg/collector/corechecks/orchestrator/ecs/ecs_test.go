@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build orchestrator && test
 
 package ecs
 
@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -156,7 +157,9 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	t.Helper()
 
-	orchConfig := oconfig.NewDefaultOrchestratorConfig()
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	orchConfig := oconfig.NewDefaultOrchestratorConfig(fakeTagger)
 	orchConfig.OrchestrationCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{

@@ -17,6 +17,8 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -63,7 +65,12 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 
 	// get orchestrator endpoints
 	endpoints := map[string][]string{}
-	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig()
+	mockReq := taggerimpl.MockRequires{
+		Config:    pkgconfigsetup.Datadog(),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	fakeTagger := taggerimpl.NewMock(mockReq).Comp
+	orchestratorCfg := orchcfg.NewDefaultOrchestratorConfig(fakeTagger)
 	err = orchestratorCfg.Load()
 	if err == nil {
 		// obfuscate the api keys

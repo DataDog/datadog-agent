@@ -91,7 +91,7 @@ type OrchestratorCheck struct {
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
 	return &OrchestratorCheck{
 		CheckBase:          base,
-		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
+		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(tagger),
 		instance:           instance,
 		wlmStore:           wlmStore,
 		tagger:             tagger,

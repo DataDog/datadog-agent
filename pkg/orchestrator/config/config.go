@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -34,6 +36,7 @@ const (
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
 // is sourced from config files and the environment variables.
 type OrchestratorConfig struct {
+	TaggerComp                     tagger.Component
 	CollectorDiscoveryEnabled      bool
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
@@ -51,13 +54,14 @@ type OrchestratorConfig struct {
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewDefaultOrchestratorConfig() *OrchestratorConfig {
+func NewDefaultOrchestratorConfig(tagger tagger.Component) *OrchestratorConfig {
 	orchestratorEndpoint, err := url.Parse(defaultEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
 	oc := OrchestratorConfig{
+		TaggerComp:               tagger,
 		Scrubber:                 redact.NewDefaultDataScrubber(),
 		MaxPerMessage:            100,
 		MaxWeightPerMessageBytes: 10000000,
@@ -119,7 +123,10 @@ func (oc *OrchestratorConfig) Load() error {
 
 	oc.CollectorDiscoveryEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
-	oc.ExtraTags = pkgconfigsetup.Datadog().GetStringSlice(OrchestratorNSKey("extra_tags"))
+	oc.ExtraTags, err = oc.TaggerComp.GlobalTags(types.LowCardinality)
+	if err != nil {
+		pkglog.Debugf("Error getting global tags: %s", err)
+	}
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))

@@ -70,7 +70,7 @@ func newCheck(store workloadmeta.Component, tagger tagger.Component) check.Check
 		CheckBase:                  core.NewCheckBase(CheckName),
 		workloadmetaStore:          store,
 		tagger:                     tagger,
-		config:                     oconfig.NewDefaultOrchestratorConfig(),
+		config:                     oconfig.NewDefaultOrchestratorConfig(tagger),
 		groupID:                    atomic.NewInt32(rand.Int31()),
 		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
 	}

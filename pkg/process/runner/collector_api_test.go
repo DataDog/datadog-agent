@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -71,7 +73,8 @@ func TestSendConnectionsMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
@@ -111,7 +114,8 @@ func TestSendContainerMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -149,7 +153,8 @@ func TestSendProcMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -190,7 +195,8 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
@@ -239,8 +245,9 @@ func TestSendProcessEventMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
@@ -284,8 +291,9 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -324,7 +332,8 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -355,10 +364,11 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 1)
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		select {
 		case r := <-ep.Requests:
 			t.Fatalf("should not have received a request: %+v", r)
@@ -385,10 +395,11 @@ func TestQueueSpaceReleased(t *testing.T) {
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -424,13 +435,14 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	config := configmock.New(t)
 	// Set concurrent requests to 1 to ensure that the requests are made in exact order.
 	// A value of more than 1 would mean the order is determined by the go scheduler and can be different to
 	// what is sent.
 	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, config, func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, config, fakeTagger, func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -438,11 +450,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
-	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig pkgconfigmodel.Config, fakeTagger tagger.Component, tc func(c *CheckRunner, ep *mockEndpoint)) {
+	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, fakeTagger, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig pkgconfigmodel.Config, fakeTagger tagger.Component, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()
@@ -462,7 +474,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewRunnerWithChecks(mockConfig, nil, hostInfo, []checks.Check{check}, true, nil)
+	c, err := NewRunnerWithChecks(mockConfig, fakeTagger, nil, hostInfo, []checks.Check{check}, true, nil)
 	assert.NoError(t, err)
 	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
