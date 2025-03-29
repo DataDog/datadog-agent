@@ -4,6 +4,10 @@
 
 package internal
 
+import (
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+)
+
 // Entry is an LRU Entry
 type Entry[K comparable, V any] struct {
 	// Next and previous pointers in the doubly-linked list of elements.
@@ -34,6 +38,7 @@ func (e *Entry[K, V]) PrevEntry() *Entry[K, V] {
 // LruList represents a doubly linked list.
 // The zero Value for LruList is an empty list ready to use.
 type LruList[K comparable, V any] struct {
+	pool *ddsync.TypedPool[Entry[K, V]]
 	root Entry[K, V] // sentinel list element, only &root, root.prev, and root.next are used
 	len  int         // current list Length excluding (this) sentinel element
 }
@@ -47,7 +52,12 @@ func (l *LruList[K, V]) Init() *LruList[K, V] {
 }
 
 // NewList returns an initialized list.
-func NewList[K comparable, V any]() *LruList[K, V] { return new(LruList[K, V]).Init() }
+func NewList[K comparable, V any]() *LruList[K, V] {
+	l := &LruList[K, V]{
+		pool: ddsync.NewTypedPool[Entry[K, V]](func() *Entry[K, V] { return new(Entry[K, V]) }),
+	}
+	return l.Init()
+}
 
 // Length returns the number of elements of list l.
 // The complexity is O(1).
@@ -81,7 +91,14 @@ func (l *LruList[K, V]) insert(e, at *Entry[K, V]) *Entry[K, V] {
 
 // insertValue is a convenience wrapper for insert(&Entry{Value: v, ExpiresAt: ExpiresAt}, at).
 func (l *LruList[K, V]) insertValue(k K, v V, at *Entry[K, V]) *Entry[K, V] {
-	return l.insert(&Entry[K, V]{Value: v, Key: k}, at)
+	e := l.pool.Get()
+	e.next = nil
+	e.prev = nil
+	e.list = l
+	e.Key = k
+	e.Value = v
+
+	return l.insert(e, at)
 }
 
 // Remove removes e from its list, decrements l.len
@@ -93,7 +110,9 @@ func (l *LruList[K, V]) Remove(e *Entry[K, V]) V {
 	e.list = nil
 	l.len--
 
-	return e.Value
+	v := e.Value
+	l.pool.Put(e)
+	return v
 }
 
 // move moves e to next to at.
