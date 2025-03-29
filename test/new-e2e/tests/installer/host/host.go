@@ -306,7 +306,7 @@ func (h *Host) users() []user.User {
 	lines := strings.Split(output, "\n")
 	var users []user.User
 	for _, line := range lines {
-		if line == "" {
+		if line == "" || strings.Contains(line, "ld.so.preload") {
 			continue
 		}
 		parts := strings.Split(line, ":")
@@ -330,7 +330,7 @@ func (h *Host) groups() []user.Group {
 	lines := strings.Split(output, "\n")
 	var groups []user.Group
 	for _, line := range lines {
-		if line == "" {
+		if line == "" || strings.Contains(line, "ld.so.preload") {
 			continue
 		}
 		parts := strings.Split(line, ":")
@@ -364,7 +364,7 @@ func (h *Host) fs() map[string]FileInfo {
 
 	fileInfos := make(map[string]FileInfo)
 	for _, line := range lines {
-		if line == "" {
+		if line == "" || strings.Contains(line, "ld.so.preload") {
 			continue
 		}
 		parts := strings.Split(line, "\\|//")

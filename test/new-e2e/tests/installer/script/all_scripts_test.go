@@ -194,6 +194,6 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 
 func (s *installerScriptBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo rm -rf install_script")
-	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
