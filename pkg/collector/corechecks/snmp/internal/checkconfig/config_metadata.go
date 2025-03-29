@@ -219,10 +219,30 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "cdpCachePrimaryMgmtAddr",
 				},
 			},
-			// TODO: Add
-			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.4 cdpCacheAddress
-			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.22  cdpCacheSecondaryMgmtAddrType
-			// as backup when cdpCachePrimaryMgmtAddr is not present or cdpCachePrimaryMgmtAddrType is not ip(1)
+			"device_secondary_address_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.21",
+					Name: "cdpCacheSecondaryMgmtAddrType",
+				},
+			},
+			"device_secondary_address": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.22",
+					Name: "cdpCacheSecondaryMgmtAddr",
+				},
+			},
+			"device_cache_address_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.3",
+					Name: "cdpCacheAddressType",
+				},
+			},
+			"device_cache_address": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.4",
+					Name: "cdpCacheAddress",
+				},
+			},
 		},
 	},
 }
