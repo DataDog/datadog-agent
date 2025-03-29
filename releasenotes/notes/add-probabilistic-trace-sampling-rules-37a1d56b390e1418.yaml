@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add a new feature called ``DD_APM_PROBABILISTIC_SAMPLER_TRACE_SAMPLING_RULES``.
+    This feature is available when ``DD_APM_PROBABILISTIC_SAMPLER_ENABLED=true``.
+    It allows to define regular expression for the service, operation_name,
+    resource_name, and attributes of the root span.
+    If any span matches a defined rule, the sampling percentage specifie in that
+    rule will override ``DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE``.
+    Multiple rules can be configured—within a single rule, conditions are
+    combined using AND, while multiple rules are combined using OR.
+    See https://github.com/DataDog/datadog-agent/pull/34232 for example configs.
