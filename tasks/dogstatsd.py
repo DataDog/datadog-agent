@@ -60,7 +60,7 @@ def build(
         bin_path = STATIC_BIN_PATH
 
     # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
+    cmd = "go build -trimpath -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
         "go_mod": go_mod,
