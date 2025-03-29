@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -178,7 +177,7 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 	}
 
 	// 2. Ensures the installer is present in the agent package
-	installerPath := filepath.Join(paths.PackagesPath, agentPackage, "stable", "embedded/bin/installer")
+	installerPath := filepath.Join(installPath, "embedded", "bin", "installer")
 	if _, err := os.Stat(installerPath); os.IsNotExist(err) {
 		err = installerCopy(installerPath)
 		if err != nil {

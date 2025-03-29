@@ -76,7 +76,6 @@ func SetupDefaultScript(s *common.Setup) error {
 	}
 
 	// Installer management
-	s.PackagesDebRPMToRemove = append(s.PackagesDebRPMToRemove, common.DatadogInstallerPackage)
 	setConfigInstallerDaemon(s)
 	setConfigInstallerRegistries(s)
 

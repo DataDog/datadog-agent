@@ -170,6 +170,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
 
 	// 2. Run the installer install script with the same older agent version (7.60)
+	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// 3. Check the installer deb / rpm isn't there anymore
@@ -177,7 +178,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 
 	// 4. Check the installer is present in the agent
 	state := s.host.State()
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0755, "root", "root")
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0750, "dd-agent", "dd-agent")
 
 	// 5. Assert the installer unit is not loaded
 	state.AssertUnitsNotLoaded("datadog-installer.service")
