@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -48,7 +47,6 @@ type Setup struct {
 	Ctx                     context.Context
 	Span                    *telemetry.Span
 	Packages                Packages
-	PackagesDebRPMToRemove  []string
 	Config                  Config
 	DdAgentAdditionalGroups []string
 }
@@ -130,14 +128,6 @@ func (s *Setup) Run() (err error) {
 		if err != nil {
 			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
 			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
-		}
-	}
-
-	// This is broken. This deletes /opt/datadog-package & we're ded.
-	for _, p := range s.PackagesDebRPMToRemove {
-		err := packagemanager.RemovePackage(s.Ctx, p)
-		if err != nil {
-			return fmt.Errorf("failed to remove package %s: %w", p, err)
 		}
 	}
 

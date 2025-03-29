@@ -12,7 +12,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -166,10 +166,14 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
+	defer func() {
+		s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+	}()
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
 	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
 
 	// 2. Run the installer install script with the same older agent version (7.60)
+	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// 3. Check the installer deb / rpm isn't there anymore
