@@ -86,22 +86,18 @@ func WithKey(connectionStats ConnectionStats, f func(key types.ConnectionKey) (s
 		clientIPNAT, clientPortNAT, serverIPNAT, serverPortNAT = serverIPNAT, serverPortNAT, clientIPNAT, clientPortNAT
 	}
 
-	// Callback 1: NATed (client, server)
-	if hasNAT && f(types.NewConnectionKey(clientIPNAT, serverIPNAT, clientPortNAT, serverPortNAT)) {
+	// Callback 1: (client, server)
+	if f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort)) {
+		if shouldTraceLog {
+			log.Tracef("WithKey - callback 1: (client, server) returned true")
+		}
 		return
 	}
 
-	//if hasNAT && f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort)) {
-	//	if shouldTraceLog {
-	//		log.Tracef("WithKey - callback 1: NATed (client, server) returned true")
-	//	}
-	//	return
-	//}
-
-	// Callback 2: (client, server)
-	if f(types.NewConnectionKey(clientIP, serverIP, clientPort, serverPort)) {
+	// Callback 2: NATed (client, server)
+	if hasNAT && f(types.NewConnectionKey(clientIPNAT, serverIPNAT, clientPortNAT, serverPortNAT)) {
 		if shouldTraceLog {
-			log.Tracef("WithKey - callback 2: (client, server) returned true")
+			log.Tracef("WithKey - callback 2: NATed (client, server) returned true")
 		}
 		return
 	}
