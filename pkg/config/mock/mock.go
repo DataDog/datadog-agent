@@ -99,7 +99,7 @@ func NewSystemProbe(t testing.TB) model.Config {
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(create.NewConfig("system-probe"))
+	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)

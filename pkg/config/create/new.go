@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
+// NewConfig returns a config with the given name. Implementation of the
+// config is chosen by an env var
 func NewConfig(name string) model.Config {
 	// Configure Datadog global configuration
 	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
