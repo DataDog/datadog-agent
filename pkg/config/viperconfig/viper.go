@@ -782,6 +782,12 @@ func (c *safeConfig) Object() model.Reader {
 	return c
 }
 
+// NewConfig returns a new viper config
+// Deprecated: this is deprecated, use pkg/config/create.NewConfig or NewViperConfig
+func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+	return NewViperConfig(name, envPrefix, envKeyReplacer)
+}
+
 // NewViperConfig returns a new Config object.
 func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
