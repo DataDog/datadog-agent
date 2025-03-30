@@ -782,8 +782,8 @@ func (c *safeConfig) Object() model.Reader {
 	return c
 }
 
-// NewConfig returns a new Config object.
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+// NewViperConfig returns a new Config object.
+func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
 		Viper:         viper.New(),
 		configSources: map[model.Source]*viper.Viper{},
