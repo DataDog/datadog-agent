@@ -94,7 +94,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			auth, ok := p.authToken.Get()
 			if !ok {
 				err := fmt.Errorf("no auth component found")
-				logFunc("%v", err)
+				_ = logFunc("%v", err)
 				return nil, err
 			}
 

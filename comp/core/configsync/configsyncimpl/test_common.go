@@ -40,7 +40,7 @@ func makeDeps(t *testing.T) dependencies {
 	))
 }
 
-func makeConfigSync(t *testing.T, deps dependencies) *configSync {
+func makeConfigSync(deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
@@ -69,7 +69,7 @@ func makeServer(t *testing.T, authtoken authtoken.Mock, handler http.HandlerFunc
 //nolint:revive
 func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
 	deps := makeDeps(t)
-	cs := makeConfigSync(t, deps)
+	cs := makeConfigSync(deps)
 
 	authmock, ok := deps.Authtoken.(authtoken.Mock)
 	require.True(t, ok)

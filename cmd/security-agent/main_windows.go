@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -155,7 +154,6 @@ func (s *service) Run(svcctx context.Context) error {
 
 		statusimpl.Module(),
 
-		authtokenimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {

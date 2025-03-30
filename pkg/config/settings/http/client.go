@@ -22,17 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
-type httpClient interface {
+type client interface {
 	DoGet(url string) (body []byte, e error)
 	DoPost(url string, contentType string, body io.Reader) (resp []byte, e error)
 }
 
-type HTTPClient struct {
+type httpClient struct {
 	c             *http.Client
 	clientOptions ClientOptions
 }
 
-func (c *HTTPClient) DoGet(url string) (body []byte, e error) {
+func (c *httpClient) DoGet(url string) (body []byte, e error) {
 	ctx := context.Background()
 
 	req, e := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -58,7 +58,7 @@ func (c *HTTPClient) DoGet(url string) (body []byte, e error) {
 	return body, nil
 }
 
-func (c *HTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+func (c *httpClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
 	req, e := http.NewRequest("POST", url, body)
 	if e != nil {
 		return resp, e
@@ -79,21 +79,21 @@ func (c *HTTPClient) DoPost(url string, contentType string, body io.Reader) (res
 	return resp, nil
 }
 
-type HTTPSClient struct {
+type httpsClient struct {
 	c             authtoken.SecureClient
 	clientOptions []authtoken.RequestOption
 }
 
-func (c *HTTPSClient) DoGet(url string) (body []byte, e error) {
+func (c *httpsClient) DoGet(url string) (body []byte, e error) {
 	return c.c.Get(url, secureclient.WithLeaveConnectionOpen)
 }
 
-func (c *HTTPSClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+func (c *httpsClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
 	return c.c.Post(url, contentType, body, secureclient.WithLeaveConnectionOpen)
 }
 
 type runtimeSettingsClient struct {
-	c                 httpClient
+	c                 client
 	baseURL           string
 	targetProcessName string
 }
@@ -101,7 +101,7 @@ type runtimeSettingsClient struct {
 // NewHTTPClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
 
-	innerClient := &HTTPClient{c, clientOptions}
+	innerClient := &httpClient{c, clientOptions}
 
 	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
 }
@@ -109,7 +109,7 @@ func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, cli
 // NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
 func NewHTTPSClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
 
-	innerClient := &HTTPSClient{c, clientOptions}
+	innerClient := &httpsClient{c, clientOptions}
 
 	return &runtimeSettingsClient{innerClient, baseURL, targetProcessName}
 }

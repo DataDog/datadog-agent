@@ -215,8 +215,7 @@ func GetDCAAuthToken() string {
 }
 
 // Validate validates an http request
-//
-// Deprecated: Validate is deprecated. Please use authtoken.Component and its method HTTPMiddleware instead.
+// TODO IPC: Deprecate this function
 func Validate(w http.ResponseWriter, r *http.Request) error {
 	var err error
 	auth := r.Header.Get("Authorization")
