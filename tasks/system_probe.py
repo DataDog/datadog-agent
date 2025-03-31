@@ -2098,6 +2098,4 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
     )
 
     ctx.run(f"mkdir -p {output_dir}")
-    ctx.run(
-        f"kubectl cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson"
-    )
+    ctx.run(f"kubectl cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")
