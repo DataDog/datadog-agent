@@ -1,0 +1,39 @@
+load("@sds_deps//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_static_library", "rust_library")
+
+
+rust_static_library(
+    name = "dd_sds_go",
+    srcs = glob(["sds-go/rust/src/**/*"]),
+    aliases = aliases(),
+    deps = all_crate_deps(
+        normal = True,
+    ) + [
+        # For some reason all_crate_deps doesn't include this one
+        "@sds_deps//:serde_json",
+        ":dd_sds",
+        ":sds_bindings_utils",
+    ],
+    proc_macro_deps = all_crate_deps(
+        proc_macro = True,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+rust_library(
+    name = "dd_sds",
+    srcs = glob(["sds/src/**/*"]),
+    deps = all_crate_deps(
+        normal = True,
+    )
+)
+
+rust_library(
+    name = "sds_bindings_utils",
+    srcs = glob(["sds-bindings-utils/src/**/*"]),
+    deps = all_crate_deps(
+        normal = True,
+    ) + [
+        ":dd_sds",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "tests_test",
+    srcs = [
+        "tracer_classification_test.go",
+        "tracer_classification_windows_test.go",
+    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/system-probe/config/types",
+            "//pkg/config/env",
+            "//pkg/ebpf/ebpftest",
+            "//pkg/network",
+            "//pkg/network/config",
+            "//pkg/network/driver",
+            "//pkg/network/protocols",
+            "//pkg/network/tracer",
+            "//pkg/network/tracer/testutil",
+            "//pkg/util/log",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,14 @@
+index 1cf4a75..38608aa 100644
+--- BUILD.bazel
++++ BUILD.bazel
+@@ -17,8 +17,9 @@ go_library(
+         "rule.go",
+         "scanner.go",
+     ],
++    cdeps = ["@@+_repo_rules+sds//:dd_sds_go"],
+     cgo = True,
+-    clinkopts = ["-L../rust/target/release -ldd_sds_go"],
++    clinkopts = [],
+     importpath = "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go",
+     visibility = ["//visibility:public"],
+ )

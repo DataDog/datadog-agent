@@ -24,7 +24,19 @@ go_library(
 
 go_library(
     name = "crio",
-    srcs = ["doc.go"],
+    srcs = [
+        "crio.go",
+        "doc.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio",
     visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/crio",
+        "//pkg/util/option",
+        "//pkg/util/trivy",
+    ],
 )

@@ -12,3 +12,28 @@ filegroup(name = "headers", srcs = glob(["src/systemd/*.h"]), visibility = ["//v
     strip_prefix = "systemd-{0}".format(SYSTEMD_VERSION),
     url = "https://github.com/systemd/systemd/archive/refs/tags/v{0}.tar.gz".format(SYSTEMD_VERSION),
 )
+
+# sds
+SDS_VERSION = "0.2.0"
+
+http_archive(
+    name = "sds",
+    build_file = "//deps:sds.BUILD.bazel",
+    sha256 = "19b9af93434b62545cc46c22a5a530ea79b508cf6a4011dbb5104420d5b907ed",
+    strip_prefix = "dd-sensitive-data-scanner-{0}".format(SDS_VERSION),
+    url = "https://github.com/DataDog/dd-sensitive-data-scanner/archive/refs/tags/v{0}.tar.gz".format(SDS_VERSION),
+)
+
+# Getting Rust deps for sds based on the Cargo files
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "sds_deps",
+    cargo_lockfile = "@sds//:sds-go/rust/Cargo.lock",
+    manifests = [
+        "@sds//:sds-go/rust/Cargo.toml",
+        "@sds//:sds/Cargo.toml",
+        "@sds//:sds-bindings-utils/Cargo.toml",
+        "@sds//:sds/tools/fuzz/Cargo.toml",
+    ],
+)
+use_repo(crate, "sds_deps")

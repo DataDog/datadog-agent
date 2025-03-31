@@ -10,14 +10,18 @@ go_library(
         "kubelet.go",
         "pod_annotations.go",
         "prometheus.go",
+        "prometheus_apiserver.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
         "//pkg/config/setup",
+        "//pkg/util/kubernetes/apiserver",
         "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
     ],
 )
 
@@ -28,11 +32,18 @@ go_test(
         "container_labels_test.go",
         "kubelet_test.go",
         "pod_annotations_test.go",
+        "prometheus_apiserver_test.go",
     ],
     embed = [":utils"],
     deps = [
+        "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//pkg/config/setup",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

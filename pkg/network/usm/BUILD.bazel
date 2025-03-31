@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "usm",
+    srcs = ["monitor_windows.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/config",
+            "//pkg/network/driver",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/http",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)

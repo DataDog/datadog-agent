@@ -44,6 +44,7 @@ go_library(
         "defaults_nix.go",
         "log.go",
         "log_format.go",
+        "log_format_serverless.go",
         "log_nix.go",
         "log_windows.go",
     ],

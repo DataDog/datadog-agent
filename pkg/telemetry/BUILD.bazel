@@ -15,11 +15,13 @@ go_library(
         "stat_gauge_wrapper.go",
         "stats_telemetry.go",
         "telemetry.go",
+        "telemetry_noop.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/telemetry",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry",
+        "//comp/core/telemetry/noopsimpl",
         "//comp/core/telemetry/telemetryimpl",
         "@org_uber_go_atomic//:atomic",
     ],

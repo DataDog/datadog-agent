@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "reconfigure.go",
         "rules.go",
+        "scanner.go",
         "scanner_nosds.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/sds",
@@ -12,12 +13,22 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/logs/message",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_datadog_dd_sensitive_data_scanner_sds_go_go//:go",
     ],
 )
 
 go_test(
     name = "sds_test",
-    srcs = ["rules_test.go"],
+    srcs = [
+        "rules_test.go",
+        "scanner_test.go",
+    ],
     embed = [":sds"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_datadog_dd_sensitive_data_scanner_sds_go_go//:go",
+        "@com_github_stretchr_testify//require",
+    ],
 )

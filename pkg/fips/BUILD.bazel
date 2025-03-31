@@ -2,7 +2,18 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "fips",
-    srcs = ["fips_disabled.go"],
+    srcs = [
+        "fips_disabled.go",
+        "fips_nix.go",
+        "fips_serverless.go",
+        "fips_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fips",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
 )

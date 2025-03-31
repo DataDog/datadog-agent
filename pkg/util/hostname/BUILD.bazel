@@ -12,6 +12,7 @@ go_library(
         "os_hostname_others.go",
         "os_hostname_windows.go",
         "providers.go",
+        "providers_serverless.go",
         "warnings.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/hostname",

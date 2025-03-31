@@ -1,10 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "fargate",
     srcs = [
         "detection.go",
         "hostname_core.go",
+        "hostname_process.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fargate",
@@ -12,5 +13,14 @@ go_library(
     deps = [
         "//pkg/config/env",
         "//pkg/config/setup",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/log",
     ],
+)
+
+go_test(
+    name = "fargate_test",
+    srcs = ["hostname_process_test.go"],
+    embed = [":fargate"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

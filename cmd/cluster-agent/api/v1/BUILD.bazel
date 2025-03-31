@@ -1,10 +1,13 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "api",
     srcs = [
+        "cloudfoundry_metadata.go",
         "cloudfoundry_metadata_nocompile.go",
+        "clusterchecks.go",
         "clusterchecks_nocompile.go",
+        "endpointschecks.go",
         "endpointschecks_nocompile.go",
         "install.go",
         "kubernetes_metadata.go",
@@ -16,11 +19,20 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent",
         "//pkg/clusteragent/api",
+        "//pkg/clusteragent/clusterchecks/types",
         "//pkg/config/setup",
+        "//pkg/util/cloudproviders/cloudfoundry",
+        "//pkg/util/clusteragent",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/log",
         "@com_github_gorilla_mux//:mux",
         "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["clusterchecks_test.go"],
+    embed = [":api"],
 )

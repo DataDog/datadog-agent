@@ -5,11 +5,13 @@ go_library(
     srcs = [
         "types.go",
         "types_orchestrator.go",
+        "types_sbom_serverless.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/types",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/process/util/api",
         "@com_github_datadog_agent_payload_v5//process",
+        "@org_golang_google_protobuf//reflect/protoreflect",
     ],
 )

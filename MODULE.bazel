@@ -1,11 +1,12 @@
 bazel_dep(name = "rules_go", version = "0.53.0")
 bazel_dep(name = "gazelle", version = "0.42.0")
-bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "rules_python", version = "1.1.0")
 bazel_dep(name = "rules_foreign_cc", version = "0.13.0")
 bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
+bazel_dep(name = "rules_rust", version = "0.59.2")
 # Temporarily disable the hermetic zig-cc toolchain as it causes unsolved troubles
 # bazel_dep(
 #     name = "hermetic_cc_toolchain",
@@ -42,6 +43,14 @@ python.toolchain(
     # As an alternative we could try to do away with the hermetic toolchain here and enable the system one.
     ignore_root_user_error = True,
     python_version = "3.11",
+)
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = [
+        "1.76.0",
+    ],
 )
 
 ##################
@@ -93,6 +102,14 @@ go_deps.module_override(
         "bazel/patch/go_systemd_systemd_headers.patch",
     ],
     path = "github.com/coreos/go-systemd",
+)
+
+# Make the sds-go package depend on the sds rust module (a dependency that we import from this repo)
+go_deps.module_override(
+    patches = [
+        "bazel/patch/sds_rust_dep.patch",
+    ],
+    path = "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go",
 )
 
 # Disable `plugin` from containerd, can be removed with containerd v2

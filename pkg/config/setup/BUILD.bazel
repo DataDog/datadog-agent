@@ -9,6 +9,7 @@ go_library(
         "config_change_checker.go",
         "config_darwin.go",
         "config_init.go",
+        "config_init_serverless.go",
         "config_nix.go",
         "config_test_accessor.go",
         "config_windows.go",

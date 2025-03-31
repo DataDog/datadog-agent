@@ -3,8 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "cloudfoundry",
     srcs = [
+        "bbscache.go",
+        "cccache.go",
         "cloudfoundry.go",
         "garden.go",
+        "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry",
     visibility = ["//visibility:public"],
@@ -13,17 +16,25 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/net",
         "//pkg/util/retry",
+        "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+        "@org_cloudfoundry_code_bbs//:bbs",
+        "@org_cloudfoundry_code_bbs//models",
         "@org_cloudfoundry_code_garden//:garden",
         "@org_cloudfoundry_code_garden//client",
         "@org_cloudfoundry_code_garden//client/connection",
+        "@org_cloudfoundry_code_lager//:lager",
     ],
 )
 
 go_test(
     name = "cloudfoundry_test",
     srcs = [
+        "bbscache_test.go",
+        "cccache_test.go",
         "cloudfoundry_test.go",
         "garden_test.go",
+        "main_test.go",
+        "types_test.go",
     ],
     embed = [":cloudfoundry"],
     deps = [
@@ -32,5 +43,97 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@org_cloudfoundry_code_garden//:garden",
         "@org_cloudfoundry_code_garden//gardenfakes",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_cloudfoundry_community_go_cfclient_v2//:go-cfclient",
+            "@org_cloudfoundry_code_bbs//events",
+            "@org_cloudfoundry_code_bbs//models",
+            "@org_cloudfoundry_code_lager//:lager",
+        ],
+        "//conditions:default": [],
+    }),
 )

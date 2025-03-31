@@ -12,21 +12,6 @@ go_library(
         "fetcher.go",
         "tracepoints.go",
     ],
-    embedsrcs = select({
-        "@rules_go//go/platform:android_amd64": [
-            "btfhub/constants_amd64.json",
-        ],
-        "@rules_go//go/platform:android_arm64": [
-            "btfhub/constants_arm64.json",
-        ],
-        "@rules_go//go/platform:linux_amd64": [
-            "btfhub/constants_amd64.json",
-        ],
-        "@rules_go//go/platform:linux_arm64": [
-            "btfhub/constants_arm64.json",
-        ],
-        "//conditions:default": [],
-    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch",
     visibility = ["//visibility:public"],
     deps = select({

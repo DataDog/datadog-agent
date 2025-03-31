@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "docs.go",
         "host.go",
+        "host_serverless.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/net",
     visibility = ["//visibility:public"],

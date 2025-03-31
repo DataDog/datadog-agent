@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "driver",
@@ -22,6 +22,19 @@ go_library(
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
             "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "driver_test",
+    srcs = ["driver_test.go"],
+    embed = [":driver"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

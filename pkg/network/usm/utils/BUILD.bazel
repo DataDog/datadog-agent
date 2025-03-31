@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "utils",
     srcs = [
+        "connection_rollup.go",
         "debugger.go",
         "debugger_testutils.go",
         "debugger_windows.go",
@@ -41,6 +42,9 @@ go_library(
             "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/types",
+        ],
         "//conditions:default": [],
     }),
 )
@@ -48,6 +52,7 @@ go_library(
 go_test(
     name = "utils_test",
     srcs = [
+        "connection_rollup_test.go",
         "debugger_test.go",
         "file_registry_test.go",
     ],
@@ -64,6 +69,11 @@ go_test(
             "//pkg/network/usm/sharedlibraries/testutil",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/types",
+            "//pkg/process/util",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

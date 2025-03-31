@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cache.go",
         "containerd.go",
+        "crio.go",
         "db.go",
         "docker.go",
         "image.go",
@@ -25,6 +26,7 @@ go_library(
         "//pkg/sbom/telemetry",
         "//pkg/util/containerd",
         "//pkg/util/containers/image",
+        "//pkg/util/crio",
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/trivy/walker",
