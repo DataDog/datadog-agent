@@ -15,10 +15,10 @@ import (
 
 // SetBPF is not supported
 func SetBPF(_c syscall.RawConn, _filter []bpf.RawInstruction) error {
-	return &ErrAttachBPFNotSupported{}
+	return ErrAttachBPFNotSupported
 }
 
 // SetBPFAndDrain is not supported
 func SetBPFAndDrain(_c syscall.RawConn, _filter []bpf.RawInstruction) error {
-	return &ErrAttachBPFNotSupported{}
+	return ErrAttachBPFNotSupported
 }
