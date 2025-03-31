@@ -205,9 +205,9 @@ type ExitEventSerializer struct {
 // MatchingSubExprs serializes matching sub expression to JSON
 // easyjson:json
 type MatchingSubExpr struct {
-	Offset int         `json:"offset"`
-	Length int         `json:"length"`
-	Value  interface{} `json:"value"`
+	Offset int    `json:"offset"`
+	Length int    `json:"length"`
+	Value  string `json:"value"`
 }
 
 // RuleContext serializes rule context to JSON
@@ -443,7 +443,7 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 		subExpr := MatchingSubExpr{
 			Offset: valuePos.Offset,
 			Length: valuePos.Length,
-			Value:  valuePos.Value,
+			Value:  fmt.Sprintf("%v", valuePos.Value),
 		}
 		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
 	}

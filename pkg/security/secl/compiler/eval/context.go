@@ -24,8 +24,8 @@ type RegisterCacheEntry struct {
 
 // MatchingSubExpr defines a boolean expression that matched
 type MatchingSubExpr struct {
-	Offset int           `json:"offset"`
-	ValueA MatchingValue `json:"code"`
+	Offset int
+	ValueA MatchingValue
 	ValueB MatchingValue
 }
 
