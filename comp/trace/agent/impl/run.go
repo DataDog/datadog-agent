@@ -76,7 +76,7 @@ func runAgentSidekicks(ag component) error {
 		Pattern: "/config/set",
 		Handler: func(_ *api.HTTPReceiver) http.Handler {
 			log.Warnf("The /config/set endpoint on this port is deprecated and will be removed. The same endpoint is available on the debug server at 127.0.0.1:%d", tracecfg.DebugServerPort)
-			return ag.config.SetHandler()
+			return ag.at.HTTPMiddleware(ag.config.SetHandler())
 		},
 	})
 

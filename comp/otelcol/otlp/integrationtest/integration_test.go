@@ -79,7 +79,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, t *testing.T) error {
+func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
@@ -173,7 +173,7 @@ func TestIntegration(t *testing.T) {
 		LoggerName: "OTELCOL",
 	}
 	go func() {
-		if err := runTestOTelAgent(context.Background(), params, t); err != nil {
+		if err := runTestOTelAgent(context.Background(), params); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
