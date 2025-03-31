@@ -380,6 +380,7 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 			cfg := config.ApplicationMonitoringConfig{
 				Default: config.APMConfigurationDefault{},
 			}
+			hasChanged := false
 
 			if len(existing) > 0 {
 				err := yaml.Unmarshal(existing, &cfg)
@@ -389,37 +390,51 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 			}
 
 			if a.Env.InstallScript.RuntimeMetricsEnabled != nil {
+				hasChanged = true
 				cfg.Default.RuntimeMetricsEnabled = a.Env.InstallScript.RuntimeMetricsEnabled
 			}
 			if a.Env.InstallScript.LogsInjection != nil {
+				hasChanged = true
 				cfg.Default.LogsInjection = a.Env.InstallScript.LogsInjection
 			}
 			if a.Env.InstallScript.APMTracingEnabled != nil {
+				hasChanged = true
 				cfg.Default.APMTracingEnabled = a.Env.InstallScript.APMTracingEnabled
 			}
 			if a.Env.InstallScript.DataStreamsEnabled != nil {
+				hasChanged = true
 				cfg.Default.DataStreamsEnabled = a.Env.InstallScript.DataStreamsEnabled
 			}
 			if a.Env.InstallScript.AppsecEnabled != nil {
+				hasChanged = true
 				cfg.Default.AppsecEnabled = a.Env.InstallScript.AppsecEnabled
 			}
 			if a.Env.InstallScript.IastEnabled != nil {
+				hasChanged = true
 				cfg.Default.IastEnabled = a.Env.InstallScript.IastEnabled
 			}
 			if a.Env.InstallScript.DataJobsEnabled != nil {
+				hasChanged = true
 				cfg.Default.DataJobsEnabled = a.Env.InstallScript.DataJobsEnabled
 			}
 			if a.Env.InstallScript.AppsecScaEnabled != nil {
+				hasChanged = true
 				cfg.Default.AppsecScaEnabled = a.Env.InstallScript.AppsecScaEnabled
 			}
 			if a.Env.InstallScript.ProfilingEnabled != nil {
+				hasChanged = true
 				profEnabled := "false"
 				if *a.Env.InstallScript.ProfilingEnabled {
 					profEnabled = "auto"
 				}
 				cfg.Default.ProfilingEnabled = &profEnabled
 			}
-			return yaml.Marshal(cfg)
+
+			// Avoid creating a .backup file and overwriting the existing file if no changes were made
+			if hasChanged {
+				return yaml.Marshal(cfg)
+			}
+			return existing, nil
 		},
 		nil, nil,
 	)
@@ -428,7 +443,7 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 		return err
 	}
 	err = os.Chmod(localStableConfigPath, 0644)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to set permissions for application_monitoring.yaml: %w", err)
 	}
 
