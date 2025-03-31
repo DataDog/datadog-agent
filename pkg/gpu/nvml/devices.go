@@ -12,6 +12,8 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Device represents a GPU device with some properties already computed
@@ -111,12 +113,14 @@ func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	for i := 0; i < count; i++ {
 		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("error getting device by index: %s", nvml.ErrorString(ret))
+			log.Warnf("error getting device by index %d: %s", i, nvml.ErrorString(ret))
+			continue
 		}
 
 		device, err := NewDevice(dev)
 		if err != nil {
-			return nil, fmt.Errorf("error creating device index %d: %s", i, err)
+			log.Warnf("error creating device index %d: %s", i, err)
+			continue
 		}
 
 		cache.uuidToDevice[device.UUID] = device
