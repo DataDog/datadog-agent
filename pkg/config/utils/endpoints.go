@@ -37,20 +37,21 @@ func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	return resolvedDDURL
 }
 
+// Endpoint contains a list of API keys together with the path within the config that this API key was found.
 type Endpoint struct {
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	ConfigSettingPath string
 
 	// the apiKey to use for this endpoint
-	ApiKeys []string
+	APIKeys []string
 }
 
-// NewEndpointWithKey creates an endpoint
+// NewEndpoint creates an endpoint
 func NewEndpoint(path string, key ...string) Endpoint {
 	return Endpoint{
 		ConfigSettingPath: path,
-		ApiKeys:           key,
+		APIKeys:           key,
 	}
 }
 
@@ -70,30 +71,6 @@ func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]En
 		}
 	}
 
-	/*
-		   TODO - we can no longer dedupe because whilst the api key may be the same,
-		   it may have a different config path, and so we need to track this in case it
-		   gets refreshed to a different api key in future.
-		// dedupe api keys and remove domains with no api keys (or empty ones)
-		for domain, apiKeys := range keysPerDomain {
-			dedupedAPIKeys := make([]string, 0, len(apiKeys))
-			seen := make(map[string]bool)
-			for _, apiKey := range apiKeys {
-				trimmedAPIKey := strings.TrimSpace(apiKey)
-				if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
-					seen[trimmedAPIKey] = true
-					dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
-				}
-			}
-
-			if len(dedupedAPIKeys) > 0 {
-				keysPerDomain[domain] = dedupedAPIKeys
-			} else {
-				log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-				delete(keysPerDomain, domain)
-			}
-		}
-	*/
 	return keysPerDomain, nil
 }
 
@@ -111,6 +88,8 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 	return prefix + pkgconfigsetup.DefaultSite
 }
 
+// MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
+// a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]Endpoint {
 	result := map[string][]Endpoint{}
 	for url, keys := range endpoints {
@@ -126,9 +105,9 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]Endp
 		}
 
 		if len(trimmed) > 0 {
-			result[url] = []Endpoint{Endpoint{
-				ConfigSettingPath: fmt.Sprintf("%s", root),
-				ApiKeys:           trimmed,
+			result[url] = []Endpoint{{
+				ConfigSettingPath: root,
+				APIKeys:           trimmed,
 			}}
 		}
 	}
@@ -163,7 +142,7 @@ func DedupEndpoint(endpoints []Endpoint) []string {
 	dedupedAPIKeys := make([]string, 0)
 	seen := make(map[string]bool)
 	for _, endpoint := range endpoints {
-		for _, apiKey := range endpoint.ApiKeys {
+		for _, apiKey := range endpoint.APIKeys {
 			if _, ok := seen[apiKey]; !ok {
 				seen[apiKey] = true
 				dedupedAPIKeys = append(dedupedAPIKeys, apiKey)
@@ -183,9 +162,9 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]Endpoint, error
 	}
 
 	keysPerDomain := map[string][]Endpoint{
-		ddURL: []Endpoint{Endpoint{
+		ddURL: {{
 			ConfigSettingPath: "api_key",
-			ApiKeys:           []string{c.GetString("api_key")},
+			APIKeys:           []string{c.GetString("api_key")},
 		}},
 	}
 
@@ -197,9 +176,9 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]Endpoint, error
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		additionalEndpoints[haURL] = []Endpoint{Endpoint{
+		additionalEndpoints[haURL] = []Endpoint{{
 			ConfigSettingPath: "multi_region_failover.api_key",
-			ApiKeys:           []string{c.GetString("multi_region_failover.api_key")},
+			APIKeys:           []string{c.GetString("multi_region_failover.api_key")},
 		}}
 	}
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)

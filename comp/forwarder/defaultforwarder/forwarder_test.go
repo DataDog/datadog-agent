@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -33,24 +32,24 @@ import (
 var (
 	testDomain           = "http://app.datadoghq.com"
 	testVersionDomain, _ = configUtils.AddAgentVersionToDomain(testDomain, "app")
-	monoKeysDomains      = map[string][]utils.Endpoint{
-		testVersionDomain: {utils.NewEndpoint("", "monokey")},
+	monoKeysDomains      = map[string][]configUtils.Endpoint{
+		testVersionDomain: {configUtils.NewEndpoint("", "monokey")},
 	}
-	keysPerDomains = map[string][]utils.Endpoint{
+	keysPerDomains = map[string][]configUtils.Endpoint{
 		testDomain: {
-			utils.NewEndpoint("", "api-key-1", "api-key-2"),
+			configUtils.NewEndpoint("", "api-key-1", "api-key-2"),
 		},
 		"datadog.bar": nil,
 	}
-	keysWithMultipleDomains = map[string][]utils.Endpoint{
+	keysWithMultipleDomains = map[string][]configUtils.Endpoint{
 		testDomain: {
-			utils.NewEndpoint("", "api-key-1"),
-			utils.NewEndpoint("", "api-key-2"),
+			configUtils.NewEndpoint("", "api-key-1"),
+			configUtils.NewEndpoint("", "api-key-2"),
 		},
-		"datadog.bar": {utils.NewEndpoint("", "api-key-3")},
+		"datadog.bar": {configUtils.NewEndpoint("", "api-key-3")},
 	}
-	validKeysPerDomain = map[string][]utils.Endpoint{
-		testVersionDomain: {utils.NewEndpoint("", "api-key-1", "api-key-2")},
+	validKeysPerDomain = map[string][]configUtils.Endpoint{
+		testVersionDomain: {configUtils.NewEndpoint("", "api-key-1", "api-key-2")},
 	}
 )
 
@@ -391,7 +390,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})))
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})))
 
 	f.Start()
 	defer f.Stop()
@@ -447,7 +446,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1")}})))
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -503,7 +502,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	log := logmock.New(t)
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})),
 	)
 
 	_ = f.Start()
@@ -556,7 +555,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	log := logmock.New(t)
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})),
 	)
 
 	_ = f.Start()
@@ -612,7 +611,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 
 	log := logmock.New(t)
 	f := NewDefaultForwarder(mockConfig, log,
-		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1")}})),
+		NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})),
 	)
 
 	_ = f.Start()
@@ -668,7 +667,11 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 
 	log := logmock.New(t)
-	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
+	f := NewDefaultForwarder(mockConfig, log,
+		NewOptionsWithResolvers(mockConfig, log,
+			resolver.NewSingleDomainResolvers(mockConfig, log,
+				map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})),
+	)
 
 	f.Start()
 	defer f.Stop()
@@ -740,7 +743,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 
 	log := logmock.New(t)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log,
-		resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{ts.URL: {utils.NewEndpoint("", "api_key1")}})),
+		resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{ts.URL: {configUtils.NewEndpoint("", "api_key1")}})),
 	)
 
 	f.Start()
@@ -787,8 +790,8 @@ func TestCustomCompletionHandler(t *testing.T) {
 	}
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	options := NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]utils.Endpoint{
-		srv.URL: {utils.NewEndpoint("", "api_key1")},
+	options := NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(mockConfig, log, map[string][]configUtils.Endpoint{
+		srv.URL: {configUtils.NewEndpoint("", "api_key1")},
 	}))
 	options.CompletionHandler = handler
 

@@ -55,7 +55,7 @@ type DomainResolver interface {
 type SingleDomainResolver struct {
 	domain         string
 	apiKeys        []utils.Endpoint
-	dedupedApiKeys []string
+	dedupedAPIKeys []string
 	mu             sync.Mutex
 }
 
@@ -90,7 +90,7 @@ func NewSingleDomainResolver(config config.Component, log log.Component, domain 
 			additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
 			deduped := utils.DedupEndpoints(additionalEndpoints)
 			keys := deduped[resolver.domain]
-			resolver.dedupedApiKeys = keys
+			resolver.dedupedAPIKeys = keys
 
 			return
 		}
@@ -131,7 +131,7 @@ func (r *SingleDomainResolver) GetBaseDomain() string {
 func (r *SingleDomainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedApiKeys
+	return r.dedupedAPIKeys
 }
 
 // SetBaseDomain sets the only destination available for a SingleDomainResolver
@@ -151,8 +151,8 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys[idx].ApiKeys))
-			for _, key := range r.apiKeys[idx].ApiKeys {
+			replace := make([]string, 0, len(r.apiKeys[idx].APIKeys))
+			for _, key := range r.apiKeys[idx].APIKeys {
 				if key == oldKey {
 					replace = append(replace, newKey)
 				} else {
@@ -160,11 +160,11 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 				}
 			}
 
-			r.apiKeys[idx].ApiKeys = replace
+			r.apiKeys[idx].APIKeys = replace
 		}
 	}
 
-	r.dedupedApiKeys = utils.DedupEndpoint(r.apiKeys)
+	r.dedupedAPIKeys = utils.DedupEndpoint(r.apiKeys)
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver

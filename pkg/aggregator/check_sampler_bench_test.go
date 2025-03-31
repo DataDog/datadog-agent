@@ -27,6 +27,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -52,7 +53,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	cfg := pkgconfigsetup.Datadog()
 	log := logmock.New(b)
 
-	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log, resolver.NewSingleDomainResolvers(cfg, log, map[string][]string{"hello": {"world"}}))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log,
+		resolver.NewSingleDomainResolvers(cfg, log, map[string][]utils.Endpoint{"hello": {utils.NewEndpoint("", "world")}}),
+	)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)

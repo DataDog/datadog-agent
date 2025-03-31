@@ -33,11 +33,11 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.Endpoint{
-		"example1.com": []utils.Endpoint{
+		"example1.com": {
 			utils.NewEndpoint("api_key", "api_key1"),
 			utils.NewEndpoint("additional_endpoints", "api_key2"),
 		},
-		"example2.com": []utils.Endpoint{
+		"example2.com": {
 			utils.NewEndpoint("additional_endpoints", "api_key3"),
 		},
 	}
