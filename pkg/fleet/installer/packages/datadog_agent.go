@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,7 +176,18 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/log/package directories are created and have the correct permissions
+	// 2. Ensures the installer is present in the agent package
+	installerPath := filepath.Join(installPath, "embedded", "bin", "installer")
+	if _, err := os.Stat(installerPath); os.IsNotExist(err) {
+		err = installerCopy(installerPath)
+		if err != nil {
+			return fmt.Errorf("failed to copy installer: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to check installer: %w", err)
+	}
+
+	// 3. Ensure config/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -186,22 +198,22 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
 
-	// 3. Create symlink to the agent binary
+	// 4. Create symlink to the agent binary
 	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
-	// 4. Set up SELinux permissions
+	// 5. Set up SELinux permissions
 	if err = selinux.SetAgentPermissions("/etc/datadog-agent", installPath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
-	// 5. Handle install info
+	// 6. Handle install info
 	if err = installinfo.WriteInstallInfo(caller); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
-	// 6. Call post.py for integration persistence. Allowed to fail.
+	// 7. Call post.py for integration persistence. Allowed to fail.
 	// XXX: We should port this to Go
 	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
 		cmd := exec.Command(filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
@@ -286,4 +298,40 @@ func PromoteAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
 	return StopAgentExperiment(ctx)
+}
+
+func installerCopy(path string) error {
+	// Copy the current executable to the installer path
+	// This is temporary and will be removed after next release
+	currentExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get current executable: %w", err)
+	}
+
+	sourceFile, err := os.Open(currentExecutable)
+	if err != nil {
+		return fmt.Errorf("failed to open current executable: %w", err)
+	}
+	defer sourceFile.Close()
+
+	err = os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create installer directory: %w", err)
+	}
+	destinationFile, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy executable: %w", err)
+	}
+
+	err = destinationFile.Chmod(0750)
+	if err != nil {
+		return fmt.Errorf("failed to set permissions on destination file: %w", err)
+	}
+	return nil
 }

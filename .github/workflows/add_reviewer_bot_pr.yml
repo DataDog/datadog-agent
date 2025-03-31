@@ -52,4 +52,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: dda inv -e issue.add-reviewers -p $PR_NUMBER
+        run: dda inv -- -e issue.add-reviewers -p $PR_NUMBER

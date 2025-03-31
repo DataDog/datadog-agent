@@ -237,6 +237,30 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	}, waitFor, tick, msg, args)
 }
 
+// CleanupOnSetupFailure is a helper to cleanup on setup failure
+// It should be defered in `SetupSuite` if you override it in your custom test suite.
+// When deferred, any panic or assertion failure will stop the test execution and call `TearDownSuite`.
+func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
+	if err := recover(); err != nil || bs.T().Failed() {
+		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
+		defer func() {
+			bs.T().Fatalf("SetupSuite failed, aborting test suite and calling TearDownSuite")
+			bs.TearDownSuite()
+		}()
+
+		// run environment diagnose
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
+			// at least one test failed, diagnose the environment
+			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+			if diagnoseErr != nil {
+				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+			} else {
+				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+			}
+		}
+	}
+}
+
 // UpdateEnv updates the environment with new provisioners.
 func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner) {
 	uniqueIDs := make(map[string]struct{})
@@ -250,7 +274,7 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
-		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
+		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -509,6 +533,7 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // This function is called by [testify Suite].
 //
 // If you override SetupSuite in your custom test suite type, the function must call [e2e.BaseSuite.SetupSuite].
+// Please also call `defer bs.CleanupOnSetupFailure()` in your `SetupSuite` implementation. It is needed to make sure that we cleanup on panic or on SetupSuite failure.
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
@@ -523,32 +548,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
 	// We do implement an explicit recover to handle this manuallay.
-	defer func() {
-		err := recover()
-		if err == nil {
-			return
-		}
-
-		bs.T().Logf("Caught panic in SetupSuite, err: %v. Will try to TearDownSuite", err)
-		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
-
-		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
-			// at least one test failed, diagnose the environment
-			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-			if diagnoseErr != nil {
-				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-			} else {
-				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
-			}
-		}
-
-		bs.TearDownSuite()
-
-		// As we need to call `recover` to know if there was a panic, we wrap and forward the original panic to,
-		// once again, stop the execution of the test suite.
-		panic(fmt.Errorf("Forward panic in SetupSuite after TearDownSuite, err was: %v", err))
-	}()
+	defer bs.CleanupOnSetupFailure()
 
 	// Setup Datadog Client to be used to send telemetry when writing e2e tests
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -584,7 +584,7 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
+		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }

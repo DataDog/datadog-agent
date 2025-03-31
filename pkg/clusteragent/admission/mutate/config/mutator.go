@@ -36,6 +36,14 @@ type MutatorConfig struct {
 	csiDriver         string
 }
 
+// shouldUseCSI returns true only if csi is enabled globally, on the admission controller level
+// and on the inject_config mutator level
+func shouldUseCSI(datadogConfig config.Component) bool {
+	return datadogConfig.GetBool("csi.enabled") &&
+		datadogConfig.GetBool("admission_controller.csi.enabled") &&
+		datadogConfig.GetBool("admission_controller.inject_config.csi.enabled")
+}
+
 // NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
 func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 	return &MutatorConfig{
@@ -45,7 +53,7 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 		dogStatsDSocket:   datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
 		socketPath:        datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes: datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
-		csiEnabled:        datadogConfig.GetBool("csi.enabled"),
+		csiEnabled:        shouldUseCSI(datadogConfig),
 		csiDriver:         datadogConfig.GetString("csi.driver"),
 	}
 }
