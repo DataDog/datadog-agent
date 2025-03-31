@@ -5,6 +5,7 @@
 
 //go:build linux_bpf && test && nvml
 
+// Package testutil provides utilities for testing the NVML package.
 package testutil
 
 import (
