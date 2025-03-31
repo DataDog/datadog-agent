@@ -29,6 +29,9 @@ type tcpTestCase struct {
 }
 
 func doTestCase(t *testing.T, tc tcpTestCase) {
+	// we use bound ports on the server and the client so this should be safe to parallelize
+	t.Parallel()
+
 	server := testutil.NewTCPServerOnAddress("127.0.0.42:0", func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -74,7 +77,7 @@ func doTestCase(t *testing.T, tc tcpTestCase) {
 
 	buffer := make([]byte, 1024)
 
-	rawConn.SetDeadline(time.Now().Add(200 * time.Millisecond))
+	rawConn.SetDeadline(time.Now().Add(500 * time.Millisecond))
 	n, addr, err := rawConn.ReadFromIP(buffer)
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
 		// ErrDeadlineExceeded is what the test checks for, so we should only blow up on real errors
