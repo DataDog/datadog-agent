@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0
