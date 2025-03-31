@@ -65,19 +65,19 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=GPU-123", "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=GPU-456", "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[0], "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[1], "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Len(t, tagsMapping, 2)
 				tags, ok := tagsMapping[testutil.GPUUUIDs[0]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-123"})
+				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[0]})
 
 				tags, ok = tagsMapping[testutil.GPUUUIDs[1]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=turing", "gpu_uuid=GPU-456"})
+				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=turing", "gpu_uuid=" + testutil.GPUUUIDs[1]})
 			},
 		},
 		{
@@ -110,7 +110,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-456"), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-456"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[1]}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
