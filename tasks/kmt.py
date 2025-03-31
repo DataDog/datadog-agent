@@ -61,7 +61,7 @@ from tasks.system_probe import (
     check_for_ninja,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
-    get_sysprobe_buildtags,
+    get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
     ninja_generate,
@@ -286,7 +286,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"dda inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
+    print(f"dda inv -- kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -354,12 +354,17 @@ def ls(_, distro=True, custom=False):
 @task(
     help={
         "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
+        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None):
+def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
+    if not lite and not all_images and images is None:
+        raise Exit(
+            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
+        )
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images)
+        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -639,7 +644,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             "go": go_path,
             "chdir": "true",
             "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
         },
     )
 
@@ -783,7 +788,7 @@ def _prepare(
             kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -791,7 +796,7 @@ def _prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -968,7 +973,7 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
 
     info("[+] Computing Go dependencies for test packages...")
-    build_tags = get_sysprobe_buildtags(False, False)
+    build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
@@ -989,7 +994,7 @@ def kmt_sysprobe_prepare(
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
-        build_tags = get_sysprobe_buildtags(False, False)
+        build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
             pkg_name = os.path.relpath(pkg, os.getcwd())
             target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
@@ -1315,11 +1320,11 @@ def build(
     cc = get_compiler(ctx)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv {inv_echo} system-probe.object-files")
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} system-probe.object-files")
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

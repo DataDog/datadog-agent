@@ -154,3 +154,33 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs", file)
 	}
 }
+
+// TestUpgradeInstallerAgent tests that the installer install script properly upgrades customers
+// from installer / agent as separate packages to a single package
+func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
+	params := []string{
+		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_REMOTE_UPDATES=true",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION=60.0",
+	}
+
+	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
+	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
+
+	// 2. Run the installer install script with the same older agent version (7.60)
+	defer s.Purge()
+	s.RunInstallScript(s.url, params...)
+
+	// 3. Check the installer deb / rpm isn't there anymore
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-installer")
+
+	// 4. Check the installer is present in the agent
+	state := s.host.State()
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0750, "dd-agent", "dd-agent")
+
+	// 5. Assert the installer unit is not loaded
+	state.AssertUnitsNotLoaded("datadog-installer.service")
+	state.AssertUnitsLoaded("datadog-agent-installer.service")
+}

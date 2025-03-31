@@ -58,4 +58,7 @@ static_quality_gates:
     - export DD_API_KEY="$DATADOG_API_KEY"
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - dda inv quality-gates.parse-and-trigger-gates
+    - dda inv -- quality-gates.parse-and-trigger-gates || exit $?
+  retry:
+    max: 2
+    exit_codes: 42
