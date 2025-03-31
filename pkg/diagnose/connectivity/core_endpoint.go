@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -67,10 +68,11 @@ func getLogsUseTCP() bool {
 }
 
 // Diagnose performs connectivity diagnosis
-func Diagnose(diagCfg diagnose.Config) []diagnose.Diagnosis {
+func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 	// Create domain resolvers
-	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
+	config := pkgconfigsetup.Datadog()
+	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		return []diagnose.Diagnosis{
 			{
@@ -84,7 +86,7 @@ func Diagnose(diagCfg diagnose.Config) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers := resolver.NewSingleDomainResolvers(config, log, keysPerDomain)
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
 
 	// Create diagnosis for logs

@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -123,7 +122,8 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) *Options {
-	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+
+	resolvers := pkgresolver.NewSingleDomainResolvers(config, log, keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
@@ -357,21 +357,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			}
 		}
 	}
-
-	config.OnUpdate(func(setting string, oldValue, newValue any) {
-		if setting != "api_key" {
-			return
-		}
-		oldAPIKey, ok1 := oldValue.(string)
-		newAPIKey, ok2 := newValue.(string)
-		if ok1 && ok2 {
-			log.Errorf("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
-			log.Errorf("Updating API key: %s -> %s", oldAPIKey, newAPIKey)
-			for _, dr := range f.domainResolvers {
-				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
-			}
-		}
-	})
 
 	timeInterval := config.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
 	if f.agentName != "" {

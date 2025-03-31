@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -133,8 +134,15 @@ func newTestOnDiskRetryQueue(t *testing.T, a *assert.Assertions, path string, ma
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
+	cfg := config.NewMock(t)
 	log := logmock.New(t)
-	storage, err := newOnDiskRetryQueue(log, NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
+	storage, err := newOnDiskRetryQueue(log,
+		NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(cfg, log, domainName, nil)),
+		path,
+		diskUsageLimit,
+		telemetry,
+		NewPointCountTelemetryMock(),
+	)
 	a.NoError(err)
 	return storage
 }

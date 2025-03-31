@@ -46,6 +46,14 @@ type Endpoint struct {
 	ApiKeys []string
 }
 
+// NewEndpointWithKey creates an endpoint
+func NewEndpoint(path string, key ...string) Endpoint {
+	return Endpoint{
+		ConfigSettingPath: path,
+		ApiKeys:           key,
+	}
+}
+
 // mergeAdditionalEndpoints merges additional endpoints into keysPerDomain
 func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]Endpoint) (map[string][]Endpoint, error) {
 	for domain, apiKeys := range additionalEndpoints {
@@ -106,10 +114,23 @@ func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, d
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]Endpoint {
 	result := map[string][]Endpoint{}
 	for url, keys := range endpoints {
-		result[url] = []Endpoint{Endpoint{
-			ConfigSettingPath: fmt.Sprintf("%s.%s", root, url),
-			ApiKeys:           keys,
-		}}
+		// Remove any empty API keys.
+		// We don't need to hold on to an endpoint with an empty API key to track if a
+		// secret has been updated since secrets can never be empty in the first place.
+		trimmed := []string{}
+		for _, key := range keys {
+			trimmedAPIKey := strings.TrimSpace(key)
+			if trimmedAPIKey != "" {
+				trimmed = append(trimmed, trimmedAPIKey)
+			}
+		}
+
+		if len(trimmed) > 0 {
+			result[url] = []Endpoint{Endpoint{
+				ConfigSettingPath: fmt.Sprintf("%s", root),
+				ApiKeys:           trimmed,
+			}}
+		}
 	}
 
 	return result
@@ -125,26 +146,32 @@ func DedupEndpoints(endpointMap map[string][]Endpoint) map[string][]string {
 	keysPerDomain := map[string][]string{}
 
 	for domain, endpoints := range endpointMap {
-		dedupedAPIKeys := make([]string, 0)
-		for _, endpoint := range endpoints {
-			seen := make(map[string]bool)
-			for _, apiKey := range endpoint.ApiKeys {
-				trimmedAPIKey := strings.TrimSpace(apiKey)
-				if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
-					seen[trimmedAPIKey] = true
-					dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
-				}
-			}
-
-			if len(dedupedAPIKeys) > 0 {
-				keysPerDomain[domain] = dedupedAPIKeys
-			} else {
-				log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-			}
+		dedupedAPIKeys := DedupEndpoint(endpoints)
+		if len(dedupedAPIKeys) > 0 {
+			keysPerDomain[domain] = dedupedAPIKeys
+		} else {
+			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
 		}
 	}
 
 	return keysPerDomain
+}
+
+// DedupEndpoint takes a single array of endpoints and returns an array of unique
+// api keys that they contain.
+func DedupEndpoint(endpoints []Endpoint) []string {
+	dedupedAPIKeys := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, endpoint := range endpoints {
+		for _, apiKey := range endpoint.ApiKeys {
+			if _, ok := seen[apiKey]; !ok {
+				seen[apiKey] = true
+				dedupedAPIKeys = append(dedupedAPIKeys, apiKey)
+			}
+		}
+	}
+
+	return dedupedAPIKeys
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config

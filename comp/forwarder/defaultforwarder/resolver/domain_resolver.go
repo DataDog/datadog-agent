@@ -11,9 +11,12 @@ package resolver
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // DestinationType is used to identified the expected endpoint
@@ -42,7 +45,7 @@ type DomainResolver interface {
 	// SetBaseDomain sets the base domain to a new value
 	SetBaseDomain(domain string)
 	// UpdateAPIKey replaces instances of the oldKey with the newKey
-	UpdateAPIKey(oldKey, newKey string)
+	UpdateAPIKey(configPath, oldKey, newKey string)
 	// GetBearerAuthToken returns Bearer authtoken, used for internal communication
 	GetBearerAuthToken() string
 }
@@ -56,21 +59,59 @@ type SingleDomainResolver struct {
 }
 
 // NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []utils.Endpoint, dedupedApiKeys []string) *SingleDomainResolver {
-	return &SingleDomainResolver{
+func NewSingleDomainResolver(config config.Component, log log.Component, domain string, apiKeys []utils.Endpoint) *SingleDomainResolver {
+
+	deduped := utils.DedupEndpoint(apiKeys)
+
+	resolver := SingleDomainResolver{
 		domain,
 		apiKeys,
-		dedupedApiKeys,
+		deduped,
 		sync.Mutex{},
 	}
+
+	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		found := false
+
+		for _, endpoint := range apiKeys {
+			if endpoint.ConfigSettingPath == setting {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return
+		}
+
+		if setting == "additional_endpoints" {
+			// Load the additional endpoints
+			additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+			deduped := utils.DedupEndpoints(additionalEndpoints)
+			keys := deduped[resolver.domain]
+			resolver.dedupedApiKeys = keys
+
+			return
+		}
+
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			log.Errorf("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
+
+			return
+		}
+	})
+
+	return &resolver
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
-func NewSingleDomainResolvers(keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
-	deduped := utils.DedupEndpoints(keysPerDomain)
+func NewSingleDomainResolvers(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
-		resolvers[domain] = NewSingleDomainResolver(domain, keys, deduped[domain])
+		resolvers[domain] = NewSingleDomainResolver(config, log, domain, keys)
 	}
 	return resolvers
 }
@@ -103,24 +144,26 @@ func (r *SingleDomainResolver) GetAlternateDomains() []string {
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
-func (r *SingleDomainResolver) UpdateAPIKey(oldKey, newKey string) {
+func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	/*
-		   TODO SMW sort this
-		for _, endpoint := range r.apiKeys {
+	for idx := range r.apiKeys {
+		if r.apiKeys[idx].ConfigSettingPath == configPath {
 			replace := make([]string, 0, len(r.apiKeys))
-			for _, key := range endpoint.ApiKey {
+			for _, key := range r.apiKeys[idx].ApiKeys {
 				if key == oldKey {
 					replace = append(replace, newKey)
 				} else {
 					replace = append(replace, key)
 				}
 			}
-			endpoint.ApiKey = replace
+
+			r.apiKeys[idx].ApiKeys = replace
 		}
-	*/
+	}
+
+	r.dedupedApiKeys = utils.DedupEndpoint(r.apiKeys)
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver
@@ -184,7 +227,8 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
-func (r *MultiDomainResolver) UpdateAPIKey(oldKey, newKey string) {
+// TODO Does this need to use configpath
+func (r *MultiDomainResolver) UpdateAPIKey(_configPath, oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	replace := make([]string, 0, len(r.apiKeys))
@@ -270,7 +314,7 @@ func (r *LocalDomainResolver) GetAlternateDomains() []string {
 }
 
 // UpdateAPIKey is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) UpdateAPIKey(_, _ string) {
+func (r *LocalDomainResolver) UpdateAPIKey(_, _, _ string) {
 }
 
 // GetBearerAuthToken returns Bearer authtoken, used for internal communication
