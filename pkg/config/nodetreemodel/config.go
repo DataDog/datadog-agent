@@ -108,8 +108,6 @@ type ntmConfig struct {
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
 	knownKeys map[string]struct{}
-	// processedKeys are all the config keys that have been processed (i.e. set to a value)
-	processedKeys map[string]bool
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
@@ -458,14 +456,14 @@ func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
 	envWarnings := []string{}
 
-	for envVar, listConfigKey := range c.configEnvVars {
-		for _, configKey := range listConfigKey {
-			if _, ok := c.processedKeys[configKey]; !ok {
-				if _, ok := os.LookupEnv(envVar); ok {
-					if err := c.insertNodeFromString(root, configKey, os.Getenv(envVar)); err != nil {
-						envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
-					}
-					c.processedKeys[configKey] = true
+	for configKey, listEnvVars := range c.configEnvVars {
+		for _, envVar := range listEnvVars {
+			if value, ok := os.LookupEnv(envVar); ok {
+				if err := c.insertNodeFromString(root, configKey, value); err != nil {
+					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+				} else {
+					// Stop looping since we set the config key with the value of the highest precendence env var
+					break
 				}
 			}
 		}
@@ -657,7 +655,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[envvar] = append(c.configEnvVars[envvar], key)
+		c.configEnvVars[key] = append(c.configEnvVars[key], envvar)
 	}
 
 	c.addToSchema(key, model.SourceEnvVar)
@@ -875,7 +873,6 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		ready:              atomic.NewBool(false),
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
-		processedKeys:      map[string]bool{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},
 		schema:             newInnerNode(nil),
