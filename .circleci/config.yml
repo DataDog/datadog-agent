@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v59070132-3a3f0abe
+      - image: gcr.io/datadoghq/agent-circleci-runner:v60221061-324ab098
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -61,15 +61,15 @@ jobs:
       - run:
           name: check go version
           command: |
-            dda inv -e check-go-version
+            dda inv -- -e check-go-version
       - run:
           name: grab go deps
           command: |
-            dda inv -e deps
+            dda inv -- -e deps
       - run:
           name: install go tooling
           command: |
-            dda inv -e install-tools
+            dda inv -- -e install-tools
       - save_cache:
           <<: *save_deps
           paths:
@@ -87,7 +87,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run integration tests
-          command: dda inv -e integration-tests --race --remote-docker
+          command: dda inv -- -e integration-tests --race --remote-docker
 
   docker_tests:
     <<: *job_template
@@ -97,7 +97,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run docker image tests
-          command: dda inv -e docker.test
+          command: dda inv -- -e docker.test
 
 workflows:
   version: 2
