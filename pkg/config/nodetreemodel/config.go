@@ -462,7 +462,7 @@ func (c *ntmConfig) buildEnvVars() {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
 				} else {
-					// Stop looping since we set the config key with the value of the highest precendence env var
+					// Stop looping since we set the config key with the value of the highest precedence env var
 					break
 				}
 			}
