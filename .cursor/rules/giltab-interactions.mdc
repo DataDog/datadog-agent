@@ -1,0 +1,21 @@
+---
+description: Interact with Gitlab pipelines
+globs: 
+alwaysApply: false
+---
+You are able to interact with the Gitlab pipelines that are used to test, build and deploy the agent
+
+You can use all the tasks in [gitlab_helpers.py](mdc:tasks/gitlab_helpers.py).
+
+The most useful ones are:
+
+- get-latest-pipeline-id: To retrieve the id of the latest pipeline that ran on a branch. If you need to fetch a pipeline that is completed you can use `status` argument to make sure you not pick a pipeline that is currently running
+
+- print-pipeline: Retrieve information about a given pipeline, it supports jq formating to extract important things from JSON
+
+- print-job: Retrieve information about a given job, it supports jq formatting to extract important things
+
+- print-job-trace: Retrieve a trace (logs) about a given job
+
+- print-pipelines-jobs: Retrieve all the jobs associated with a given pipeline
+

@@ -105,21 +105,54 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
-
-    repo = get_gitlab_repo(repo)
-    ids = [i for i in ids.split(",") if i]
-    for id in ids:
-        obj = get_object(repo, id)
-
+    def print_one_object(obj):
         if jq:
             jq_flags = "-C" if jq_colors else ""
             with tempfile.NamedTemporaryFile('w', delete=True) as f:
                 f.write(obj.to_json())
                 f.flush()
-
                 ctx.run(f"cat '{f.name}' | jq {jq_flags} '{jq}'")
         else:
             obj.pprint()
+
+    repo = get_gitlab_repo(repo)
+    ids = [i for i in ids.split(",") if i]
+    for id in ids:
+        objs = get_object(repo, id)
+        if type(objs) == list:
+            for obj in objs:
+                print_one_object(obj)
+        else:
+            print_one_object(objs)
+
+@task
+def get_latest_pipeline_id(ctx, branch_name, status=None, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+    """Get the latest pipeline ID for a given branch and optionally print its details using jq.
+
+    Args:
+        branch_name: The name of the branch to check
+        status: Optional filter to get only pipelines with a specific status (e.g. 'success', 'failed', 'running')
+        repo: The repository to check (default: 'DataDog/datadog-agent')
+        jq: Optional jq query to filter the output
+        jq_colors: Whether to use colors in jq output (default: True)
+
+    Usage:
+        $ dda inv gitlab.get-latest-pipeline-id my-branch
+        $ dda inv gitlab.get-latest-pipeline-id my-branch --status success
+        $ dda inv gitlab.get-latest-pipeline-id my-branch -j .id
+        $ dda inv gitlab.get-latest-pipeline-id my-branch -j .web_url,.status,.sha
+    """
+    def get_latest_pipeline(repo, _):
+        if status:
+            pipelines = repo.pipelines.list(ref=branch_name, per_page=1, get_all=False, status=status)
+        else:
+            pipelines = repo.pipelines.list(ref=branch_name, per_page=1, get_all=False)
+        if not pipelines:
+            print(f"No pipelines found for branch {branch_name}")
+            return None
+        return pipelines[0]
+
+    print_gitlab_object(get_latest_pipeline, ctx, "latest", repo, jq, jq_colors)
 
 
 @task
@@ -137,6 +170,20 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
 
     print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
 
+@task
+def print_pipeline_jobs(ctx, pipeline_id, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+    """Prints the jobs of a given pipeline in JSON and potentially query them with jq.
+
+    Usage:
+        $ dda inv gitlab.print-pipeline-jobs 1234
+        $ dda inv gitlab.print-pipeline-jobs 1234 -j 'select(.status == "failed")'
+    """
+    def get_pipeline_jobs(repo, id):
+        jobs = repo.jobs.list(pipeline_id=id, per_page=100, all=True)
+        print(jobs)
+        return jobs
+
+    print_gitlab_object(get_pipeline_jobs, ctx, pipeline_id, repo, jq, jq_colors)
 
 @task
 def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
