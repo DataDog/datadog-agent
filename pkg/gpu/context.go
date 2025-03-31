@@ -117,6 +117,7 @@ func withConfig(config *config.Config) systemContextOption {
 func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
 	opts := &systemContextOptions{
 		fatbinParsingEnabled: false,
+		config:               config.New(),
 	}
 	for _, opt := range optList {
 		opt(opts)

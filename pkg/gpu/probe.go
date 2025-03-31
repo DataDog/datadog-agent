@@ -159,13 +159,13 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
-	attachCfg := getAttacherConfig(cfg)
 	sysCtx, err := getSystemContext(
 		withNvmlLib(deps.NvmlLib),
 		withProcRoot(cfg.ProcRoot),
 		withWorkloadMeta(deps.WorkloadMeta),
 		withTelemetry(deps.Telemetry),
 		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
+		withConfig(cfg),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
@@ -202,6 +202,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
+	attachCfg := getAttacherConfig(cfg)
 	p.attacher, err = uprobes.NewUprobeAttacher(GpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
