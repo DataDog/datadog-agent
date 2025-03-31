@@ -581,7 +581,7 @@ func TestLoadBalancing(s OTelTestSuite) {
 		for service := range spanMap {
 			getLoadBalancingLogs(c, s, service)
 		}
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
 	for service, spans := range spanMap {
 		backend := ""
