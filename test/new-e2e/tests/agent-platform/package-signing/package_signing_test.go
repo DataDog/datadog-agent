@@ -92,6 +92,23 @@ func TestPackageSigningComponent(t *testing.T) {
 }
 
 func (is *packageSigningTestSuite) TestPackageSigning() {
+	// Install the signing keys
+	if is.osName == "ubuntu" || is.osName == "debian" {
+		aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
+		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring))
+		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
+		for _, key := range keys {
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring))
+		}
+	} else {
+		keys := []string{"DATADOG_RPM_KEY_E09422B3.public", "DATADOG_RPM_KEY_CURRENT.public", "DATADOG_RPM_KEY_FD4BF915.public", "DATADOG_RPM_KEY_E09422B3.public"}
+		for _, key := range keys {
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rpm --import /tmp/%s", key))
+		}
+	}
+
 	diagnose := is.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "package-signing"}))
 	t := is.T()
 	t.Log(diagnose)
