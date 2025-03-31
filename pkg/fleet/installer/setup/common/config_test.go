@@ -166,3 +166,30 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 		},
 	}, spark)
 }
+
+func TestApplicationMonitoring(t *testing.T) {
+	tempDir := t.TempDir()
+	config := Config{
+		ApplicationMonitoringYAML: &ApplicationMonitoringConfig{
+			APMConfigurationDefault: APMConfigurationDefault{
+				TraceDebug:             true,
+				DataJobsEnabled:        true,
+				DataJobsCommandPattern: "I am a string",
+			},
+		},
+	}
+
+	err := writeConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	// Check application_monitoring.yaml
+	configPath := filepath.Join(tempDir, "application_monitoring.yaml")
+	assert.FileExists(t, configPath)
+	configYAML, err := os.ReadFile(configPath)
+	assert.NoError(t, err)
+	cfgres := ApplicationMonitoringConfig{}
+	err = yaml.Unmarshal(configYAML, &cfgres)
+	assert.NoError(t, err)
+
+	assert.Equal(t, *config.ApplicationMonitoringYAML, cfgres)
+}
