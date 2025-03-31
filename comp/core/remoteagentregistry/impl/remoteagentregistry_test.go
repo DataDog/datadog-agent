@@ -160,7 +160,8 @@ func TestFlareProvider(t *testing.T) {
 }
 
 func TestGetTelemetry(t *testing.T) {
-	provides, _, _, telemetry := buildComponent(t)
+	provides, lc, _, telemetry := buildComponent(t)
+	lc.Start(context.Background())
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
@@ -186,7 +187,6 @@ func TestGetTelemetry(t *testing.T) {
 
 	_, err := component.RegisterRemoteAgent(registrationData)
 	require.NoError(t, err)
-	component.RegisterCollector()
 
 	metrics, err := telemetry.Gather(false)
 	require.NoError(t, err)
