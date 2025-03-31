@@ -13,12 +13,12 @@ import (
 	"golang.org/x/net/bpf"
 )
 
-// SetBPF is a no-op on this platform
+// SetBPF is not supported
 func SetBPF(_c syscall.RawConn, _filter []bpf.RawInstruction) error {
-	return nil
+	return &ErrAttachBPFNotSupported{}
 }
 
-// SetBPF is a no-op on this platform
+// SetBPFAndDrain is not supported
 func SetBPFAndDrain(_c syscall.RawConn, _filter []bpf.RawInstruction) error {
-	return nil
+	return &ErrAttachBPFNotSupported{}
 }
