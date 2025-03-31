@@ -6,7 +6,7 @@ package kafka
 const (
 	TopicNameBuckets                     = 0xa
 	TopicNameMaxSize                     = 0x50
-	MaxSupportedProduceRequestApiVersion = 0xa
+	MaxSupportedProduceRequestApiVersion = 0xb
 	MinSupportedProduceRequestApiVersion = 0x1
 	MaxSupportedFetchRequestApiVersion   = 0xc
 	MinSupportedFetchRequestApiVersion   = 0x0
