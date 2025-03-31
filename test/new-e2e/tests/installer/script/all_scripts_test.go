@@ -141,6 +141,9 @@ func (s *installerScriptBaseSuite) ProvisionerOptions() []awshost.ProvisionerOpt
 
 func (s *installerScriptBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 
@@ -194,6 +197,10 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 
 func (s *installerScriptBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo rm -rf install_script")
-	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
+
+	// TODO: when the installer symlink is created (next PR), re-use it & collapse these two commands
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
+	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
+
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }

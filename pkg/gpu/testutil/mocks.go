@@ -162,7 +162,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 }
 
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
-func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
+func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -170,8 +170,8 @@ func GetWorkloadMetaMock(t *testing.T) workloadmetamock.Mock {
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
-func GetTelemetryMock(t *testing.T) telemetry.Component {
-	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+func GetTelemetryMock(t testing.TB) telemetry.Mock {
+	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better

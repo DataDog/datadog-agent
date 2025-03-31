@@ -483,7 +483,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	timestamp = s.host.LastJournaldTimestamp()
 	s.mustStartConfigExperiment(datadogAgent, config)
 	// Assert the successful start of the experiment
-	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -493,7 +493,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
-			Starting(agentUnitXP).
+			Started(agentUnitXP).
 			Started(traceUnitXP).
 			Started(securityUnitXP).
 			Started(probeUnitXP),
@@ -590,7 +590,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 						Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents(). // Experiment starts
-						Starting(agentUnitXP).
+						Started(agentUnitXP).
 						Started(traceUnitXP),
 		).
 		Unordered(host.SystemdEvents(). // Experiment fails
@@ -768,7 +768,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp host.JournaldTimestamp, version string) {
-	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -778,7 +778,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp ho
 			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
-			Starting(agentUnitXP).
+			Started(agentUnitXP).
 			Started(traceUnitXP),
 		),
 	)
@@ -878,7 +878,7 @@ func (s *upgradeScenarioSuite) mustStopConfigExperiment(pkg packageName) string 
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp host.JournaldTimestamp, version string) {
-	s.host.WaitForUnitActivating(s.T(), agentUnitXP)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
@@ -888,7 +888,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp h
 			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
-			Starting(agentUnitXP).
+			Started(agentUnitXP).
 			Started(traceUnitXP),
 		),
 	)

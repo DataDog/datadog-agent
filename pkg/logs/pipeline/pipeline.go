@@ -136,7 +136,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, destMeta, cfg, pipelineMonitor))
+				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, true, destMeta, cfg, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
@@ -144,7 +144,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, destMeta, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, destMeta, cfg, pipelineMonitor))
+				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, false, destMeta, cfg, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxConcurrentSend, pipelineMonitor))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)

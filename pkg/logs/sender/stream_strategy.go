@@ -45,12 +45,8 @@ func (s *streamStrategy) Start() {
 				return
 			}
 
-			s.outputChan <- &message.Payload{
-				Messages:      []*message.Message{msg},
-				Encoded:       encodedPayload,
-				Encoding:      s.compression.ContentEncoding(),
-				UnencodedSize: len(msg.GetContent()),
-			}
+			unencodedSize := len(msg.GetContent())
+			s.outputChan <- message.NewPayload([]*message.Message{msg}, encodedPayload, s.compression.ContentEncoding(), unencodedSize)
 		}
 		s.done <- struct{}{}
 	}()

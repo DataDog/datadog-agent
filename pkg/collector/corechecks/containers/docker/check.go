@@ -240,7 +240,10 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			annotations = pod.Annotations
 		}
 
-		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		isContainerExcluded := false
+		if d.containerFilter != nil {
+			isContainerExcluded = d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		}
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)

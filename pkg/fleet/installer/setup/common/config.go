@@ -123,6 +123,7 @@ type DatadogConfig struct {
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
+	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
@@ -169,11 +170,13 @@ type IntegrationConfig struct {
 
 // IntegrationConfigLogs represents the configuration for the logs of an integration
 type IntegrationConfigLogs struct {
-	Type    string `yaml:"type,omitempty"`
-	Path    string `yaml:"path,omitempty"`
-	Service string `yaml:"service,omitempty"`
-	Source  string `yaml:"source,omitempty"`
-	Tags    string `yaml:"tags,omitempty"`
+	Type                   string              `yaml:"type,omitempty"`
+	Path                   string              `yaml:"path,omitempty"`
+	Service                string              `yaml:"service,omitempty"`
+	Source                 string              `yaml:"source,omitempty"`
+	Tags                   string              `yaml:"tags,omitempty"`
+	AutoMultiLineDetection bool                `yaml:"auto_multi_line_detection,omitempty"`
+	LogProcessingRules     []LogProcessingRule `yaml:"log_processing_rules,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
@@ -222,6 +225,13 @@ type SecurityAgentConfig struct {
 // SecurityAgentComplianceConfig represents the configuration for the compliance
 type SecurityAgentComplianceConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// LogProcessingRule represents the configuration for a log processing rule
+type LogProcessingRule struct {
+	Type    string `yaml:"type"`
+	Name    string `yaml:"name"`
+	Pattern string `yaml:"pattern"`
 }
 
 // mergeConfig merges the current config with the setup config.
