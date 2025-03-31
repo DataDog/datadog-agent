@@ -37,7 +37,7 @@ import (
 )
 
 type factory struct {
-	attributesErr          error
+	setupErr          error
 	onceSetupTraceAgentCmp sync.Once
 
 	registry       *featuregate.Registry
@@ -55,15 +55,19 @@ type factory struct {
 func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 	f.onceSetupTraceAgentCmp.Do(func() {
 		var attributesTranslator *attributes.Translator
-		attributesTranslator, f.attributesErr = attributes.NewTranslator(set)
-		if f.attributesErr != nil {
+		attributesTranslator, f.setupErr = attributes.NewTranslator(set)
+		if f.setupErr != nil {
 			return
 		}
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		otelmclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		if err != nil {
+			f.setupErr = err
+			return
+		}
 		f.mclientwrapper.SetDelegate(otelmclient)
 	})
-	return f.attributesErr
+	return f.setupErr
 }
 
 func newFactoryWithRegistry(
