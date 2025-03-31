@@ -96,7 +96,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -141,7 +141,7 @@ new-agent_dmg-x64-a7:
     #   sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
     #   sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
     #   echo sudo sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-    # - sudo reboot
+    - sudo reboot
 
     - set -e
 
