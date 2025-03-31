@@ -505,11 +505,6 @@ func TestKubernetesNATScenario(t *testing.T) {
 	})
 }
 
-// Helper function to create a connection key for testing
-func createConnectionKey(srcIP util.Address, srcPort uint16, dstIP util.Address, dstPort uint16) types.ConnectionKey {
-	return types.NewConnectionKey(srcIP, dstIP, srcPort, dstPort)
-}
-
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
 	streamer := NewProtoTestStreamer[*model.Connection]()
 	staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c, model.NewConnectionBuilder(streamer))
