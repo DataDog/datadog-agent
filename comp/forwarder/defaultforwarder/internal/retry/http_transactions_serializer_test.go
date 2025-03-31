@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -27,13 +26,11 @@ const domain = "domain"
 const vectorDomain = "vectorDomain"
 
 func TestHTTPSerializeDeserialize(t *testing.T) {
-	cfg := config.NewMock(t)
-	log := logmock.New(t)
-	r := resolver.NewSingleDomainResolver(cfg, log, domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)})
+	r := resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)})
 	runTestHTTPSerializeDeserializeWithResolver(t, domain, r)
 }
 func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
-	r := resolver.NewMultiDomainResolver(domain, []string{apiKey1, apiKey2})
+	r := resolver.NewMultiDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)})
 	r.RegisterAlternateDestination(vectorDomain, "name", resolver.Vector)
 	runTestHTTPSerializeDeserializeWithResolver(t, vectorDomain, r)
 }
@@ -67,9 +64,8 @@ func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resol
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	initialTransaction := createHTTPTransactionTests(domain)
-	cfg := config.NewMock(t)
 	log := logmock.New(t)
-	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(cfg, log, domain, nil))
+	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, nil))
 
 	a.NoError(serializer.Add(initialTransaction))
 	a.NoError(serializer.Add(initialTransaction))
@@ -90,10 +86,9 @@ func TestPartialDeserialize(t *testing.T) {
 
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
-	cfg := config.NewMock(t)
 	log := logmock.New(t)
 	serializer := NewHTTPTransactionsSerializer(log,
-		resolver.NewSingleDomainResolver(cfg, log, domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)}),
+		resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)}),
 	)
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
@@ -106,7 +101,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.Equal(0, errorCount)
 
 	serializerMissingAPIKey := NewHTTPTransactionsSerializer(log,
-		resolver.NewSingleDomainResolver(cfg, log, domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1)}),
+		resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1)}),
 	)
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)

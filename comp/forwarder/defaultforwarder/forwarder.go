@@ -56,7 +56,7 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 	if !params.withResolver {
 		options = NewOptions(config, log, keysPerDomain)
 	} else {
-		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(config, log, keysPerDomain))
+		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {

@@ -44,7 +44,7 @@ func TestCheckValidAPIKey(t *testing.T) {
 	}
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(cfg, log, keysPerDomains)}
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
@@ -84,8 +84,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
-	fh := forwarderHealth{log: log, domainResolvers: resolver.NewSingleDomainResolvers(cfg, log, keysPerDomains)}
+	fh := forwarderHealth{log: log, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 
 	// lexicographical sort for assert
@@ -174,7 +173,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	log := logmock.New(t)
 	cfg := config.NewMock(t)
 
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(cfg, log, keysPerDomains)}
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 

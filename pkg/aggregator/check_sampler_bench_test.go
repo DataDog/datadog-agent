@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -51,10 +50,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	cfg := pkgconfigsetup.Datadog()
-	log := logmock.New(b)
 
 	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log,
-		resolver.NewSingleDomainResolvers(cfg, log, map[string][]utils.Endpoint{"hello": {utils.NewEndpoint("", "world")}}),
+		resolver.NewSingleDomainResolvers(map[string][]utils.Endpoint{"hello": {utils.NewEndpoint("", "world")}}),
 	)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true

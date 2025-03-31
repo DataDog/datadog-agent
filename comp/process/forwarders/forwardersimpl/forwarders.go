@@ -77,7 +77,7 @@ func createForwarder(deps dependencies, options *defaultforwarder.Options) defau
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) *defaultforwarder.Options {
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(config, log, apicfg.KeysPerDomains(endpoints)))
+	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts

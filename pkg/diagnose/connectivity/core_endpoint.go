@@ -86,7 +86,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers := resolver.NewSingleDomainResolvers(config, log, keysPerDomain)
+	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	numberOfWorkers := 1
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 

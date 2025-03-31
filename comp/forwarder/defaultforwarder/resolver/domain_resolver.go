@@ -37,8 +37,12 @@ type DomainResolver interface {
 	// Resolve returns the domain to be used to send data for a given `transaction.Endpoint` along with a
 	// destination type
 	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
+	// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
+	GetEndpoints() []utils.Endpoint
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
 	GetAPIKeys() []string
+	// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
+	SetAPIKeys(keys []string)
 	// GetBaseDomain returns the base domain for this `DomainResolver`
 	GetBaseDomain() string
 	// GetAlternateDomains returns all the domains that can be returned by `Resolve()` minus the base domain
@@ -59,22 +63,13 @@ type SingleDomainResolver struct {
 	mu             sync.Mutex
 }
 
-// NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(config config.Component, log log.Component, domain string, apiKeys []utils.Endpoint) *SingleDomainResolver {
-
-	deduped := utils.DedupEndpoint(apiKeys)
-
-	resolver := SingleDomainResolver{
-		domain,
-		apiKeys,
-		deduped,
-		sync.Mutex{},
-	}
-
+// OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
+// of the resolver.
+func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
 		found := false
 
-		for _, endpoint := range apiKeys {
+		for _, endpoint := range resolver.GetEndpoints() {
 			if endpoint.ConfigSettingPath == setting {
 				found = true
 				break
@@ -89,8 +84,8 @@ func NewSingleDomainResolver(config config.Component, log log.Component, domain 
 			// Load the additional endpoints
 			additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
 			deduped := utils.DedupEndpoints(additionalEndpoints)
-			keys := deduped[resolver.domain]
-			resolver.dedupedAPIKeys = keys
+			keys := deduped[resolver.GetBaseDomain()]
+			resolver.SetAPIKeys(keys)
 
 			return
 		}
@@ -104,15 +99,26 @@ func NewSingleDomainResolver(config config.Component, log log.Component, domain 
 			return
 		}
 	})
+}
 
-	return &resolver
+// NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
+func NewSingleDomainResolver(domain string, apiKeys []utils.Endpoint) *SingleDomainResolver {
+
+	deduped := utils.DedupEndpoint(apiKeys)
+
+	return &SingleDomainResolver{
+		domain,
+		apiKeys,
+		deduped,
+		sync.Mutex{},
+	}
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
-func NewSingleDomainResolvers(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
+func NewSingleDomainResolvers(keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
-		resolvers[domain] = NewSingleDomainResolver(config, log, domain, keys)
+		resolvers[domain] = NewSingleDomainResolver(domain, keys)
 	}
 	return resolvers
 }
@@ -132,6 +138,18 @@ func (r *SingleDomainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.dedupedAPIKeys
+}
+
+// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
+func (r *SingleDomainResolver) SetAPIKeys(keys []string) {
+	r.dedupedAPIKeys = keys
+}
+
+// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
+func (r *SingleDomainResolver) GetEndpoints() []utils.Endpoint {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.apiKeys
 }
 
 // SetBaseDomain sets the only destination available for a SingleDomainResolver
@@ -180,17 +198,21 @@ type destination struct {
 // MultiDomainResolver holds a default value and can provide alternate domain for some route
 type MultiDomainResolver struct {
 	baseDomain          string
-	apiKeys             []string
+	apiKeys             []utils.Endpoint
+	dedupedAPIKeys      []string
 	overrides           map[string]destination
 	alternateDomainList []string
 	mu                  sync.Mutex
 }
 
 // NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
-func NewMultiDomainResolver(baseDomain string, apiKeys []string) *MultiDomainResolver {
+func NewMultiDomainResolver(baseDomain string, apiKeys []utils.Endpoint) *MultiDomainResolver {
+	deduped := utils.DedupEndpoint(apiKeys)
+
 	return &MultiDomainResolver{
 		baseDomain,
 		apiKeys,
+		deduped,
 		make(map[string]destination),
 		[]string{},
 		sync.Mutex{},
@@ -199,6 +221,18 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []string) *MultiDomainRes
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
 func (r *MultiDomainResolver) GetAPIKeys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.dedupedAPIKeys
+}
+
+// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
+func (r *MultiDomainResolver) SetAPIKeys(keys []string) {
+	r.dedupedAPIKeys = keys
+}
+
+// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
+func (r *MultiDomainResolver) GetEndpoints() []utils.Endpoint {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys
@@ -228,19 +262,26 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
-// TODO Does this need to use configpath
-func (r *MultiDomainResolver) UpdateAPIKey(_configPath, oldKey, newKey string) {
+func (r *MultiDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	replace := make([]string, 0, len(r.apiKeys))
-	for _, key := range r.apiKeys {
-		if key == oldKey {
-			replace = append(replace, newKey)
-		} else {
-			replace = append(replace, key)
+
+	for idx := range r.apiKeys {
+		if r.apiKeys[idx].ConfigSettingPath == configPath {
+			replace := make([]string, 0, len(r.apiKeys[idx].APIKeys))
+			for _, key := range r.apiKeys[idx].APIKeys {
+				if key == oldKey {
+					replace = append(replace, newKey)
+				} else {
+					replace = append(replace, key)
+				}
+			}
+
+			r.apiKeys[idx].APIKeys = replace
 		}
 	}
-	r.apiKeys = replace
+
+	r.dedupedAPIKeys = utils.DedupEndpoint(r.apiKeys)
 }
 
 // RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.
@@ -264,7 +305,7 @@ func (r *MultiDomainResolver) GetBearerAuthToken() string {
 }
 
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *MultiDomainResolver {
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.Endpoint, vectorEndpoint string) *MultiDomainResolver {
 	r := NewMultiDomainResolver(mainEndpoint, apiKeys)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
@@ -300,6 +341,15 @@ func (r *LocalDomainResolver) GetBaseDomain() string {
 // GetAPIKeys is not implemented for LocalDomainResolver
 func (r *LocalDomainResolver) GetAPIKeys() []string {
 	return []string{}
+}
+
+// SetAPIKeys is not implemented for LocalDomainResolver
+func (r *LocalDomainResolver) SetAPIKeys(_keys []string) {
+}
+
+// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
+func (r *LocalDomainResolver) GetEndpoints() []utils.Endpoint {
+	return []utils.Endpoint{}
 }
 
 // SetBaseDomain sets the base domain to a new value

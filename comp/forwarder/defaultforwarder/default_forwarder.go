@@ -123,19 +123,29 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) *Options {
 
-	resolvers := pkgresolver.NewSingleDomainResolvers(config, log, keysPerDomain)
+	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+
 		resolvers[utils.GetInfraEndpoint(config)] = pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetAPIKeys(),
+			r.GetEndpoints(),
 			vectorMetricsURL,
 		)
 	}
+
+	// Add a hook into the config for each resolver to track API key changes.
+	// Do this after the OP resolver may have replaced the original resolver so we don't leak a callback in the config.
+	for domain := range resolvers {
+		resolver := resolvers[domain]
+		pkgresolver.OnUpdateConfig(resolver, log, config)
+		resolvers[domain] = resolver
+	}
+
 	return NewOptionsWithResolvers(config, log, resolvers)
 }
 
