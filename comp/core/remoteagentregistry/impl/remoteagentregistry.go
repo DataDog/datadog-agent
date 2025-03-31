@@ -173,7 +173,6 @@ func (ra *remoteAgentRegistry) start() {
 				log.Info("Remote Agent registry stopped.")
 				return
 			case <-ticker.C:
-				fmt.Println("here")
 				ra.agentMapMu.Lock()
 
 				agentsToRemove := make([]string, 0)
