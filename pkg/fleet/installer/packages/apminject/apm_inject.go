@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
@@ -373,35 +374,43 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 	span, _ := telemetry.StartSpanFromContext(ctx, "add_local_stable_config")
 	defer func() { span.Finish(err) }()
 
-	type ApmConfigDefault struct {
-		RuntimeMetricsEnabled *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
-		LogsInjection         *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
-		APMTracingEnabled     *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
-		ProfilingEnabled      *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
-		DataStreamsEnabled    *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
-		AppsecEnabled         *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
-		IastEnabled           *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
-		DataJobsEnabled       *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
-		AppsecScaEnabled      *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
-	}
-	type ApplicationMonitoring struct {
-		Default ApmConfigDefault `yaml:"apm_configuration_default"`
-	}
-
 	appMonitoringConfigMutator := newFileMutator(
 		localStableConfigPath,
-		func(_ context.Context, _ []byte) ([]byte, error) {
-			cfg := ApplicationMonitoring{
-				Default: ApmConfigDefault{
-					RuntimeMetricsEnabled: a.Env.InstallScript.RuntimeMetricsEnabled,
-					LogsInjection:         a.Env.InstallScript.LogsInjection,
-					APMTracingEnabled:     a.Env.InstallScript.APMTracingEnabled,
-					DataStreamsEnabled:    a.Env.InstallScript.DataStreamsEnabled,
-					AppsecEnabled:         a.Env.InstallScript.AppsecEnabled,
-					IastEnabled:           a.Env.InstallScript.IastEnabled,
-					DataJobsEnabled:       a.Env.InstallScript.DataJobsEnabled,
-					AppsecScaEnabled:      a.Env.InstallScript.AppsecScaEnabled,
-				},
+		func(_ context.Context, existing []byte) ([]byte, error) {
+			cfg := config.ApplicationMonitoringConfig{
+				Default: config.APMConfigurationDefault{},
+			}
+
+			if len(existing) > 0 {
+				err := yaml.Unmarshal(existing, &cfg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal existing application_monitoring.yaml: %w", err)
+				}
+			}
+
+			if a.Env.InstallScript.RuntimeMetricsEnabled != nil {
+				cfg.Default.RuntimeMetricsEnabled = a.Env.InstallScript.RuntimeMetricsEnabled
+			}
+			if a.Env.InstallScript.LogsInjection != nil {
+				cfg.Default.LogsInjection = a.Env.InstallScript.LogsInjection
+			}
+			if a.Env.InstallScript.APMTracingEnabled != nil {
+				cfg.Default.APMTracingEnabled = a.Env.InstallScript.APMTracingEnabled
+			}
+			if a.Env.InstallScript.DataStreamsEnabled != nil {
+				cfg.Default.DataStreamsEnabled = a.Env.InstallScript.DataStreamsEnabled
+			}
+			if a.Env.InstallScript.AppsecEnabled != nil {
+				cfg.Default.AppsecEnabled = a.Env.InstallScript.AppsecEnabled
+			}
+			if a.Env.InstallScript.IastEnabled != nil {
+				cfg.Default.IastEnabled = a.Env.InstallScript.IastEnabled
+			}
+			if a.Env.InstallScript.DataJobsEnabled != nil {
+				cfg.Default.DataJobsEnabled = a.Env.InstallScript.DataJobsEnabled
+			}
+			if a.Env.InstallScript.AppsecScaEnabled != nil {
+				cfg.Default.AppsecScaEnabled = a.Env.InstallScript.AppsecScaEnabled
 			}
 			if a.Env.InstallScript.ProfilingEnabled != nil {
 				profEnabled := "false"
@@ -410,7 +419,6 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 				}
 				cfg.Default.ProfilingEnabled = &profEnabled
 			}
-
 			return yaml.Marshal(cfg)
 		},
 		nil, nil,

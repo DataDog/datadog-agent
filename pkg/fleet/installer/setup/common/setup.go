@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -28,6 +29,7 @@ import (
 
 const (
 	commandTimeoutDuration = 10 * time.Second
+	configDir              = "/etc/datadog-agent"
 )
 
 var (
@@ -47,7 +49,7 @@ type Setup struct {
 	Ctx                     context.Context
 	Span                    *telemetry.Span
 	Packages                Packages
-	Config                  Config
+	Config                  config.Config
 	DdAgentAdditionalGroups []string
 }
 
@@ -80,19 +82,19 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Env:       env,
 		Ctx:       ctx,
 		Span:      span,
-		Config: Config{
-			DatadogYAML: DatadogConfig{
+		Config: config.Config{
+			DatadogYAML: config.DatadogConfig{
 				APIKey:   env.APIKey,
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
-				Proxy: DatadogConfigProxy{
+				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
 				Env: os.Getenv("DD_ENV"),
 			},
-			IntegrationConfigs: make(map[string]IntegrationConfig),
+			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
 		Packages: Packages{
 			install: make(map[string]packageWithVersion),
@@ -105,7 +107,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(err) }()
 	s.Out.WriteString("Applying configurations...\n")
-	err = writeConfigs(s.Config, s.configDir)
+	err = config.WriteConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}

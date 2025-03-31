@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,11 +25,11 @@ const (
 )
 
 var (
-	tracerConfigDataproc = common.APMConfigurationDefault{
-		DataJobsEnabled:               true,
-		IntegrationsEnabled:           false,
+	tracerConfigDataproc = config.APMConfigurationDefault{
+		DataJobsEnabled:               config.BoolToPtr(true),
+		IntegrationsEnabled:           config.BoolToPtr(false),
 		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
-		DataJobsSparkAppNameAsService: true,
+		DataJobsSparkAppNameAsService: config.BoolToPtr(true),
 	}
 )
 
@@ -52,10 +53,10 @@ func SetupDataproc(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		tracerConfigDataproc.TraceDebug = true
+		tracerConfigDataproc.TraceDebug = config.BoolToPtr(true)
 	}
-	s.Config.ApplicationMonitoringYAML = &common.ApplicationMonitoringConfig{
-		APMConfigurationDefault: tracerConfigDataproc,
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigDataproc,
 	}
 
 	// Ensure tags are always attached with the metrics

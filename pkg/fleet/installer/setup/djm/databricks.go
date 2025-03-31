@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,7 +26,7 @@ const (
 var (
 	jobNameRegex     = regexp.MustCompile(`[,\']`)
 	clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]`)
-	driverLogs       = []common.IntegrationConfigLogs{
+	driverLogs       = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/*.log",
@@ -48,7 +49,7 @@ var (
 			AutoMultiLineDetection: true,
 		},
 	}
-	workerLogs = []common.IntegrationConfigLogs{
+	workerLogs = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/spark/work/*/*/*.log",
@@ -71,9 +72,9 @@ var (
 			AutoMultiLineDetection: true,
 		},
 	}
-	tracerConfigDatabricks = common.APMConfigurationDefault{
-		DataJobsEnabled:     true,
-		IntegrationsEnabled: false,
+	tracerConfigDatabricks = config.APMConfigurationDefault{
+		DataJobsEnabled:     config.BoolToPtr(true),
+		IntegrationsEnabled: config.BoolToPtr(false),
 	}
 )
 
@@ -96,10 +97,10 @@ func SetupDatabricks(s *common.Setup) error {
 
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		tracerConfigDatabricks.TraceDebug = true
+		tracerConfigDatabricks.TraceDebug = config.BoolToPtr(true)
 	}
-	s.Config.ApplicationMonitoringYAML = &common.ApplicationMonitoringConfig{
-		APMConfigurationDefault: tracerConfigDatabricks,
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigDatabricks,
 	}
 
 	setupCommonHostTags(s)
@@ -205,14 +206,14 @@ func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
 
-	var sparkIntegration common.IntegrationConfig
+	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = driverLogs
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
-			common.IntegrationConfigInstanceSpark{
+			config.IntegrationConfigInstanceSpark{
 				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
 				SparkClusterMode: "spark_driver_mode",
 				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
@@ -228,7 +229,7 @@ func setupDatabricksDriver(s *common.Setup) {
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
 
-	var sparkIntegration common.IntegrationConfig
+	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs

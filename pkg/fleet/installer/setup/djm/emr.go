@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,11 +28,11 @@ const (
 
 var (
 	emrInfoPath     = "/mnt/var/lib/info"
-	tracerConfigEmr = common.APMConfigurationDefault{
-		DataJobsEnabled:               true,
-		IntegrationsEnabled:           false,
+	tracerConfigEmr = config.APMConfigurationDefault{
+		DataJobsEnabled:               config.BoolToPtr(true),
+		IntegrationsEnabled:           config.BoolToPtr(false),
 		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
-		DataJobsSparkAppNameAsService: true,
+		DataJobsSparkAppNameAsService: config.BoolToPtr(true),
 	}
 )
 
@@ -72,17 +73,17 @@ func SetupEmr(s *common.Setup) error {
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
-		tracerConfigEmr.DataStreamsEnabled = true
+		tracerConfigEmr.DataStreamsEnabled = config.BoolToPtr(true)
 	}
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		tracerConfigEmr.TraceDebug = true
+		tracerConfigEmr.TraceDebug = config.BoolToPtr(false)
 	}
-	s.Config.ApplicationMonitoringYAML = &common.ApplicationMonitoringConfig{
-		APMConfigurationDefault: tracerConfigEmr,
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigEmr,
 	}
 	// Force injection (is it needed here?)
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = []common.InjectTracerConfigEnvVar{
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = []config.InjectTracerConfigEnvVar{
 		{
 			Key:   "DD_INJECT_FORCE",
 			Value: "true",
@@ -144,15 +145,15 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 }
 
 func setupResourceManager(s *common.Setup, clusterName string) {
-	var sparkIntegration common.IntegrationConfig
-	var yarnIntegration common.IntegrationConfig
+	var sparkIntegration config.IntegrationConfig
+	var yarnIntegration config.IntegrationConfig
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
 		hostname = "localhost"
 	}
 	sparkIntegration.Instances = []any{
-		common.IntegrationConfigInstanceSpark{
+		config.IntegrationConfigInstanceSpark{
 			SparkURL:         "http://" + hostname + ":8088",
 			SparkClusterMode: "spark_yarn_mode",
 			ClusterName:      clusterName,
@@ -160,7 +161,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 		},
 	}
 	yarnIntegration.Instances = []any{
-		common.IntegrationConfigInstanceYarn{
+		config.IntegrationConfigInstanceYarn{
 			ResourceManagerURI: "http://" + hostname + ":8088",
 			ClusterName:        clusterName,
 		},
@@ -199,13 +200,13 @@ func enableEmrLogs(s *common.Setup) {
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
-	emrLogs := []common.IntegrationConfigLogs{
+	emrLogs := []config.IntegrationConfigLogs{
 		{
 			Type:    "file",
 			Path:    hadoopLogFolder + "*/*/stdout",
 			Source:  "hadoop-yarn",
 			Service: "emr-logs",
-			LogProcessingRules: []common.LogProcessingRule{
+			LogProcessingRules: []config.LogProcessingRule{
 				{Type: "multi_line", Name: "dataframe_show", Pattern: "`\\|[\\sa-zA-Z-_.\\|]+\\|$`gm"},
 			},
 		},
