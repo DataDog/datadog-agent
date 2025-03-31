@@ -554,8 +554,13 @@ func startAgent(
 	span.SetTag("agent_version", version.AgentVersion)
 	span.SetTag("agent_flavor", flavor.GetFlavor())
 	go func() {
-		time.Sleep(1 * time.Minute)
-		span.Finish(nil)
+		timing := time.After(1 * time.Minute)
+		select {
+		case <-ctx.Done():
+			span.Finish(ctx.Err())
+		case <-timing:
+			span.Finish(err)
+		}
 	}()
 
 	// Setup expvar server
