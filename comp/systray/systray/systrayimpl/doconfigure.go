@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -38,7 +37,12 @@ func doConfigure(s *systrayImpl) error {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(s.config, "/agent/gui/intent")
+	at, ok := s.authToken.Get()
+	if !ok {
+		return fmt.Errorf("auth token not found")
+	}
+
+	endpoint, err := at.GetClient().NewIPCEndpoint("/agent/gui/intent")
 	if err != nil {
 		return err
 	}
