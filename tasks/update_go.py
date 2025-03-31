@@ -8,7 +8,7 @@ from invoke.tasks import task
 from tasks.go import tidy_all
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
-from tasks.pipeline import update_circleci_config, update_gitlab_config
+from tasks.pipeline import update_gitlab_config
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -77,14 +77,6 @@ def update_go(
 
     try:
         update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
-
-    try:
-        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
     except RuntimeError as e:
         if warn:
             print(color_message(f"WARNING: {str(e)}", "orange"))
