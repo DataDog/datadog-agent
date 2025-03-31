@@ -2884,7 +2884,7 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 
 	httpServer := &nethttp.Server{
 		Addr: serverAddr,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(nethttp.StatusOK)
 			w.Write([]byte("Hello through NAT"))
 		}),
@@ -2940,7 +2940,7 @@ func (s *USMSuite) TestHTTPThroughDNAT() {
 
 		// Print HTTP data from connections
 		t.Logf("Connections HTTP Data:")
-		if connections.HTTP != nil && len(connections.HTTP) > 0 {
+		if len(connections.HTTP) > 0 {
 			t.Logf("Found %d HTTP entries in connections", len(connections.HTTP))
 			for key, requestStats := range connections.HTTP {
 				t.Logf("  HTTP Key: %+v", key)
@@ -3084,7 +3084,7 @@ func (s *USMSuite) TestHTTPDirect() {
 
 	httpServer := &nethttp.Server{
 		Addr: serverAddr,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(nethttp.StatusOK)
 			w.Write([]byte("Hello direct"))
 		}),
@@ -3137,7 +3137,7 @@ func (s *USMSuite) TestHTTPDirect() {
 
 		// Print HTTP data from connections
 		t.Logf("Connections HTTP Data:")
-		if connections.HTTP != nil && len(connections.HTTP) > 0 {
+		if len(connections.HTTP) > 0 {
 			t.Logf("Found %d HTTP entries in connections", len(connections.HTTP))
 			for key, requestStats := range connections.HTTP {
 				t.Logf("  HTTP Key: %+v", key)
@@ -3197,7 +3197,7 @@ func (s *USMSuite) TestHTTPDirect() {
 		}
 
 		// If not found in active connections, check in HTTP stats
-		if !found && connections.HTTP != nil && len(connections.HTTP) > 0 {
+		if !found && len(connections.HTTP) > 0 {
 			for key, _ := range connections.HTTP {
 				// Check if this HTTP key shows communication with localhost on our server port
 				if strings.Contains(key.String(), "127.0.0.1") && strings.Contains(key.String(), fmt.Sprintf(":%d", serverPort)) {
