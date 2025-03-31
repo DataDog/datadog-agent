@@ -509,6 +509,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
+                "pkg/network/ebpf/c/protocols/kafka/defs.h",
             ],
             "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
