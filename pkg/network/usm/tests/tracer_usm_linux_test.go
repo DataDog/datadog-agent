@@ -90,12 +90,6 @@ const (
 
 	fetchAPIKey   = 1
 	produceAPIKey = 0
-
-	produceMaxSupportedVersion = 8
-	produceMinSupportedVersion = 1
-
-	fetchMaxSupportedVersion = 12
-	fetchMinSupportedVersion = 0
 )
 
 func httpSupported() bool {
