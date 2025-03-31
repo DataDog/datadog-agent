@@ -31,7 +31,7 @@ func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, t
 		produceExpectedStack.Application = protocols.Unknown
 	}
 
-	version := kversion.V3_4_0()
+	version := kversion.V3_8_0()
 	version.SetMaxKeyVersion(produceAPIKey, produceVersion)
 
 	return protocolClassificationAttributes{
@@ -72,7 +72,7 @@ func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topic
 		fetchExpectedStack.Application = protocols.Unknown
 	}
 
-	version := kversion.V3_4_0()
+	version := kversion.V3_8_0()
 	version.SetMaxKeyVersion(fetchAPIKey, fetchVersion)
 
 	return protocolClassificationAttributes{
