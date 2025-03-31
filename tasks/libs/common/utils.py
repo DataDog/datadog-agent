@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import traceback
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -524,8 +525,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
-    section_id = re.sub(r"[ :/\\]", "_", section_name)
+    section_id = str(uuid.uuid4())
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:

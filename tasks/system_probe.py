@@ -15,12 +15,14 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
@@ -82,7 +84,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
@@ -508,6 +509,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
+                "pkg/network/ebpf/c/protocols/kafka/defs.h",
             ],
             "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
@@ -822,13 +824,25 @@ def build_sysprobe_binary(
     ctx.run(cmd.format(**args), env=env)
 
 
-def get_sysprobe_buildtags(is_windows, bundle_ebpf):
-    build_tags = [NPM_TAG]
+def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
+    platform = "windows" if is_windows else "linux"
+    build_tags = get_default_build_tags(build="system-probe", platform=platform)
+
+    if not is_windows and bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+
+    # Some flags are not supported on KMT testing, so we remove them
+    # until we have extra fixes (mainly coming from the unified build images)
+    temporarily_unsupported_build_tags = [
+        "pcap",  # libpcap headers not supported yet, specially for cross-compilation
+        "trivy",  # trivy introduces dependencies on a higher version of glibc
+    ]
+    for tag in temporarily_unsupported_build_tags:
+        if tag in build_tags:
+            build_tags.remove(tag)
+
     build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+
     return build_tags
 
 
@@ -864,7 +878,7 @@ def test(
             kernel_release=kernel_release,
         )
 
-    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
+    build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
@@ -1388,6 +1402,16 @@ def run_ninja(
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
+def get_clang_version_and_build_version() -> tuple[str, str]:
+    gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    with open(gitlab_ci_file) as f:
+        ci_config = yaml.safe_load(f)
+
+    ci_vars = ci_config['variables']
+    return ci_vars['CLANG_LLVM_VER'], ci_vars['CLANG_BUILD_VERSION']
+
+
 def setup_runtime_clang(
     ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
 ) -> None:
@@ -1398,42 +1422,48 @@ def setup_runtime_clang(
     if arch is None:
         arch = Arch.local()
 
-    clang_bpf_path = target_dir / "clang-bpf"
-    llc_bpf_path = target_dir / "llc-bpf"
-    needs_clang_download, needs_llc_download = True, True
+    clang_version, clang_build_version = get_clang_version_and_build_version()
 
-    if not arch.is_cross_compiling() and sys.platform == "linux":
-        # We can check the version of clang and llc on the system, we have the same arch and can
-        # execute the binaries. This way we can omit the download if the binaries exist and the version
-        # matches the desired one
-        clang_res = ctx.run(f"{sudo} {clang_bpf_path} --version", warn=True)
-        if clang_res is not None and clang_res.ok:
-            clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip()
-            needs_clang_download = clang_version_str != CLANG_VERSION_RUNTIME
+    runtime_binaries = {
+        "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
+        "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
+    }
 
-        llc_res = ctx.run(f"{sudo} {llc_bpf_path} --version", warn=True)
-        if llc_res is not None and llc_res.ok:
-            llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip()
-            needs_llc_download = llc_version_str != CLANG_VERSION_RUNTIME
-    else:
-        # If we're cross-compiling we cannot check the version of clang and llc on the system,
-        # so we download them only if they don't exist
-        needs_clang_download = not clang_bpf_path.exists()
-        needs_llc_download = not llc_bpf_path.exists()
+    for binary, meta in runtime_binaries.items():
+        binary_path = target_dir / binary
+        if not arch.is_cross_compiling() and sys.platform == "linux":
+            if not binary_path.exists() or binary_path.stat().st_size == 0:
+                print(f"'{binary}' missing")
+                runtime_binaries[binary]["needs_download"] = True
+                continue
+
+            # We can check the version of clang and llc on the system, we have the same arch and can
+            # execute the binaries. This way we can omit the download if the binaries exist and the version
+            # matches the desired one
+            res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
+            if res is not None and res.ok:
+                version_str = res.stdout.split("\n")[meta["version_line"]].strip().split(" ")[2].strip()
+                if version_str != clang_version:
+                    print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
+                    runtime_binaries[binary]["needs_download"] = True
+        else:
+            # If we're cross-compiling we cannot check the version of clang and llc on the system,
+            # so we download them only if they don't exist
+            runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
 
     if not target_dir.exists():
         ctx.run(f"{sudo} mkdir -p {target_dir}")
 
-    if needs_clang_download:
-        # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch.name}"
-        ctx.run(f"{sudo} wget -q {clang_url} -O {clang_bpf_path}")
-        ctx.run(f"{sudo} chmod 0755 {clang_bpf_path}")
+    for binary, meta in runtime_binaries.items():
+        if not meta["needs_download"]:
+            continue
 
-    if needs_llc_download:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch.name}"
-        ctx.run(f"{sudo} wget -q {llc_url} -O {llc_bpf_path}")
-        ctx.run(f"{sudo} chmod 0755 {llc_bpf_path}")
+        # download correct version from dd-agent-omnibus S3 bucket
+        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}{clang_build_version}"
+        binary_path = target_dir / binary
+        print(f"'{binary}' downloading...")
+        ctx.run(f"{sudo} wget -nv {binary_url} -O {binary_path}")
+        ctx.run(f"{sudo} chmod 0755 {binary_path}")
 
 
 def verify_system_clang_version(ctx):
