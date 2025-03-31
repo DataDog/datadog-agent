@@ -6,7 +6,7 @@
 package sender
 
 import (
-	"bytes"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -23,7 +23,7 @@ var (
 // raw []byte data from unstructured messages or turning structured
 // messages into []byte data).
 type Serializer interface {
-	Serialize(messages []*message.Message) []byte
+	Serialize(messages []*message.Message, writer io.Writer) error
 }
 
 // lineSerializer transforms a message array into a payload
@@ -35,15 +35,18 @@ type lineSerializer struct{}
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
-func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
-	var buffer bytes.Buffer
+func (s *lineSerializer) Serialize(messages []*message.Message, writer io.Writer) error {
 	for i, message := range messages {
 		if i > 0 {
-			buffer.WriteByte('\n')
+			if _, err := writer.Write([]byte{'\n'}); err != nil {
+				return err
+			}
 		}
-		buffer.Write(message.GetContent())
+		if _, err := writer.Write(message.GetContent()); err != nil {
+			return err
+		}
 	}
-	return buffer.Bytes()
+	return nil
 }
 
 // arraySerializer transforms a message array into a array string payload.
@@ -53,15 +56,22 @@ type arraySerializer struct{}
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
-func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
-	var buffer bytes.Buffer
-	buffer.WriteByte('[')
+func (s *arraySerializer) Serialize(messages []*message.Message, writer io.Writer) error {
+	if _, err := writer.Write([]byte{'['}); err != nil {
+		return err
+	}
+
 	for i, message := range messages {
 		if i > 0 {
-			buffer.WriteByte(',')
+			if _, err := writer.Write([]byte{','}); err != nil {
+				return err
+			}
 		}
-		buffer.Write(message.GetContent())
+		if _, err := writer.Write(message.GetContent()); err != nil {
+			return err
+		}
 	}
-	buffer.WriteByte(']')
-	return buffer.Bytes()
+
+	_, err := writer.Write([]byte{']'})
+	return err
 }

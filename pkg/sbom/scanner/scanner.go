@@ -82,10 +82,6 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Scanner, error) {
-	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
-		return nil, nil
-	}
-
 	if globalScanner != nil {
 		return nil, errors.New("global SBOM scanner already set, should only happen once")
 	}

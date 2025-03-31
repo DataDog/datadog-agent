@@ -56,6 +56,15 @@ const (
 	webhookName = "agent_config"
 )
 
+// csiInjectionMode defines the mode of the injected csi volume
+// mode can be either 'socket' or 'local'
+type csiInjectionMode string
+
+const (
+	csiModeSocket csiInjectionMode = "socket"
+	csiModeLocal  csiInjectionMode = "local"
+)
+
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name            string

@@ -142,3 +142,7 @@ func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error)
 	}
 	return hidden, nil
 }
+
+func (rc *runtimeSettingsHTTPClient) HTTPClient() *http.Client {
+	return rc.c
+}

@@ -15,14 +15,14 @@ import (
 	"io"
 	"text/template"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
 )
 
 // SetupEventsMap creates the ringbuffer which all programs will use for sending output
@@ -54,7 +54,35 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 96
+		log.Error("unable to detect number of CPUs. assuming 96 cores")
+	}
+	outerMapSpec := spec.Maps["param_stacks"]
+	outerMapSpec.MaxEntries = uint32(numCPUs)
+
+	inner := &ebpf.MapSpec{
+		Type:       ebpf.Stack,
+		MaxEntries: 2048,
+		ValueSize:  8,
+	}
+
+	for i := range outerMapSpec.MaxEntries {
+		innerMap, err := ebpf.NewMap(inner)
+		if err != nil {
+			return fmt.Errorf("could not create bpf map for reading memory content: %w", err)
+		}
+		outerMapSpec.Contents = append(outerMapSpec.Contents,
+			ebpf.MapKV{
+				Key:   uint32(i),
+				Value: innerMap,
+			},
+		)
+	}
+
 	mapReplacements := map[string]*ebpf.Map{}
+
 	if probe.ID != ditypes.ConfigBPFProbeID {
 		// config probe is special and should not be on the same ringbuffer
 		// as the rest of regular events. Despite having the same "events" name,
@@ -87,7 +115,10 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
 	}
 
-	procInfo.InstrumentationObjects[probe.ID] = bpfObject
+	if procInfo.InstrumentationObjects == nil {
+		procInfo.InstrumentationObjects = ditypes.NewInstrumentationObjectsMap()
+	}
+	procInfo.InstrumentationObjects.Set(probe.ID, bpfObject)
 
 	// Populate map used for zero'ing out regions of memory
 	zeroValMap, ok := bpfObject.Maps["zeroval"]
@@ -144,12 +175,12 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 	}
 
 	cfg := ddebpf.NewConfig()
-	opts := runtime.CompileOptions{
+	opts := ebpfruntime.CompileOptions{
 		AdditionalFlags:  getCFlags(cfg),
 		ModifyCallback:   f,
 		UseKernelHeaders: true,
 	}
-	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithOptions(cfg, opts)
+	compiledOutput, err := ebpfruntime.Dynamicinstrumentation.CompileWithOptions(cfg, opts)
 	if err != nil {
 		return err
 	}

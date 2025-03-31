@@ -13,8 +13,8 @@ import (
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -51,7 +51,7 @@ func runAgentSidekicks(ag component) error {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		cf, err := newConfigFetcher()
+		cf, err := newConfigFetcher(ag.at)
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
@@ -69,21 +69,18 @@ func runAgentSidekicks(ag component) error {
 	// the trace agent.
 	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
 	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
-	if err := apiutil.CreateAndSetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		log.Errorf("could not set auth token: %s", err)
-	} else {
-		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
-		ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
-		// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
-		// It will be removed in a future version.
-		api.AttachEndpoint(api.Endpoint{
-			Pattern: "/config/set",
-			Handler: func(_ *api.HTTPReceiver) http.Handler {
-				log.Warnf("The /config/set endpoint on this port is deprecated and will be removed. The same endpoint is available on the debug server at 127.0.0.1:%d", tracecfg.DebugServerPort)
-				return ag.config.SetHandler()
-			},
-		})
-	}
+	ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+	ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
+	// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
+	// It will be removed in a future version.
+	api.AttachEndpoint(api.Endpoint{
+		Pattern: "/config/set",
+		Handler: func(_ *api.HTTPReceiver) http.Handler {
+			log.Warnf("The /config/set endpoint on this port is deprecated and will be removed. The same endpoint is available on the debug server at 127.0.0.1:%d", tracecfg.DebugServerPort)
+			return ag.config.SetHandler()
+		},
+	})
+
 	if secrets, ok := ag.secrets.Get(); ok {
 		// Adding a route to trigger a secrets refresh from the CLI.
 		// TODO - components: the secrets comp already export a route but it requires the API component which is not
@@ -155,16 +152,17 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 		WithBlockProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_block_profiling"),
 		WithMutexProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_mutex_profiling"),
 		WithDeltaProfiles:    pkgconfigsetup.Datadog().GetBool("internal_profiling.delta_profiles"),
+		Socket:               pkgconfigsetup.Datadog().GetString("internal_profiling.unix_socket"),
 		Tags:                 tags,
 	}
 }
 
-func newConfigFetcher() (rc.ConfigFetcher, error) {
+func newConfigFetcher(at authtoken.Component) (rc.ConfigFetcher, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) })
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), at.Get, at.GetTLSClientConfig)
 }

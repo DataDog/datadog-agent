@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -203,7 +205,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {
 			return cfg
 		}
@@ -232,8 +234,6 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
-	ia.data["config_eks_fargate"] = ia.conf.GetBool("eks_fargate")
-	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
@@ -246,6 +246,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
+
+	// EKS Fargate
+	eksFargate := ia.conf.GetBool("eks_fargate")
+	ia.data["config_eks_fargate"] = eksFargate
+	if eksFargate {
+		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
+	}
+
+	// FIPS mode
+	if val, err := fips.Enabled(); err == nil {
+		ia.data["fips_mode"] = val
+	} else {
+		ia.data["fips_mode"] = false
+		ia.log.Warnf("could not check if fips is enabled: %s", err)
+	}
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
@@ -455,9 +470,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
 
@@ -475,8 +488,6 @@ func (ia *inventoryagent) Get() map[string]interface{} {
 	defer ia.m.Unlock()
 
 	data := map[string]interface{}{}
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 	return data
 }

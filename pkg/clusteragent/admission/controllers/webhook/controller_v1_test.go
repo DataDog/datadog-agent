@@ -1050,7 +1050,7 @@ func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
 				mockConfig.SetWithoutSource("admission_controller.timeout_seconds", *tt.timeout)
-				defer mockConfig.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				defer mockConfig.UnsetForSource("admission_controller.timeout_seconds", model.SourceUnknown)
 			}
 
 			c := &ControllerV1{}

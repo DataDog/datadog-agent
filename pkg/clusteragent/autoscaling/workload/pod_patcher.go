@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -68,33 +68,34 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
-	// Check if the autoscaler has recommendations
-	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
-		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
-		return false, nil
-	}
-
-	// Check if we're allowed to patch the POD
-	strategy, reason := getVerticalPatchingStrategy(autoscaler)
-	if strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
-		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
-		return false, nil
-	}
-
-	// Patching the pod with the recommendations
+	// We're always adding annotation to Pods when a matching Autoscaler is found even if we do not have recommendations ATM
 	patched := false
 	if pod.Annotations == nil {
 		pod.Annotations = map[string]string{}
 	}
 
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
-		patched = true
-	}
-
 	autoscalerID := autoscaler.ID()
 	if pod.Annotations[model.AutoscalerIDAnnotation] != autoscalerID {
 		pod.Annotations[model.AutoscalerIDAnnotation] = autoscalerID
+		patched = true
+	}
+
+	// Check if the autoscaler has recommendations
+	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
+		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
+		return patched, nil
+	}
+
+	// Check if we're allowed to patch the POD
+	strategy, reason := getVerticalPatchingStrategy(autoscaler)
+	if strategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
+		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
+		return patched, nil
+	}
+
+	// Patching the pod with the recommendations
+	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
+		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
 		patched = true
 	}
 

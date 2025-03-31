@@ -8,9 +8,11 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -36,6 +38,12 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Version:          "v2",
 				InjectorImageTag: "foo",
 			},
+		},
+		{
+			name:       "config with extra fields errors",
+			configPath: "testdata/extra_fields.yaml",
+			shouldErr:  true,
+			expected:   nil,
 		},
 		{
 			name:       "valid config disabled namespaces",
@@ -68,7 +76,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -80,11 +88,21 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchNames: []string{"billing"},
 						},
 						TracerVersions: map[string]string{
 							"java": "default",
+						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
 						},
 					},
 				},
@@ -106,7 +124,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -118,7 +136,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchLabels: map[string]string{
 								"app": "billing",
 							},
@@ -132,6 +150,43 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 						TracerVersions: map[string]string{
 							"java": "default",
+						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "can provide DD_SERVICE from arbitrary label",
+			configPath: "testdata/filter_service_env_var_from.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				Version:            "v2",
+				LibVersions:        map[string]string{},
+				Targets: []Target{
+					{
+						Name: "name-services",
+						TracerConfigs: []TracerConfig{
+							{
+								Name: "DD_SERVICE",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.labels['app.kubernetes.io/name']",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -168,6 +223,319 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestLibVersionsEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected map[string]string
+	}{
+		{
+			name: "valid lib versions",
+			expected: map[string]string{
+				"python": "1",
+				"js":     "2",
+				"java":   "3",
+			},
+		},
+		{
+			name:     "empty",
+			expected: map[string]string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_LIB_VERSIONS", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.LibVersions)
+		})
+	}
+}
+
+func TestEnabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"foo", "bar"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.EnabledNamespaces)
+		})
+	}
+}
+
+func TestDisabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"default", "kube-system"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.DisabledNamespaces)
+		})
+	}
+}
+
+func TestTargetEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []Target
+	}{
+		{
+			name: "valid target",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+						MatchExpressions: []SelectorMatchExpression{
+							{
+								Key:      "env",
+								Operator: "In",
+								Values:   []string{"prod"},
+							},
+						},
+					},
+					NamespaceSelector: &NamespaceSelector{
+						MatchNames: []string{"billing"},
+					},
+					TracerVersions: map[string]string{
+						"java": "default",
+					},
+				},
+			},
+		},
+		{
+			name: "target with many omitted fields",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "target with env valueFrom",
+			expected: []Target{
+				{
+					Name: "default-target",
+					TracerConfigs: []TracerConfig{
+						{
+							Name: "DD_SERVICE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.labels['foo-bar']",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+
+			t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expected, actual.Targets)
+		})
+	}
+}
+
+func TestGetPinnedLibraries(t *testing.T) {
+	tests := []struct {
+		name          string
+		libVersions   map[string]string
+		checkDefaults bool
+		expected      pinnedLibraries
+	}{
+		{
+			name:     "no pinned library versions",
+			expected: pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:          "no pinned library versions, checkDefaults",
+			checkDefaults: true,
+			expected:      pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:        "default libs, not checking defaults always false",
+			libVersions: defaultLibraries,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
+				},
+			},
+		},
+		{
+			name:          "default libs",
+			libVersions:   defaultLibraries,
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name:          "default libs, one missing",
+			libVersions:   defaultLibrariesFor("java", "python", "js", "dotnet"),
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+				},
+			},
+		},
+		{
+			name: "explicitly default libs",
+			libVersions: map[string]string{
+				"java":   "default",
+				"python": "default",
+				"js":     "default",
+				"dotnet": "default",
+				"ruby":   "default",
+				"php":    "default",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v5",
+				"dotnet": "v3",
+				"ruby":   "v2",
+				"php":    "v1",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+					defaultLibInfo(php),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions mismatch)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v3",
+				"dotnet": "v3",
+				"ruby":   "v2",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
+			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
+			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})
 	}
 }

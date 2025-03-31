@@ -8,14 +8,16 @@ package uptane
 import (
 	"encoding/json"
 	fmt "fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 )
 
 var (
-	metaRoot     = "root.json"
-	metaTargets  = "targets.json"
-	metaSnapshot = "snapshot.json"
+	metaRoot      = "root.json"
+	metaTargets   = "targets.json"
+	metaSnapshot  = "snapshot.json"
+	metaTimestamp = "timestamp.json"
 )
 
 // localStore implements go-tuf's LocalStore
@@ -68,7 +70,7 @@ func (s *localStore) init(initialRoot meta.EmbeddedRoot) error {
 }
 
 func (s *localStore) writeRoot(tx *transaction, root json.RawMessage) error {
-	version, err := metaVersion(root)
+	version, err := unsafeMetaVersion(root)
 	if err != nil {
 		return err
 	}
@@ -142,7 +144,7 @@ func (s *localStore) GetMetaVersion(metaName string) (uint64, error) {
 	if !found {
 		return 0, nil
 	}
-	metaVersion, err := metaVersion(meta)
+	metaVersion, err := unsafeMetaVersion(meta)
 	if err != nil {
 		return 0, err
 	}
@@ -159,7 +161,20 @@ func (s *localStore) GetMetaCustom(metaName string) ([]byte, error) {
 	if !found {
 		return nil, nil
 	}
-	return metaCustom(meta)
+	return unsafeMetaCustom(meta)
+}
+
+// GetMetaExpires returns the expiration of a particular meta
+func (s *localStore) GetMetaExpires(metaName string) (time.Time, error) {
+	metas, err := s.GetMeta()
+	if err != nil {
+		return time.Time{}, err
+	}
+	meta, found := metas[metaName]
+	if !found {
+		return time.Time{}, nil
+	}
+	return unsafeMetaExpires(meta)
 }
 
 // Close commits all pending data to the stored database

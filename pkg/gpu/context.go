@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,11 +35,14 @@ type systemContext struct {
 	// nvmlLib is the NVML library used to query GPU devices
 	nvmlLib nvml.Interface
 
-	// deviceSmVersions maps each device index to its SM (Compute architecture) version
-	deviceSmVersions map[int]int
+	// deviceSmVersions maps each device UUID to its SM (Compute architecture) version
+	deviceSmVersions map[string]uint32
+
+	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
+	smVersionSet map[uint32]struct{}
 
 	// cudaSymbols maps each executable file path to its Fatbin file data
-	cudaSymbols map[string]*symbolsEntry
+	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int][]*procfs.ProcMap
@@ -72,6 +76,18 @@ type systemContext struct {
 
 	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
 	fatbinTelemetry *fatbinTelemetry
+
+	// fatbinParsingEnabled is a flag to enable/disable fatbin parsing.
+	// TODO: this flag will be unnecessary once we have a separate structure for the fatbin parser
+	fatbinParsingEnabled bool
+}
+
+// symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
+// parsing the same file multiple times when it has different paths (e.g., symlinks in /proc/PID/root)
+// We add fileSize to the identifier to mitigate possible issues with inode reuse.
+type symbolFileIdentifier struct {
+	inode    int
+	fileSize int64
 }
 
 // contextTelemetry holds telemetry elements for the context
@@ -101,8 +117,9 @@ func (e *symbolsEntry) updateLastUsedTime() {
 
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
-		deviceSmVersions:          make(map[int]int),
-		cudaSymbols:               make(map[string]*symbolsEntry),
+		deviceSmVersions:          make(map[string]uint32),
+		smVersionSet:              make(map[uint32]struct{}),
+		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
 		nvmlLib:                   nvmlLib,
 		procRoot:                  procRoot,
@@ -151,13 +168,13 @@ func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
 	}
 }
 
-func getDeviceSmVersion(device nvml.Device) (int, error) {
+func getDeviceSmVersion(device nvml.Device) (uint32, error) {
 	major, minor, ret := device.GetCudaComputeCapability()
 	if ret != nvml.SUCCESS {
 		return 0, fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
 	}
 
-	return major*10 + minor, nil
+	return uint32(major*10 + minor), nil
 }
 
 func (ctx *systemContext) fillDeviceInfo() error {
@@ -174,20 +191,42 @@ func (ctx *systemContext) fillDeviceInfo() error {
 		if err != nil {
 			return err
 		}
-		ctx.deviceSmVersions[i] = smVersion
+		ctx.smVersionSet[smVersion] = struct{}{}
+		devUUID, ret := dev.GetUUID()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
+		}
 
+		ctx.deviceSmVersions[devUUID] = smVersion
 		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
 	return nil
 }
 
+func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
+	stat, err := utils.UnixStat(path)
+	if err != nil {
+		return symbolFileIdentifier{}, fmt.Errorf("error getting file info: %w", err)
+	}
+
+	return symbolFileIdentifier{inode: int(stat.Ino), fileSize: stat.Size}, nil
+}
+
 func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
-	if data, ok := ctx.cudaSymbols[path]; ok {
+	fileIdent, err := buildSymbolFileIdentifier(path)
+	if err != nil {
+		// an error means we cannot access the file, so returning makes sense as we will fail later anyways
+		return nil, fmt.Errorf("error building symbol file identifier: %w", err)
+	}
+
+	if data, ok := ctx.cudaSymbols[fileIdent]; ok {
 		data.updateLastUsedTime()
 		return data, nil
 	}
 
-	data, err := cuda.GetSymbols(path)
+	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, ctx.smVersionSet)
+
+	data, err := cuda.GetSymbols(path, ctx.smVersionSet)
 	if err != nil {
 		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
@@ -203,7 +242,7 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 
 	wrapper := &symbolsEntry{Symbols: data}
 	wrapper.updateLastUsedTime()
-	ctx.cudaSymbols[path] = wrapper
+	ctx.cudaSymbols[fileIdent] = wrapper
 
 	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 
@@ -343,9 +382,15 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
 // last selection (via cudaSetDevice) this thread made and the visible devices for the process.
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerID string) (nvml.Device, error) {
+// This function caches the visible devices for the process in the visibleDevicesCache map, so it only
+// does the expensive operations of looking into the process state and filtering devices one time for each process
+// containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
+// might be expensive, we pass a function that can be called to retrieve it only when needed
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (nvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
+		containerID := containerIDFunc()
+
 		// Order is important! We need to filter the devices for the container
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the

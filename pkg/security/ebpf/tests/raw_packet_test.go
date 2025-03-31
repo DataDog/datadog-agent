@@ -78,7 +78,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 2, 1, rawpacket.DefaultProgOpts, true)
+		testRawPacketFilter(t, filters, 2, 1, rawpacket.DefaultProgOpts(), true)
 	})
 
 	t.Run("syn-port-std-ko", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 0, 1, rawpacket.DefaultProgOpts, true)
+		testRawPacketFilter(t, filters, 0, 1, rawpacket.DefaultProgOpts(), true)
 	})
 
 	t.Run("syn-port-std-limit-ko", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize
 
 		testRawPacketFilter(t, filters, -1, 0, opts, false)
@@ -112,7 +112,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port number and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, -1, 0, rawpacket.DefaultProgOpts, false)
+		testRawPacketFilter(t, filters, -1, 0, rawpacket.DefaultProgOpts(), false)
 	})
 
 	t.Run("syn-port-multi-ok", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize - 50
 
 		testRawPacketFilter(t, filters, 2, 2, opts, true)
@@ -145,7 +145,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize - 50
 
 		testRawPacketFilter(t, filters, 0, 2, opts, true)
@@ -163,7 +163,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize - 50
 
 		testRawPacketFilter(t, filters, 2, 1, opts, false)
@@ -185,7 +185,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.MaxTailCalls = 0
 		opts.NopInstLen = opts.MaxProgSize - 50
 

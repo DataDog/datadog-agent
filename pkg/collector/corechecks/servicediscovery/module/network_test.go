@@ -181,7 +181,7 @@ func TestNetwork(t *testing.T) {
 	// test does some basic assertions just to ensure that everything is
 	// hooked up together.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServicesWithParams(t, url, &params)
+		resp := getServicesWithParams(collect, url, &params)
 		service := findService(pid, resp.HeartbeatServices)
 		require.NotNil(collect, service)
 		assert.NotZero(collect, service.RxBytes)
@@ -192,7 +192,7 @@ func TestNetwork(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServicesWithParams(t, url, &params)
+		resp := getServicesWithParams(collect, url, &params)
 		service := findService(pid, resp.HeartbeatServices)
 		require.NotNil(collect, service)
 		assert.Greater(collect, service.RxBytes, old.RxBytes)
@@ -315,6 +315,9 @@ func TestNetworkStats(t *testing.T) {
 
 	mTimeProvider.EXPECT().Now().Return(now).AnyTimes()
 	mock.EXPECT().removePid(uint32(pid)).Return(nil).Times(1)
+	mock.EXPECT().removePid(gomock.Not(uint32(pid))).AnyTimes()
 	r := getServicesWithParams(t, url, &params)
 	t.Log(r.StoppedServices)
+
+	mock.EXPECT().close().Times(1)
 }

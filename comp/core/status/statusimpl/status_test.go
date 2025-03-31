@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 	"strings"
@@ -50,9 +51,7 @@ func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }
@@ -97,9 +96,7 @@ func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }

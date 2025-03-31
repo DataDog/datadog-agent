@@ -164,9 +164,6 @@ const (
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-
-	// USM Payload Telemetry
-	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -195,11 +192,6 @@ var (
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-	}
-
-	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
-	USMPayloadTelemetry = []ConnTelemetryType{
-		USMHTTPHits,
 	}
 )
 

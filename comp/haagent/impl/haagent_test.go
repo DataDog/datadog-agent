@@ -206,120 +206,6 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 	}
 }
 
-func Test_haAgentImpl_ShouldRunIntegration(t *testing.T) {
-	testAgentHostname := "my-agent-hostname"
-	tests := []struct {
-		name                       string
-		leader                     string
-		agentConfigs               map[string]interface{}
-		expectShouldRunIntegration map[string]bool
-	}{
-		{
-			name: "ha agent enabled and agent is leader",
-			// should run HA-integrations
-			// should run "non HA integrations"
-			agentConfigs: map[string]interface{}{
-				"hostname":         testAgentHostname,
-				"ha_agent.enabled": true,
-				"config_id":        testConfigID,
-			},
-			leader: testAgentHostname,
-			expectShouldRunIntegration: map[string]bool{
-				"snmp":                true,
-				"cisco_aci":           true,
-				"cisco_sdwan":         true,
-				"network_path":        true,
-				"unknown_integration": true,
-				"cpu":                 true,
-			},
-		},
-		{
-			name: "ha agent enabled and agent is not active",
-			// should skip HA-integrations
-			// should run "non HA integrations"
-			agentConfigs: map[string]interface{}{
-				"hostname":         testAgentHostname,
-				"ha_agent.enabled": true,
-				"config_id":        testConfigID,
-			},
-			leader: "another-agent-is-active",
-			expectShouldRunIntegration: map[string]bool{
-				"snmp":                false,
-				"cisco_aci":           false,
-				"cisco_sdwan":         false,
-				"network_path":        false,
-				"unknown_integration": true,
-				"cpu":                 true,
-			},
-		},
-		{
-			name: "ha agent not enabled",
-			// should run all integrations
-			agentConfigs: map[string]interface{}{
-				"hostname":         testAgentHostname,
-				"ha_agent.enabled": false,
-				"config_id":        testConfigID,
-			},
-			leader: testAgentHostname,
-			expectShouldRunIntegration: map[string]bool{
-				"snmp":                true,
-				"cisco_aci":           true,
-				"cisco_sdwan":         true,
-				"network_path":        true,
-				"unknown_integration": true,
-				"cpu":                 true,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
-			haAgent.Comp.SetLeader(tt.leader)
-
-			for integrationName, shouldRun := range tt.expectShouldRunIntegration {
-				assert.Equalf(t, shouldRun, haAgent.Comp.ShouldRunIntegration(integrationName), "fail for integration: "+integrationName)
-			}
-		})
-	}
-}
-
-func Test_haAgentImpl_IsIntegration(t *testing.T) {
-	testAgentHostname := "my-agent-hostname"
-	tests := []struct {
-		name                  string
-		leader                string
-		agentConfigs          map[string]interface{}
-		expectIsHaIntegration map[string]bool
-	}{
-		{
-			name: "base case",
-			// should run HA-integrations
-			// should run "non HA integrations"
-			agentConfigs: map[string]interface{}{
-				"hostname": testAgentHostname,
-			},
-			leader: testAgentHostname,
-			expectIsHaIntegration: map[string]bool{
-				"snmp":                true,
-				"cisco_aci":           true,
-				"cisco_sdwan":         true,
-				"network_path":        true,
-				"unknown_integration": false,
-				"cpu":                 false,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.agentConfigs)
-
-			for integrationName, shouldRun := range tt.expectIsHaIntegration {
-				assert.Equalf(t, shouldRun, haAgent.Comp.IsHaIntegration(integrationName), "fail for integration: "+integrationName)
-			}
-		})
-	}
-}
-
 func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// GIVEN
 	haAgent := newTestHaAgentComponent(t, nil)
@@ -332,4 +218,17 @@ func Test_haAgentImpl_resetAgentState(t *testing.T) {
 
 	// THEN
 	assert.Equal(t, haagent.Unknown, haAgentComp.GetState())
+}
+
+func Test_IsActive(t *testing.T) {
+	agentConfigs := map[string]interface{}{
+		"hostname": "my-agent-hostname",
+	}
+	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+
+	haAgent.SetLeader("another-agent")
+	assert.False(t, haAgent.IsActive())
+
+	haAgent.SetLeader("my-agent-hostname")
+	assert.True(t, haAgent.IsActive())
 }

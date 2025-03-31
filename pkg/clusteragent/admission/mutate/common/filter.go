@@ -26,15 +26,20 @@ type MutationFilter interface {
 	ShouldMutatePod(pod *corev1.Pod) bool
 	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
 	IsNamespaceEligible(ns string) bool
-	// InitError returns an error if the InjectionFilter failed to initialize.
-	InitError() error
+}
+
+// DefaultDisabledNamespaces returns the default namespaces that are disabled for injection/mutation.
+func DefaultDisabledNamespaces() []string {
+	return []string{
+		"kube-system",
+		apiServerCommon.GetResourcesNamespace(),
+	}
 }
 
 // DefaultFilter provides a default implementation of the MutationFilter interface that uses namespaces for filtering.
 type DefaultFilter struct {
 	enabled bool
 	filter  *containers.Filter
-	err     error
 }
 
 // NewDefaultFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
@@ -44,7 +49,6 @@ func NewDefaultFilter(enabled bool, enabledNamespaces []string, disabledNamespac
 	return &DefaultFilter{
 		enabled: enabled,
 		filter:  filter,
-		err:     err,
 	}, err
 }
 
@@ -71,20 +75,11 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 		return false
 	}
 
-	if f.err != nil {
-		return false
-	}
-
 	if f.filter == nil {
 		return false
 	}
 
 	return !f.filter.IsExcluded(nil, "", "", ns)
-}
-
-// InitError returns an error if the MutationFilter failed to initialize.
-func (f *DefaultFilter) InitError() error {
-	return f.err
 }
 
 // makeNamespaceFilter returns a filter with the provided enabled/disabled namespaces.
@@ -118,9 +113,10 @@ func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*conta
 		disabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", disabledNamespaces[i])
 	}
 
-	disabledByDefault := []string{
-		prefix + "^kube-system$",
-		prefix + fmt.Sprintf("^%s$", apiServerCommon.GetResourcesNamespace()),
+	defaultDisabled := DefaultDisabledNamespaces()
+	disabledByDefault := make([]string, len(defaultDisabled))
+	for i := range defaultDisabled {
+		disabledByDefault[i] = prefix + fmt.Sprintf("^%s$", defaultDisabled[i])
 	}
 
 	var filterExcludeList []string

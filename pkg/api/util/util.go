@@ -7,6 +7,9 @@
 package util
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
@@ -29,6 +32,7 @@ const (
 	uninitialized source = iota
 	setAuthToken
 	createAndSetAuthToken
+	setAuthTokenInMemory
 )
 
 var (
@@ -62,7 +66,7 @@ func SetAuthToken(config model.Reader) error {
 	if err != nil {
 		return err
 	}
-	ipccert, ipckey, err := cert.FetchAgentIPCCert(config)
+	ipccert, ipckey, err := cert.FetchIPCCert(config)
 	if err != nil {
 		return err
 	}
@@ -84,6 +88,8 @@ func SetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(token, ipccert, ipckey)
 	initSource = setAuthToken
 
 	return nil
@@ -104,14 +110,19 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return nil
 	}
 
+	authTimeout := config.GetDuration("auth_init_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), authTimeout)
+	defer cancel()
+	log.Infof("starting to load the IPC auth primitives (timeout: %v)", authTimeout)
+
 	var err error
-	token, err = pkgtoken.CreateOrFetchToken(config)
+	token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while creating or fetching auth token: %w", err)
 	}
-	ipccert, ipckey, err := cert.CreateOrFetchAgentIPCCert(config)
+	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, config)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
 	certPool := x509.NewCertPool()
@@ -131,6 +142,8 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(token, ipccert, ipckey)
 	initSource = createAndSetAuthToken
 
 	return nil
@@ -139,7 +152,7 @@ func CreateAndSetAuthToken(config model.Reader) error {
 // IsInitialized return true if the auth_token and IPC cert/key pair have been initialized with SetAuthToken or CreateAndSetAuthToken functions
 func IsInitialized() bool {
 	tokenLock.RLock()
-	defer tokenLock.Unlock()
+	defer tokenLock.RUnlock()
 	return initSource != uninitialized
 }
 
@@ -155,7 +168,7 @@ func GetTLSClientConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
+		log.Warn("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
 	}
 	return clientTLSConfig.Clone()
 }
@@ -165,7 +178,7 @@ func GetTLSServerConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
+		log.Warn("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
 		config, err := generateSelfSignedCert()
 		if err != nil {
 			log.Error(err.Error())
@@ -186,8 +199,11 @@ func InitDCAAuthToken(config model.Reader) error {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), config.GetDuration("auth_init_timeout"))
+	defer cancel()
+
 	var err error
-	dcaToken, err = pkgtoken.CreateOrGetClusterAgentAuthToken(config)
+	dcaToken, err = pkgtoken.CreateOrGetClusterAgentAuthToken(ctx, config)
 	return err
 }
 
@@ -284,7 +300,7 @@ func IsIPv6(ip string) bool {
 
 func generateSelfSignedCert() (tls.Config, error) {
 	// create cert
-	hosts := []string{"127.0.0.1", "localhost"}
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
 	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
@@ -305,4 +321,18 @@ func generateSelfSignedCert() (tls.Config, error) {
 	return tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
 	}, nil
+}
+
+// printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.
+// It uses SHA-256 to hash the concatenation of the token, IPC certificate, and IPC key.
+func printAuthSignature(token string, ipccert, ipckey []byte) {
+	h := sha256.New()
+
+	_, err := h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
+	if err != nil {
+		log.Warnf("error while computing auth signature: %v", err)
+	}
+
+	sign := h.Sum(nil)
+	log.Infof("successfully loaded the IPC auth primitives (fingerprint: %.8x)", sign)
 }

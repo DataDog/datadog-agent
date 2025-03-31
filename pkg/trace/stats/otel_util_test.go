@@ -145,7 +145,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
 			ctagKeys: []string{semconv.AttributeContainerID},
 			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
 		},
 		{
 			name:               "operation name remapping and resource from http",
@@ -235,7 +235,6 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf := config.New()
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
-			conf.Features["enable_cid_stats"] = struct{}{}
 			if !tt.enableReceiveResourceSpansV2 {
 				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
 			}
@@ -250,6 +249,12 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.Ignore["resource"] = tt.ignoreRes
 			if !tt.legacyTopLevel {
 				conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			}
+			conf.ContainerTags = func(cid string) ([]string, error) {
+				if cid == "test_cid" {
+					return []string{"env:test_env"}, nil
+				}
+				return nil, nil
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)

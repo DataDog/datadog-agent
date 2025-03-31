@@ -165,9 +165,9 @@ func (lp *languagePatcher) handleEvents(events []workloadmeta.Event) {
 
 		if err != nil {
 			lp.logger.Errorf("failed to handle event: %v", err)
+		} else {
+			lp.queue.Add(*owner)
 		}
-
-		lp.queue.Add(*owner)
 	}
 }
 

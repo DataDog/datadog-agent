@@ -14,9 +14,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -29,13 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfig.GPUNS}
+var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
@@ -43,6 +44,9 @@ var processEventConsumer *consumers.ProcessConsumer
 
 const processConsumerID = "gpu"
 const processConsumerChanSize = 100
+
+const defaultCollectedDebugEvents = 100
+const maxCollectedDebugEvents = 1000000
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -62,18 +66,9 @@ var GPUMonitoring = module.Factory{
 			configureCgroupPermissions()
 		}
 
-		probeDeps := gpu.ProbeDependencies{
-			Telemetry: deps.Telemetry,
-			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
-			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
-			NvmlLib:        nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
-			ProcessMonitor: processEventConsumer,
-			WorkloadMeta:   deps.WMeta,
-		}
-
-		ret := probeDeps.NvmlLib.Init()
-		if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-			return nil, fmt.Errorf("unable to initialize NVML library: %v", ret)
+		probeDeps, err := gpu.NewProbeDependencies(deps.Telemetry, processEventConsumer, deps.WMeta)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
 		}
 
 		p, err := gpu.NewProbe(c, probeDeps)
@@ -116,6 +111,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
 	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
 	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
 	return nil
 }
@@ -125,6 +121,46 @@ func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": t.lastCheck.Load(),
 	}
+}
+
+func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
+	count := defaultCollectedDebugEvents
+
+	countStr := r.URL.Query().Get("count")
+	if countStr != "" {
+		var err error
+		count, err = strconv.Atoi(countStr)
+		if err != nil {
+			w.Write([]byte(fmt.Sprintf("Invalid count: %s", countStr)))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	if count > maxCollectedDebugEvents {
+		log.Warnf("Count %d is too high, clamping to %d", count, maxCollectedDebugEvents)
+		count = maxCollectedDebugEvents
+	}
+
+	log.Infof("Received request to collect %d GPU events, collecting...", count)
+
+	data, err := t.Probe.CollectConsumedEvents(r.Context(), count)
+	if err != nil {
+		msg := fmt.Sprintf("Error collecting GPU events: %v", err)
+		log.Warn(msg)
+		w.Write([]byte(msg))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Collection finished, writing response...")
+
+	for _, row := range data {
+		w.Write([]byte(row))
+		w.Write([]byte("\n"))
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // Close closes the GPU monitoring module

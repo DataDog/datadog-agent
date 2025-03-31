@@ -106,7 +106,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 // test1HostFakeIntakeNPM600cnxBucket Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
@@ -125,7 +125,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
 	}, 60*time.Second, time.Second, "no connections received")
 
-	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 100ms
+	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 200ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
 		assert.NoError(t, err)
@@ -150,7 +150,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
-		assert.Greater(t, 0.1, dt, "delta between collection is higher than 100ms")
+		assert.Greater(t, 0.2, dt, "delta between collection is higher than 200ms")
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 

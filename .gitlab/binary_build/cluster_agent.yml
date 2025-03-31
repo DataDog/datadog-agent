@@ -1,14 +1,15 @@
 ---
 .cluster_agent-build_common:
   stage: binary_build
-  rules:
-    !reference [.on_tag_or_a7]
+  rules: 
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv check-go-version
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
+    - dda inv -- check-go-version
+    - dda inv -- -e cluster-agent.build --release-version "$RELEASE_VERSION"
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
@@ -27,12 +28,18 @@ cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  variables:
-    ARCH: amd64
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
+
+cluster_agent_fips-build_amd64:
+  extends: cluster_agent-build_amd64
   variables:
-    ARCH: arm64
+    GOEXPERIMENT: boringcrypto
+
+cluster_agent_fips-build_arm64:
+  extends: cluster_agent-build_arm64
+  variables:
+    GOEXPERIMENT: boringcrypto

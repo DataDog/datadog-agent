@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -73,18 +71,14 @@ var PackagesConfig = []TestPackageConfig{
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
 	{Name: "datadog-apm-library-js", Version: "latest"},
-	{Name: "datadog-apm-library-dotnet", Version: "latest"},
+	{Name: "datadog-apm-library-dotnet", Alias: "apm-library-dotnet-package", Version: "latest"},
 	{Name: "datadog-apm-library-python", Version: "latest"},
 }
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"

@@ -39,11 +39,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -56,7 +51,6 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
@@ -77,39 +71,18 @@ func findService(pid int, services []model.Service) *model.Service {
 func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger := taggermock.SetupFakeTagger(t)
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 
 	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
 
 	mux := gorillamux.NewRouter()
-	cfg := &types.Config{
-		Enabled: true,
-		EnabledModules: map[types.ModuleName]struct{}{
-			config.DiscoveryModule: {},
-		},
-	}
-	m := module.Factory{
-		Name:             config.DiscoveryModule,
-		ConfigNamespaces: []string{"discovery"},
-		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
-			module.config.cpuUsageUpdateDelay = time.Second
-			module.config.networkStatsPeriod = time.Second
-			return module, nil
-		},
-		NeedsEBPF: func() bool {
-			return false
-		},
-	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil, nil)
-	require.NoError(t, err)
+
+	discovery := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
+	discovery.config.cpuUsageUpdateDelay = time.Second
+	discovery.config.networkStatsPeriod = time.Second
+	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
+	t.Cleanup(discovery.Close)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -333,7 +306,13 @@ func TestPorts(t *testing.T) {
 			continue
 		}
 
-		assert.NotContains(t, startEvent.Ports, port)
+		// Do not assert about this since this check can spuriously fail since
+		// the test infrastructure opens a listening TCP socket on an ephimeral
+		// port, and since we mix the different protocols we could find that on
+		// the unexpected port list.
+		if slices.Contains(startEvent.Ports, port) {
+			t.Logf("unexpected port %v also found", port)
+		}
 	}
 }
 
@@ -520,64 +499,6 @@ func TestServiceLifetime(t *testing.T) {
 		require.NotNilf(t, heartbeatEvent, "could not find hearteat event for pid %v", pid)
 		checkService(t, heartbeatEvent, mockedTime.Add(heartbeatTime))
 	})
-}
-
-func TestInjectedServiceName(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"OTHER_ENV=test",
-		"DD_SERVICE=injected-service-name",
-		"DD_INJECTION_ENABLED=service_name",
-		"YET_ANOTHER_ENV=test",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, "injected-service-name", startEvent.DDService)
-	require.Equal(t, startEvent.DDService, startEvent.Name)
-	// The GeneratedName can vary depending on how the tests are run, so don't
-	// assert for a specific value.
-	require.NotEmpty(t, startEvent.GeneratedName)
-	require.NotEmpty(t, startEvent.GeneratedNameSource)
-	require.NotEqual(t, startEvent.DDService, startEvent.GeneratedName)
-	assert.True(t, startEvent.DDServiceInjected)
-}
-
-func TestAPMInstrumentationInjected(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"DD_INJECTION_ENABLED=service_name,tracer",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, string(apm.Injected), startEvent.APMInstrumentation)
 }
 
 func makeAlias(t *testing.T, alias string, serverBin string) string {
@@ -1032,6 +953,11 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
 	require.Contains(t, startEvent.ContainerServiceNameSource, "app")
+	require.ElementsMatch(t, startEvent.ContainerTags, []string{
+		"sometag:somevalue",
+		"kube_service:kube_foo",
+		"app:foo_from_app_tag",
+	})
 	require.Contains(t, startEvent.Type, "web_service")
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }

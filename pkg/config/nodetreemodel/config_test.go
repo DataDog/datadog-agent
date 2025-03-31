@@ -619,6 +619,45 @@ func TestUnsetForSource(t *testing.T) {
 	assert.Equal(t, expect, txt)
 }
 
+func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnv("api_key")
+	cfg.BuildSchema()
+
+	// api_key is not in the config (does not have a default value)
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found := cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+
+	cfg.Set("api_key", "0123456789abcdef", model.SourceAgentRuntime)
+
+	// api_key is set
+	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.True(t, found)
+
+	cfg.UnsetForSource("api_key", model.SourceAgentRuntime)
+
+	// api_key is unset, which means its not listed in AllSettings
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+
+	cfg.SetWithoutSource("api_key", "0123456789abcdef")
+
+	// api_key is set
+	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.True(t, found)
+
+	cfg.UnsetForSource("api_key", model.SourceUnknown)
+
+	// api_key is unset again, should not appear in AllSettings
+	assert.Equal(t, "", cfg.GetString("api_key"))
+	_, found = cfg.AllSettings()["api_key"]
+	assert.False(t, found)
+}
+
 func TestMergeFleetPolicy(t *testing.T) {
 	config := NewConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
@@ -806,4 +845,44 @@ func TestSetConfigFile(t *testing.T) {
 	config.BuildSchema()
 
 	assert.Equal(t, "datadog.yaml", config.ConfigFileUsed())
+}
+
+func TestEnvVarOrdering(t *testing.T) {
+	// Test scenario 1: DD_DD_URL set before DD_URL
+	t.Run("DD_DD_URL set first", func(t *testing.T) {
+		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+
+	// Test scenario 2: DD_URL set before DD_DD_URL
+	t.Run("DD_URL set first", func(t *testing.T) {
+		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_dd_url.eu", config.GetString("dd_url"))
+	})
+
+	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
+	t.Run("Only DD_URL is set", func(t *testing.T) {
+		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config.BindEnv("fakeapikey", "DD_API_KEY")
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
+		config.BuildSchema()
+
+		assert.Equal(t, true, config.IsConfigured("dd_url"))
+		assert.Equal(t, "https://app.datadoghq.dd_url.eu", config.GetString("dd_url"))
+	})
 }

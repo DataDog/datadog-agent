@@ -55,6 +55,7 @@ func (cv *CollectorVersions) CollectorForVersion(version string) (K8sCollector, 
 type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
+	TerminatedPodInformerFactory informers.SharedInformerFactory
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
@@ -69,6 +70,8 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			NodeType:         metadata.NodeType,
 			ManifestProducer: true,
 			ClusterID:        rcfg.ClusterID,
+			Kind:             metadata.Kind,
+			APIVersion:       metadata.Version,
 		},
 		APIClient:          rcfg.APIClient,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),

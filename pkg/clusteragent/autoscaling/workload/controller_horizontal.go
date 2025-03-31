@@ -23,7 +23,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
@@ -133,13 +134,12 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	}
 
 	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
-	telemetryHorizontalScaleAppliedRecommendations.Set(
+	setHorizontalScaleAppliedRecommendations(
 		float64(horizontalAction.ToReplicas),
 		scale.Namespace,
 		scale.Name,
 		podAutoscaler.Name,
 		string(scalingValues.Horizontal.Source),
-		le.JoinLeaderValue,
 	)
 
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
@@ -153,10 +153,10 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 
 func (hr *horizontalController) computeScaleAction(
 	autoscalerInternal *model.PodAutoscalerInternal,
-	source datadoghq.DatadogPodAutoscalerValueSource,
+	source datadoghqcommon.DatadogPodAutoscalerValueSource,
 	currentDesiredReplicas, targetDesiredReplicas int32,
 	minReplicas, maxReplicas int32,
-) (*datadoghq.DatadogPodAutoscalerHorizontalAction, time.Duration, error) {
+) (*datadoghqcommon.DatadogPodAutoscalerHorizontalAction, time.Duration, error) {
 	// Check if we scaling has been disabled explicitly
 	if currentDesiredReplicas == 0 {
 		return nil, 0, errors.New("scaling disabled as current replicas is set to 0")
@@ -196,7 +196,7 @@ func (hr *horizontalController) computeScaleAction(
 	// TODO: Should we apply scaling rules in this case?
 	if outsideBoundaries {
 		log.Debugf("Current replica count for autoscaler id: %s is outside of min/max constraints, scaling back to closest boundary: %d replicas", autoscalerInternal.ID(), targetDesiredReplicas)
-		return &datadoghq.DatadogPodAutoscalerHorizontalAction{
+		return &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 			FromReplicas:        currentDesiredReplicas,
 			ToReplicas:          targetDesiredReplicas,
 			RecommendedReplicas: &originalTargetDesiredReplicas,
@@ -221,10 +221,10 @@ func (hr *horizontalController) computeScaleAction(
 	var rulesLimitReason string
 	var rulesLimitedReplicas int32
 	var rulesNextEvalAfter time.Duration
-	if scaleDirection == common.ScaleUp && autoscalerSpec.Policy != nil {
-		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleUpPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.Policy.Upscale, currentDesiredReplicas, targetDesiredReplicas)
-	} else if scaleDirection == common.ScaleDown && autoscalerSpec.Policy != nil {
-		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.Policy.Downscale, currentDesiredReplicas, targetDesiredReplicas)
+	if scaleDirection == common.ScaleUp && autoscalerSpec.ApplyPolicy != nil {
+		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleUpPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleUp, currentDesiredReplicas, targetDesiredReplicas)
+	} else if scaleDirection == common.ScaleDown && autoscalerSpec.ApplyPolicy != nil {
+		rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleDown, currentDesiredReplicas, targetDesiredReplicas)
 	}
 	// If rules had any effect, use values from rules
 	if rulesLimitReason != "" {
@@ -237,25 +237,25 @@ func (hr *horizontalController) computeScaleAction(
 	// Stabilize recommendation
 	var stabilizationLimitReason string
 	var stabilizationLimitedReplicas int32
-	upscaleStabilizationSeconds := int32(0)
-	downscaleStabilizationSeconds := int32(0)
+	scaleUpStabilizationSeconds := int32(0)
+	scaleDownStabilizationSeconds := int32(0)
 
-	if policy := autoscalerInternal.Spec().Policy; policy != nil {
-		if upscalePolicy := policy.Upscale; upscalePolicy != nil {
-			upscaleStabilizationSeconds = int32(upscalePolicy.StabilizationWindowSeconds)
+	if policy := autoscalerInternal.Spec().ApplyPolicy; policy != nil {
+		if scaleUpPolicy := policy.ScaleUp; scaleUpPolicy != nil {
+			scaleUpStabilizationSeconds = int32(scaleUpPolicy.StabilizationWindowSeconds)
 		}
-		if downscalePolicy := policy.Downscale; downscalePolicy != nil {
-			downscaleStabilizationSeconds = int32(downscalePolicy.StabilizationWindowSeconds)
+		if scaleDownPolicy := policy.ScaleDown; scaleDownPolicy != nil {
+			scaleDownStabilizationSeconds = int32(scaleDownPolicy.StabilizationWindowSeconds)
 		}
 	}
 
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, upscaleStabilizationSeconds, downscaleStabilizationSeconds, scaleDirection)
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, scaleUpStabilizationSeconds, scaleDownStabilizationSeconds, scaleDirection)
 	if stabilizationLimitReason != "" {
 		limitReason = stabilizationLimitReason
 		targetDesiredReplicas = stabilizationLimitedReplicas
 	}
 
-	horizontalAction := &datadoghq.DatadogPodAutoscalerHorizontalAction{
+	horizontalAction := &datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 		FromReplicas:        currentDesiredReplicas,
 		ToReplicas:          targetDesiredReplicas,
 		RecommendedReplicas: &originalTargetDesiredReplicas,
@@ -268,36 +268,36 @@ func (hr *horizontalController) computeScaleAction(
 	return horizontalAction, evalAfter, nil
 }
 
-func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghq.DatadogPodAutoscalerValueSource, direction common.ScaleDirection) (bool, string) {
+func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghqcommon.DatadogPodAutoscalerValueSource, direction common.ScaleDirection) (bool, string) {
 	// If we don't have spec, we cannot take decisions, should not happen.
 	if autoscalerSpec == nil {
 		return false, "pod autoscaling hasn't been initialized yet"
 	}
 
 	// By default, policy is to allow all
-	if autoscalerSpec.Policy == nil {
+	if autoscalerSpec.ApplyPolicy == nil {
 		return true, ""
 	}
 
 	// Default apply mode to All if not set
-	applyMode := autoscalerSpec.Policy.ApplyMode
+	applyMode := autoscalerSpec.ApplyPolicy.Mode
 	if applyMode == "" {
-		applyMode = datadoghq.DatadogPodAutoscalerAllApplyMode
+		applyMode = datadoghq.DatadogPodAutoscalerApplyModeApply
 	}
 
 	// We do have policies, checking if they allow this source
 	if !model.ApplyModeAllowSource(applyMode, source) {
-		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerSpec.Policy.ApplyMode, source)
+		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerSpec.ApplyPolicy.Mode, source)
 	}
 
 	// Check if scaling direction is allowed
-	if direction == common.ScaleUp && autoscalerSpec.Policy.Upscale != nil && autoscalerSpec.Policy.Upscale.Strategy != nil {
-		if *autoscalerSpec.Policy.Upscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
+	if direction == common.ScaleUp && autoscalerSpec.ApplyPolicy.ScaleUp != nil && autoscalerSpec.ApplyPolicy.ScaleUp.Strategy != nil {
+		if *autoscalerSpec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "upscaling disabled by strategy"
 		}
 	}
-	if direction == common.ScaleDown && autoscalerSpec.Policy.Downscale != nil && autoscalerSpec.Policy.Downscale.Strategy != nil {
-		if *autoscalerSpec.Policy.Downscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
+	if direction == common.ScaleDown && autoscalerSpec.ApplyPolicy.ScaleDown != nil && autoscalerSpec.ApplyPolicy.ScaleDown.Strategy != nil {
+		if *autoscalerSpec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "downscaling disabled by strategy"
 		}
 	}
@@ -308,15 +308,15 @@ func isScalingAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source
 
 func applyScaleUpPolicy(
 	currentTime time.Time,
-	events []datadoghq.DatadogPodAutoscalerHorizontalAction,
-	policy *datadoghq.DatadogPodAutoscalerScalingPolicy,
+	events []datadoghqcommon.DatadogPodAutoscalerHorizontalAction,
+	policy *datadoghqcommon.DatadogPodAutoscalerScalingPolicy,
 	currentDesiredReplicas, targetDesiredReplicas int32,
 ) (int32, time.Duration, string) {
 	if policy == nil {
 		return targetDesiredReplicas, 0, ""
 	}
 
-	strategy := datadoghq.DatadogPodAutoscalerMaxChangeStrategySelect
+	strategy := datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect
 	// If no strategy is defined, we default to the max policy for scale up
 	if policy.Strategy != nil {
 		strategy = *policy.Strategy
@@ -325,7 +325,7 @@ func applyScaleUpPolicy(
 	var maxReplicasFromRules int32
 	var selectStrategyFunc func(int32, int32) int32
 	minExpireIn := time.Hour // We don't support more than 1 hour of events
-	if strategy == datadoghq.DatadogPodAutoscalerMinChangeStrategySelect {
+	if strategy == datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect {
 		maxReplicasFromRules = math.MaxInt32
 		selectStrategyFunc = min
 	} else {
@@ -336,20 +336,16 @@ func applyScaleUpPolicy(
 	for _, rule := range policy.Rules {
 		// We could find directly `periodStartReplicas` by looking at `FromReplicas` in the first matching event.
 		// TODO: In case of manual scaling (outside of DPA), we could consider it in the calculation, while it's currently not.
-		replicasAdded, replicasRemoved, numEvents, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
+		replicasAdded, replicasRemoved, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
 		minExpireIn = min(minExpireIn, expireIn)
-		if numEvents == 0 && rule.Match != nil && *rule.Match == datadoghq.DatadogPodAutoscalerIfScalingEventRuleMatch {
-			// Rule should be skipped as no scaling events were found in the window
-			continue
-		}
 
 		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMax int32
-		if rule.Type == datadoghq.DatadogPodAutoscalerPodsScalingRuleType {
+		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
 			ruleMax = periodStartReplicas + rule.Value
-		} else if rule.Type == datadoghq.DatadogPodAutoscalerPercentScalingRuleType {
+		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
 			// 1.x * start may yield the same number of replicas as periodStartReplicas, ceiling up to always always allow at least 1 replica
 			// otherwise it would block scaling up forever.
 			ruleMax = int32(math.Ceil(float64(periodStartReplicas) * (1 + float64(rule.Value)/100)))
@@ -376,15 +372,15 @@ func applyScaleUpPolicy(
 
 func applyScaleDownPolicy(
 	currentTime time.Time,
-	events []datadoghq.DatadogPodAutoscalerHorizontalAction,
-	policy *datadoghq.DatadogPodAutoscalerScalingPolicy,
+	events []datadoghqcommon.DatadogPodAutoscalerHorizontalAction,
+	policy *datadoghqcommon.DatadogPodAutoscalerScalingPolicy,
 	currentDesiredReplicas, targetDesiredReplicas int32,
 ) (int32, time.Duration, string) {
 	if policy == nil {
 		return targetDesiredReplicas, 0, ""
 	}
 
-	strategy := datadoghq.DatadogPodAutoscalerMaxChangeStrategySelect
+	strategy := datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect
 	// If no strategy is defined, we default to the max policy for scale up
 	if policy.Strategy != nil {
 		strategy = *policy.Strategy
@@ -393,7 +389,7 @@ func applyScaleDownPolicy(
 	var minReplicasFromRules int32
 	minExpireIn := time.Hour // We don't support more than 1 hour of events
 	var selectPolicyFn func(int32, int32) int32
-	if strategy == datadoghq.DatadogPodAutoscalerMinChangeStrategySelect {
+	if strategy == datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect {
 		minReplicasFromRules = math.MinInt32
 		selectPolicyFn = max // For scaling down, the lowest change ('min' policy) produces a maximum value
 	} else {
@@ -404,20 +400,16 @@ func applyScaleDownPolicy(
 	for _, rule := range policy.Rules {
 		// We could find directly `periodStartReplicas` by looking at `FromReplicas` in the first matching event.
 		// TODO: In case of manual scaling (outside of DPA), we could consider it in the calculation, while it's currently not.
-		replicasAdded, replicasRemoved, numEvents, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
+		replicasAdded, replicasRemoved, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
 		minExpireIn = min(minExpireIn, expireIn)
-		if numEvents == 0 && rule.Match != nil && *rule.Match == datadoghq.DatadogPodAutoscalerIfScalingEventRuleMatch {
-			// Rule should be skipped as no scaling events were found in the window
-			continue
-		}
 
 		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMin int32
-		if rule.Type == datadoghq.DatadogPodAutoscalerPodsScalingRuleType {
+		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
 			ruleMin = periodStartReplicas - rule.Value
-		} else if rule.Type == datadoghq.DatadogPodAutoscalerPercentScalingRuleType {
+		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
 			// When casting, the decimal is truncated, so we always have at least 1 replica allowed
 			ruleMin = int32(float64(periodStartReplicas) * (1 - float64(rule.Value)/100))
 		}
@@ -440,18 +432,17 @@ func applyScaleDownPolicy(
 	return targetDesiredReplicas, 0, ""
 }
 
-func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogPodAutoscalerHorizontalAction, periodSeconds int32) (added, removed, numEvents int32, expireIn time.Duration) {
+func accumulateReplicasChange(currentTime time.Time, events []datadoghqcommon.DatadogPodAutoscalerHorizontalAction, periodSeconds int32) (added, removed int32, expireIn time.Duration) {
 	periodDuration := time.Duration(periodSeconds) * time.Second
 	earliestTimestamp := currentTime.Add(-periodDuration)
 
 	for _, event := range events {
 		if event.Time.Time.After(earliestTimestamp) {
-			if numEvents == 0 {
+			if expireIn == 0 {
 				// Record when the oldest event will be out of the window
 				expireIn = event.Time.Sub(earliestTimestamp)
 			}
 
-			numEvents++
 			diff := event.ToReplicas - event.FromReplicas
 			if diff > 0 {
 				added += diff
@@ -467,7 +458,7 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 	return
 }
 
-func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32, scaleDirection common.ScaleDirection) (int32, string) {
+func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghqcommon.DatadogPodAutoscalerHorizontalAction, currentReplicas int32, originalTargetDesiredReplicas int32, stabilizationWindowScaleUpSeconds int32, stabilizationWindowScaleDownSeconds int32, scaleDirection common.ScaleDirection) (int32, string) {
 	limitReason := ""
 
 	if len(pastActions) == 0 {
@@ -475,10 +466,10 @@ func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.Dat
 	}
 
 	upRecommendation := originalTargetDesiredReplicas
-	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowUpscaleSeconds) * time.Second)
+	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleUpSeconds) * time.Second)
 
 	downRecommendation := originalTargetDesiredReplicas
-	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowDownscaleSeconds) * time.Second)
+	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowScaleDownSeconds) * time.Second)
 
 	for _, a := range pastActions {
 		if scaleDirection == common.ScaleUp && a.Time.Time.After(upCutoff) {

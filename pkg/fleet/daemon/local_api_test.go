@@ -14,12 +14,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 type testDaemon struct {
@@ -47,6 +46,11 @@ func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
 }
 
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
+	args := m.Called(ctx, url)
+	return args.Error(0)
+}
+
+func (m *testDaemon) StartInstallerExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
 }
@@ -81,8 +85,8 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState() (map[string]PackageState, error) {
-	args := m.Called()
+func (m *testDaemon) GetState(ctx context.Context) (map[string]PackageState, error) {
+	args := m.Called(ctx)
 	return args.Get(0).(map[string]PackageState), args.Error(1)
 }
 
@@ -131,24 +135,23 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]PackageState{
-		"pkg1": {
-			Version: repository.State{
-				Stable:     "1.0.0",
-				Experiment: "2.0.0",
+	remoteConfigState := &pbgo.ClientUpdater{
+		Packages: []*pbgo.PackageState{
+			{
+				Package: "test-package",
+				Task: &pbgo.PackageStateTask{
+					State: pbgo.TaskState_DONE,
+				},
 			},
 		},
 	}
-	api.i.On("GetState").Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
-	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
+	api.i.On("GetRemoteConfigState").Return(remoteConfigState, nil)
 
 	resp, err := api.c.Status()
 
 	assert.NoError(t, err)
 	assert.Nil(t, resp.Error)
-	assert.Equal(t, version.AgentVersion, resp.Version)
-	assert.Equal(t, installerState, resp.Packages)
+	assert.Equal(t, resp.RemoteConfigState, remoteConfigState.Packages)
 }
 
 func TestAPIInstall(t *testing.T) {
@@ -181,6 +184,23 @@ func TestAPIStartExperiment(t *testing.T) {
 	api.i.On("StartExperiment", mock.Anything, testPackage.URL).Return(nil)
 
 	err := api.c.StartExperiment(testPackage.Name, testPackage.Version)
+
+	assert.NoError(t, err)
+}
+
+func TestAPIStartInstallerExperiment(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	testPackage := Package{
+		Name:    "test-package",
+		Version: "1.0.0",
+		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+	}
+	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
+	api.i.On("StartInstallerExperiment", mock.Anything, testPackage.URL).Return(nil)
+
+	err := api.c.StartInstallerExperiment(testPackage.Name, testPackage.Version)
 
 	assert.NoError(t, err)
 }

@@ -8,21 +8,21 @@ package awskubernetes
 
 import (
 	"fmt"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
+
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-
 	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
-
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment
@@ -36,6 +36,7 @@ type ProvisionerParams struct {
 	workloadAppFuncs   []WorkloadAppFunc
 	operatorOptions    []operatorparams.Option
 	operatorDDAOptions []agentwithoperatorparams.Option
+	ciliumOptions      []cilium.Option
 
 	eksLinuxNodeGroup        bool
 	eksLinuxARMNodeGroup     bool
@@ -209,6 +210,14 @@ func WithoutDDA() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.operatorDDAOptions = nil
 		params.agentOptions = nil
+		return nil
+	}
+}
+
+// WithCiliumOptions adds a cilium installation option
+func WithCiliumOptions(opts ...cilium.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.ciliumOptions = opts
 		return nil
 	}
 }

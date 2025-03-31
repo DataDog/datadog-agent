@@ -10,12 +10,11 @@ package flare
 import (
 	"path/filepath"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
-
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
@@ -24,7 +23,7 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}
 
-	sysprobeSocketLocation := getSystemProbeSocketPath()
+	sysprobeSocketLocation := priviledged.GetSystemProbeSocketPath()
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}
@@ -33,88 +32,38 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)
-		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dmesg.log"), getLinuxDmesg)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dmesg.log"), priviledged.GetLinuxDmesg)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_sestatus.log"), getSystemProbeSelinuxSestatus)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_semodule_list.log"), getSystemProbeSelinuxSemoduleList)
 	}
 }
 
-// only used in tests when running on linux
-var linuxKernelSymbols = getLinuxKernelSymbols
-
-func addSecurityAgentPlatformSpecificEntries(fb flaretypes.FlareBuilder) {
-	linuxKernelSymbols(fb)                      //nolint:errcheck
-	getLinuxPid1MountInfo(fb)                   //nolint:errcheck
-	fb.AddFileFromFunc("dmesg", getLinuxDmesg)  //nolint:errcheck
-	getLinuxKprobeEvents(fb)                    //nolint:errcheck
-	getLinuxTracingAvailableEvents(fb)          //nolint:errcheck
-	getLinuxTracingAvailableFilterFunctions(fb) //nolint:errcheck
-}
-
-func getLinuxKernelSymbols(fb flaretypes.FlareBuilder) error {
-	return fb.CopyFile("/proc/kallsyms")
-}
-
-func getLinuxKprobeEvents(fb flaretypes.FlareBuilder) error {
-	traceFSPath, err := tracefs.Root()
-	if err != nil {
-		return err
-	}
-	return fb.CopyFile(filepath.Join(traceFSPath, "kprobe_events"))
-}
-
-func getLinuxPid1MountInfo(fb flaretypes.FlareBuilder) error {
-	return fb.CopyFile("/proc/1/mountinfo")
-}
-
-func getLinuxDmesg() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	url := sysprobeclient.DebugURL("/dmesg")
-	return getHTTPData(sysProbeClient, url)
-}
-
-func getLinuxTracingAvailableEvents(fb flaretypes.FlareBuilder) error {
-	traceFSPath, err := tracefs.Root()
-	if err != nil {
-		return err
-	}
-	return fb.CopyFile(filepath.Join(traceFSPath, "available_events"))
-}
-
-func getLinuxTracingAvailableFilterFunctions(fb flaretypes.FlareBuilder) error {
-	traceFSPath, err := tracefs.Root()
-	if err != nil {
-		return err
-	}
-	return fb.CopyFile(filepath.Join(traceFSPath, "available_filter_functions"))
-}
-
 func getSystemProbeConntrackCached() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
-	return getHTTPData(sysProbeClient, url)
+	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeConntrackHost() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
-	return getHTTPData(sysProbeClient, url)
+	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeBTFLoaderInfo() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
-	return getHTTPData(sysProbeClient, url)
+	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeSelinuxSestatus() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/selinux_sestatus")
-	return getHTTPData(sysProbeClient, url)
+	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeSelinuxSemoduleList() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/selinux_semodule_list")
-	return getHTTPData(sysProbeClient, url)
+	return priviledged.GetHTTPData(sysProbeClient, url)
 }

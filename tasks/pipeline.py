@@ -26,7 +26,6 @@ from tasks.libs.common.utils import (
     is_allowed_repo_branch,
 )
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.notifications import send_slack_message
 from tasks.libs.pipeline.tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
@@ -35,7 +34,6 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
 
 BOT_NAME = "github-actions[bot]"
 
@@ -92,33 +90,6 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
     with open(gitlab_file) as f:
         return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
-
-
-@task
-def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
-    """
-    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
-    """
-
-    git_ref = git_ref or get_default_branch()
-    use_release_entries = ""
-    major_versions = []
-
-    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
-        use_release_entries = "--use-release-entries "
-
-    if release_version_6 != "":
-        major_versions.append("6")
-
-    if release_version_7 != "":
-        major_versions.append("7")
-
-    raise Exit(
-        f"""The pipeline.trigger task is obsolete. Use:
-    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch} {use_release_entries}
-instead.""",
-        1,
-    )
 
 
 @task
@@ -182,7 +153,7 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    use_release_entries=False,
+    use_release_entry=False,
     major_versions=None,
     repo_branch="dev",
     deploy=False,
@@ -206,8 +177,8 @@ def run(
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
-    By default, the nightly release.json entries (nightly and nightly-a7) are used.
-    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
+    By default, the nightly release.json entry is used.
+    Use the --use-release-entry option to use the release release.json entry instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -220,19 +191,19 @@ def run(
 
     Examples
     Run a pipeline on my-branch:
-      inv pipeline.run --git-ref my-branch
+      dda inv pipeline.run --git-ref my-branch
 
     Run a pipeline on the current branch:
-      inv pipeline.run --here
+      dda inv pipeline.run --here
 
     Run a pipeline without Kernel Matrix Tests on the current branch:
-      inv pipeline.run --here --no-kmt-tests
+      dda inv pipeline.run --here --no-kmt-tests
 
     Run a pipeline with e2e tets on the current branch:
-      inv pipeline.run --here --e2e-tests
+      dda inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
@@ -240,12 +211,7 @@ def run(
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
-    if use_release_entries:
-        release_version_6 = release_entry_for(6)
-        release_version_7 = release_entry_for(7)
-    else:
-        release_version_6 = nightly_entry_for(6)
-        release_version_7 = nightly_entry_for(7)
+    release_version = "release" if use_release_entry else "nightly"
 
     if major_versions:
         print(
@@ -293,8 +259,7 @@ def run(
         pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
-            release_version_6,
-            release_version_7,
+            release_version,
             repo_branch,
             deploy=deploy,
             deploy_installer=deploy_installer,
@@ -321,9 +286,9 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
-    inv pipeline.follow --git-ref my-branch
-    inv pipeline.follow --here
-    inv pipeline.follow --id 1234567
+    dda inv pipeline.follow --git-ref my-branch
+    dda inv pipeline.follow --here
+    dda inv pipeline.follow --id 1234567
     """
 
     repo = get_gitlab_repo(project_name)
@@ -376,9 +341,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
     Examples:
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
 
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
     if not os.environ.get('CI_JOB_TOKEN'):
@@ -475,6 +440,10 @@ EMAIL_SLACK_ID_MAP = {
 
 @task
 def changelog(ctx, new_commit_sha):
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
         parent_dir = os.environ["CI_PROJECT_DIR"]
@@ -502,7 +471,7 @@ def changelog(ctx, new_commit_sha):
     if old_commit_sha == new_commit_sha:
         print("No new commits found, exiting")
         slack_message += no_commits_msg
-        send_slack_message("system-probe-ops", slack_message)
+        client.chat_postMessage(channel="system-probe-ops", text=slack_message)
         return
 
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
@@ -513,17 +482,23 @@ def changelog(ctx, new_commit_sha):
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
-        title, author, author_email, files, url = parse(commit_str)
+        title, _, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
         message_link = f"• <{url}|{title}>" if url else f"• {title}"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
+        author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
-            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
+            try:
+                recipient = client.users_lookupByEmail(email=author_email)
+                author_handle = recipient.data["user"]["id"]
+            except SlackApiError:
+                # The email on the Github account is not a datadoghhq.com address, it cannot be decoded by slack.
+                pass
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -543,7 +518,7 @@ def changelog(ctx, new_commit_sha):
         slack_message += empty_changelog_msg
 
     print(f"Posting message to slack: \n {slack_message}")
-    send_slack_message("system-probe-ops", slack_message)
+    client.chat_postMessage(channel="system-probe-ops", text=slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
@@ -707,7 +682,9 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    raise Exit(f"This invoke task is {color_message('deprecated', 'red')}, please use inv buildimages.update instead.")
+    raise Exit(
+        f"This invoke task is {color_message('deprecated', 'red')}, please use `dda inv buildimages.update` instead."
+    )
 
 
 @task(
@@ -720,15 +697,16 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     """
     Trigger a pipeline from an external owner.
     """
-    # Verify parameters
-    owner_branch_name = owner_branch_name.lower()
+
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    match = branch_re.match(owner_branch_name)
 
     assert (
-        owner_branch_name.count('/') >= 1
-    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+        match is not None
+    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/', 1)
+    owner, branch = match.group('owner'), match.group('branch_name')
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout
