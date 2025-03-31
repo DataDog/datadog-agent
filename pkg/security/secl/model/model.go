@@ -112,8 +112,8 @@ type SpanContext struct {
 
 // RuleContext defines a rule context
 type RuleContext struct {
-	Expression       string `field:"-"`
-	MatchingSubExprs eval.MatchingSubExprs
+	Expression       string                `field:"-"`
+	MatchingSubExprs eval.MatchingSubExprs `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel
