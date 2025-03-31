@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package datadog.trace.idx;
+
+option go_package="pkg/proto/pbgo/trace/idx";
+
+// TODO: setup this import
+// import "opentelemetry/proto/trace/v1/trace.proto";
+
+message AnyValue {
+	oneof value {
+		// @gotags: json:"string_value" msg:"string_value"
+		uint32 stringValue = 1;
+		// @gotags: json:"bool_value" msg:"bool_value"
+		bool boolValue = 2;
+		// @gotags: json:"double_value" msg:"double_value"
+		double doubleValue = 3;
+		// @gotags: json:"int_value" msg:"int_value"
+		int64 intValue = 4;
+		// @gotags: json:"bytes_value" msg:"bytes_value"
+		bytes bytesValue = 5;
+		// @gotags: json:"array_value" msg:"array_value"
+		ArrayValue arrayValue = 6;
+		// @gotags: json:"key_value_list" msg:"key_value_list"
+		KeyValueList keyValueList = 7;
+	}
+}
+
+message KeyValue {
+	// @gotags: json:"key" msg:"key"
+	uint32 key = 1;
+	// @gotags: json:"value" msg:"value"
+	AnyValue value = 2;
+}
+
+// a repeated list of AnyValue that is needed since `oneof` in AnyValue
+// cannot be `repeated`
+message ArrayValue {
+	// @gotags: json:"values" msg:"values"
+	repeated AnyValue values = 1;
+}
+
+// a repeated list of KeyValue messages that is needed since `oneof`
+// in AnyValue cannot be `repeated` or `map`
+message KeyValueList {
+	// @gotags: json:"key_values" msg:"key_values"
+	repeated KeyValue keyValues = 1;
+}
+
+message SpanLink {
+   // @gotags: json:"trace_id" msg:"trace_id"
+   bytes traceID = 1;                         // Required.
+   // @gotags: json:"span_id" msg:"span_id"
+   fixed64 spanID = 2;                          // Required.
+   // @gotags: json:"attributes" msg:"attributes"
+   repeated KeyValue attributes = 3;
+   // @gotags: json:"tracestate" msg:"tracestate"
+   uint32 tracestate = 4;                      // Optional. W3C tracestate.
+   // @gotags: json:"flags" msg:"flags"
+   uint32 flags = 5;                           // Optional. W3C trace flags. If set, the high bit (bit 31) must be set.
+}
+
+message SpanEvent {
+  // @gotags: json:"time" msg:"time"
+  fixed64 time = 1; // time is the number of nanoseconds between the Unix epoch and this event.
+  // @gotags: json:"name" msg:"name"
+  uint32 name = 2; // name is this event's name.
+  // attributes is a mapping from attribute key string to any value.
+  // The order of attributes should be preserved in the key/value map.
+  // The supported values match the OpenTelemetry attributes specification:
+  // https://github.com/open-telemetry/opentelemetry-proto/blob/a8f08fc49d60538f97ffabcc7feac92f832976dd/opentelemetry/proto/common/v1/common.proto
+  // @gotags: json:"attributes" msg:"attributes"
+  repeated KeyValue attributes = 3;
+}
+
+
+message Span {
+    // service is the name of the service with which this span is associated.
+    // @gotags: json:"service" msg:"service"
+    uint32 service = 1;
+    // name is the operation name of this span.
+    // @gotags: json:"name" msg:"name"
+    uint32 name = 2;
+    // resource is the resource name of this span, also sometimes called the endpoint (for web spans).
+    // @gotags: json:"resource" msg:"resource"
+    uint32 resource = 3;
+    // spanID is the ID of this span.
+    // @gotags: json:"span_id" msg:"span_id"
+    fixed64 spanID = 4;
+    // parentID is the ID of this span's parent, or zero if this span has no parent.
+    // @gotags: json:"parent_id" msg:"parent_id"
+    uint64 parentID = 5;
+    // start is the number of nanoseconds between the Unix epoch and the beginning of this span.
+    // @gotags: json:"start" msg:"start"
+    fixed64 start = 6;
+    // duration is the time length of this span in nanoseconds.
+    // @gotags: json:"duration" msg:"duration"
+    uint64 duration = 7;
+    // if there is an error associated with this span
+    // @gotags: json:"error" msg:"error"
+    bool error = 8;
+    // meta is a mapping from tag name to tag value for string-valued tags.
+    // @gotags: json:"attributes,omitempty" msg:"attributes,omitempty"
+    repeated KeyValue attributes = 9;
+    // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
+    // @gotags: json:"type" msg:"type"
+    uint32 type = 10;
+    // span_links represents a collection of links, where each link defines a causal relationship between two spans.
+    // @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
+    repeated SpanLink spanLinks = 11;
+    // spanEvents represent an event at an instant in time related to this span, but not necessarily during the span.
+    // @gotags: json:"span_events,omitempty" msg:"span_events,omitempty"
+    repeated SpanEvent spanEvents = 12;
+    // the optional string environment of this span
+    // @gotags: json:"env" msg:"env"
+    uint32 env = 13;
+    // the optional string version of this span
+    // @gotags: json:"version" msg:"version"
+    uint32 version = 14;
+    // the string component name of this span
+    // @gotags: json:"component" msg:"component"
+    uint32 component = 15;
+    // the SpanKind of this span as defined in the OTEL Specification
+    // @gotags: json:"kind" msg:"kind"
+    SpanKind kind = 16;
+}
+
+
+//TODO: use the import from otel here
+// SpanKind is the type of span. Can be used to specify additional relationships between spans
+// in addition to a parent/child relationship.
+enum SpanKind {
+  // Unspecified. Do NOT use as default.
+  // Implementations MAY assume SpanKind to be INTERNAL when receiving UNSPECIFIED.
+  SPAN_KIND_UNSPECIFIED = 0;
+
+  // Indicates that the span represents an internal operation within an application,
+  // as opposed to an operations happening at the boundaries. Default value.
+  SPAN_KIND_INTERNAL = 1;
+
+  // Indicates that the span covers server-side handling of an RPC or other
+  // remote network request.
+  SPAN_KIND_SERVER = 2;
+
+  // Indicates that the span describes a request to some remote service.
+  SPAN_KIND_CLIENT = 3;
+
+  // Indicates that the span describes a producer sending a message to a broker.
+  // Unlike CLIENT and SERVER, there is often no direct critical path latency relationship
+  // between producer and consumer spans. A PRODUCER span ends when the message was accepted
+  // by the broker while the logical processing of the message might span a much longer time.
+  SPAN_KIND_PRODUCER = 4;
+
+  // Indicates that the span describes consumer receiving a message from a broker.
+  // Like the PRODUCER kind, there is often no direct critical path latency relationship
+  // between producer and consumer spans.
+  SPAN_KIND_CONSUMER = 5;
+}

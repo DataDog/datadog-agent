@@ -20,6 +20,7 @@ PROTO_PKGS = {
     'languagedetection': (False, False),
     'remoteagent': (False, False),
     'autodiscovery': (False, False),
+    'trace/idx': (False, True),
 }
 
 # maybe put this in a separate function
@@ -34,6 +35,7 @@ PKG_CLI_EXTRAS = {
 # protoc-go-inject-tag targets
 INJECT_TAG_TARGETS = {
     'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
+    'trace/idx': ['span.pb.go', 'tracer_payload.pb.go'],
 }
 
 
