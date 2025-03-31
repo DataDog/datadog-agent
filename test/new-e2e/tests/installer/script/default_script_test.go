@@ -182,4 +182,5 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 
 	// 5. Assert the installer unit is not loaded
 	state.AssertUnitsNotLoaded("datadog-installer.service")
+	state.AssertUnitsLoaded("datadog-agent-installer.service")
 }
