@@ -170,8 +170,8 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
-func GetTelemetryMock(t testing.TB) telemetry.Component {
-	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+func GetTelemetryMock(t testing.TB) telemetry.Mock {
+	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
