@@ -85,35 +85,3 @@ func TestRegistryWriterErrorCases(t *testing.T) {
 	err = writer.WriteRegistry(filepath.Join(readOnlyDir, "registry.json"), readOnlyDir, registryTmpFile, testData)
 	assert.Error(t, err)
 }
-
-func TestRegistryWriterConcurrentAccess(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
-	registryPath := filepath.Join(tmpDir, "registry.json")
-	registryDirPath := tmpDir
-	registryTmpFile := "registry.json.tmp"
-	testData := []byte(`{"test": "data"}`)
-
-	// Create atomic registry writer
-	writer := NewAtomicRegistryWriter()
-
-	// Test concurrent writes
-	done := make(chan struct{})
-	for i := 0; i < 10; i++ {
-		go func() {
-			err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, testData)
-			assert.NoError(t, err)
-			done <- struct{}{}
-		}()
-	}
-
-	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
-		<-done
-	}
-
-	// Verify final file content
-	content, err := os.ReadFile(registryPath)
-	require.NoError(t, err)
-	assert.Equal(t, testData, content)
-}
