@@ -64,6 +64,8 @@ func (c *httpClient) DoPost(url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 
+	req.Header.Set("Content-Type", contentType)
+
 	r, e := c.c.Do(req)
 	if e != nil {
 		return resp, e
