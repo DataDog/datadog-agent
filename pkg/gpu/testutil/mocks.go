@@ -9,12 +9,10 @@
 package testutil
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,7 +21,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -176,30 +173,4 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Component {
 	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-}
-
-// RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
-// output than using require.Equal on the devices themselves
-func RequireDevicesEqual(t *testing.T, expected, actual *ddnvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	require.Equal(t, expected.UUID, actual.UUID, "%sUUIDs do not match", extraFmt)
-}
-
-// RequireDeviceListsEqual checks that the two device lists are equal by comparing their UUIDs, which gives a better
-// output than using require.ElementsMatch on the lists themselves
-func RequireDeviceListsEqual(t *testing.T, expected, actual []*ddnvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	require.Len(t, actual, len(expected), "%sdevice lists have different lengths", extraFmt)
-
-	for i := range expected {
-		require.Equal(t, expected[i].UUID, actual[i].UUID, "%sUUIDs do not match for element %d", extraFmt, i)
-	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -39,7 +40,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = testutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)

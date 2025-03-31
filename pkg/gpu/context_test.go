@@ -17,6 +17,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -72,20 +73,20 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	t.Run("NoContainer", func(t *testing.T) {
 		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), "")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // With no container, all devices should be returned
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
 		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), "non-existent-at-all")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // If we can't find the container, all devices should be returned
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
 		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.GetAllDevices(), containerID)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()[deviceIndex:deviceIndex+1])
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.GetAllDevices()[deviceIndex:deviceIndex+1])
 	})
 
 	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
@@ -98,7 +99,7 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysDevices)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
 	})
 }
 
@@ -200,7 +201,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			for i, idx := range c.expectedDeviceIdx {
 				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
-				testutil.RequireDevicesEqual(t, sysCtx.deviceCache.GetAllDevices()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
+				nvmltestutil.RequireDevicesEqual(t, sysCtx.deviceCache.GetAllDevices()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
 		})
 	}
