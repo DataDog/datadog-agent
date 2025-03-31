@@ -244,18 +244,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, transform.KeyDatadogResource)
-			if resourceName == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-				if transform.OperationAndResourceNameV2Enabled(o.conf) {
-					resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-				} else {
-					resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-				}
-			}
-			if _, exists := o.ignoreResNames[resourceName]; exists {
-				continue
-			}
-
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
