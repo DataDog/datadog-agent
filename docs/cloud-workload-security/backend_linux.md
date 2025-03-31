@@ -369,6 +369,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variables values"
+                },
+                "rule_context": {
+                    "$ref": "#/$defs/RuleContext",
+                    "description": "RuleContext rule context"
                 }
             },
             "additionalProperties": false,
@@ -861,6 +865,27 @@ CSM Threats event for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "MatchedRuleSerializer serializes a rule"
+        },
+        "MatchingSubExpr": {
+            "properties": {
+                "offset": {
+                    "type": "integer"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "offset",
+                "length",
+                "value"
+            ],
+            "description": "MatchingSubExprs serializes matching sub expression to JSON"
         },
         "ModuleEvent": {
             "properties": {
@@ -1498,6 +1523,22 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "network_direction"
             ],
             "description": "RawPacketSerializer defines a raw packet serializer"
+        },
+        "RuleContext": {
+            "properties": {
+                "matching_subexprs": {
+                    "items": {
+                        "$ref": "#/$defs/MatchingSubExpr"
+                    },
+                    "type": "array"
+                },
+                "expression": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "RuleContext serializes rule context to JSON"
         },
         "SELinuxBoolChange": {
             "properties": {
@@ -2564,6 +2605,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variables values"
+        },
+        "rule_context": {
+            "$ref": "#/$defs/RuleContext",
+            "description": "RuleContext rule context"
         }
     },
     "additionalProperties": false,
@@ -2581,10 +2626,12 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `variables` | Variables values |
+| `rule_context` | RuleContext rule context |
 
 | References |
 | ---------- |
 | [Variables](#variables) |
+| [RuleContext](#rulecontext) |
 
 ## `ExitEvent`
 
@@ -3279,6 +3326,36 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `tags` | Tags of the rule |
 | `policy_name` | Name of the policy that introduced the rule |
 | `policy_version` | Version of the policy that introduced the rule |
+
+
+## `MatchingSubExpr`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "offset": {
+            "type": "integer"
+        },
+        "length": {
+            "type": "integer"
+        },
+        "value": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "offset",
+        "length",
+        "value"
+    ],
+    "description": "MatchingSubExprs serializes matching sub expression to JSON"
+}
+
+{{< /code-block >}}
+
 
 
 ## `ModuleEvent`
@@ -4187,6 +4264,31 @@ CSM Threats event for Linux systems have the following JSON schema:
 | [NetworkDevice](#networkdevice) |
 | [IPPort](#ipport) |
 | [TLSContext](#tlscontext) |
+
+## `RuleContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "matching_subexprs": {
+            "items": {
+                "$ref": "#/$defs/MatchingSubExpr"
+            },
+            "type": "array"
+        },
+        "expression": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "RuleContext serializes rule context to JSON"
+}
+
+{{< /code-block >}}
+
+
 
 ## `SELinuxBoolChange`
 
