@@ -62,8 +62,10 @@ func (t *tracer) getSpan(spanID uint64) (*Span, bool) {
 func (t *tracer) finishSpan(span *Span) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	delete(t.spans, span.span.SpanID)
-	t.completedSpans = append(t.completedSpans, span)
+	if _, exists := t.spans[span.span.SpanID]; exists {
+		delete(t.spans, span.span.SpanID)
+		t.completedSpans = append(t.completedSpans, span)
+	}
 }
 
 func (t *tracer) flushCompletedSpans() []*Span {
