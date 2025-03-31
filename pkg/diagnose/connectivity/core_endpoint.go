@@ -87,7 +87,8 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 	var diagnoses []diagnose.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(config, log, keysPerDomain)
-	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	numberOfWorkers := 1
+	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {

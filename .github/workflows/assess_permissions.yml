@@ -9,35 +9,37 @@ on:
 permissions: {}
 
 jobs:
-    assess_permission:
-        runs-on: ubuntu-latest
-        strategy:
-          matrix:
-            value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'agent-release-management']
-          fail-fast: false
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
-              with:
-                sparse-checkout: |
-                  .dda
-                  .github
-                  tasks
-                persist-credentials: false
+  assess_permission:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'agent-release-management']
+      fail-fast: false
+    environment:
+      name: main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          sparse-checkout: |
+            .dda
+            .github
+            tasks
+          persist-credentials: false
 
-            - name: Install python
-              uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-              with:
-                python-version-file: .python-version
-                cache: "pip"
+      - name: Install python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version-file: .python-version
+          cache: "pip"
 
-            - name: Install dda
-              uses: ./.github/actions/install-dda
-              with:
-                features: legacy-tasks legacy-github
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks legacy-github
 
-            - name: Assess Repository Permissions
-              env:
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-              run: dda inv -e github.check-permissions --repo ${{ matrix.value }}
+      - name: Assess Repository Permissions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        run: dda inv -- -e github.check-permissions --repo ${{ matrix.value }}

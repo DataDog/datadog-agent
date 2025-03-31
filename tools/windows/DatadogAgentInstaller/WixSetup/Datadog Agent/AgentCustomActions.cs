@@ -471,20 +471,6 @@ namespace WixSetup.Datadog_Agent
                 Sequence = Sequence.NotInSequence
             };
 
-            RollbackOciPackages = new CustomAction<CustomActions>(
-                    new Id(nameof(RollbackOciPackages)),
-                    CustomActions.RollbackOciPackages,
-                    Return.ignore,
-                    When.Before,
-                    Step.StartServices,
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
-
             InstallOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(InstallOciPackages)),
                     CustomActions.InstallOciPackages,
@@ -503,6 +489,20 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+
+            RollbackOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackOciPackages)),
+                    CustomActions.RollbackOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    new Step(InstallOciPackages.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

@@ -9,6 +9,7 @@
 package resolver
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -150,7 +151,7 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys))
+			replace := make([]string, 0, len(r.apiKeys[idx].ApiKeys))
 			for _, key := range r.apiKeys[idx].ApiKeys {
 				if key == oldKey {
 					replace = append(replace, newKey)
@@ -251,10 +252,8 @@ func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwar
 		dType:  dType,
 	}
 	r.overrides[forwarderName] = d
-	for _, alternateDomain := range r.alternateDomainList {
-		if alternateDomain == domain {
-			return
-		}
+	if slices.Contains(r.alternateDomainList, domain) {
+		return
 	}
 	r.alternateDomainList = append(r.alternateDomainList, domain)
 }

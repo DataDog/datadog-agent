@@ -161,6 +161,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -212,6 +213,30 @@ func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
+// EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
+func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
+	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
+		defer func() {
+			if r := recover(); r != nil {
+				bs.T().Errorf("EventuallyWithT, panic: %v", r)
+			}
+		}()
+		condition(c)
+	}, timeout, interval, msgAndArgs...)
+}
+
+// EventuallyWithTf is a wrapper around testify.Suite.EventuallyWithTf that catches panics to fail test without skipping TeardownSuite
+func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), waitFor time.Duration, tick time.Duration, msg string, args ...interface{}) bool {
+	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
+		defer func() {
+			if r := recover(); r != nil {
+				bs.T().Errorf("EventuallyWithTf, panic: %v", r)
+			}
+		}()
+		condition(c)
+	}, waitFor, tick, msg, args)
+}
+
 // UpdateEnv updates the environment with new provisioners.
 func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner) {
 	uniqueIDs := make(map[string]struct{})
@@ -225,7 +250,7 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
-		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
+		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -508,7 +533,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 
 		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 			// at least one test failed, diagnose the environment
 			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
 			if diagnoseErr != nil {
@@ -559,7 +584,7 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		bs.T().FailNow() // We need to call FailNow otherwise bs.T().Failed() will be false in AfterTest
+		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
 		panic(err)
 	}
 }
@@ -591,7 +616,7 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 			bs.T().Logf("unable to create test output directory: %v", err)
 		} else {
 			// run environment diagnose if the test failed
-			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
 				// at least one test failed, diagnose the environment
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {

@@ -8,6 +8,7 @@ package taglist
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"unique"
 
@@ -124,8 +125,6 @@ func (l *TagList) Copy() *TagList {
 
 func deepCopyMap(in map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }

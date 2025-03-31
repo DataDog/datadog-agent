@@ -14,8 +14,6 @@
 package noopimpl
 
 import (
-	"context"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -26,23 +24,11 @@ import (
 
 type noopTagger struct{}
 
-func (n *noopTagger) Start(context.Context) error {
-	return nil
-}
-
-func (n *noopTagger) Stop() error {
-	return nil
-}
-
 func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
 
 func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-func (n *noopTagger) LegacyTag(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -85,10 +71,6 @@ func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 }
 
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
-
-func (n *noopTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
 
 // NewComponent returns a new noop tagger component
 func NewComponent() tagger.Component {

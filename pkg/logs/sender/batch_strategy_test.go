@@ -33,7 +33,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input <- message2
 
 	expectedPayload := &message.Payload{
-		Messages:      []*message.Message{message1, message2},
+		MessageMetas:  []*message.MessageMetadata{&message1.MessageMetadata, &message2.MessageMetadata},
 		Encoded:       []byte("a\nb"),
 		Encoding:      "identity",
 		UnencodedSize: 3,
@@ -66,7 +66,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		clk.Add(2 * timerInterval)
 
 		payload := <-output
-		assert.EqualValues(t, m, payload.Messages[0])
+		assert.EqualValues(t, &m.MessageMetadata, payload.MessageMetas[0])
 	}
 	s.Stop()
 	if _, isOpen := <-input; isOpen {
@@ -97,7 +97,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	// expect payload to be sent before timer, so we never advance the clock; if this
 	// doesn't work, the test will hang
 	payload := <-output
-	assert.Equal(t, message, payload.Messages[0])
+	assert.Equal(t, &message.MessageMetadata, payload.MessageMetas[0])
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
@@ -118,7 +118,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		assert.Fail(t, "input should be closed")
 	}
 
-	assert.Equal(t, message, (<-output).Messages[0])
+	assert.Equal(t, &message.MessageMetadata, (<-output).MessageMetas[0])
 }
 
 func TestBatchStrategySynchronousFlush(t *testing.T) {
@@ -138,8 +138,11 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		message.NewMessage([]byte("b"), nil, "", 0),
 		message.NewMessage([]byte("c"), nil, "", 0),
 	}
-	for _, m := range messages {
+
+	messageMeta := make([]*message.MessageMetadata, len(messages))
+	for idx, m := range messages {
 		input <- m
+		messageMeta[idx] = &m.MessageMetadata
 	}
 
 	// since the batch size is large there should be nothing on the output yet
@@ -158,7 +161,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		assert.Fail(t, "input should be closed")
 	}
 
-	assert.ElementsMatch(t, messages, (<-output).Messages)
+	assert.ElementsMatch(t, messageMeta, (<-output).MessageMetas)
 
 	select {
 	case <-output:
@@ -183,10 +186,11 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		message.NewMessage([]byte("b"), nil, "", 0),
 		message.NewMessage([]byte("c"), nil, "", 0),
 	}
-	for _, m := range messages {
+	messageMeta := make([]*message.MessageMetadata, len(messages))
+	for idx, m := range messages {
 		input <- m
+		messageMeta[idx] = &m.MessageMetadata
 	}
-
 	// since the batch size is large there should be nothing on the output yet
 	select {
 	case <-output:
@@ -197,7 +201,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 	// Trigger a manual flush
 	flushChan <- struct{}{}
 
-	assert.ElementsMatch(t, messages, (<-output).Messages)
+	assert.ElementsMatch(t, messageMeta, (<-output).MessageMetas)
 
 	// Ensure we read all of the messages
 	select {

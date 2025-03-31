@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdmaps "maps"
 	"math/rand"
 	"net/http"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
@@ -32,11 +34,11 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/benbjohnson/clock"
 )
 
 const auditFileBasename = "secret-audit-file.json"
@@ -50,6 +52,7 @@ type provides struct {
 	FlareProvider   flaretypes.Provider
 	InfoEndpoint    api.AgentEndpointProvider
 	RefreshEndpoint api.AgentEndpointProvider
+	StatusProvider  status.InformationProvider
 }
 
 type dependencies struct {
@@ -137,6 +140,7 @@ func newSecretResolverProvider(deps dependencies) provides {
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
 		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
 		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
+		StatusProvider:  status.NewInformationProvider(secretsStatus{resolver: resolver}),
 	}
 }
 
@@ -442,13 +446,7 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 	if !isAllowlistEnabled() {
 		return true
 	}
-	for _, secretCtx := range r.origin[handle] {
-		if secretMatchesAllowlist(secretCtx) {
-			return true
-		}
-	}
-	// the handle does not appear for a setting that is in the allowlist
-	return false
+	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
@@ -488,9 +486,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		handleInfoList = append(handleInfoList, handleInfo{Name: handle, Places: places})
 	}
 	// add results to the cache
-	for handle, secretValue := range secretResponse {
-		r.cache[handle] = secretValue
-	}
+	stdmaps.Copy(r.cache, secretResponse)
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
 		return handleInfoList[i].Name < handleInfoList[j].Name
@@ -639,24 +635,24 @@ var secretRefreshTmpl string
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	if !r.enabled {
-		fmt.Fprintf(w, "Agent secrets is disabled by caller")
+		fmt.Fprintf(w, "Agent secrets is disabled by caller\n")
 		return
 	}
 	if r.backendCommand == "" {
-		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled")
+		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled\n")
 		return
 	}
 
 	t := template.New("secret_info")
 	t, err := t.Parse(secretInfoTmpl)
 	if err != nil {
-		fmt.Fprintf(w, "error parsing secret info template: %s", err)
+		fmt.Fprintf(w, "error parsing secret info template: %s\n", err)
 		return
 	}
 
 	t, err = t.Parse(permissionsDetailsTemplate)
 	if err != nil {
-		fmt.Fprintf(w, "error parsing secret permissions details template: %s", err)
+		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
 
@@ -696,11 +692,11 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	err = t.Execute(w, info)
 	if err != nil {
-		fmt.Fprintf(w, "error rendering secret info: %s", err)
+		fmt.Fprintf(w, "error rendering secret info: %s\n", err)
 	}
 
 	if r.refreshIntervalScatter {
-		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s ", r.scatterDuration, r.refreshInterval)
+		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
 	}
 
 }

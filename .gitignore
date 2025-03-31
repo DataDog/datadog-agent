@@ -53,9 +53,6 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
-# gotestsum-generated files
-module_test_output.json
-
 # jetbrains IDE directory
 /.idea/
 
@@ -159,6 +156,8 @@ devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
 test_output.json
+module_test_output.json
+e2e_test_output.json
 
 # doxygen doc & error log
 rtloader/doc

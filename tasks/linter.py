@@ -39,7 +39,7 @@ from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
-from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
+from tasks.test_core import LintResult, process_input_args, process_result
 from tasks.update_go import _update_go_mods, _update_references
 
 # - SC2086 corresponds to using variables in this way $VAR instead of "$VAR" (used in every jobs).
@@ -185,7 +185,7 @@ def go(
         lint=True,
     )
 
-    lint_results, execution_times = run_lint_go(
+    lint_result, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
         flavor=flavor,
@@ -209,7 +209,7 @@ def go(
                 print(f'- {e.name}: {e.duration:.1f}s')
 
     with gitlab_section('Linter failures'):
-        success = process_module_results(flavor=flavor, module_results=lint_results)
+        success = process_result(flavor=flavor, result=lint_result)
 
     if success:
         if not headless_mode:
@@ -243,7 +243,7 @@ def run_lint_go(
         include_sds=include_sds,
     )
 
-    lint_results, execution_times = lint_flavor(
+    lint_result, execution_times = lint_flavor(
         ctx,
         modules=modules,
         flavor=flavor,
@@ -256,7 +256,7 @@ def run_lint_go(
         verbose=verbose,
     )
 
-    return lint_results, execution_times
+    return lint_result, execution_times
 
 
 def lint_flavor(
@@ -273,34 +273,38 @@ def lint_flavor(
 ):
     """Runs linters for given flavor, build tags, and modules."""
 
-    execution_times = []
+    # Compute full list of targets to run linters against
+    targets = []
+    for module in modules:
+        # FIXME: Linters also use the `should_test()` condition. Is this expected?
+        if not module.should_test():
+            continue
+        for target in module.lint_targets:
+            target_path = os.path.join(module.path, target)
+            if not target_path.startswith('./'):
+                target_path = f"./{target_path}"
+            targets.append(target_path)
 
-    def command(module_results, module: GoModule, module_result):
-        nonlocal execution_times
+    result = LintResult('.')
 
-        with ctx.cd(module.full_path()):
-            lint_results, time_results = run_golangci_lint(
-                ctx,
-                module_path=module.path,
-                targets=module.lint_targets,
-                rtloader_root=rtloader_root,
-                build_tags=build_tags,
-                concurrency=concurrency,
-                timeout=timeout,
-                golangci_lint_kwargs=golangci_lint_kwargs,
-                headless_mode=headless_mode,
-                verbose=verbose,
-            )
-            execution_times.extend(time_results)
-            for lint_result in lint_results:
-                module_result.lint_outputs.append(lint_result)
-                if lint_result.exited != 0:
-                    module_result.failed = True
-        module_results.append(module_result)
+    lint_results, execution_times = run_golangci_lint(
+        ctx,
+        base_path=result.path,
+        targets=targets,
+        rtloader_root=rtloader_root,
+        build_tags=build_tags,
+        concurrency=concurrency,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+        verbose=verbose,
+    )
+    for lint_result in lint_results:
+        result.lint_outputs.append(lint_result)
+        if lint_result.exited != 0:
+            result.failed = True
 
-    return test_core(
-        modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode
-    ), execution_times
+    return result, execution_times
 
 
 @task

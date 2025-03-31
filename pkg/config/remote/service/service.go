@@ -17,29 +17,28 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
+	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"go.etcd.io/bbolt"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -169,7 +168,8 @@ type CoreAgentService struct {
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
 
-	lastUpdateErr error
+	lastUpdateTimestamp time.Time
+	lastUpdateErr       error
 
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
@@ -662,6 +662,16 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 
 func (s *CoreAgentService) refresh() error {
 	s.Lock()
+
+	// We can't let the backend process an update twice in the same second due to the fact that we
+	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
+	// the update will appear to TUF as being identical to the previous update and it will be dropped.
+	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
+	if timeSinceUpdate < time.Second {
+		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
+		time.Sleep(time.Second - timeSinceUpdate)
+	}
+
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -731,6 +741,8 @@ func (s *CoreAgentService) refresh() error {
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
+
+	s.lastUpdateTimestamp = time.Now()
 
 	s.firstUpdate = false
 	for product := range s.newProducts {
@@ -1005,9 +1017,7 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 		response.DirectorState[metaName] = &pbgo.FileMetaState{Version: metaState.Version, Hash: metaState.Hash}
 	}
 
-	for targetName, targetHash := range state.TargetFilenames {
-		response.TargetFilenames[targetName] = targetHash
-	}
+	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
 	return response, nil
 }

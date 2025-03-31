@@ -148,6 +148,9 @@ func setConfigTags(s *common.Setup) {
 			s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
 		}
 	}
+	if tags, ok := os.LookupEnv("DD_EXTRA_TAGS"); ok {
+		s.Config.DatadogYAML.ExtraTags = strings.Split(tags, ",")
+	}
 }
 
 // installAgentPackage installs the agent package
@@ -222,7 +225,7 @@ func exitOnUnsupportedEnvVars(envVars ...string) error {
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	for _, envVar := range envVars {
-		s.Span.SetTag(fmt.Sprintf("env.%s", envVar), os.Getenv(envVar))
+		s.Span.SetTag(fmt.Sprintf("env_var.%s", envVar), os.Getenv(envVar))
 	}
 }
 
