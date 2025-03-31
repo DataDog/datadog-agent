@@ -40,6 +40,12 @@ func writeConfigs(config Config, configDir string) error {
 			return fmt.Errorf("could not write system-probe.yaml: %w", err)
 		}
 	}
+	if config.ApplicationMonitoringYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
+		if err != nil {
+			return fmt.Errorf("could not write system-probe.yaml: %w", err)
+		}
+	}
 	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
 	if err != nil {
 		return fmt.Errorf("could not write tracer.yaml: %w", err)
@@ -113,6 +119,8 @@ type Config struct {
 	InjectTracerYAML InjectTracerConfig
 	// IntegrationConfigs is the content of the integration configuration files under conf.d/
 	IntegrationConfigs map[string]IntegrationConfig
+	// ApplicationMonitoringYAML is the content of the application_monitoring.yaml configuration file
+	ApplicationMonitoringYAML *ApplicationMonitoringConfig
 }
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
@@ -232,6 +240,21 @@ type LogProcessingRule struct {
 	Type    string `yaml:"type"`
 	Name    string `yaml:"name"`
 	Pattern string `yaml:"pattern"`
+}
+
+// ApplicationMonitoringConfig represents the configuration for the application monitoring
+type ApplicationMonitoringConfig struct {
+	APMConfigurationDefault APMConfigurationDefault `yaml:"apm_configuration_default,omitempty"`
+}
+
+// APMConfigurationDefault represents a host-wide configuration for services
+type APMConfigurationDefault struct {
+	TraceDebug                    bool   `yaml:"DD_TRACE_DEBUG,omitempty"`
+	IntegrationsEnabled           bool   `yaml:"DD_INTEGRATIONS_ENABLED,omitempty"`
+	DataJobsEnabled               bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
+	DataJobsCommandPattern        string `yaml:"DD_DATA_JOBS_COMMAND_PATTERN,omitempty"`
+	DataJobsSparkAppNameAsService bool   `yaml:"DD_SPARK_APP_NAME_AS_SERVICE,omitempty"`
+	DataStreamsEnabled            bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
 }
 
 // mergeConfig merges the current config with the setup config.

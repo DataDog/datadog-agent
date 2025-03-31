@@ -20,34 +20,18 @@ import (
 
 const (
 	emrInjectorVersion   = "0.35.0-1"
-	emrJavaTracerVersion = "1.46.1-1"
+	emrJavaTracerVersion = "1.47.0-1"
 	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
-	emrInfoPath        = "/mnt/var/lib/info"
-	tracerEnvConfigEmr = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
-		{
-			Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
-			Value: ".*org.apache.spark.deploy.*",
-		},
-		{
-			Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INJECT_FORCE",
-			Value: "true",
-		},
+	emrInfoPath     = "/mnt/var/lib/info"
+	tracerConfigEmr = common.APMConfigurationDefault{
+		DataJobsEnabled:               true,
+		IntegrationsEnabled:           false,
+		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
+		DataJobsSparkAppNameAsService: true,
 	}
 )
 
@@ -88,21 +72,22 @@ func SetupEmr(s *common.Setup) error {
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
-		DSMEnabled := common.InjectTracerConfigEnvVar{
-			Key:   "DD_DATA_STREAMS_ENABLED",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigEmr, DSMEnabled)
+		tracerConfigEmr.DataStreamsEnabled = true
 	}
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigEmr, debugLogs)
+		tracerConfigEmr.TraceDebug = true
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
+	s.Config.ApplicationMonitoringYAML = &common.ApplicationMonitoringConfig{
+		APMConfigurationDefault: tracerConfigEmr,
+	}
+	// Force injection (is it needed here?)
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = []common.InjectTracerConfigEnvVar{
+		{
+			Key:   "DD_INJECT_FORCE",
+			Value: "true",
+		},
+	}
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)

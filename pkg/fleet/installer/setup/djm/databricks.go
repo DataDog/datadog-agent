@@ -18,7 +18,7 @@ import (
 
 const (
 	databricksInjectorVersion   = "0.35.0-1"
-	databricksJavaTracerVersion = "1.46.1-1"
+	databricksJavaTracerVersion = "1.47.0-1"
 	databricksAgentVersion      = "7.63.3-1"
 )
 
@@ -71,15 +71,9 @@ var (
 			AutoMultiLineDetection: true,
 		},
 	}
-	tracerEnvConfigDatabricks = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
+	tracerConfigDatabricks = common.APMConfigurationDefault{
+		DataJobsEnabled:     true,
+		IntegrationsEnabled: false,
 	}
 )
 
@@ -102,13 +96,11 @@ func SetupDatabricks(s *common.Setup) error {
 
 	if os.Getenv("DD_TRACE_DEBUG") == "true" {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
-		debugLogs := common.InjectTracerConfigEnvVar{
-			Key:   "DD_TRACE_DEBUG",
-			Value: "true",
-		}
-		tracerEnvConfigEmr = append(tracerEnvConfigDatabricks, debugLogs)
+		tracerConfigDatabricks.TraceDebug = true
 	}
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
+	s.Config.ApplicationMonitoringYAML = &common.ApplicationMonitoringConfig{
+		APMConfigurationDefault: tracerConfigDatabricks,
+	}
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
