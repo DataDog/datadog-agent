@@ -66,4 +66,3 @@ static_quality_gates:
     paths:
       - /tmp/extract_rpm_package_report
     expire_in: 1 week
-    untracked: true
