@@ -38,4 +38,4 @@ jobs:
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dda inv release.bump-integrations-core
+          dda inv -- release.bump-integrations-core

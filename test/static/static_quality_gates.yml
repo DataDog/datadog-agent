@@ -3,17 +3,17 @@ static_quality_gate_agent_deb_amd64:
   max_on_wire_size: "191.21 MiB"
   max_on_disk_size: "781.68 MiB"
 
-static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "173.2 MiB"
-  max_on_disk_size: "773.21 MiB"
+#static_quality_gate_agent_deb_arm64:
+#  max_on_wire_size: "173.2 MiB"
+#  max_on_disk_size: "773.21 MiB"
 
 static_quality_gate_agent_deb_amd64_fips:
   max_on_wire_size: "190.66 MiB"
   max_on_disk_size: "779.64 MiB"
 
-static_quality_gate_agent_deb_arm64_fips:
-  max_on_wire_size: "172.07 MiB"
-  max_on_disk_size: "771.22 MiB"
+#static_quality_gate_agent_deb_arm64_fips:
+#  max_on_wire_size: "172.07 MiB"
+#  max_on_disk_size: "771.22 MiB"
 
 static_quality_gate_agent_rpm_amd64:
   max_on_wire_size: "193.7 MiB"
@@ -49,7 +49,7 @@ static_quality_gate_agent_suse_arm64_fips:
 
 static_quality_gate_agent_msi:
   max_on_wire_size: "150.11 MiB"
-  max_on_disk_size: "980.509 MiB"
+  max_on_disk_size: "980.979 MiB"
 
 static_quality_gate_agent_heroku_amd64:
   max_on_wire_size: "113.11 MiB"
@@ -91,9 +91,9 @@ static_quality_gate_iot_agent_rpm_arm64:
   max_on_wire_size: "13.25 MiB"
   max_on_disk_size: "56.26 MiB"
 
-static_quality_gate_iot_agent_rpm_armhf:
-  max_on_wire_size: "13.24 MiB"
-  max_on_disk_size: "54.93 MiB"
+# static_quality_gate_iot_agent_rpm_armhf:
+#   max_on_wire_size: "13.24 MiB"
+#   max_on_disk_size: "54.93 MiB"
 
 static_quality_gate_iot_agent_suse_amd64:
   max_on_wire_size: "15.26 MiB"

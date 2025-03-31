@@ -36,7 +36,7 @@
 /Makefile.trace                         @DataDog/agent-delivery
 
 /mkdocs.yml                             @DataDog/agent-devx-infra
-/release.json                           @DataDog/agent-delivery @DataDog/agent-metric-pipelines @DataDog/windows-kernel-integrations @DataDog/agent-security
+/release.json                           @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /repository.datadog.yml                 @DataDog/agent-devx-infra
@@ -215,6 +215,7 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
+/cmd/agent/dist/conf.d/service_discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
 /cmd/agent/installer.go                 @DataDog/fleet
@@ -652,6 +653,7 @@
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/health  @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/hostname  @DataDog/agent-runtimes
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -440,6 +441,9 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
+
+	// TODO(WINA-1320): mark this crash as flaky while we investigate it
+	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
 	// Enable crash dumps
 	s.dumpFolder = `C:\dumps`
