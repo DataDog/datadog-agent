@@ -18,5 +18,5 @@ do-not-merge:
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
           fi
-      - dda inv -e release.check-omnibus-branches --no-worktree || exit 1
+      - dda inv -- -e release.check-omnibus-branches --no-worktree || exit 1
       - exit 0

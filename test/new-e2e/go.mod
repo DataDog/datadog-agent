@@ -23,9 +23,9 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250324140039-7e990ed5ab1a
+	github.com/DataDog/test-infra-definitions v0.0.0-20250327180219-3c97dfa49aca
 	github.com/aws/aws-sdk-go-v2 v1.36.3
-	github.com/aws/aws-sdk-go-v2/config v1.29.9
+	github.com/aws/aws-sdk-go-v2/config v1.29.11
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.210.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.57.2
@@ -80,7 +80,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.38.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.42.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.6.2 // indirect
@@ -111,8 +111,8 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.6.1 // indirect
-	github.com/go-git/go-git/v5 v5.13.0 // indirect
+	github.com/go-git/go-billy/v5 v5.6.2 // indirect
+	github.com/go-git/go-git/v5 v5.13.2 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -239,8 +239,8 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/metrics v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.64.0
+	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
 	github.com/DataDog/datadog-go/v5 v5.6.0
@@ -262,7 +262,7 @@ require (
 	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/creack/pty v1.1.21 // indirect
+	github.com/creack/pty v1.1.23 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
@@ -332,6 +332,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../comp/otelcol/otlp/components/exporter/serializerexporter

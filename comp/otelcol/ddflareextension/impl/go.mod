@@ -7,14 +7,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector v0.65.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/pkg/api v0.63.0
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
 	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/mux v1.8.1
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.121.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.121.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.121.0
@@ -527,6 +527,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../comp/otelcol/otlp/components/exporter/serializerexporter

@@ -49,7 +49,7 @@ jobs:
           DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
-          dda inv -e release.check-previous-agent6-rc
+          dda inv -- -e release.check-previous-agent6-rc
 
       - name: Determine the release active branches
         id: branches
@@ -57,7 +57,7 @@ jobs:
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
             echo "value=[\"6.53.x\"]" >> $GITHUB_OUTPUT
           else
-            echo "value=$(dda inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
+            echo "value=$(dda inv -- release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
           fi
 
       - name: Set the warning option
@@ -106,9 +106,9 @@ jobs:
           WARNING: ${{ needs.find_release_branches.outputs.warning }}
         run: |
           if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
-            echo "CHANGES=$(dda inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
           else
-            echo "CHANGES=$(dda inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+            echo "CHANGES=$(dda inv -- -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
           fi
 
       - name: Check if agent 6 is in qualification phase
@@ -116,10 +116,10 @@ jobs:
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
-          is_qualification=$(dda inv -e release.is-qualification -r 6.53.x --output)
+          is_qualification=$(dda inv -- -e release.is-qualification -r 6.53.x --output)
           echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
           if [[ "$is_qualification" == "true" && "${{ steps.check_for_changes.outputs.CHANGES }}" == "false" ]]; then
-            dda inv -e release.alert-ci-on-call -r 6.53.x
+            dda inv -- -e release.alert-ci-on-call -r 6.53.x
           fi
 
       - name: Create RC PR
@@ -129,7 +129,7 @@ jobs:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
-            dda inv -e release.create-rc -r "$MATRIX" --patch-version
+            dda inv -- -e release.create-rc -r "$MATRIX" --patch-version
           else
-            dda inv -e release.create-rc -r "$MATRIX"
+            dda inv -- -e release.create-rc -r "$MATRIX"
           fi
