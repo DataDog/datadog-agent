@@ -256,7 +256,6 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 	cfg := configmock.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
 	assert.NoError(t, taggerErr)
-	localTagger := tagger.(*localTagger)
 
 	for _, tt := range []struct {
 		name         string
@@ -317,7 +316,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			containerID, err := localTagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
+			containerID, err := tagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, containerID)
 		})
@@ -338,7 +337,6 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 	cfg := configmock.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
 	assert.NoError(t, taggerErr)
-	localTagger := tagger.(*localTagger)
 
 	// Create mock metrics provider
 	mockProvider := collectormock.NewMetricsProvider()
@@ -370,7 +368,7 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			containerID, err := localTagger.generateContainerIDFromInode(tt.localData, mockProvider.GetMetaCollector())
+			containerID, err := tagger.generateContainerIDFromInode(tt.localData, mockProvider.GetMetaCollector())
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, containerID)
 		})
@@ -412,7 +410,7 @@ func TestDefaultCardinality(t *testing.T) {
 			tagger, err := newLocalTagger(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent(), nil)
 			assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantChecksCardinality, tagger.ChecksCardinality())
+			assert.Equal(t, tt.wantChecksCardinality, tagger.datadogConfig.checksCardinality)
 		})
 	}
 }

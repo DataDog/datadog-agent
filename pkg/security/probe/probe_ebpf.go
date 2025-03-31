@@ -748,8 +748,15 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 var dnsLayer = new(layers.DNS)
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	if !p.config.Probe.DNSResolutionEnabled {
+		return
+	}
+
 	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
-		seclog.Errorf("failed to decode DNS response: %s", err)
+		// this is currently pretty common, so only trace log it for now
+		if seclog.DefaultLogger.IsTracing() {
+			seclog.Errorf("failed to decode DNS response: %s", err)
+		}
 		return
 	}
 
@@ -2137,10 +2144,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "vfs_mkdir_dentry_position",
 			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_link_target_dentry_position",
-			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",

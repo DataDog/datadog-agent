@@ -52,4 +52,23 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     return evt;
 }
 
+__attribute__((always_inline)) struct dns_response_event_t *get_dns_response_event() {
+    const u32 key = DNS_EVENT_KEY;
+    return bpf_map_lookup_elem(&dns_response_event, &key);
+}
+
+__attribute__((always_inline)) struct dns_response_event_t *reset_dns_response_event() {
+    struct dns_response_event_t *evt = get_dns_response_event();
+
+    if (evt == NULL) {
+        // should never happen
+        return NULL;
+    }
+
+    __builtin_memset(evt, 0, sizeof(*evt));
+
+    return evt;
+}
+
+
 #endif

@@ -13,17 +13,16 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -336,13 +335,7 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	defer c.m.Unlock()
 
 	// Make sure the product belongs to the list of requested product
-	knownProduct := false
-	for _, p := range c.products {
-		if p == product {
-			knownProduct = true
-			break
-		}
-	}
+	knownProduct := slices.Contains(c.products, product)
 	if !knownProduct {
 		c.products = append(c.products, product)
 	}
@@ -515,13 +508,7 @@ func (c *Client) update() error {
 }
 
 func containsProduct(products []string, product string) bool {
-	for _, p := range products {
-		if product == p {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(products, product)
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {

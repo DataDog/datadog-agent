@@ -41,6 +41,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
+	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -68,7 +69,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -253,7 +253,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 
 		lis, err := net.Listen("tcp", serverHost)
 		require.NoError(t, err)
-		srv := grpc2.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux)
+		srv := grpchelpers.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux, time.Duration(0)*time.Second)
 		srv.Addr = lis.Addr().String()
 
 		go srv.Serve(lis)
@@ -857,7 +857,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -879,7 +879,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -905,7 +905,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -936,7 +936,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -1048,13 +1048,13 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				produceClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)
 				fetchClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)

@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"runtime"
@@ -199,7 +200,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -720,13 +721,37 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 
 	ctx := context.Background()
-	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second, config)
+
+	client := http.Client{
+		Transport: httputils.CreateHTTPTransport(config),
+		Timeout:   10 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return err
 	}
 
+	for header, value := range headers {
+		req.Header.Add(header, value)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	resBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != 200 {
+		return fmt.Errorf("failed to download policies: %s (error code %d)", string(resBytes), res.StatusCode)
+	}
+	defer res.Body.Close()
+
 	// Unzip the downloaded file containing both default and custom policies
-	resBytes := []byte(res)
 	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
 	if err != nil {
 		return err

@@ -33,6 +33,7 @@
 
 trigger_auto_staging_release:
   extends: .agent_release_management_trigger
+  timeout: 2h 30
   variables:
     AUTO_RELEASE: "true"
     TARGET_REPO: staging
@@ -43,6 +44,7 @@ trigger_auto_staging_release:
 
 trigger_auto_staging_release_on_failure:
   extends: .agent_release_management_trigger
+  timeout: 2h 30
   variables:
     AUTO_RELEASE: "false"
     TARGET_REPO: staging
@@ -105,7 +107,7 @@ generate_windows_gitlab_runner_bump_pr:
     - python3 -m dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - dda inv -e github.update-windows-runner-version
+    - dda inv -- -e github.update-windows-runner-version
 
 # Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
@@ -125,4 +127,4 @@ generate_windows_gitlab_runner_bump_pr_manual:
     - python3 -m dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - dda inv -e github.update-windows-runner-version
+    - dda inv -- -e github.update-windows-runner-version

@@ -5,6 +5,8 @@
 
 package model
 
+import "maps"
+
 var (
 	overrideVars  = make(map[string]interface{})
 	overrideFuncs = make([]func(Config), 0)
@@ -31,9 +33,7 @@ func AddOverride(name string, value interface{}) {
 // overriding config variables.
 // This method must be called before Load() to be effective.
 func AddOverrides(vars map[string]interface{}) {
-	for k, v := range vars {
-		overrideVars[k] = v
-	}
+	maps.Copy(overrideVars, vars)
 }
 
 // ApplyOverrideFuncs calls overrideFuncs

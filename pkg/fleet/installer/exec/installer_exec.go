@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -44,30 +45,28 @@ type installerCmd struct {
 	ctx  context.Context
 }
 
-func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
 	env := i.env.ToEnv()
 	// Enforce the use of the installer when it is bundled with the agent.
 	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
+	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	if runtime.GOOS != "windows" {
-		// os.Interrupt is not support on Windows
-		// It gives " run failed: exec: canceling Cmd: not supported by windows"
-		cmd.Cancel = func() error {
-			return cmd.Process.Signal(os.Interrupt)
-		}
-	}
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
 		span: span,
 		ctx:  ctx,
 	}
+}
+
+func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	return i.newInstallerCmdCustomPath(ctx, command, i.installerBinPath, args...)
 }
 
 // Install installs a package.
@@ -78,6 +77,13 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string) 
 	}
 	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// SetupInstaller runs the setup command.
+func (i *InstallerExec) SetupInstaller(ctx context.Context, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup-installer", path)
+	defer func() { cmd.span.Finish(nil) }()
 	return cmd.Run()
 }
 
@@ -113,7 +119,28 @@ func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err 
 
 // RemoveExperiment removes an experiment.
 func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	var cmd *installerCmd
+	// on windows we need to make a copy of installer binary so that it isn't in use
+	// while the MSI tries to remove it
+	if runtime.GOOS == "windows" && pkg == "datadog-agent" {
+		repositories := repository.NewRepositories(paths.PackagesPath, nil)
+		tmpDir, err := repositories.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("error creating temp dir: %w", err)
+		}
+		// this might not get run as this processes will be killed during the stop
+		defer os.RemoveAll(tmpDir)
+
+		// copy our installerPath to temp location
+		installerPath := filepath.Join(tmpDir, "datadog-installer.exe")
+		err = paths.CopyFile(i.installerBinPath, installerPath)
+		if err != nil {
+			return fmt.Errorf("error copying installer binary: %w", err)
+		}
+		cmd = i.newInstallerCmdCustomPath(ctx, "remove-experiment", installerPath, pkg)
+	} else {
+		cmd = i.newInstallerCmd(ctx, "remove-experiment", pkg)
+	}
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

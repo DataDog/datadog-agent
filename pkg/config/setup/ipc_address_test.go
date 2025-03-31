@@ -6,13 +6,11 @@
 package setup
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 const (
@@ -71,7 +69,7 @@ func TestGetIPCAddress(t *testing.T) {
 }
 
 func getConfig() model.Config {
-	cfg := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := newConfigChooseImpl("test")
 	cfg.BindEnv("ipc_address")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
 	return cfg
