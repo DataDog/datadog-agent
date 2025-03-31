@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 

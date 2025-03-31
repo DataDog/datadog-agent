@@ -35,7 +35,7 @@ import (
 
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

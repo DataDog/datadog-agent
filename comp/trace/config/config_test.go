@@ -31,7 +31,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

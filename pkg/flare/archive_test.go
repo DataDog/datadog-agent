@@ -22,8 +22,8 @@ import (
 
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"

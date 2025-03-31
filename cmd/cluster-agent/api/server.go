@@ -32,8 +32,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings"

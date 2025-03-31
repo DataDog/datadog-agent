@@ -15,8 +15,8 @@ package core
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

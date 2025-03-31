@@ -21,8 +21,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"

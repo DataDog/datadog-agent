@@ -20,7 +20,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"

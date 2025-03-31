@@ -22,8 +22,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

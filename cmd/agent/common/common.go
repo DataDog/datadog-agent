@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"

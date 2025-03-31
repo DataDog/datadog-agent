@@ -16,8 +16,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )

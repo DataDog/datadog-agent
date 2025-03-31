@@ -15,8 +15,8 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 

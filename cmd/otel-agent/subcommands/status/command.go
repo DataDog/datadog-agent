@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/authtokenimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"

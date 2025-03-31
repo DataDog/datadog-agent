@@ -10,7 +10,7 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 )
 
 type authToken struct {

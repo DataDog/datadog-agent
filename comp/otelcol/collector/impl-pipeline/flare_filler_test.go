@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

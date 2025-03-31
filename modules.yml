@@ -14,7 +14,7 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
-  comp/api/authtoken:
+  comp/core/authtoken:
     used_by_otel: true
   comp/core/config:
     used_by_otel: true

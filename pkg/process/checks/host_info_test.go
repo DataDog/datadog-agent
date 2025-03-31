@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

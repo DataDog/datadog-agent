@@ -86,7 +86,7 @@ components_classic_style = [
     'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
     'comp/api/api/apiimpl',
     'comp/api/api/def',
-    'comp/api/authtoken/authtokenimpl',
+    'comp/core/authtoken/authtokenimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     'comp/checks/windowseventlog/windowseventlogimpl',
     "comp/checks/winregistry/impl",

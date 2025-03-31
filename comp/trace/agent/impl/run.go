@@ -13,7 +13,7 @@ import (
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

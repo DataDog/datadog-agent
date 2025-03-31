@@ -30,7 +30,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/authtoken v0.64.0
 	go.opentelemetry.io/collector/confmap/xconfmap v0.121.0
 )
 
@@ -167,7 +167,7 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../../../comp/api/authtoken
+	github.com/DataDog/datadog-agent/comp/core/authtoken => ../../../../../../comp/core/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder

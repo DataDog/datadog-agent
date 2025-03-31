@@ -21,7 +21,7 @@ import (
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"

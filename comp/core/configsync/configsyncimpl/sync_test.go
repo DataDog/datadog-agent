@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

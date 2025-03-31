@@ -13,8 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"

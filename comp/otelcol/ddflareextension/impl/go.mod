@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0
+	github.com/DataDog/datadog-agent/comp/core/authtoken v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.0.0-00010101000000-000000000000
@@ -473,7 +473,7 @@ replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../comp/api/authtoken
+	github.com/DataDog/datadog-agent/comp/core/authtoken => ../../../../comp/core/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder

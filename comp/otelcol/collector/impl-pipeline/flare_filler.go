@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

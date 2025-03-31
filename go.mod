@@ -428,7 +428,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0
+	github.com/DataDog/datadog-agent/comp/core/authtoken v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
@@ -979,7 +979,7 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ./comp/api/authtoken
+	github.com/DataDog/datadog-agent/comp/core/authtoken => ./comp/core/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder

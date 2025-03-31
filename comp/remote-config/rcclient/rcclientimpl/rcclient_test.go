@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

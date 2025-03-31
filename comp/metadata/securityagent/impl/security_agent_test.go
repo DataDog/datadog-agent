@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"

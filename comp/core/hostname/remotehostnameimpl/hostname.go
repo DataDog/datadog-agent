@@ -22,7 +22,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 )
 

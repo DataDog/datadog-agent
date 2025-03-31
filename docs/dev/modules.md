@@ -75,7 +75,7 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
-  comp/api/authtoken: default
+  comp/core/authtoken: default
   test/integration/serverless/src: ignored
   tools/retry_file_dump:
     should_test_condition: never
