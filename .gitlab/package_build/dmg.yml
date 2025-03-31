@@ -154,16 +154,6 @@ new-agent_dmg-x64-a7:
     # - ls /usr/local/opt/gettext || true
 
     - |
-      # This sets the permission to send apple events to the Finder (required when using osascript)
-      BINARY="/usr/local/bin/gitlab-runner"
-      # Encoded: `identifier "com.apple.finder" and anchor apple`
-      CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
-      sudo sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-      sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-      sudo reboot
-
-
-    - |
       osascript -e '
         tell application "Finder"
           tell disk "Macintosh HD"
