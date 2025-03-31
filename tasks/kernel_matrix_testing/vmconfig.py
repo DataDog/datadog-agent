@@ -207,14 +207,6 @@ def get_local_image_list(distro: bool, custom: bool) -> list[list[str]]:
         "Up to Date",
     ]
 
-    custom_kernels: list[list[str]] = []
-    for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
-        if lte_414(k):
-            custom_kernels.append([f"custom-{k}", "debian", "Debian", "Custom", k, "x86_64", "", "N/A", "N/A"])
-        else:
-            custom_kernels.append([f"custom-{k}", "debian", "Debian", "Custom", k, "x86_64", "", "N/A", "N/A"])
-            custom_kernels.append([f"custom-{k}", "debian", "Debian", "Custom", k, "arm64", "", "N/A", "N/A"])
-
     local_distro_kernels: list[list[str]] = []
     platforms = get_platforms()
 
@@ -225,51 +217,52 @@ def get_local_image_list(distro: bool, custom: bool) -> list[list[str]]:
                 continue  # Old format
 
             # Check if image is available locally
-            if "image" in platinfo and "image_version" in platinfo:
-                kernel_path = f"{platinfo['image_version']}/{platinfo['image']}"
-                kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
-                local_path = os.path.join(get_kmt_os().rootfs_dir, kernel_name)
-                if os.path.exists(local_path):
-                    # Create a new entry for this architecture
-                    local_entry = [
-                        name,
-                        platinfo.get("os_id"),
-                        platinfo.get("os_name"),
-                        platinfo.get("os_version"),
-                        platinfo.get("kernel"),
-                        arch,
-                        ", ".join(platinfo.get("alt_version_names", [])),
-                        "N/A",  # Last Update column
-                        "N/A",  # Up to Date column
-                    ]
+            if "image" not in platinfo or "image_version" not in platinfo:
+                continue
 
-                    # Get last update time from manifest file
-                    manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
-                    manifest_path = os.path.join(get_kmt_os().rootfs_dir, manifest_file)
-                    local_entry[7] = get_image_age(manifest_path)
+            kernel_path = f"{platinfo['image_version']}/{platinfo['image']}"
+            kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
+            local_path = os.path.join(get_kmt_os().rootfs_dir, kernel_name)
+            if not os.path.exists(local_path):
+                continue
 
-                    # Check if image is up to date using hash comparison
-                    try:
-                        local_entry[8] = is_image_up_to_date_hash(
-                            platforms["url_base"],
-                            get_kmt_os().rootfs_dir,
-                            platinfo["image"],
-                            platinfo.get('image_version', 'master'),
-                        )
-                    except Exception:
-                        local_entry[8] = "?"
+            # Create a new entry for this architecture
+            local_entry = [
+                name,
+                platinfo.get("os_id"),
+                platinfo.get("os_name"),
+                platinfo.get("os_version"),
+                platinfo.get("kernel"),
+                arch,
+                ", ".join(platinfo.get("alt_version_names", [])),
+                "N/A",  # Last Update column
+                "N/A",  # Up to Date column
+            ]
 
-                    local_distro_kernels.append(local_entry)
+            # Get last update time from manifest file
+            manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+            manifest_path = os.path.join(get_kmt_os().rootfs_dir, manifest_file)
+            local_entry[7] = get_image_age(manifest_path)
+
+            # Check if image is up to date using hash comparison
+            try:
+                local_entry[8] = is_image_up_to_date_hash(
+                    platforms["url_base"],
+                    get_kmt_os().rootfs_dir,
+                    platinfo["image"],
+                    platinfo.get('image_version', 'master'),
+                )
+            except Exception:
+                local_entry[8] = "?"
+
+            local_distro_kernels.append(local_entry)
 
     # Sort by name and architecture
     local_distro_kernels.sort(key=lambda x: (x[0], x[5]))
-    local_custom_kernels = [row for row in custom_kernels if row[5] in ["x86_64", "arm64"]]
 
     table = [headers]
     if distro:
         table += local_distro_kernels
-    if custom:
-        table += local_custom_kernels
 
     return table
 
