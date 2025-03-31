@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	metricapi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/sdk/metric"
-	metricapi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 )
@@ -236,7 +236,7 @@ type nilMeterProvider struct {
 	embedded.MeterProvider
 }
 
-func (*nilMeterProvider) Meter(name string, opts ...metricapi.MeterOption) metricapi.Meter {
+func (*nilMeterProvider) Meter(_ string, _ ...metricapi.MeterOption) metricapi.Meter {
 	return nil
 }
 
