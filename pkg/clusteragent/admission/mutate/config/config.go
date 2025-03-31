@@ -43,6 +43,7 @@ const (
 	hostIP  = "hostip"
 	socket  = "socket"
 	service = "service"
+	csi     = "csi"
 
 	// DatadogVolumeName is the name of the volume used to mount the sockets when the volume source is a directory
 	DatadogVolumeName = "datadog"
