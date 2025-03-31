@@ -451,6 +451,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            continue
+
         best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
@@ -469,12 +472,6 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:
-            continue
-
-        # If we modify the go.mod or go.sum we run the tests for the whole module
-        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
-            go_mod_modified_modules.add(best_module_path)
             continue
 
         # If the package has been deleted we do not try to run tests

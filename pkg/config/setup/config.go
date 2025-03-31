@@ -251,9 +251,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func init() {
-	osinit()
-
+func newConfigChooseImpl(name string) pkgconfigmodel.Config {
 	// Configure Datadog global configuration
 	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
 	// Possible values for DD_CONF_NODETREEMODEL:
@@ -262,21 +260,24 @@ func init() {
 	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
 	//                nodetreemodel internals
 	// - other:       Use viper for the config
+	var cfg pkgconfigmodel.Config
 	if envvar == "enable" {
-		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
-		systemProbe = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		cfg = nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
-		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
-
-		viperConfig = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeConfig = nodetreemodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		systemProbe = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+		viperImpl := viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
+		nodetreeImpl := nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		cfg = teeconfig.NewTeeConfig(viperImpl, nodetreeImpl)
 	} else {
-		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))          // nolint: forbidigo // legit use case
-		systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		cfg = viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
+	return cfg
+}
+
+func init() {
+	osinit()
+
+	datadog = newConfigChooseImpl("datadog")
+	systemProbe = newConfigChooseImpl("system-probe")
 
 	// Configuration defaults
 	initConfig()
