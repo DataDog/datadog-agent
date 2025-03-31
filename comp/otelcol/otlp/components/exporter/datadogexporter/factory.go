@@ -37,7 +37,7 @@ import (
 )
 
 type factory struct {
-	setupErr          error
+	setupErr               error
 	onceSetupTraceAgentCmp sync.Once
 
 	registry       *featuregate.Registry
