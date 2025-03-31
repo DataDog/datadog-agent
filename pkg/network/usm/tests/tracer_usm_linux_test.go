@@ -3198,7 +3198,7 @@ func (s *USMSuite) TestHTTPDirect() {
 
 		// If not found in active connections, check in HTTP stats
 		if !found && len(connections.HTTP) > 0 {
-			for key, _ := range connections.HTTP {
+			for key := range connections.HTTP {
 				// Check if this HTTP key shows communication with localhost on our server port
 				if strings.Contains(key.String(), "127.0.0.1") && strings.Contains(key.String(), fmt.Sprintf(":%d", serverPort)) {
 					t.Logf("Found direct HTTP connection in connections.HTTP: %+v", key)
