@@ -129,6 +129,14 @@ additional_endpoints:
 	// Verify initial API keys in status
 	status := v.Env().Agent.Client.Status()
 
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assert.Contains(t, status.Content, "API key ending with 12345")
+		assert.Contains(t, status.Content, `intake - API Keys ending with:
+      - 12345`)
+		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
+      - 12345`)
+	}, 1*time.Minute, 10*time.Second)
+
 	// Update secrets in the backend
 	for key, value := range updatedAPIKeys {
 		secretClient.SetSecret(key, value)
@@ -144,7 +152,6 @@ additional_endpoints:
 		// Check main API key
 		assert.Contains(t, status.Content, "API key ending with 54321")
 
-		// Check additional endpoints with specific API key counts
 		assert.Contains(t, status.Content, `intake - API Keys ending with:
       - 54321`)
 		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
