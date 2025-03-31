@@ -12,8 +12,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/prometheus/procfs"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -125,13 +123,16 @@ type enrichedKernelLaunch struct {
 	stream *StreamHandler
 }
 
+var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
+
 // getKernelData attempts to get the kernel data from the kernel cache.
 // If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
+// If fatbin parsing is disabled, it will return errFatbinParsingDisabled.
 func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 	if e.stream.sysCtx.cudaKernelCache == nil || e.stream.metadata.smVersion == noSmVersion {
-		// Fatbin parsing is disabled, so we don't need to get the kernel data. Return no error in this case
+		// Fatbin parsing is disabled, so we don't need to get the kernel data.
 		// Same is true if we haven't been able to detect the SM version for this stream
-		return nil, nil
+		return nil, errFatbinParsingDisabled
 	}
 
 	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, errKernelNotProcessedYet)) {
@@ -160,7 +161,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
-	if err != nil && !errors.Is(err, errKernelNotProcessedYet) { // Only log the error if it's not the retryable error
+	if err != nil && !errors.Is(err, errKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
 		if logLimitErrorAttach.ShouldLog() {
 			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}
@@ -241,7 +242,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 
 		kernel, err := launch.getKernelData()
 		if err != nil {
-			if logLimitErrorAttach.ShouldLog() {
+			if !errors.Is(err, errFatbinParsingDisabled) && logLimitErrorAttach.ShouldLog() {
 				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
 			}
 		} else if kernel != nil {
