@@ -6,6 +6,7 @@
 package core
 
 import (
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -23,6 +24,7 @@ type BundleParams struct {
 	SecretParams
 	SysprobeConfigParams
 	LogParams
+	AuthParams
 }
 
 // ConfigParams defines the parameters of the config component
@@ -36,3 +38,6 @@ type LogParams = log.Params
 
 // SysprobeConfigParams defines the parameters of the system-probe config component
 type SysprobeConfigParams = sysprobeconfigimpl.Params
+
+// AuthParams defines the parameters of the auth token component
+type AuthParams = authtoken.Params

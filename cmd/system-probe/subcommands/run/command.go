@@ -120,6 +120,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType: workloadmeta.Remote,
 				}),
 				authtokenimpl.Module(),
+				fx.Supply(authtoken.ForDaemon()),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
@@ -293,6 +294,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			AgentType: workloadmeta.Remote,
 		}),
 		authtokenimpl.Module(),
+		fx.Supply(authtoken.ForDaemon()),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },

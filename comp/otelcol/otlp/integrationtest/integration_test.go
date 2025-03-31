@@ -36,6 +36,7 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -91,6 +92,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		sysprobeconfig.NoneModule(),
 		authtokenimpl.Module(),
+		fx.Supply(authtoken.ForDaemon()),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

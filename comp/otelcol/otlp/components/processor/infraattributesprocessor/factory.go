@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -65,6 +66,7 @@ func (f *factory) initializeTaggerClient() error {
 		}),
 		fx.Populate(&client),
 		authtokenimpl.Module(),
+		fx.Supply(authtoken.ForDaemon()),
 	)
 	if err := app.Err(); err != nil {
 		return err

@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -49,6 +50,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
+			AuthParams:           authtoken.ForDaemon(),
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{

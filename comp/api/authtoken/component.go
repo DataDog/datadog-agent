@@ -22,6 +22,25 @@ import (
 
 // team: agent-runtimes
 
+// Params defines the parameters for this component.
+type Params struct {
+	// AllowWriteArtifacts is a boolean that determines whether the component should allow writing auth artifacts on file system
+	// or only read them.
+	AllowWriteArtifacts bool
+}
+
+func ForDaemon() Params {
+	return Params{
+		AllowWriteArtifacts: true,
+	}
+}
+
+func ForOneShot() Params {
+	return Params{
+		AllowWriteArtifacts: false,
+	}
+}
+
 // Component is the component type.
 type Component interface {
 	Get() string

@@ -41,15 +41,15 @@ var _ authtoken.Component = (*authToken)(nil)
 type dependencies struct {
 	fx.In
 
-	Conf      config.Component
-	Log       log.Component
-	LogParams log.Params
+	Conf   config.Component
+	Log    log.Component
+	Params authtoken.Params
 }
 
 func newOptionalAuthToken(deps dependencies) option.Option[authtoken.Component] {
 	var initFunc func(model.Reader) error
 
-	if deps.LogParams.IsDaemon() {
+	if deps.Params.AllowWriteArtifacts {
 		deps.Log.Infof("Load or create auth token")
 		initFunc = util.CreateAndSetAuthToken
 	} else {

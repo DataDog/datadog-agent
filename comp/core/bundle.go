@@ -15,6 +15,7 @@ package core
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/authtokenimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -47,6 +48,7 @@ func Bundle() fxutil.BundleOptions {
 		telemetryimpl.Module(),
 		hostnameimpl.Module(),
 		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
+		fx.Provide(func(params BundleParams) authtoken.Params { return params.AuthParams }),
 		authtokenimpl.Module(),
 	)
 }
