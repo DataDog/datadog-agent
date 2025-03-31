@@ -33,4 +33,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         DDA_NO_DYNAMIC_DEPS: "1"
       run: |
-        dda inv -e issue.assign-owner -i ${{ github.event.issue.number }}
+        dda inv -- -e issue.assign-owner -i ${{ github.event.issue.number }}

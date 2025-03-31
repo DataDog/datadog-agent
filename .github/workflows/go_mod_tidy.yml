@@ -28,15 +28,15 @@ jobs:
         with:
           features: legacy-tasks
       - name: Go mod tidy
-        run: dda inv -e tidy
+        run: dda inv -- -e tidy
       - name: Update LICENSE-3rdparty.csv
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |
-          dda inv -e install-tools
-          dda inv -e generate-licenses
+          dda inv -- -e install-tools
+          dda inv -- -e generate-licenses
       - name: Update mocks
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
-        run: dda inv -e security-agent.gen-mocks # generate both security agent and process mocks
+        run: dda inv -- -e security-agent.gen-mocks # generate both security agent and process mocks
       - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: autocommit
         with:

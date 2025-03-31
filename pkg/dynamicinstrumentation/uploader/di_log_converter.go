@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -191,7 +192,7 @@ func convertSlice(capture *ditypes.Param, def *ditypes.Parameter) *ditypes.Captu
 				fieldSize = int64(capture.Fields[i].Size)
 			}
 			defs = append(defs, &ditypes.Parameter{
-				Name:      fmt.Sprintf("[%d]%s", i, fieldType),
+				Name:      strconv.Itoa(i),
 				Type:      fieldType,
 				Kind:      fieldKind,
 				TotalSize: fieldSize,
@@ -210,10 +211,16 @@ func convertSlice(capture *ditypes.Param, def *ditypes.Parameter) *ditypes.Captu
 			defs = append(defs, dst[0])
 		}
 	}
+	//FIXME: this should be optimized to avoid O(n^2) assignment for every event
+	elements := convertArgs(defs, capture.Fields)
+	elementsSlice := []ditypes.CapturedValue{}
+	for _, element := range elements {
+		elementsSlice = append(elementsSlice, *element)
+	}
 
 	sliceValue := &ditypes.CapturedValue{
-		Type:   capture.Type,
-		Fields: convertArgs(defs, capture.Fields),
+		Type:     capture.Type,
+		Elements: elementsSlice,
 	}
 	return sliceValue
 }
