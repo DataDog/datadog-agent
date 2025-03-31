@@ -68,8 +68,11 @@ def extract_deb_package(ctx, package_path, extract_dir):
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
+    log_dir = os.environ.get("CI_PROJECT_DIR", None)
+    if log_dir is None:
+        log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > /tmp/extract_rpm_package_report", warn=True)
+        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
         if out.exited == 2:
             raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
 

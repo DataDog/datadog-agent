@@ -59,11 +59,12 @@ static_quality_gates:
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv quality-gates.parse-and-trigger-gates || exit $?
-    - echo "some file" > /tmp/extract_rpm_package_report
+    - echo "some file" > extract_rpm_package_report
   retry:
     max: 2
     exit_codes: 42
   artifacts:
+    when: always
     paths:
-      - /tmp/extract_rpm_package_report
+      - extract_rpm_package_report
     expire_in: 1 week
