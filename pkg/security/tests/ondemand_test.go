@@ -153,7 +153,7 @@ func TestOnDemandMprotect(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mprotect",
-			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (VM_READ|VM_WRITE)) == (VM_READ|VM_WRITE) && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "testsuite"`,
 		},
 	}
 
