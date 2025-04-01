@@ -34,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 )
 
 const (
