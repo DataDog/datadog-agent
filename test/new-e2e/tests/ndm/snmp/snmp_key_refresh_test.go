@@ -7,7 +7,6 @@ package snmp
 
 import (
 	_ "embed"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +71,11 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	v.Require().NoError(err)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetrics(c, fakeIntake)
+		checkBasicMetric(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetadata(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
@@ -99,61 +102,75 @@ secret_backend_arguments:
 		),
 	)
 
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		lastAPIKey, err := fakeIntake.Client().GetLastAPIKey()
-		assert.NoError(c, err)
-		assert.Equal(c, lastAPIKey, apiKey1)
-	}, 1*time.Minute, 10*time.Second)
-
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetrics(c, fakeIntake)
-	}, 2*time.Minute, 10*time.Second)
-
-	secretClient.SetSecret("api_key", apiKey2)
-	v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
-
-	time.Sleep(10 * time.Second)
 	err = fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		lastAPIKey, err := fakeIntake.Client().GetLastAPIKey()
 		assert.NoError(c, err)
-		assert.Equal(c, lastAPIKey, apiKey2)
+		assert.Equal(c, lastAPIKey, apiKey1, "Last API key should be the initial API key")
 	}, 1*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetrics(c, fakeIntake)
+		checkBasicMetric(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println(fakeIntake.URL)
-	fmt.Println("=====================")
-	fmt.Println(fakeIntake.Port)
-	fmt.Println("=====================")
-	fmt.Println(fakeIntake.Host)
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println("=====================")
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetadata(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
 
-	testMetric, err := fakeIntake.Client().FilterMetrics("snmp.sysUpTimeInstance")
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println(testMetric[0])
-	fmt.Println("=====================")
-	fmt.Println(testMetric[0].GetMetadata().String())
-	fmt.Println("=====================")
-	fmt.Println(testMetric[0].Tags)
-	fmt.Println("=====================")
-	fmt.Println("=====================")
-	fmt.Println("=====================")
+	secretClient.SetSecret("api_key", apiKey2)
+	v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+
+	err = fakeIntake.Client().FlushServerAndResetAggregators()
+	v.Require().NoError(err)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		lastAPIKey, err := fakeIntake.Client().GetLastAPIKey()
+		assert.NoError(c, err)
+		assert.Equal(c, lastAPIKey, apiKey2, "Last API key should be the new API key after refresh")
+	}, 1*time.Minute, 10*time.Second)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetric(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetadata(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
 }
 
-func checkBasicMetrics(c *assert.CollectT, fakeIntake *components.FakeIntake) {
+func checkBasicMetric(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	metrics, err := fakeIntake.Client().GetMetricNames()
 	assert.NoError(c, err)
 	assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
+}
+
+func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
+	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
+	assert.NoError(c, err)
+	assert.Greater(c, len(ndmPayloads), 0)
+
+	ndmPayload := ndmPayloads[0]
+	assert.Equal(c, ndmPayload.Namespace, "default")
+	assert.Equal(c, string(ndmPayload.Integration), "snmp")
+	assert.Greater(c, len(ndmPayload.Devices), 0)
+
+	ciscoDevice := ndmPayload.Devices[0]
+	assert.Equal(c, ciscoDevice.ID, "default:127.0.0.1")
+	assert.Contains(c, ciscoDevice.IDTags, "snmp_device:127.0.0.1")
+	assert.Contains(c, ciscoDevice.IDTags, "device_namespace:default")
+	assert.Contains(c, ciscoDevice.Tags, "snmp_profile:cisco-nexus")
+	assert.Contains(c, ciscoDevice.Tags, "device_vendor:cisco")
+	assert.Contains(c, ciscoDevice.Tags, "snmp_device:127.0.0.1")
+	assert.Contains(c, ciscoDevice.Tags, "device_namespace:default")
+	assert.Equal(c, ciscoDevice.IPAddress, "127.0.0.1")
+	assert.Equal(c, int32(ciscoDevice.Status), int32(1))
+	assert.Equal(c, ciscoDevice.Name, "Nexus-eu1.companyname.managed")
+	assert.Equal(c, ciscoDevice.Description, "oxen acted but acted kept")
+	assert.Equal(c, ciscoDevice.SysObjectID, "1.3.6.1.4.1.9.12.3.1.3.1.2")
+	assert.Equal(c, ciscoDevice.Location, "but kept Jaded their but kept quaintly driving their")
+	assert.Equal(c, ciscoDevice.Profile, "cisco-nexus")
+	assert.Equal(c, ciscoDevice.Vendor, "cisco")
+	assert.Equal(c, ciscoDevice.DeviceType, "switch")
 }

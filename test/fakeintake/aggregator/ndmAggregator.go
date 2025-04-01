@@ -17,7 +17,7 @@ type NDMPayload struct {
 }
 
 func (p *NDMPayload) name() string {
-	return fmt.Sprintf("%s:%s %s", p.Namespace, p.Subnet, p.Integration)
+	return fmt.Sprintf("%s:%s integration:%s", p.Namespace, p.Subnet, p.Integration)
 }
 
 // GetTags return the tags from a payload
