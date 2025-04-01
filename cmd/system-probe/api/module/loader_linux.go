@@ -8,6 +8,8 @@
 package module
 
 import (
+	"runtime"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,6 +50,9 @@ func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
 func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
 	if isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories) {
 		ebpf.FlushBTF()
+
+		// HACK: this allows the GC to go back to regular levels after flushing the BTF
+		runtime.GC()
 	}
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
 		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
