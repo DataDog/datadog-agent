@@ -130,7 +130,7 @@ func (c *Context) AddMatchingSubExpr(valueA, valueB MatchingValue) {
 // MatchingSubExprs list of sub expression
 type MatchingSubExprs []MatchingSubExpr
 
-// GetMatchingSubExpr add an expression that matched a rule
+// GetMatchingSubExprs return the matching sub expressions
 func (c *Context) GetMatchingSubExprs() MatchingSubExprs {
 	return c.matchingSubExprs
 }

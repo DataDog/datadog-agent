@@ -482,9 +482,6 @@ type CIDRArrayEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
-
-	// track bitmask related value
-	originField Field
 }
 
 // Eval returns the result of the evaluation

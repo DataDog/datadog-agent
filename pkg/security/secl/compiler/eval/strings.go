@@ -195,8 +195,8 @@ func (g *GlobStringMatcher) Compile(pattern string, caseInsensitive bool, normal
 }
 
 // String implements the stringer interface
-func (p *GlobStringMatcher) String() string {
-	return p.glob.pattern
+func (g *GlobStringMatcher) String() string {
+	return g.glob.pattern
 }
 
 // Matches returns whether the value matches
@@ -251,8 +251,8 @@ func (s *ScalarStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 }
 
 // String implements the stringer interface
-func (p *ScalarStringMatcher) String() string {
-	return p.value
+func (s *ScalarStringMatcher) String() string {
+	return s.value
 }
 
 // Matches returns whether the value matches
