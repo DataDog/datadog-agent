@@ -277,25 +277,23 @@ func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) e
 	err := codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Errorf("Couldn't generate BPF programs: %v", err)
-		if !haveExhaustedReferenceDepthDecrementing(procInfo, probe) {
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}
 		return nil
 	}
-
 	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
 		log.Errorf("Couldn't compile BPF object: %v", err)
-		if !haveExhaustedReferenceDepthDecrementing(procInfo, probe) {
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}
 		return nil
 	}
-
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
 		log.Errorf("Couldn't load and attach bpf programs: %v", err)
-		if !haveExhaustedReferenceDepthDecrementing(procInfo, probe) {
+		if !haveExhaustedReferenceDepthDecrementing(probe) {
 			return err
 		}
 		return nil
@@ -305,21 +303,12 @@ func tryGenerateAndAttach(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) e
 
 // haveExhaustedReferenceDepthDecrementing checks if the reference depth has been exhausted
 // in the process of decrementing itand if so, marks all parameters as not captured
-func haveExhaustedReferenceDepthDecrementing(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) bool {
+func haveExhaustedReferenceDepthDecrementing(probe *ditypes.Probe) bool {
 	if !checkAndDecrementReferenceDepth(probe) {
-		markAllParametersNotCaptured(procInfo)
+		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
 		return true
 	}
 	return false
-}
-
-func markAllParametersNotCaptured(procInfo *ditypes.ProcessInfo) {
-	for _, params := range procInfo.TypeMap.Functions {
-		for _, param := range params {
-			param.DoNotCapture = true
-			param.NotCaptureReason = ditypes.FieldLimitReached
-		}
-	}
 }
 
 // checkAndDecrementReferenceDepth decrements the reference depth of the probe
