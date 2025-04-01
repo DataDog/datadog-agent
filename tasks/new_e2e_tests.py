@@ -31,6 +31,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
 
@@ -91,6 +92,7 @@ def run(
     logs_post_processing_test_depth=1,
     logs_folder="e2e_logs",
     local_package="",
+    result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -196,7 +198,7 @@ def run(
         cmd=cmd,
         env=env_vars,
         junit_tar=junit_tar,
-        save_result_json="",
+        result_json=result_json,
         test_profiler=None,
     )
 
@@ -232,7 +234,7 @@ def run(
                     if password_cmd is not None:
                         params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
 
-        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
             f"To run this test locally, use: `{command}`. "
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
@@ -240,27 +242,21 @@ def run(
         )
 
     if logs_post_processing:
-        if len(test_res) == 1:
-            post_processed_output = post_process_output(
-                test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
-            )
-            os.makedirs(logs_folder, exist_ok=True)
-            write_result_to_log_files(
-                post_processed_output,
-                logs_folder,
-                test_depth=logs_post_processing_test_depth,
-            )
+        post_processed_output = post_process_output(
+            test_res.result_json_path, test_depth=logs_post_processing_test_depth
+        )
+        os.makedirs(logs_folder, exist_ok=True)
+        write_result_to_log_files(
+            post_processed_output,
+            logs_folder,
+            test_depth=logs_post_processing_test_depth,
+        )
 
-            pretty_print_logs(
-                test_res[0].result_json_path,
-                post_processed_output,
-                test_depth=logs_post_processing_test_depth,
-            )
-        else:
-            print(
-                color_message("WARNING", "yellow")
-                + f": Logs post processing expect only test result for test/new-e2e module. Skipping because result contains test for {len(test_res)} modules."
-            )
+        pretty_print_logs(
+            test_res.result_json_path,
+            post_processed_output,
+            test_depth=logs_post_processing_test_depth,
+        )
 
     if not success:
         raise Exit(code=1)
@@ -458,11 +454,9 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     if flakes_files is None:
         flakes_files = []
 
-    result_json_name = result_json_path.split("/")[-1]
-    result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files)
-    failing_tests = washer.get_failing_tests(result_json_dir)
-    flaky_failures = washer.get_flaky_failures(result_json_dir)
+    washer = TestWasher(test_output_json_file=result_json_path, flakes_file_paths=flakes_files)
+    failing_tests = washer.get_failing_tests()
+    flaky_failures = washer.get_flaky_failures()
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]

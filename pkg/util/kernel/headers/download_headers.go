@@ -5,7 +5,7 @@
 
 //go:build linux && linux_bpf
 
-package kernel
+package headers
 
 import (
 	"fmt"
@@ -14,14 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/avast/retry-go/v4"
-
 	"github.com/DataDog/nikos/apt"
 	"github.com/DataDog/nikos/cos"
 	"github.com/DataDog/nikos/rpm"
 	"github.com/DataDog/nikos/types"
 	"github.com/DataDog/nikos/wsl"
+	"github.com/avast/retry-go/v4"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // customLogger is a wrapper around our logging utility which allows nikos to use our logging functions

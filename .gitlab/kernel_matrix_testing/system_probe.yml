@@ -30,7 +30,7 @@ upload_dependencies_sysprobe_arm64:
     - !reference [.login_to_docker_readonly_crane]
     # Pull base images
     - mkdir $KMT_DOCKERS
-    - dda inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
+    - dda inv -- -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]

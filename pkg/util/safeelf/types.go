@@ -21,6 +21,7 @@ const SHF_EXECINSTR = elf.SHF_EXECINSTR
 
 const SHT_SYMTAB = elf.SHT_SYMTAB
 const SHT_DYNSYM = elf.SHT_DYNSYM
+const SHT_NOTE = elf.SHT_NOTE
 
 const ET_EXEC = elf.ET_EXEC
 const ET_DYN = elf.ET_DYN
