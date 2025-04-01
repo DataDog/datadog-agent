@@ -10,6 +10,7 @@ package authtoken
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,7 +48,7 @@ type Component interface {
 	GetTLSClientConfig() *tls.Config
 	GetTLSServerConfig() *tls.Config
 	HTTPMiddleware(next http.Handler) http.Handler
-	GetClient(...ClientOption) SecureClient
+	GetClient(...ClientOption) IPCClient
 }
 
 // NoneModule return a None optional type for authtoken.Component.
@@ -60,14 +61,35 @@ func NoneModule() fxutil.Module {
 	}))
 }
 
-// ClientOption is a function that modifies a SecureClient
-type ClientOption func(SecureClient) SecureClient
+type optionalAuthComp struct {
+	fx.In
+	At option.Option[Component]
+}
+
+func newOptionalIPCClient(deps optionalAuthComp) option.Option[IPCClient] {
+	auth, ok := deps.At.Get()
+	if !ok {
+		return option.None[IPCClient]()
+	}
+	return option.New(auth.GetClient())
+}
+
+func newIPCClient(deps optionalAuthComp) (IPCClient, error) {
+	auth, ok := deps.At.Get()
+	if !ok {
+		return nil, fmt.Errorf("ipc client not found")
+	}
+	return auth.GetClient(), nil
+}
+
+// ClientOption is a function that modifies a IPCClient
+type ClientOption func(IPCClient) IPCClient
 
 // RequestOption is a function that modifies a request
 type RequestOption func(req *http.Request, onEnding func(func())) *http.Request
 
-// SecureClient is an interface that defines the methods for a secure client
-type SecureClient interface {
+// IPCClient is an interface that defines the methods for an IPC client
+type IPCClient interface {
 	Do(req *http.Request, opts ...RequestOption) (resp []byte, err error)
 	Get(url string, opts ...RequestOption) (resp []byte, err error)
 	Head(url string, opts ...RequestOption) (resp []byte, err error)

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package secureclient implements a secure client for the auth_token component
-package secureclient
+// Package ipcclient implements a secure client for the auth_token component
+package ipcclient
 
 import (
 	"context"
@@ -26,26 +26,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-type secureClient struct {
+type ipcClient struct {
 	http.Client
 	authToken string
 	config    pkgconfigmodel.Reader
 }
 
 // NewClient creates a new secure client
-func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader, _ ...authtoken.ClientOption) authtoken.SecureClient {
+func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmodel.Reader, _ ...authtoken.ClientOption) authtoken.IPCClient {
 	tr := &http.Transport{
 		TLSClientConfig: clientTLSConfig,
 	}
 
-	return &secureClient{
+	return &ipcClient{
 		Client:    http.Client{Transport: tr},
 		authToken: authToken,
 		config:    config,
 	}
 }
 
-func (s *secureClient) Do(req *http.Request, opts ...authtoken.RequestOption) (resp []byte, err error) {
+func (s *ipcClient) Do(req *http.Request, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	var cb []func()
 	onEnded := func(fn func()) {
 		cb = append(cb, fn)
@@ -79,7 +79,7 @@ func (s *secureClient) Do(req *http.Request, opts ...authtoken.RequestOption) (r
 	return body, nil
 }
 
-func (s *secureClient) Get(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
+func (s *ipcClient) Get(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *secureClient) Get(url string, opts ...authtoken.RequestOption) (resp []
 	return body, nil
 }
 
-func (s *secureClient) Head(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
+func (s *ipcClient) Head(url string, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ func (s *secureClient) Head(url string, opts ...authtoken.RequestOption) (resp [
 	return body, nil
 }
 
-func (s *secureClient) Post(url string, contentType string, body io.Reader, opts ...authtoken.RequestOption) (resp []byte, err error) {
+func (s *ipcClient) Post(url string, contentType string, body io.Reader, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func (s *secureClient) Post(url string, contentType string, body io.Reader, opts
 	return respBody, nil
 }
 
-func (s *secureClient) PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...authtoken.RequestOption) (err error) {
+func (s *ipcClient) PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...authtoken.RequestOption) (err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (s *secureClient) PostChunk(url string, contentType string, body io.Reader,
 	return err
 }
 
-func (s *secureClient) PostForm(url string, data url.Values, opts ...authtoken.RequestOption) (resp []byte, err error) {
+func (s *ipcClient) PostForm(url string, data url.Values, opts ...authtoken.RequestOption) (resp []byte, err error) {
 	return s.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()), opts...)
 }
 
@@ -246,13 +246,13 @@ func (s *secureClient) PostForm(url string, data url.Values, opts ...authtoken.R
 
 // IPCEndpoint is an endpoint that IPC requests will be sent to
 type IPCEndpoint struct {
-	client    authtoken.SecureClient
+	client    authtoken.IPCClient
 	target    url.URL
 	closeConn bool
 }
 
 // NewIPCEndpoint constructs a new IPC Endpoint using the given config, path, and options
-func (s *secureClient) NewIPCEndpoint(endpointPath string) (authtoken.IPCEndpoint, error) {
+func (s *ipcClient) NewIPCEndpoint(endpointPath string) (authtoken.IPCEndpoint, error) {
 	var cmdHostKey string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host

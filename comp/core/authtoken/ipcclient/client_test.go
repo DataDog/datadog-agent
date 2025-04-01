@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package secureclient
+package ipcclient
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func getMockServerAndConfig(t testing.TB, handler http.Handler) (authtoken.SecureClient, *httptest.Server) {
+func getMockServerAndConfig(t testing.TB, handler http.Handler) (authtoken.IPCClient, *httptest.Server) {
 
 	conf := config.NewMock(t)
 	util.SetAuthTokenInMemory(t)

@@ -45,6 +45,6 @@ func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
+func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.IPCClient {
 	return nil // TODO IPC: could panic if dereferenced
 }

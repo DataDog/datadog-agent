@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -28,6 +28,8 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newAuthToken),
 		fx.Provide(newOptionalAuthToken),
+		fx.Provide(newIPCClient),
+		fx.Provide(newOptionalIPCClient),
 	)
 }
 
@@ -68,18 +70,34 @@ func newOptionalAuthToken(deps dependencies) option.Option[authtoken.Component] 
 	})
 }
 
-type optionalDependencies struct {
+type optionalAuthComp struct {
 	fx.In
 	At  option.Option[authtoken.Component]
 	Log log.Component
 }
 
-func newAuthToken(deps optionalDependencies) (authtoken.Component, error) {
+func newAuthToken(deps optionalAuthComp) (authtoken.Component, error) {
 	auth, ok := deps.At.Get()
 	if !ok {
 		return nil, deps.Log.Errorf("auth token not found")
 	}
 	return auth, nil
+}
+
+func newOptionalIPCClient(deps optionalAuthComp) option.Option[authtoken.IPCClient] {
+	auth, ok := deps.At.Get()
+	if !ok {
+		return option.None[authtoken.IPCClient]()
+	}
+	return option.New(auth.GetClient())
+}
+
+func newIPCClient(deps optionalAuthComp) (authtoken.IPCClient, error) {
+	auth, ok := deps.At.Get()
+	if !ok {
+		return nil, deps.Log.Errorf("ipc client not found")
+	}
+	return auth.GetClient(), nil
 }
 
 // Get returns the session token
@@ -101,6 +119,6 @@ func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
 	return authtoken.NewHTTPMiddleware(func(format string, params ...interface{}) { at.logger.Warnf(format, params...) }, at.Get())(next)
 }
 
-func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
-	return secureclient.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
+func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.IPCClient {
+	return ipcclient.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
 }
