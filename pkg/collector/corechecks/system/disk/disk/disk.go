@@ -254,39 +254,14 @@ func (c *Check) checkDeprecatedConfig(data integration.Data, initConfig integrat
 
 func (c *Check) configureExcludeDevice() error {
 	c.excludedDevices = []regexp.Regexp{}
-	for _, val := range c.initConfig.DeviceGlobalExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.initConfig.DeviceGlobalBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.DeviceExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.DeviceBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.ExcludedDisks {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedDevices = append(c.excludedDevices, *re)
-		} else {
-			return err
+	slices := [][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedDevices = append(c.excludedDevices, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	if c.instanceConfig.ExcludedDiskRe != "" {
@@ -300,18 +275,15 @@ func (c *Check) configureExcludeDevice() error {
 }
 
 func (c *Check) configureIncludeDevice() error {
-	for _, val := range c.instanceConfig.DeviceInclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedDevices = append(c.includedDevices, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.DeviceWhitelist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedDevices = append(c.includedDevices, *re)
-		} else {
-			return err
+	c.includedDevices = []regexp.Regexp{}
+	slices := [][]string{c.instanceConfig.DeviceInclude, c.instanceConfig.DeviceWhitelist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.includedDevices = append(c.includedDevices, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	return nil
@@ -319,18 +291,14 @@ func (c *Check) configureIncludeDevice() error {
 
 func (c *Check) configureExcludeFileSystem() error {
 	c.excludedFilesystems = []regexp.Regexp{}
-	for _, val := range c.initConfig.FileSystemGlobalExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedFilesystems = append(c.excludedFilesystems, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.initConfig.FileSystemGlobalBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedFilesystems = append(c.excludedFilesystems, *re)
-		} else {
-			return err
+	slices := [][]string{c.initConfig.FileSystemGlobalExclude, c.initConfig.FileSystemGlobalBlacklist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedFilesystems = append(c.excludedFilesystems, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	if len(c.excludedFilesystems) == 0 {
@@ -343,43 +311,29 @@ func (c *Check) configureExcludeFileSystem() error {
 			}
 		}
 	}
-	for _, val := range c.instanceConfig.FileSystemExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedFilesystems = append(c.excludedFilesystems, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.FileSystemBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedFilesystems = append(c.excludedFilesystems, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.ExcludedFileSystems {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedFilesystems = append(c.excludedFilesystems, *re)
-		} else {
-			return err
+	slices = [][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedFilesystems = append(c.excludedFilesystems, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
 func (c *Check) configureIncludeFileSystem() error {
-	for _, val := range c.instanceConfig.FileSystemInclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedFilesystems = append(c.includedFilesystems, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.FileSystemWhitelist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedFilesystems = append(c.includedFilesystems, *re)
-		} else {
-			return err
+	c.includedFilesystems = []regexp.Regexp{}
+	slices := [][]string{c.instanceConfig.FileSystemInclude, c.instanceConfig.FileSystemWhitelist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.includedFilesystems = append(c.includedFilesystems, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	return nil
@@ -387,18 +341,14 @@ func (c *Check) configureIncludeFileSystem() error {
 
 func (c *Check) configureExcludeMountPoint() error {
 	c.excludedMountpoints = []regexp.Regexp{}
-	for _, val := range c.initConfig.MountPointGlobalExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedMountpoints = append(c.excludedMountpoints, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.initConfig.MountPointGlobalBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedMountpoints = append(c.excludedMountpoints, *re)
-		} else {
-			return err
+	slices := [][]string{c.initConfig.MountPointGlobalExclude, c.initConfig.MountPointGlobalBlacklist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedMountpoints = append(c.excludedMountpoints, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	if len(c.excludedMountpoints) == 0 {
@@ -412,18 +362,14 @@ func (c *Check) configureExcludeMountPoint() error {
 			}
 		}
 	}
-	for _, val := range c.instanceConfig.MountPointExclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedMountpoints = append(c.excludedMountpoints, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.MountPointBlacklist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.excludedMountpoints = append(c.excludedMountpoints, *re)
-		} else {
-			return err
+	slices = [][]string{c.instanceConfig.MountPointExclude, c.instanceConfig.MountPointBlacklist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedMountpoints = append(c.excludedMountpoints, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	if c.instanceConfig.ExcludedMountPointRe != "" {
@@ -437,18 +383,15 @@ func (c *Check) configureExcludeMountPoint() error {
 }
 
 func (c *Check) configureIncludeMountPoint() error {
-	for _, val := range c.instanceConfig.MountPointInclude {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedMountpoints = append(c.includedMountpoints, *re)
-		} else {
-			return err
-		}
-	}
-	for _, val := range c.instanceConfig.MountPointWhitelist {
-		if re, err := regexp.Compile(val); err == nil {
-			c.includedMountpoints = append(c.includedMountpoints, *re)
-		} else {
-			return err
+	c.includedMountpoints = []regexp.Regexp{}
+	slices := [][]string{c.instanceConfig.MountPointInclude, c.instanceConfig.MountPointWhitelist}
+	for _, slice := range slices {
+		for _, val := range slice {
+			if re, err := regexp.Compile(val); err == nil {
+				c.includedMountpoints = append(c.includedMountpoints, *re)
+			} else {
+				return err
+			}
 		}
 	}
 	return nil
