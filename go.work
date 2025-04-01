@@ -119,6 +119,7 @@ use (
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/snmp/gosnmplib
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset

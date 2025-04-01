@@ -598,6 +598,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.1
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
+	github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1
@@ -1097,6 +1098,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib => ./pkg/snmp/gosnmplib
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset
