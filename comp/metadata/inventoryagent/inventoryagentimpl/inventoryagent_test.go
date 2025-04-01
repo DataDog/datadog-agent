@@ -249,7 +249,7 @@ func TestInitData(t *testing.T) {
 		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
 	}
 
-	assert.ElementsMatch(t, []string{"http://noprox.example.com", "http://name:********@proxy.example.com/"}, ia.data["config_no_proxy"])
+	assert.ElementsMatch(t, []string{"http://noprox.example.com", "http://name:********@proxy.example.com/", "169.254.169.254", "100.100.100.200"}, ia.data["config_no_proxy"])
 }
 
 func TestGet(t *testing.T) {

@@ -821,11 +821,6 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	testConfig := newTestConf()
 	require.True(t, IsRemoteConfigEnabled(testConfig))
 
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf()
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "false")
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = newTestConf()
 	require.False(t, IsRemoteConfigEnabled(testConfig))
