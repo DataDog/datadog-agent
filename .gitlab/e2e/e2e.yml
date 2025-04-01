@@ -106,8 +106,6 @@
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
-  variables:
-    LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
 
 .new_e2e_template_needs_deb_windows_x64:
   extends: .new_e2e_template
@@ -117,8 +115,6 @@
     - windows_msi_and_bosh_zip_x64-a7
     - agent_deb-x64-a7-fips
     - windows_msi_and_bosh_zip_x64-a7-fips
-  variables:
-    LOCAL_PACKAGE_FLAG: "--local-package $OMNIBUS_PACKAGE_DIR"
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
