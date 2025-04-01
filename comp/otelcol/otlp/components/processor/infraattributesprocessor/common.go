@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var unifiedServiceTagMap = map[string][]string{
@@ -28,16 +29,21 @@ var unifiedServiceTagMap = map[string][]string{
 }
 
 type infraTagsProcessor struct {
-	tagger taggerClient
+	tagger   taggerClient
+	hostname option.Option[string]
 }
 
 // newInfraTagsProcessor creates a new infraTagsProcessor instance
 func newInfraTagsProcessor(
 	tagger taggerClient,
 ) infraTagsProcessor {
-	return infraTagsProcessor{
+	infraTagsProcessor := infraTagsProcessor{
 		tagger: tagger,
 	}
+	if hostname, err := hostname.Get(context.Background()); err == nil {
+		infraTagsProcessor.hostname = option.New(hostname)
+	}
+	return infraTagsProcessor
 }
 
 // ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
@@ -99,7 +105,7 @@ func (p infraTagsProcessor) ProcessTags(
 	}
 
 	if allowHostnameOverride {
-		if hostname, err := hostname.Get(context.Background()); err == nil {
+		if hostname, found := p.hostname.Get(); found {
 			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
 	}
