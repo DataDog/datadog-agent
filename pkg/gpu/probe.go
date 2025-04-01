@@ -105,7 +105,7 @@ type ProbeDependencies struct {
 }
 
 // NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(cfg *config.Config, telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
+func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
 	nvmlLib, err := ddnvml.GetNvmlLib()
 	if err != nil {
 		return ProbeDependencies{}, fmt.Errorf("unable to get NVML library: %w", err)
