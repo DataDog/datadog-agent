@@ -1220,6 +1220,15 @@ celian-main:
   script:
     - echo "Celian main"
 
+celian-fail-allow:
+  stage: notify
+  needs: []
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  allow_failure: true
+  script:
+    - exit 1
+
 celian-trigger:
   stage: notify
   needs: []
