@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -92,10 +93,11 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
 		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
 	} else {
+		fipsEnabled, _ := fips.Enabled() // indicates the build is the datadog-fips-agent and running in FIPS mode
 		if !rc.Config.GetBool("remote_configuration.enabled") {
 			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
-		} else if rc.Config.GetBool("fips.enabled") {
-			status["disabledReason"] = "it is not supported when FIPS is enabled. (`fips.enabled: true`)"
+		} else if fipsEnabled {
+			status["disabledReason"] = "it is not supported run in FIPS mode."
 		} else if rc.Config.GetString("site") == "ddog-gov.com" {
 			status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
 		}
@@ -106,7 +108,7 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 
 func isRemoteConfigEnabled(conf config.Component) bool {
 	// Disable Remote Config for GovCloud
-	if conf.GetBool("fips.enabled") || conf.GetString("site") == "ddog-gov.com" {
+	if fipsEnabled, _ := fips.Enabled(); fipsEnabled || conf.GetString("site") == "ddog-gov.com" {
 		return false
 	}
 	return conf.GetBool("remote_configuration.enabled")

@@ -35,14 +35,3 @@
     <br>Build arch: {{.build_arch}}
   </span>
 </div>
-
-{{- if eq .config.fips_enabled "true" }}
-<div class="stat">
-  <span class="stat_title">FIPS proxy</span>
-  <span class="stat_data">
-    FIPS proxy is enabled. All communication will be routed to a local FIPS proxy:<br>
-      - Local address: {{ .config.fips_local_address }}<br>
-      - Starting port range: {{ .config.fips_port_range_start }}<br>
-  </span>
-</div>
-{{- end }}

@@ -159,7 +159,6 @@ func TestInitData(t *testing.T) {
 		"site":                             "test",
 		"eks_fargate":                      true,
 
-		"fips.enabled":                                true,
 		"logs_enabled":                                true,
 		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,

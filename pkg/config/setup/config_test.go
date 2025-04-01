@@ -730,191 +730,12 @@ logs_config:
 	assert.NoError(t, err)
 }
 
-func TestSetupFipsEndpoints(t *testing.T) {
-	datadogYaml := `
-dd_url: https://somehost:1234
-
-skip_ssl_validation: true
-
-apm_config:
-  apm_dd_url: https://somehost:1234
-  profiling_dd_url: https://somehost:1234
-  telemetry:
-    dd_url: https://somehost:1234
-
-process_config:
-  process_dd_url:  https://somehost:1234
-
-logs_config:
-  use_http: false
-  logs_no_ssl: false
-  logs_dd_url: somehost:1234
-
-database_monitoring:
-  metrics:
-    logs_dd_url: somehost:1234
-  activity:
-    logs_dd_url: somehost:1234
-  samples:
-    logs_dd_url: somehost:1234
-
-network_devices:
-  metadata:
-    logs_dd_url: somehost:1234
-  snmp_traps:
-    forwarder:
-      logs_dd_url: somehost:1234
-  netflow:
-    forwarder:
-      logs_dd_url: somehost:1234
-
-orchestrator_explorer:
-    orchestrator_dd_url: https://somehost:1234
-
-runtime_security_config:
-    endpoints:
-        logs_dd_url: somehost:1234
-
-compliance_config:
-    endpoints:
-        logs_dd_url: somehost:1234
-
-proxy:
-  http: http://localhost:1234
-  https: https://localhost:1234
-`
-	expectedURL := "somehost:1234"
-	expectedHTTPURL := "https://" + expectedURL
-	testConfig := confFromYAML(t, datadogYaml)
-	LoadProxyFromEnv(testConfig)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-
-	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, false, testConfig)
-	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
-	assert.NotNil(t, testConfig.GetProxies())
-
-	datadogYamlFips := datadogYaml + `
-fips:
-  enabled: true
-  local_address: localhost
-  port_range_start: 5000
-  https: false
-`
-
-	expectedURL = "localhost:50"
-	expectedHTTPURL = "http://" + expectedURL
-	testConfig = confFromYAML(t, datadogYamlFips)
-	LoadProxyFromEnv(testConfig)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-
-	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
-	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
-	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.use_http"))
-	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
-	assert.Nil(t, testConfig.GetProxies())
-
-	datadogYamlFips = datadogYaml + `
-fips:
-  enabled: true
-  local_address: localhost
-  port_range_start: 5000
-  https: true
-  tls_verify: false
-`
-
-	expectedHTTPURL = "https://" + expectedURL
-	testConfig = confFromYAML(t, datadogYamlFips)
-	testConfig.Set("skip_ssl_validation", false, pkgconfigmodel.SourceAgentRuntime) // should be overridden by fips.tls_verify
-	LoadProxyFromEnv(testConfig)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-
-	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
-	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
-	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, testConfig.GetProxies())
-
-	testConfig.Set("skip_ssl_validation", true, pkgconfigmodel.SourceAgentRuntime) // should be overridden by fips.tls_verify
-	testConfig.Set("fips.tls_verify", true, pkgconfigmodel.SourceAgentRuntime)
-	LoadProxyFromEnv(testConfig)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-
-	assert.Equal(t, false, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, testConfig.GetProxies())
-}
-
-func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c pkgconfigmodel.Config) {
-	if rng {
-		assert.Equal(t, expectedBaseHTTPURL+"01", c.GetString("dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"02", c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"03"+"/api/v2/profile", c.GetString("apm_config.profiling_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
-		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"09", c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
-		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"14", c.GetString("compliance_config.endpoints.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"15", c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
-
-	} else {
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url")) // Omitting "/api/v2/profile" as the config is not overwritten
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("compliance_config.endpoints.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
-	}
-}
-
-func TestSetupFipsEndpointsNonLocalAddress(t *testing.T) {
-	datadogYaml := `
-fips:
-  enabled: true
-  local_address: 1.2.3.4
-  port_range_start: 5000
-`
-
-	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.Error(t, err)
-}
-
 func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
   peer_service_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 
 	datadogYaml = `
@@ -922,8 +743,6 @@ apm_config:
   peer_service_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
@@ -933,8 +752,6 @@ apm_config:
   peer_tags_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 
 	datadogYaml = `
@@ -942,8 +759,6 @@ apm_config:
   peer_tags_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
@@ -972,8 +787,6 @@ func TestEnablePeerTagsAggregationEnv(t *testing.T) {
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
 	datadogYaml := ""
 	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 
 	datadogYaml = `
@@ -981,8 +794,6 @@ apm_config:
   compute_stats_by_span_kind: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 
 	datadogYaml = `
@@ -990,8 +801,6 @@ apm_config:
   compute_stats_by_span_kind: true
 `
 	testConfig = confFromYAML(t, datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 

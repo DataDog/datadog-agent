@@ -75,7 +75,7 @@ func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
 	data["config"] = populateConfig(h.config)
-	data["fips_status"] = populateFIPSStatus(h.config)
+	data["fips_status"] = fips.Status()
 	return data
 }
 
@@ -109,17 +109,5 @@ func populateConfig(config config.Component) map[string]string {
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
 
-	conf["fips_enabled"] = config.GetString("fips.enabled")
-	conf["fips_local_address"] = config.GetString("fips.local_address")
-	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
-
 	return conf
-}
-
-func populateFIPSStatus(config config.Component) string {
-	fipsStatus := fips.Status()
-	if fipsStatus == "not available" && config.GetString("fips.enabled") == "true" {
-		return "proxy"
-	}
-	return fipsStatus
 }

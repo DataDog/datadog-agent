@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,12 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
-	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
@@ -226,7 +224,6 @@ const (
 // Otherwise directly add the configs to InitConfig.
 var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	agent,
-	fips,
 	dogstatsd,
 	forwarder,
 	aggregator,
@@ -1193,15 +1190,6 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnv("autoscaling.failover.metrics")
 }
 
-func fips(config pkgconfigmodel.Setup) {
-	// Fips
-	config.BindEnvAndSetDefault("fips.enabled", false)
-	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
-	config.BindEnvAndSetDefault("fips.local_address", "localhost")
-	config.BindEnvAndSetDefault("fips.https", true)
-	config.BindEnvAndSetDefault("fips.tls_verify", true)
-}
-
 func remoteconfig(config pkgconfigmodel.Setup) {
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
@@ -1767,12 +1755,6 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	// the conf files, overwrite them with the env variables and reset
 	// everything.
 
-	// When FIPS proxy is enabled we ignore proxy setting to force data to the local proxy
-	if config.GetBool("fips.enabled") {
-		log.Infof("'fips.enabled' has been set to true. Ignoring proxy setting.")
-		return
-	}
-
 	log.Info("Loading proxy settings")
 
 	lookupEnvCaseInsensitive := func(key string) (string, bool) {
@@ -2112,7 +2094,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		scrubber.AddStrippedKeys(scrubberAdditionalKeys)
 	}
 
-	return warnings, setupFipsEndpoints(config)
+	return warnings, nil
 }
 
 // LoadCustom reads config into the provided config object
@@ -2140,148 +2122,6 @@ func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 	}
 
 	return nil
-}
-
-// setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
-// proxy will be in charge of forwarding data to the Datadog backend following FIPS standard. Starting from
-// fips.port_range_start we will assign a dedicated port per product (metrics, logs, traces, ...).
-func setupFipsEndpoints(config pkgconfigmodel.Config) error {
-	// Each port is dedicated to a specific data type:
-	//
-	// port_range_start: HAProxy stats
-	// port_range_start + 1:  metrics
-	// port_range_start + 2:  traces
-	// port_range_start + 3:  profiles
-	// port_range_start + 4:  processes
-	// port_range_start + 5:  logs
-	// port_range_start + 6:  databases monitoring metrics, metadata and activity
-	// port_range_start + 7:  databases monitoring samples
-	// port_range_start + 8:  network devices metadata
-	// port_range_start + 9:  network devices snmp traps
-	// port_range_start + 10: instrumentation telemetry
-	// port_range_start + 11: appsec events (unused)
-	// port_range_start + 12: orchestrator explorer
-	// port_range_start + 13: runtime security
-	// port_range_start + 14: compliance
-	// port_range_start + 15: network devices netflow
-
-	// The `datadog-fips-agent` flavor is incompatible with the fips-proxy and we do not want to downgrade to http or
-	// route traffic through a proxy for the above products
-	fipsFlavor, err := pkgfips.Enabled()
-	if err != nil {
-		return err
-	}
-
-	if fipsFlavor {
-		log.Debug("FIPS mode is enabled in the agent. Ignoring fips-proxy settings")
-		return nil
-	}
-
-	if !config.GetBool("fips.enabled") {
-		log.Debug("FIPS mode is disabled")
-		return nil
-	}
-
-	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
-
-	const (
-		proxyStats                 = 0
-		metrics                    = 1
-		traces                     = 2
-		profiles                   = 3
-		processes                  = 4
-		logs                       = 5
-		databasesMonitoringMetrics = 6
-		databasesMonitoringSamples = 7
-		networkDevicesMetadata     = 8
-		networkDevicesSnmpTraps    = 9
-		instrumentationTelemetry   = 10
-		appsecEvents               = 11
-		orchestratorExplorer       = 12
-		runtimeSecurity            = 13
-		compliance                 = 14
-		networkDevicesNetflow      = 15
-	)
-
-	localAddress, err := system.IsLocalAddress(config.GetString("fips.local_address"))
-	if err != nil {
-		return fmt.Errorf("fips.local_address: %s", err)
-	}
-
-	portRangeStart := config.GetInt("fips.port_range_start")
-	urlFor := func(port int) string { return net.JoinHostPort(localAddress, strconv.Itoa(portRangeStart+port)) }
-
-	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
-
-	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
-
-	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
-
-	// HTTP for now, will soon be updated to HTTPS
-	protocol := "http://"
-	if config.GetBool("fips.https") {
-		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
-	}
-
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
-
-	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
-
-	// Logs
-	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
-
-	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
-	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
-
-	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
-
-	// Database monitoring
-	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
-	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
-	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
-
-	// Network devices
-	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
-	// in a different place from where overrides (created with config.Set(...)) are stored.
-	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
-	// both at the same time (see https://github.com/spf13/viper/issues/1106)
-	//
-	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
-	// data from the config + data created by the FIPS mode when using UnmarshalKey()
-
-	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
-	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
-	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
-	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
-
-	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
-
-	// CWS
-	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
-
-	// Compliance
-	setupFipsLogsConfig(config, "compliance_config.endpoints.", urlFor(compliance))
-
-	return nil
-}
-
-func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
-	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -2682,7 +2522,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
 func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud
-	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+	if fipsEnabled, _ := fips.Enabled(); fipsEnabled || cfg.GetString("site") == "ddog-gov.com" {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")
@@ -2708,7 +2548,7 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Agent Telemetry for GovCloud
-	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+	if fipsEnabled, _ := fips.Enabled(); fipsEnabled || cfg.GetString("site") == "ddog-gov.com" {
 		return false
 	}
 	return cfg.GetBool("agent_telemetry.enabled")
