@@ -102,6 +102,8 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
 			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring))
 		}
+		aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp %s %s", aptUsrShareKeyring, aptTrustedDKeyring))
 	} else {
 		keys := []string{"DATADOG_RPM_KEY_E09422B3.public", "DATADOG_RPM_KEY_CURRENT.public", "DATADOG_RPM_KEY_FD4BF915.public", "DATADOG_RPM_KEY_E09422B3.public"}
 		for _, key := range keys {

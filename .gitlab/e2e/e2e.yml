@@ -702,6 +702,7 @@ new-e2e-windows-systemprobe:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
     - tests_windows_sysprobe_x64
+    - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
