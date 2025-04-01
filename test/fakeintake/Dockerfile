@@ -15,6 +15,7 @@ COPY test/fakeintake/go.mod test/fakeintake/go.sum ./
 # every datadog-agent module imported by the fakeintake has to be copied in the build image
 COPY pkg/proto /pkg/proto
 COPY comp/core/tagger/origindetection /comp/core/tagger/origindetection
+COPY pkg/networkdevice/metadata /pkg/networkdevice/metadata
 COPY comp/netflow/payload /comp/netflow/payload
 COPY pkg/metrics /pkg/metrics
 COPY pkg/network/payload /pkg/network/payload
