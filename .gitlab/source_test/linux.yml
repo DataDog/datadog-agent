@@ -113,6 +113,14 @@ tests_flavor_heroku_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors heroku'
 
+lint_python:
+   stage: source_test
+   image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
+   tags: ["arch:amd64"]
+   needs: []
+   script:
+     - inv -e linter.python
+
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
