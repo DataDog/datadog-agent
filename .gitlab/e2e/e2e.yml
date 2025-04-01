@@ -73,7 +73,7 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
   script:
-    - dda inv -- -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -700,7 +700,7 @@ new-e2e-windows-systemprobe:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - windows_msi_and_bosh_zip_x64-a7
+    - deploy_windows_testing-a7
     - tests_windows_sysprobe_x64
   variables:
     TARGETS: ./tests/sysprobe-functional
