@@ -91,6 +91,7 @@ func (m *testDiscoveryModule) setProcessContainer(pid int, containerID string, c
 		},
 		PID:           pid,
 		CollectorTags: collectorTags,
+		State:         workloadmeta.ContainerState{Running: true},
 	}
 	m.mockWmeta.Set(container)
 

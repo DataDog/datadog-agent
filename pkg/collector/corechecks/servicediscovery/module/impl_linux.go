@@ -37,9 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -921,37 +924,59 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 }
 
 func (s *discovery) getContainersMap() map[int]*workloadmeta.Container {
-	containers := s.wmeta.ListContainers()
-	containersMap := make(map[int]*workloadmeta.Container)
+	containers := s.wmeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	containersMap := make(map[int]*workloadmeta.Container, len(containers))
+
+	metricsProvider := metrics.GetProvider(option.New(s.wmeta))
+
 	for _, container := range containers {
-		containersMap[int(container.PID)] = container
+		collector := metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
+		if collector == nil {
+			containersMap[int(container.PID)] = container
+			continue
+		}
+
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, containerCacheValidity)
+		if err != nil || len(pids) == 0 {
+			containersMap[int(container.PID)] = container
+			continue
+		}
+
+		for _, pid := range pids {
+			containersMap[int(pid)] = container
+		}
 	}
 	return containersMap
 }
 
-func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container) (string, []string, error) {
+func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container) (string, []string, bool) {
 	container, ok := containers[pid]
 	if !ok {
-		return "", nil, fmt.Errorf("container not found for pid %d", pid)
+		return "", nil, false
 	}
 
 	containerID := container.EntityID.ID
 	collectorTags := container.CollectorTags
 
+	// Getting the tags from the tagger. This logic is borrowed from
+	// the GetContainers helper in pkg/process/util/containers.
 	entityID := types.NewEntityID(types.ContainerID, containerID)
 	entityTags, err := s.tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Tracef("Could not get tags for container %s: %v", containerID, err)
-		return containerID, collectorTags, nil
+		return containerID, collectorTags, false
 	}
 	tags := append(collectorTags, entityTags...)
 
-	return containerID, tags, nil
+	return containerID, tags, true
 }
 
 func (s *discovery) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container) {
-	containerID, containerTags, err := s.getProcessContainerInfo(service.PID, containers)
-	if err != nil {
+	containerID, containerTags, ok := s.getProcessContainerInfo(service.PID, containers)
+	if !ok {
 		return
 	}
 
