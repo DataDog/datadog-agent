@@ -241,3 +241,12 @@ celian-bridge:
   tags: ["arch:arm64"]
   script:
     - echo "Celian bridge"
+
+celian-bridge-fail:
+  stage: notify
+  needs: []
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  script:
+    - echo "Celian bridge"
+    - exit 1
