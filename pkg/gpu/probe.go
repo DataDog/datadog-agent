@@ -325,7 +325,8 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	ringBufferSize := toPowerOf2(p.cfg.RingBufferSizePages * os.Getpagesize())
+	numPages := p.cfg.RingBufferSizePagesPerDevice * p.sysCtx.deviceCache.Count()
+	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
