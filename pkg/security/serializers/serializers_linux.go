@@ -1533,7 +1533,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
-	case model.DNSResponseEventType:
+	case model.FullDNSResponseEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSResponseEventSerializer = newDNSResponseEventSerializer(&event.DNSResponse)
 	case model.IMDSEventType:

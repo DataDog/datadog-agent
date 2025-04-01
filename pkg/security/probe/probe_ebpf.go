@@ -742,7 +742,18 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSResponseEventType || eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
+	switch eventType {
+	case model.ShortDNSResponseEventType,
+		model.DNSEventType,
+		model.IMDSEventType,
+		model.RawPacketEventType,
+		model.LoadModuleEventType,
+		model.UnloadModuleEventType,
+		model.NetworkFlowMonitorEventType:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -952,6 +963,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
+		}
+		return
+	case model.ShortDNSResponseEventType:
+		fmt.Printf("SHORT DNS received response. Offset = %d\n", offset)
+
+		if p.config.Probe.DNSResolutionEnabled {
+			_, err := event.DNSResponse.UnmarshalBinary(data[offset:], p.Resolvers.DNSResolver)
+			if err != nil {
+				seclog.Errorf("failed to decode dns response: %v", err)
+			}
 		}
 		return
 	}
@@ -1287,8 +1308,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			return
 		}
-	case model.DNSResponseEventType:
-		fmt.Printf("DNS received response. Offset = %d\n", offset)
+
+	case model.FullDNSResponseEventType:
+		fmt.Printf("FULL DNS received response. Offset = %d\n", offset)
 
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
