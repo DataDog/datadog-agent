@@ -73,27 +73,18 @@ var (
 
 	// DNS Resolver metrics
 
-	// MetricDNSResolverHits is the counter of successful DNS resolution
-	// Tags: cache
-	MetricDNSResolverHits = newRuntimeMetric(".dns_resolver.hits")
-	// MetricDNSResolverMiss is the counter of unsuccessful dentry resolution
-	// Tags: cache
-	MetricDNSResolverMiss = newRuntimeMetric(".dns_resolver.miss")
-	// MetricDNSResolverEvictions Tags: cache
-	MetricDNSResolverEvictions = newRuntimeMetric(".dns_resolver.evictions")
-	// MetricDNSResolverInsertions Tags: cache
-	MetricDNSResolverInsertions = newRuntimeMetric(".dns_resolver.insertions")
+	// MetricDNSResolverIPResolverCache is the counter for the IP resolver (A and AAAA records)
+	// Tags: hit, miss, insertion, eviction
+	MetricDNSResolverIPResolverCache = newRuntimeMetric(".dns_resolver.ip_resolver_cache")
+	// MetricDNSResolverCnameResolverCache is the counter for the CNAME resolver
+	// Tags: hit, miss, insertion, eviction
+	MetricDNSResolverCnameResolverCache = newRuntimeMetric(".dns_resolver.cname_resolver_cache")
 
-	// MetricDNSResolverCnameHits is the counter of successful DNS resolution
-	// Tags: cache
-	MetricDNSResolverCnameHits = newRuntimeMetric(".dns_resolver.cname_hits")
-	// MetricDNSResolverCnameMiss is the counter of unsuccessful dentry resolution
-	// Tags: cache
-	MetricDNSResolverCnameMiss = newRuntimeMetric(".dns_resolver.cname_miss")
-	// MetricDNSResolverCnameEvictions Tags: cache
-	MetricDNSResolverCnameEvictions = newRuntimeMetric(".dns_resolver.cname_evictions")
-	// MetricDNSResolverCnameInsertions Tags: cache
-	MetricDNSResolverCnameInsertions = newRuntimeMetric(".dns_resolver.cname_insertions")
+	// MetricRepeatedDNSResponsesFilteredOnKernel DNS responses that were filtered on the kernel
+	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
+	// MetricDNSSameIDDifferentSize DNS responses that had the same ID but a different size
+	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
+
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added

@@ -1006,18 +1006,31 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	for _, pid := range pids {
 		alivePids.add(pid)
 
+		_, knownService := s.runningServices[pid]
+		if knownService {
+			info, ok := s.cache[pid]
+			if !ok {
+				// Should never happen
+				continue
+			}
+
+			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
+			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
+				// We only need to refresh the service info (ports, etc.) for
+				// this service if it's time to send a heartbeat.
+				continue
+			}
+		}
+
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
 		s.enrichContainerData(service, containersMap, pidToCid)
 
-		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
-				service.LastHeartbeat = now.Unix()
-				response.HeartbeatServices = append(response.HeartbeatServices, *service)
-			}
-
+		if knownService {
+			service.LastHeartbeat = now.Unix()
+			response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			continue
 		}
 
