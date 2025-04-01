@@ -97,9 +97,17 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		log.Tracef("found probe %+v", probe)
 		resultsMu.Lock()
 		defer resultsMu.Unlock()
+		previous := results[probe.TTL]
+
 		// packets can get delivered twice - only use the first received probe to avoid overestimating RTT.
 		// this is also important for SACK because SACK traceroute returns the lowest TTL found from ACKs
-		if results[probe.TTL] == nil {
+		shouldUpdate := previous == nil
+		// but also just in case, never let ICMP responses "cover up" actual destination responses
+		if previous != nil && !previous.IsDest && probe.IsDest {
+			shouldUpdate = true
+		}
+
+		if shouldUpdate {
 			results[probe.TTL] = probe
 		}
 	}
@@ -206,7 +214,7 @@ func ToHops(p TracerouteParallelParams, probes []*ProbeResponse) ([]*Hop, error)
 	return hops, nil
 }
 
-var logOnce sync.Once
+var badPktLimit = log.NewLogLimit(10, 5*time.Minute)
 
 // CheckParallelRetryable returns whether ReceiveProbe failed due to a real error or just an irrelevant packet
 func CheckParallelRetryable(funcName string, err error) bool {
@@ -214,9 +222,9 @@ func CheckParallelRetryable(funcName string, err error) bool {
 	if errors.Is(err, ErrReceiveProbeNoPkt) {
 		return true
 	} else if errors.As(err, &badPktErr) {
-		logOnce.Do(func() {
-			log.Warnf("%s() saw a malformed packet (this will only log once): %s", funcName, err)
-		})
+		if badPktLimit.ShouldLog() {
+			log.Warnf("%s() saw a malformed packet: %s", funcName, err)
+		}
 		return true
 	}
 	return false

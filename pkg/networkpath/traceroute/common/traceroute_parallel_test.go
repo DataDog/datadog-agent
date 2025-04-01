@@ -55,7 +55,7 @@ func (m *MockDriver) ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
 	require.Equal(m.t, m.params.PollFrequency, timeout)
 
 	if m.receiveHandler == nil {
-		return nil, ErrReceiveProbeNoPkt
+		return noData(timeout)
 	}
 	res, err := m.receiveHandler()
 	if !errors.Is(err, ErrReceiveProbeNoPkt) {
@@ -68,7 +68,7 @@ func (m *MockDriver) ReceiveICMPProbe(timeout time.Duration) (*ProbeResponse, er
 	require.Equal(m.t, m.params.PollFrequency, timeout)
 
 	if m.icmpReceiveHandler == nil {
-		return nil, ErrReceiveProbeNoPkt
+		return noData(timeout)
 	}
 	res, err := m.icmpReceiveHandler()
 	if !errors.Is(err, ErrReceiveProbeNoPkt) {
@@ -533,4 +533,51 @@ func TestCheckParallelRetryable(t *testing.T) {
 
 	require.False(t, CheckParallelRetryable("test", fmt.Errorf("foo")))
 	require.False(t, CheckParallelRetryable("test", nil))
+}
+
+func TestParallelTracerouteDestOverwrite(t *testing.T) {
+	// this test checks that shouldUpdate is set to true when an IsDest == true probe comes
+	// for the first time, even overwriting an ICMP probe with IsDest == false
+	m := initMockDriver(t, testParams)
+
+	var expectedResults []*ProbeResponse
+	receiveProbes := make(chan *ProbeResponse, 2*testParams.MaxTTL)
+
+	expectedTTL := uint8(1)
+	m.sendHandler = func(ttl uint8) error {
+		require.Equal(t, expectedTTL, ttl)
+		expectedTTL++
+
+		result := mockResult(ttl)
+
+		if result != nil {
+			expectedResults = append(expectedResults, result)
+
+			notDest := *result
+			notDest.IsDest = false
+
+			receiveProbes <- &notDest
+
+			if result.IsDest {
+				// for the last hop, overwrite notDest with the destination
+				receiveProbes <- result
+
+				close(receiveProbes)
+			}
+		}
+
+		return nil
+	}
+	m.receiveHandler = func() (*ProbeResponse, error) {
+		probe, ok := <-receiveProbes
+		if !ok {
+			return noData(testParams.PollFrequency)
+		}
+		return probe, nil
+	}
+
+	results, err := TracerouteParallel(context.Background(), m, testParams)
+	require.NoError(t, err)
+	require.Equal(t, expectedResults, results)
+	require.Len(t, results, mockDestTTL)
 }
