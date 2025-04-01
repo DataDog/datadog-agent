@@ -102,14 +102,6 @@ create_mounts:
 
 func TestGivenADiskCheckWithCreateMountsConfiguredWithBadType_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
 	setupDefaultMocks()
-	var netAddConnectionCalls []NetAddConnectionCall
-	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
-		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
-			Name: "mount",
-			Args: []string{"-t", mountType, remoteName, localName},
-		})
-		return nil
-	}
 	diskCheck := createCheck()
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
@@ -121,11 +113,8 @@ create_mounts:
   type: 12
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(netAddConnectionCalls))
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	assert.NotNil(t, err)
 }
 
 func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
