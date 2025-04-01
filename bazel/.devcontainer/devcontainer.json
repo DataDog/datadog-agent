@@ -4,10 +4,11 @@
   },
   "mounts": [
     {
-      "source": "/tmp/bazel-devcontainer-output",
-      "target": "/tmp/bazel/build_output",
+      "source": "/tmp/bazel-devcontainer",
+      "target": "/tmp/bazel/",
       "type": "bind"
     }
   ],
-  "name": "bazel"
+  "name": "bazel",
+  "remoteUser": "ubuntu"
 }
