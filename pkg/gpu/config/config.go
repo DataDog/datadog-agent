@@ -46,6 +46,6 @@ func New() *Config {
 		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
 		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
-		KernelCacheQueueSize:  spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "kernel_cache_queue_size")),
+		KernelCacheQueueSize:  spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 	}
 }
