@@ -100,7 +100,7 @@
 # - In KMT we change the AWS_PROFILE environment variable, and that might cause the ssm wrapper to fail getting the keys. Export
 #   the DD_API_KEY variable before changing the AWS_PROFILE variable.
 .tag_kmt_ci_job:
-  - dda inv -e kmt.tag-ci-job
+  - dda inv -- -e kmt.tag-ci-job
 
 # -- Test dependencies
 
@@ -156,14 +156,14 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
-    - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
+    - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
-    - dda inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
-    - dda inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
+    - dda inv -- -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
+    - dda inv -- -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -216,7 +216,7 @@
     # and Gitlab thinks it can simplify the dependency graph. This leads to a problem where, if any other dependency of the run test
     # jobs fail (e.g., building the system probe tests), the run tests will be skipped, and the cleanup job will run even though the
     # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
-    - dda inv kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
+    - dda inv -- kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - cat instance.json | jq -r 'map(.[]) | .[]' | grep -v "null" | xargs --no-run-if-empty -n 1 -t aws ec2 terminate-instances --instance-ids
   after_script:
@@ -258,7 +258,7 @@
     - echo "CI_JOB_ID=${CI_JOB_ID}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
-    - dda inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - !reference [.define_if_collect_complexity]
   script:
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
@@ -338,4 +338,4 @@ notify_ebpf_complexity_changes:
     - !reference [.setup_agent_github_app]
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
-    - dda inv -e ebpf.generate-complexity-summary-for-pr
+    - dda inv -- -e ebpf.generate-complexity-summary-for-pr

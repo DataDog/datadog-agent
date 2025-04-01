@@ -97,7 +97,7 @@ func (m *EBPFCheck) Run() error {
 
 		tags := []string{
 			"map_name:" + mapStats.Name,
-			"map_type:" + mapStats.Type.String(),
+			"map_type:" + mapStats.Type,
 			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
@@ -117,7 +117,7 @@ func (m *EBPFCheck) Run() error {
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type)
 	}
 
 	for _, mapInfo := range stats.Maps {
@@ -155,12 +155,12 @@ func (m *EBPFCheck) Run() error {
 
 		tags := []string{
 			"program_name:" + progInfo.Name,
-			"program_type:" + progInfo.Type.String(),
+			"program_type:" + progInfo.Type,
 			"module:" + progInfo.Module,
 		}
 		var debuglogs []string
 		if log.ShouldLog(log.TraceLvl) {
-			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
+			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type}
 		}
 
 		gauges := map[string]float64{

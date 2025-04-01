@@ -162,6 +162,9 @@ func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
 
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
@@ -170,7 +173,8 @@ func (s *packageBaseSuite) SetupSuite() {
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
-		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
+		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
 	}
 }
 
