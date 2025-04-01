@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/procfs"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -101,7 +102,7 @@ type kernelCacheTelemetry struct {
 }
 
 func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
-	subsystem := "gpu__kernel_cache"
+	subsystem := consts.GpuTelemetryModule + "__kernel_cache"
 
 	return &kernelCacheTelemetry{
 		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
