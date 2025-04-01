@@ -102,25 +102,41 @@ type Provides struct {
 
 // NewComponent returns a new tagger client
 func NewComponent(req Requires) (Provides, error) {
-	tagger, err := newLocalTagger(req.Config, req.WorkloadMeta, req.Log, req.Telemetry, nil)
+	taggerInstance, err := newLocalTagger(req.Config, req.WorkloadMeta, req.Log, req.Telemetry, nil)
 	if err != nil {
 		return Provides{}, err
 	}
 
 	req.Log.Info("Tagger is created")
-	req.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
-		// Main context passed to components, consistent with the one used in the workloadmeta component
+	req.Lc.Append(compdef.Hook{OnStart: func(context.Context) error {
+		// Main context passed to components, consistent with the one used in the WorkloadMeta component.
 		mainCtx, _ := common.GetMainCtxCancel()
-		return tagger.Start(mainCtx)
+		taggerInstance.ctx, taggerInstance.cancel = context.WithCancel(mainCtx)
+
+		// Start the WorkloadMeta collector.
+		taggerInstance.collector = collectors.NewWorkloadMetaCollector(
+			taggerInstance.ctx,
+			taggerInstance.cfg,
+			taggerInstance.workloadStore,
+			taggerInstance.tagStore,
+		)
+
+		// Start the TagStore and the WorkloadMeta collector.
+		go taggerInstance.tagStore.Run(taggerInstance.ctx)
+		go taggerInstance.collector.Run(taggerInstance.ctx, taggerInstance.cfg)
+
+		return nil
 	}})
 	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
-		return tagger.Stop()
+		// Stop the tagger.
+		taggerInstance.cancel()
+		return nil
 	}})
 
 	return Provides{
-		Comp: tagger,
+		Comp: taggerInstance,
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
-			response := tagger.List()
+			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)
 			if err != nil {
 				httputils.SetJSONError(writer, req.Log.Errorf("Unable to marshal tagger list response: %s", err), 500)
@@ -134,7 +150,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}, nil
 }
 
-func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (taggerdef.Component, error) {
+func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (*localTagger, error) {
 	dc := datadogConfig{}
 	dc.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
 	dc.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
@@ -174,31 +190,11 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 	}, nil
 }
 
-// Start starts the workloadmeta collector and then it is ready for requests.
-func (t *localTagger) Start(ctx context.Context) error {
-	t.ctx, t.cancel = context.WithCancel(ctx)
-
-	t.collector = collectors.NewWorkloadMetaCollector(
-		t.ctx,
-		t.cfg,
-		t.workloadStore,
-		t.tagStore,
-	)
-
-	go t.tagStore.Run(t.ctx)
-	go t.collector.Run(t.ctx, t.cfg)
-
-	return nil
-}
-
-// Stop queues a shutdown of Tagger
-func (t *localTagger) Stop() error {
-	t.cancel()
-	return nil
-}
-
 // getTags returns a read only list of tags for a given entity.
 func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
+	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
@@ -284,20 +280,6 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 	}
 
 	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
-}
-
-// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
-// If possible, avoid using this function, and use the Tag method instead.
-// This function exists in order not to break backward compatibility with rtloader and python
-// integrations using the tagger
-func (t *localTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := types.ExtractPrefixAndID(entity)
-	if err != nil {
-		return nil, err
-	}
-
-	entityID := types.NewEntityID(prefix, id)
-	return t.Tag(entityID, cardinality)
 }
 
 // Standard returns standard tags for a given entity
@@ -539,10 +521,4 @@ func taggerCardinality(cardinality string,
 	}
 
 	return taggerCardinality
-}
-
-// ChecksCardinality defines the cardinality of tags we should send for check metrics
-// this can still be overridden when calling get_tags in python checks.
-func (t *localTagger) ChecksCardinality() types.TagCardinality {
-	return t.datadogConfig.checksCardinality
 }

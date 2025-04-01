@@ -10,8 +10,11 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
+HEROKU_OS = "heroku"
 CENTOS_OS = "centos"
 SUSE_OS = "suse"
+WINDOWS_OS = "windows"
+MAC_OS = "darwin"
 
 SCANNED_BINARIES = {
     "agent": {
@@ -56,20 +59,50 @@ PACKAGE_SIZE_TEMPLATE = {
 }
 
 
+class InfraError(Exception):
+    pass
+
+
 def extract_deb_package(ctx, package_path, extract_dir):
     ctx.run(f"dpkg -x {package_path} {extract_dir} > /dev/null")
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
+    log_dir = os.environ.get("CI_PROJECT_DIR", None)
+    if log_dir is None:
+        log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null")
+        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
+        if out.exited == 2:
+            raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
+
+
+def extract_zip_archive(ctx, package_path, extract_dir):
+    with ctx.cd(extract_dir):
+        ctx.run(f"unzip {package_path}")
+
+
+def extract_dmg_archive(ctx, package_path, extract_dir):
+    with ctx.cd(extract_dir):
+        ctx.run(f"dmg2img {package_path} -o dmg_image.img")
+        ctx.run("7z x dmg_image.img")
+        ctx.run("mkdir ./extracted_pkg")
+        package_path_pkg_format = os.path.basename(package_path).replace("dmg", "pkg")
+        ctx.run(f"xar -xf ./Agent/{package_path_pkg_format} -C ./extracted_pkg")
+        ctx.run("mkdir image_content")
+        with ctx.cd("image_content"):
+            ctx.run("cat ../extracted_pkg/datadog-agent-core.pkg/Payload | gunzip -d | cpio -i")
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
-    if package_os == DEBIAN_OS:
+    if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
         return extract_rpm_package(ctx, package_path, extract_dir)
+    elif package_os == WINDOWS_OS:
+        return extract_zip_archive(ctx, package_path, extract_dir)
+    elif package_os == MAC_OS:
+        return extract_dmg_archive(ctx, package_path, extract_dir)
     else:
         raise ValueError(
             message=color_message(

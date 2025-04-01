@@ -109,6 +109,9 @@ const (
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
 
+	// GPUDriverVersion is the tag for the GPU driver version
+	GPUDriverVersion = "gpu_driver_version"
+
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"
 

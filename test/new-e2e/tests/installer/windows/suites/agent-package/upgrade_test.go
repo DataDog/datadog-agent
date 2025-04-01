@@ -134,7 +134,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
 	s.Require().ErrorContains(err, "could not get package")
 	s.Installer().StopExperiment(consts.AgentPackage)
-	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().Version())
+	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
@@ -153,7 +153,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
-	s.Require().ErrorContains(err, "target package already exists")
+	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
 	s.Installer().StopExperiment(consts.AgentPackage)
 	s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().GetNumberAndPre())
 

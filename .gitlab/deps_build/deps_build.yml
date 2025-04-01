@@ -7,7 +7,20 @@
     !reference [.manual]
   stage: deps_build
   variables:
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 12Gi
     KUBERNETES_CPU_REQUEST: 4
+    BUILD_VERSION: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    CC: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-gcc"
+    CXX: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-g++"
+    CMAKE_SYSTEM_PROCESSOR: "${CMAKE_ARCH}"
+    CMAKE_SYSTEM_NAME: Linux
+    CMAKE_RANLIB: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-ranlib"
+    CMAKE_AR: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-ar"
+    CMAKE_C_COMPILER: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-gcc"
+    CMAKE_CXX_COMPILER: "/opt/toolchains/${CMAKE_ARCH}/bin/${CMAKE_ARCH}-unknown-linux-gnu-g++"
+    CMAKE_FIND_ROOT_PATH: /opt/datadog/embedded
+    CMAKE_FIND_ROOT_PATH_MODE_PACKAGE: ONLY
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
@@ -28,11 +41,20 @@
     - patch -ruN ../llvm/CMakeLists.txt < $CI_PROJECT_DIR/pkg/ebpf/c/cmakelists.patch
     - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $CI_PROJECT_DIR/pkg/ebpf/c/constant_folding.patch
     - |
-      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      cmake \
+      -DLLVM_ENABLE_PROJECTS=clang \
       -DLLVM_TARGETS_TO_BUILD="BPF" \
       -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
       -G "Ninja" \
       -DCMAKE_BUILD_TYPE=MinSizeRel \
+      -DCMAKE_SYSTEM_PROCESSOR=$CMAKE_SYSTEM_PROCESSOR \
+      -DCMAKE_SYSTEM_NAME=$CMAKE_SYSTEM_NAME \
+      -DCMAKE_RANLIB=$CMAKE_RANLIB \
+      -DCMAKE_AR=$CMAKE_AR \
+      -DCMAKE_C_COMPILER=$CMAKE_C_COMPILER \
+      -DCMAKE_CXX_COMPILER=$CMAKE_CXX_COMPILER \
+      -DCMAKE_FIND_ROOT_PATH=$CMAKE_FIND_ROOT_PATH \
+      -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=$CMAKE_FIND_ROOT_PATH_MODE_PACKAGE \
       -DLLVM_BUILD_TOOLS=ON \
       -DLLVM_ENABLE_TERMINFO=OFF \
       -DLLVM_INCLUDE_EXAMPLES=OFF \
@@ -43,6 +65,7 @@
       -DLLVM_PARALLEL_COMPILE_JOBS=4 \
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       -DLLVM_ENABLE_UNWIND_TABLES=OFF \
+      -Wno-dev \
       ../llvm
     - cmake --build . --target install
     # fail if references to glibc >= 2.18
@@ -53,33 +76,39 @@
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/clang-${CLANG_MAJOR_VER}" "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llc" "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llvm-strip" "${S3_PERMANENT_ARTIFACTS_URI}/llvm-strip-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}"
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/clang-${CLANG_MAJOR_VER}" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/clang-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llc" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/llc-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - ${S3_CP_CMD} "${DATADOG_AGENT_EMBEDDED_PATH}/bin/llvm-strip" "${S3_DD_AGENT_OMNIBUS_LLVM_URI}/llvm-strip-${CLANG_LLVM_VER}.${ARCH}.${BUILD_VERSION}" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
     - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
+    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip $CI_PROJECT_DIR/.tmp/llvm-strip
   timeout: 2h 00m
   artifacts:
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/.tmp/clang
       - $CI_PROJECT_DIR/.tmp/llc
+      - $CI_PROJECT_DIR/.tmp/llvm-strip
 
 build_clang_x64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
+    CMAKE_ARCH: x86_64
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
+    CMAKE_ARCH: aarch64
 
 build_processed_btfhub_archive:
   rules:
@@ -91,6 +120,6 @@ build_processed_btfhub_archive:
   variables:
     KUBERNETES_CPU_REQUEST: 32
   script:
-    - dda inv -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
+    - dda inv -- -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
     - $S3_CP_CMD btfs-x86_64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - $S3_CP_CMD btfs-arm64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

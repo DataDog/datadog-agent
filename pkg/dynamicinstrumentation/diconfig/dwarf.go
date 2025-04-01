@@ -84,6 +84,7 @@ entryLoop:
 			if cuLineReader != nil {
 				for _, file := range cuLineReader.Files() {
 					if file == nil {
+						files = append(files, &dwarf.LineFile{Name: "no file", Mtime: 0, Length: 0})
 						continue
 					}
 
@@ -173,13 +174,11 @@ entryLoop:
 
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
-
 				typeReader.Seek(entry.Field[i].Val.(dwarf.Offset))
 				typeEntry, err := typeReader.Next()
 				if err != nil {
 					return nil, err
 				}
-
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
@@ -545,7 +544,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 func kindIsSupported(k reflect.Kind) bool {
 	if k == reflect.Map ||
 		k == reflect.UnsafePointer ||
-		k == reflect.Chan {
+		k == reflect.Chan ||
+		k == reflect.Float32 ||
+		k == reflect.Float64 ||
+		k == reflect.Interface {
 		return false
 	}
 	return true
@@ -592,8 +594,9 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 		kind = uint(reflect.UnsafePointer)
 	}
 	return &ditypes.Parameter{
-		Type:             fmt.Sprintf("unsupported-%s", reflect.Kind(kind).String()),
+		Type:             reflect.Kind(kind).String(),
 		Kind:             kind,
 		NotCaptureReason: ditypes.Unsupported,
+		DoNotCapture:     true,
 	}
 }

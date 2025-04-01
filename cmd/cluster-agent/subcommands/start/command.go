@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	datadogclientmodule "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -58,6 +60,8 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -104,6 +108,8 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
 	// Core checks
@@ -212,6 +218,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressionfx.Module(),
 				metricscompressionfx.Module(),
 				diagnosefx.Module(),
+				createandfetchimpl.Module(),
+
+				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+					return demuxInstance.Serializer()
+				}),
+				metadatarunnerimpl.Module(),
+				dcametadatafx.Module(),
 			)
 		},
 	}
@@ -236,7 +249,10 @@ func start(log log.Component,
 	settings settings.Component,
 	compression logscompression.Component,
 	datadogConfig config.Component,
+	authToken authtoken.Component,
 	diagnoseComp diagnose.Component,
+	dcametadataComp dcametadata.Component,
+	_ metadatarunner.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -276,13 +292,20 @@ func start(log log.Component,
 		}
 	}()
 
+	// Create the Leader election engine and initialize it
+	leaderelection.CreateGlobalLeaderEngine(mainCtx)
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+
 	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
 		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
-			config.GetInt("cluster_agent.max_connections"),
+			config.GetInt("cluster_agent.max_leader_connections"),
 		)
 	}
 
@@ -294,7 +317,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, diagnoseComp); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagnoseComp, dcametadataComp); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -319,13 +342,6 @@ func start(log log.Component,
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
-
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
 
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()

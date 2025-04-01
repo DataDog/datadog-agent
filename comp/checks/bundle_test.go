@@ -12,7 +12,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -26,7 +27,7 @@ func TestBundleDependencies(t *testing.T) {
 
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
-		fetchonlyimpl.MockModule(),
+		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
 		fx.Provide(func() tagger.Component { return fakeTagger }),
 		fx.Supply(core.BundleParams{}),
 		agenttelemetryfx.Module(),
