@@ -954,12 +954,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
 		}
 		return
-	case model.DNSResponseEventType:
-		if p.config.Probe.DNSResolutionEnabled {
-			_, err := event.DNSResponse.UnmarshalBinary(data[offset:], p.Resolvers.DNSResolver)
-			seclog.Errorf("failed to decode dns response: %v", err)
-		}
-		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -1292,6 +1286,22 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 
 			return
+		}
+	case model.DNSResponseEventType:
+		fmt.Printf("DNS received response. Offset = %d\n", offset)
+
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+			return
+		}
+		offset += read
+
+		if p.config.Probe.DNSResolutionEnabled {
+			_, err := event.DNSResponse.UnmarshalBinary(data[offset:], p.Resolvers.DNSResolver)
+			if err != nil {
+				seclog.Errorf("failed to decode dns response: %v", err)
+				return
+			}
 		}
 
 	case model.IMDSEventType:

@@ -140,22 +140,37 @@ int classifier_dns_response(struct __sk_buff *skb) {
         len = DNS_RECEIVE_MAX_LENGTH;
     }
 
-    struct dns_response_event_t * evt = reset_dns_response_event();
+    struct dns_flags_as_bits_and_pieces_t flags;
 
-    if (evt == NULL) {
-       // should never happen
-       return ACT_OK;
-    }
-
-    if (bpf_skb_load_bytes(skb, pkt->offset, &evt->header, sizeof(evt->header)) < 0) {
+    if (bpf_skb_load_bytes(skb, pkt->offset + 2, &flags, sizeof(flags)) < 0) {
         return ACT_OK;
     }
 
-    pkt->offset += sizeof(evt->header);
-
-    if(!evt->header.flags.as_bits_and_pieces.qr) {
+    if(!flags.qr) {
         return ACT_OK;
     }
+
+    union dns_responses_t * map_elem = reset_dns_response_event(skb, pkt);
+    if (map_elem == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    struct dnshdr header;
+    bool send_full_packet = false;
+    if (flags.rcode != 0) {
+        send_full_packet = true;
+        //process context
+        fill_network_process_context_from_pkt(&map_elem->full_dns_response.process, pkt);
+        // network context
+        fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
+    }
+
+    if (bpf_skb_load_bytes(skb, pkt->offset, &header, sizeof(struct dnshdr)) < 0) {
+        return ACT_OK;
+    }
+
+    pkt->offset += sizeof(struct dnshdr);
 
     if(len <= sizeof(struct dnshdr)) {
         return ACT_OK;
@@ -167,7 +182,13 @@ int classifier_dns_response(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    long err = bpf_skb_load_bytes(skb, pkt->offset, evt->data, remaining_bytes);
+    long err;
+
+     if (send_full_packet) {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->full_dns_response.data, remaining_bytes);
+     } else {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->short_dns_response.data, remaining_bytes);
+     }
 
     if (err < 0) {
         return ACT_OK;
@@ -175,7 +196,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     u64 current_timestamp = bpf_ktime_get_ns();
 
-    uint16_t header_id = evt->header.id;
+    uint16_t header_id = header.id;
     struct dns_responses_sent_to_userspace_lru_entry_t* lru_entry = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
 
     if (lru_entry != NULL &&  lru_entry->timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
@@ -203,7 +224,13 @@ int classifier_dns_response(struct __sk_buff *skb) {
     entry.packet_size = (u64)len;
     bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &entry, BPF_ANY);
 
-    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
+    if (send_full_packet) {
+        bpf_printk("a");
+        //send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
+    } else {
+        bpf_printk("b");
+        //send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
+    }
 
     return ACT_OK;
 }

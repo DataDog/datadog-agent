@@ -3797,7 +3797,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 				}
 				(*out.DNSEventSerializer).UnmarshalEasyJSON(in)
 			}
-		case "dnsresponse":
+		case "dns_response":
 			if in.IsNull() {
 				in.Skip()
 				out.DNSResponseEventSerializer = nil
@@ -4125,7 +4125,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 		(*in.DNSEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.DNSResponseEventSerializer != nil {
-		const prefix string = ",\"dnsresponse\":"
+		const prefix string = ",\"dns_response\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])

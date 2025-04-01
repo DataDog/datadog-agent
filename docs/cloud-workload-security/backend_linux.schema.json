@@ -1946,7 +1946,7 @@
     "dns": {
       "$ref": "#/$defs/DNSEvent"
     },
-    "dnsresponse": {
+    "dns_response": {
       "$ref": "#/$defs/DNSResponseEvent"
     },
     "imds": {
