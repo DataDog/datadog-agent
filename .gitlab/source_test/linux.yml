@@ -119,7 +119,7 @@ lint_python:
    tags: ["arch:amd64"]
    needs: []
    script:
-     - inv -e linter.python
+     - inv -e lint-python
 
 lint_flavor_heroku_linux-x64:
   extends:
