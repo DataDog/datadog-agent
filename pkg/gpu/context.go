@@ -10,8 +10,6 @@ package gpu
 import (
 	"fmt"
 
-	"github.com/prometheus/procfs"
-
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -35,9 +33,6 @@ type systemContext struct {
 
 	// procRoot is the root directory for process information
 	procRoot string
-
-	// procfsObj is the procfs filesystem object to retrieve process maps
-	procfsObj procfs.FS
 
 	// selectedDeviceByPIDAndTID maps each process ID to the map of thread IDs to selected device index.
 	// The reason to have a nested map is to allow easy cleanup of data when a process exits.

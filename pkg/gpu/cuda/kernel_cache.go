@@ -123,9 +123,10 @@ func NewKernelCache(procRoot string, smVersionSet map[uint32]struct{}, tm teleme
 		pidMaps:      make(map[int][]*procfs.ProcMap),
 		requests:     make(chan kernelKey, queueSize),
 		pidsToDelete: make(chan int, queueSize),
-
-		telemetry: newKernelCacheTelemetry(tm),
-		done:      make(chan struct{}),
+		smVersionSet: smVersionSet,
+		procRoot:     procRoot,
+		telemetry:    newKernelCacheTelemetry(tm),
+		done:         make(chan struct{}),
 	}
 
 	var err error
@@ -328,6 +329,7 @@ func (kc *KernelCache) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) 
 	return maps, nil
 }
 
+// CleanProcessData removes all the data for a given process from the cache.
 func (kc *KernelCache) CleanProcessData(pid int) {
 	kc.cacheMutex.Lock()
 	defer kc.cacheMutex.Unlock()

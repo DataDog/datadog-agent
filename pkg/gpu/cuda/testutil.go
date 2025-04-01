@@ -53,6 +53,7 @@ func AddKernelCacheEntry(t *testing.T, kc *KernelCache, pid int, address uint64,
 	}
 }
 
+// WaitForKernelCacheEntry waits for a kernel cache entry to be added to the kernel cache.
 func WaitForKernelCacheEntry(t *testing.T, kc *KernelCache, pid int, address uint64, smVersion uint32, binPath string, kernel *CubinKernel) {
 	cacheKey := kernelKey{
 		pid:       int(pid),
