@@ -35,7 +35,7 @@ include:
   # - .gitlab/package_deps_build/package_deps_build.yml
   # - .gitlab/pkg_metrics/pkg_metrics.yml
   # - .gitlab/post_rc_build/post_rc_tasks.yml
-  # - .gitlab/setup/setup.yml
+  - .gitlab/setup/setup.yml
   # - .gitlab/source_test/include.yml
   # - .gitlab/trigger_release/trigger_release.yml
 
