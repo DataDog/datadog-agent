@@ -189,14 +189,14 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 		return err
 	}
 	if c.instanceConfig.ExcludedDiskRe != "" {
-		if re, err := regexp.Compile(c.instanceConfig.ExcludedDiskRe); err == nil {
+		if re, err := compileRegExp(c.instanceConfig.ExcludedDiskRe); err == nil {
 			c.excludedDevices = append(c.excludedDevices, *re)
 		} else {
 			return err
 		}
 	}
 	for reString, tags := range c.instanceConfig.DeviceTagRe {
-		re, err := regexp.Compile(reString)
+		re, err := compileRegExp(reString)
 		if err != nil {
 			return err
 		}
@@ -257,7 +257,7 @@ func (c *Check) configureExcludeDevice() error {
 	slices := [][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedDevices = append(c.excludedDevices, *re)
 			} else {
 				return err
@@ -265,7 +265,7 @@ func (c *Check) configureExcludeDevice() error {
 		}
 	}
 	if c.instanceConfig.ExcludedDiskRe != "" {
-		if re, err := regexp.Compile(c.instanceConfig.ExcludedDiskRe); err == nil {
+		if re, err := compileRegExp(c.instanceConfig.ExcludedDiskRe); err == nil {
 			c.excludedDevices = append(c.excludedDevices, *re)
 		} else {
 			return err
@@ -279,7 +279,7 @@ func (c *Check) configureIncludeDevice() error {
 	slices := [][]string{c.instanceConfig.DeviceInclude, c.instanceConfig.DeviceWhitelist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.includedDevices = append(c.includedDevices, *re)
 			} else {
 				return err
@@ -294,7 +294,7 @@ func (c *Check) configureExcludeFileSystem() error {
 	slices := [][]string{c.initConfig.FileSystemGlobalExclude, c.initConfig.FileSystemGlobalBlacklist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedFilesystems = append(c.excludedFilesystems, *re)
 			} else {
 				return err
@@ -304,7 +304,7 @@ func (c *Check) configureExcludeFileSystem() error {
 	if len(c.excludedFilesystems) == 0 {
 		// Use default values if neither key was found
 		for _, val := range []string{"iso9660$", "tracefs$"} {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedFilesystems = append(c.excludedFilesystems, *re)
 			} else {
 				return err
@@ -314,7 +314,7 @@ func (c *Check) configureExcludeFileSystem() error {
 	slices = [][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedFilesystems = append(c.excludedFilesystems, *re)
 			} else {
 				return err
@@ -329,7 +329,7 @@ func (c *Check) configureIncludeFileSystem() error {
 	slices := [][]string{c.instanceConfig.FileSystemInclude, c.instanceConfig.FileSystemWhitelist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.includedFilesystems = append(c.includedFilesystems, *re)
 			} else {
 				return err
@@ -344,7 +344,7 @@ func (c *Check) configureExcludeMountPoint() error {
 	slices := [][]string{c.initConfig.MountPointGlobalExclude, c.initConfig.MountPointGlobalBlacklist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
 				return err
@@ -355,7 +355,7 @@ func (c *Check) configureExcludeMountPoint() error {
 		// https://github.com/DataDog/datadog-agent/issues/1961
 		// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
 		for _, val := range []string{"(/host)?/proc/sys/fs/binfmt_misc$"} {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
 				return err
@@ -365,7 +365,7 @@ func (c *Check) configureExcludeMountPoint() error {
 	slices = [][]string{c.instanceConfig.MountPointExclude, c.instanceConfig.MountPointBlacklist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
 				return err
@@ -373,7 +373,7 @@ func (c *Check) configureExcludeMountPoint() error {
 		}
 	}
 	if c.instanceConfig.ExcludedMountPointRe != "" {
-		if re, err := regexp.Compile(c.instanceConfig.ExcludedMountPointRe); err == nil {
+		if re, err := compileRegExp(c.instanceConfig.ExcludedMountPointRe); err == nil {
 			c.excludedMountpoints = append(c.excludedMountpoints, *re)
 		} else {
 			return err
@@ -387,7 +387,7 @@ func (c *Check) configureIncludeMountPoint() error {
 	slices := [][]string{c.instanceConfig.MountPointInclude, c.instanceConfig.MountPointWhitelist}
 	for _, slice := range slices {
 		for _, val := range slice {
-			if re, err := regexp.Compile(val); err == nil {
+			if re, err := compileRegExp(val); err == nil {
 				c.includedMountpoints = append(c.includedMountpoints, *re)
 			} else {
 				return err

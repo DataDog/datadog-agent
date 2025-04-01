@@ -18,6 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func compileRegExp(expr string) (*regexp.Regexp, error) {
+	return regexp.Compile(expr)
+}
+
 func (c *Check) configureCreateMounts() {
 }
 

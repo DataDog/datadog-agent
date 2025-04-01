@@ -10,11 +10,16 @@ package disk
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mitchellh/mapstructure"
 	win "golang.org/x/sys/windows"
+	"regexp"
 	"strings"
 	"unsafe"
 )
+
+func compileRegExp(expr string) (*regexp.Regexp, error) {
+	iExpr := fmt.Sprintf("(?i)%s", expr)
+	return regexp.Compile(iExpr)
+}
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	return nil
