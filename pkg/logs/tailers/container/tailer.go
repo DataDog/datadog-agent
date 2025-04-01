@@ -10,32 +10,31 @@ package container
 import (
 	"context"
 	"fmt"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultSleepDuration = 1 * time.Second
 
-type dockerContainerLogInterface interface {
+// DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
+// located at pkg/util/docker/docker_util.go
+type DockerContainerLogInterface interface {
 	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
 }
 
@@ -50,7 +49,7 @@ func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName
 	}
 }
 
-func newDockerLogReader(docker dockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
+func newDockerLogReader(docker DockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
 	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
 		options := container.LogsOptions{
 			ShowStdout: true,
@@ -125,7 +124,7 @@ func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, 
 }
 
 // NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
-func NewDockerTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -25,6 +25,15 @@ import (
 type Factory interface {
 	// MakeTailer creates a new tailer for the given LogSource.
 	MakeTailer(source *sources.LogSource) (Tailer, error)
+}
+
+type dockerUtilGetter interface {
+	get() (container.DockerContainerLogInterface, error)
+}
+
+type dockerUtilGetterImpl struct {
+	//nolint:unused
+	cli container.DockerContainerLogInterface // this can trigger a false positive if only linted with kubelet tag
 }
 
 // factory encapsulates the information required to determine which kind
@@ -49,8 +58,8 @@ type factory struct {
 	// containers or pods.
 	cop containersorpods.Chooser
 
-	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
-	dockerutil *dockerutilPkg.DockerUtil
+	// dockerUtilGetter memoizes a DockerUtil instance; fetch this with dockerUtilGetter.get()
+	dockerUtilGetter dockerUtilGetter
 
 	tagger tagger.Component
 }
@@ -65,6 +74,7 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 		registry:          registry,
 		workloadmetaStore: workloadmetaStore,
 		cop:               containersorpods.NewChooser(),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
 		tagger:            tagger,
 	}
 }
@@ -83,9 +93,6 @@ func (tf *factory) makeTailer(
 	makeAPITailer func(*sources.LogSource) (Tailer, error),
 ) (Tailer, error) {
 
-	// depending on the result of useFile, prefer either file logging or socket
-	// logging, but fall back to the opposite.
-
 	switch whichTailer(source) {
 	case api:
 		t, err := makeAPITailer(source)
@@ -95,6 +102,8 @@ func (tf *factory) makeTailer(
 			return nil, err
 		}
 		return t, nil
+	// depending on the result of useFile, prefer either file logging or socket
+	// logging, but fall back to the opposite.
 	case file:
 		t, err := makeFileTailer(source)
 		if err == nil {
@@ -103,7 +112,6 @@ func (tf *factory) makeTailer(
 		source.Messages.AddMessage("fileTailerError", "The log file tailer could not be made, falling back to socket")
 		log.Warnf("Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
 		return makeSocketTailer(source)
-
 	case socket:
 		t, err := makeSocketTailer(source)
 		if err == nil {

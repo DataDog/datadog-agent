@@ -10,8 +10,13 @@ package tailerfactory
 import (
 	"errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 )
 
-func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
+func (tf *factory) makeSocketTailer(_ *sources.LogSource) (Tailer, error) {
 	return nil, errors.New("socket tailing is unavailable")
+}
+
+func (dug *dockerUtilGetterImpl) get() (container.DockerContainerLogInterface, error) {
+	return nil, errors.New("docker log interface is unavailable")
 }

@@ -75,6 +75,7 @@ func TestMakeAPITailer_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
 		workloadmetaStore: option.New[workloadmeta.Component](store),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Identifier: "abc",

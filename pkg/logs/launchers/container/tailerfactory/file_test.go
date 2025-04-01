@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -37,7 +36,6 @@ import (
 var platformDockerLogsBasePath string
 
 func fileTestSetup(t *testing.T) {
-	dockerutilPkg.EnableTestingMode()
 	tmp := t.TempDir()
 	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldPodmanLogsBasePath string
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
@@ -107,6 +105,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:                        "docker",
@@ -152,6 +151,7 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:                        "podman",
@@ -199,6 +199,7 @@ func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "podman",
@@ -225,6 +226,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",
@@ -256,6 +258,7 @@ func TestDockerOverride(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",
@@ -295,6 +298,7 @@ func TestMakeK8sSource(t *testing.T) {
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
 		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
 		workloadmetaStore: option.New[workloadmeta.Component](store),
 	}
 	for _, sourceConfigType := range []string{"docker", "containerd"} {

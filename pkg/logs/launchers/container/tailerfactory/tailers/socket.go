@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -28,12 +27,12 @@ import (
 // failures on its own, and this wrapper will no longer be necessary.
 
 type DockerSocketTailer struct {
-	dockerutil *dockerutilPkg.DockerUtil
+	dockerutil containerTailerPkg.DockerContainerLogInterface
 	base
 }
 
 // NewDockerSocketTailer Creates a new docker socket tailer
-func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
+func NewDockerSocketTailer(dockerutil containerTailerPkg.DockerContainerLogInterface, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil: dockerutil,
 		base: base{
