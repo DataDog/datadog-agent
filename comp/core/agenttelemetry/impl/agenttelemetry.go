@@ -131,6 +131,8 @@ func createAtel(
 		runner = newRunnerImpl()
 	}
 
+	installertelemetry.SetSamplingRate("agent.startup", atelCfg.StartupTraceSampling)
+
 	tracerHTTPClient := &http.Client{
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}

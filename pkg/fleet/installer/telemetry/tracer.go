@@ -23,7 +23,7 @@ var (
 		"cdn":             0.1,
 		"garbage_collect": 0.05,
 		"HTTPClient":      0.05,
-		"agent.startup":   0.01,
+		"agent.startup":   0.0,
 	}
 )
 
@@ -90,4 +90,11 @@ func sampledByRate(n uint64, rate float64) bool {
 		return n*uint64(1111111111111111111) < uint64(rate*math.MaxUint64)
 	}
 	return true
+}
+
+func SetSamplingRate(name string, rate float64) {
+	if rate < 0 || rate > 1 {
+		return
+	}
+	samplingRates[name] = rate
 }
