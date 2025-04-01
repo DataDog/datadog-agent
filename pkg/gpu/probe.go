@@ -52,7 +52,7 @@ const (
 
 var (
 	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = 2 * os.Getpagesize()
+	defaultRingBufferSize = 256 * os.Getpagesize() // 1MB
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
