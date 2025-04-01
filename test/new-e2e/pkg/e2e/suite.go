@@ -246,7 +246,6 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 		defer func() {
 			bs.TearDownSuite()
 			bs.T().Fatal("SetupSuite failed, aborted test suite and called TearDownSuite")
-
 		}()
 
 		// run environment diagnose
