@@ -117,18 +117,15 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 	}
 
 	// Inject DD_AGENT_HOST
-	switch injectionMode(pod, i.config.mode, i.config.csiEnabled) {
+	mode := injectionMode(pod, i.config.mode, i.config.csiEnabled)
+	switch mode {
 	case hostIP:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostIPEnvVar)
 	case service:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostServiceEnvVar)
-	case socket:
-		injectedVolumes := i.injectSocketVolumes(pod, false)
-		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
-		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
-		injectedConfig = injectedVolumes || injectedEnv
-	case csi:
-		injectedVolumes := i.injectSocketVolumes(pod, true)
+	case socket, csi:
+		useCSI := (mode == csi)
+		injectedVolumes := i.injectSocketVolumes(pod, useCSI)
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumes || injectedEnv
@@ -224,11 +221,9 @@ func injectionMode(pod *corev1.Pod, globalMode string, csiEnabled bool) string {
 		}
 	}
 
-	if decidedMode == csi {
-		if !csiEnabled {
-			log.Warnf("Unable to use CSI mode because CSI is disabled, defaulting to 'socket'")
-			decidedMode = socket
-		}
+	if decidedMode == csi && !csiEnabled {
+		log.Warnf("Unable to use CSI mode because CSI is disabled, defaulting to 'socket'")
+		decidedMode = socket
 	}
 
 	return decidedMode
