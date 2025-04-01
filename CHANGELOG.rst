@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2025-04-01
+Release on: 2025-04-02
 
 - Please refer to the `7.64.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7642>`_ for the list of changes on the Core Checks
 
@@ -125,7 +125,7 @@ Enhancement Notes
 
 - Enable IMDSv2 by default for all EC2 instance hosts if IMDSv2 usage was not explicitly enabled.
 
-- Added capability to generate profiling data in a flare 
+- Added capability to generate profiling data in a flare
   requested via Remote Config
 
 - Image layer digests will no longer report as "<missing>" from Docker runtimes.
@@ -190,7 +190,7 @@ Bug Fixes
 - version-manifest.json and version-manifest.txt files now correctly reflect the packages content.
 
 - Prevent journald and windows event logs from being errantly marked as
-  truncated in specific circumstances. 
+  truncated in specific circumstances.
 
 - Obfuscation Cache Size Calculation:
   Resolved an issue where the cache item size was underestimated by not accounting for the Go struct overhead (including struct fields and headers for strings and slices).
@@ -210,7 +210,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- Add multi line log aggregation telemetry. 
+- Add multi line log aggregation telemetry.
 
 
 .. _Release Notes_7.63.3:
@@ -368,7 +368,7 @@ Enhancement Notes
 Security Notes
 --------------
 
-- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797. 
+- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797.
 
 - On Windows, the named pipe \\.\pipe\dd_system_probe from system probe is now restricted to
   Local System, Administrators, and the ddagentuser.  Any other custom users are not supported.
@@ -381,16 +381,16 @@ Bug Fixes
 
 - Fixes some existing metric transformer unit tests by correcting their assertions.
 
-- Datadog span.Type and span.Resource attributes are set correctly for OTel spans 
-  processed via OTel Agent and Datadog Exporter when client span type is a database 
+- Datadog span.Type and span.Resource attributes are set correctly for OTel spans
+  processed via OTel Agent and Datadog Exporter when client span type is a database
   span.Type.
-  
-  span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using 
+
+  span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using
   `"enable_receive_resource_spans_v2"` in `DD_APM_FEATURES`
-  
-  span.Resource logic update is limited to OperationAndResourceNameV2 logic, set 
+
+  span.Resource logic update is limited to OperationAndResourceNameV2 logic, set
   using `"enable_operation_and_resource_name_logic_v2"` in `DD_APM_FEATURES`
-  
+
   Users should set a `span.type` attribute on their telemetry if they wish to
   override the default span type.
 
