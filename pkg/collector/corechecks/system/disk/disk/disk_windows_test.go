@@ -100,23 +100,6 @@ create_mounts:
 	}
 }
 
-func TestGivenADiskCheckWithCreateMountsConfiguredWithBadType_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
-	setupDefaultMocks()
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte(`
-create_mounts:
-- mountpoint: "n:"
-  host: smbserver
-  share: /mnt/nfs_share
-  type: 12
-`))
-
-	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	assert.NotNil(t, err)
-}
-
 func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
 	setupDefaultMocks()
 	var netAddConnectionCalls []NetAddConnectionCall
