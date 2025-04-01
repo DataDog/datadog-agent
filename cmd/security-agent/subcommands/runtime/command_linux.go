@@ -20,8 +20,9 @@ import (
 // Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
-		Use:   "runtime",
-		Short: "runtime Agent utility commands",
+		Use:        "runtime",
+		Short:      "runtime Agent utility commands",
+		Deprecated: "please use `system-probe runtime` instead",
 	}
 
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
