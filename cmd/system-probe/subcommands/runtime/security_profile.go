@@ -35,7 +35,8 @@ type securityProfileCliParams struct {
 	imageTag     string
 }
 
-func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
+// SecurityProfileCommand returns the CLI command for "runtime security-profile"
+func SecurityProfileCommand(globalParams *command.GlobalParams) *cobra.Command {
 	securityProfileCmd := &cobra.Command{
 		Use:   "security-profile",
 		Short: "security profile commands",
@@ -45,7 +46,7 @@ func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Comman
 	securityProfileCmd.AddCommand(listSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(saveSecurityProfileCommands(globalParams)...)
 
-	return []*cobra.Command{securityProfileCmd}
+	return securityProfileCmd
 }
 
 func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -62,7 +63,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -108,7 +109,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -215,7 +216,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
