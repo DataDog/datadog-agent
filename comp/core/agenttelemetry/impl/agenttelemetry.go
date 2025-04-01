@@ -25,6 +25,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -40,6 +42,8 @@ type atel struct {
 	sender  sender
 	runner  runner
 	atelCfg *Config
+
+	lightTracer *installertelemetry.Telemetry
 
 	cancelCtx context.Context
 	cancel    context.CancelFunc
@@ -127,6 +131,12 @@ func createAtel(
 		runner = newRunnerImpl()
 	}
 
+	installertelemetry.SetSamplingRate("agent.startup", atelCfg.StartupTraceSampling)
+
+	tracerHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfgComp),
+	}
+
 	return &atel{
 		enabled: true,
 		cfgComp: cfgComp,
@@ -135,6 +145,13 @@ func createAtel(
 		sender:  sender,
 		runner:  runner,
 		atelCfg: atelCfg,
+
+		lightTracer: installertelemetry.NewTelemetry(
+			tracerHTTPClient,
+			utils.SanitizeAPIKey(cfgComp.GetString("api_key")),
+			cfgComp.GetString("site"),
+			"datadog-agent",
+		),
 
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
@@ -591,6 +608,8 @@ func (a *atel) start() error {
 func (a *atel) stop() error {
 	a.logComp.Info("Stopping agent telemetry")
 	a.cancel()
+
+	a.lightTracer.Stop()
 
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
