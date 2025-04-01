@@ -61,7 +61,7 @@ var (
 	// for testing
 	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
-	fetchProcessConfig  = func(cfg model.Reader, c authtoken.SecureClient) (string, error) {
+	fetchProcessConfig  = func(cfg model.Reader, c authtoken.IPCClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, c, true)
 	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
@@ -100,7 +100,7 @@ type inventoryagent struct {
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    option.Option[authtoken.Component]
+	optClient    option.Option[authtoken.IPCClient]
 }
 
 type dependencies struct {
@@ -110,7 +110,7 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      option.Option[authtoken.Component]
+	OptClient      option.Option[authtoken.IPCClient]
 }
 
 type provides struct {
@@ -131,7 +131,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		log:          deps.Log,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		optClient:    deps.OptClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -200,16 +200,16 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, c authtoken.SecureClient) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, c authtoken.IPCClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
 
-	auth, ok := ia.authToken.Get()
+	client, ok := ia.optClient.Get()
 	if !ok {
 		return localConf
 	}
 
-	if remoteConfig, err := configFetcher(localConf, auth.GetClient()); err == nil {
+	if remoteConfig, err := configFetcher(localConf, client); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -299,7 +299,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, func(config model.Reader, _ authtoken.SecureClient) (string, error) {
+		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, func(config model.Reader, _ authtoken.IPCClient) (string, error) {
 			return fetchSystemProbeConfig(config)
 		})
 	} else {

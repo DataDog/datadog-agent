@@ -54,7 +54,7 @@ type dependencies struct {
 	Flare     flare.Component
 	Diagnose  diagnose.Component
 	Params    systray.Params
-	AuthToken option.Option[authtoken.Component]
+	OptClient option.Option[authtoken.IPCClient]
 }
 
 type systrayImpl struct {
@@ -66,7 +66,7 @@ type systrayImpl struct {
 	flare     flare.Component
 	diagnose  diagnose.Component
 	params    systray.Params
-	authToken option.Option[authtoken.Component]
+	optClient option.Option[authtoken.IPCClient]
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
@@ -129,7 +129,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		flare:      deps.Flare,
 		diagnose:   deps.Diagnose,
 		params:     deps.Params,
-		authToken:  deps.AuthToken,
+		optClient:  deps.OptClient,
 		shutdowner: deps.Shutdowner,
 	}
 

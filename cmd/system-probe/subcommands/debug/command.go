@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -61,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{debugCommand}
 }
 
-func debugRuntime(at authtoken.Component, cliParams *cliParams) error {
+func debugRuntime(client authtoken.IPCClient, cliParams *cliParams) error {
 	var path string
 	if len(cliParams.args) == 1 {
 		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])
@@ -70,7 +70,7 @@ func debugRuntime(at authtoken.Component, cliParams *cliParams) error {
 	}
 
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := at.GetClient().Get(path, secureclient.WithCloseConnection)
+	r, err := client.Get(path, ipcclient.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

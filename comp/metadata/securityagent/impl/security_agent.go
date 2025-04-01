@@ -64,7 +64,7 @@ type secagent struct {
 
 	log       log.Component
 	conf      config.Component
-	authToken option.Option[authtoken.Component]
+	optClient option.Option[authtoken.IPCClient]
 	hostname  string
 }
 
@@ -74,7 +74,7 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken option.Option[authtoken.Component]
+	OptClient option.Option[authtoken.IPCClient]
 }
 
 // Provides defines the output of the securityagent metadata component
@@ -93,7 +93,7 @@ func NewComponent(deps Requires) Provides {
 		log:       deps.Log,
 		conf:      deps.Config,
 		hostname:  hname,
-		authToken: deps.AuthToken,
+		optClient: deps.OptClient,
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
@@ -124,12 +124,11 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	auth, ok := sa.authToken.Get()
+	client, ok := sa.optClient.Get()
 	if !ok {
 		sa.log.Warn("no client found")
 		return metadata
 	}
-	client := auth.GetClient()
 
 	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, client)
 	if err != nil {

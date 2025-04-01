@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
@@ -32,7 +32,7 @@ var templatesFS embed.FS
 // Requires defines the dependencies of the status component.
 type Requires struct {
 	Config    config.Component
-	Authtoken option.Option[authtoken.Component]
+	OptClient option.Option[authtoken.IPCClient]
 }
 
 // Provides contains components provided by status constructor.
@@ -43,7 +43,7 @@ type Provides struct {
 
 type statusProvider struct {
 	Config         config.Component
-	at             option.Option[authtoken.Component]
+	optClient      option.Option[authtoken.IPCClient]
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -71,8 +71,8 @@ type prometheusRuntimeConfig struct {
 func NewComponent(reqs Requires) Provides {
 
 	comp := statusProvider{
-		Config: reqs.Config,
-		at:     reqs.Authtoken,
+		Config:    reqs.Config,
+		optClient: reqs.OptClient,
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,
 			"metrics":         0.0,
@@ -145,12 +145,12 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
-	auth, ok := s.at.Get()
+	client, ok := s.optClient.Get()
 	if !ok {
 		return log.Error("no auth component found")
 	}
 
-	resp, err := auth.GetClient().Get(prometheusURL, secureclient.WithCloseConnection)
+	resp, err := client.Get(prometheusURL, ipcclient.WithCloseConnection)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
 
-	auth, ok := s.at.Get()
+	client, ok := s.optClient.Get()
 	if !ok {
 		return map[string]interface{}{
 			"url":   extensionURL,
@@ -202,7 +202,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		}
 	}
 
-	resp, err := auth.GetClient().Get(extensionURL, secureclient.WithCloseConnection)
+	resp, err := client.Get(extensionURL, ipcclient.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,

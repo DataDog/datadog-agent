@@ -59,8 +59,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func printHostname(_ log.Component, params *cliParams, at option.Option[authtoken.Component]) error {
-	hname, err := getHostname(params, at)
+func printHostname(_ log.Component, params *cliParams, optClient option.Option[authtoken.IPCClient]) error {
+	hname, err := getHostname(params, optClient)
 
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
@@ -70,13 +70,13 @@ func printHostname(_ log.Component, params *cliParams, at option.Option[authtoke
 	return nil
 }
 
-func getHostname(params *cliParams, at option.Option[authtoken.Component]) (string, error) {
+func getHostname(params *cliParams, optClient option.Option[authtoken.IPCClient]) (string, error) {
 	if !params.forceLocal {
-		auth, ok := at.Get()
+		client, ok := optClient.Get()
 		if !ok {
 			return "", fmt.Errorf("auth token not found")
 		}
-		hname, err := getRemoteHostname(auth)
+		hname, err := getRemoteHostname(client)
 		if err == nil {
 			return hname, nil
 		}
@@ -88,8 +88,8 @@ func getHostname(params *cliParams, at option.Option[authtoken.Component]) (stri
 	return hostname.Get(context.Background())
 }
 
-func getRemoteHostname(auth authtoken.Component) (string, error) {
-	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/hostname")
+func getRemoteHostname(client authtoken.IPCClient) (string, error) {
+	endpoint, err := client.NewIPCEndpoint("/agent/hostname")
 	if err != nil {
 		return "", err
 	}

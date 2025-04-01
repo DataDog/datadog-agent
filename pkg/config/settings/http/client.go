@@ -17,7 +17,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
@@ -82,16 +82,16 @@ func (c *httpClient) DoPost(url string, contentType string, body io.Reader) (res
 }
 
 type httpsClient struct {
-	c             authtoken.SecureClient
+	c             authtoken.IPCClient
 	clientOptions []authtoken.RequestOption
 }
 
 func (c *httpsClient) DoGet(url string) (body []byte, e error) {
-	return c.c.Get(url, secureclient.WithLeaveConnectionOpen)
+	return c.c.Get(url, ipcclient.WithLeaveConnectionOpen)
 }
 
 func (c *httpsClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
-	return c.c.Post(url, contentType, body, secureclient.WithLeaveConnectionOpen)
+	return c.c.Post(url, contentType, body, ipcclient.WithLeaveConnectionOpen)
 }
 
 type runtimeSettingsClient struct {
@@ -109,7 +109,7 @@ func NewHTTPClient(c *http.Client, baseURL string, targetProcessName string, cli
 }
 
 // NewHTTPSClient returns a client setup to interact with the standard runtime settings HTTPS API, taking advantage of the auth component
-func NewHTTPSClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
+func NewHTTPSClient(c authtoken.IPCClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
 
 	innerClient := &httpsClient{c, clientOptions}
 

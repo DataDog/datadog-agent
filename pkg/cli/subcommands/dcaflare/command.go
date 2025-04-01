@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -108,7 +108,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func readProfileData(client authtoken.SecureClient, seconds int) (clusterAgentFlare.ProfileData, error) {
+func readProfileData(client authtoken.IPCClient, seconds int) (clusterAgentFlare.ProfileData, error) {
 	pdata := clusterAgentFlare.ProfileData{}
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
@@ -141,7 +141,7 @@ func readProfileData(client authtoken.SecureClient, seconds int) (clusterAgentFl
 			URL:  pprofURL + "/block",
 		},
 	} {
-		b, err := client.Get(prof.URL, secureclient.WithLeaveConnectionOpen)
+		b, err := client.Get(prof.URL, ipcclient.WithLeaveConnectionOpen)
 		if err != nil {
 			return pdata, err
 		}
@@ -171,7 +171,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
-		settingsClient := settingshttp.NewHTTPSClient(auth.GetClient(), configURL, "datadog-cluster-agent", secureclient.WithLeaveConnectionOpen)
+		settingsClient := settingshttp.NewHTTPSClient(auth.GetClient(), configURL, "datadog-cluster-agent", ipcclient.WithLeaveConnectionOpen)
 
 		profilingOpts := settings.ProfilingOpts{
 			ProfileMutex:         cliParams.profileMutex,

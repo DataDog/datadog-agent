@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -71,7 +71,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client authtoken.IPCClient) error {
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
@@ -88,7 +88,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := at.GetClient().Get(urlstr, secureclient.WithContext(ctx), secureclient.WithCloseConnection)
+	r, err := client.Get(urlstr, ipcclient.WithContext(ctx), ipcclient.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

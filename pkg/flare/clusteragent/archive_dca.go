@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -148,7 +148,7 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
 }
 
-func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, c authtoken.SecureClient) error {
+func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, c authtoken.IPCClient) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -179,7 +179,7 @@ func getHPAStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("custommetricsprovider.log", []byte(str))
 }
 
-func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder, c authtoken.SecureClient) error {
+func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder, c authtoken.IPCClient) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -190,14 +190,14 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder, c authtoken.SecureCl
 }
 
 // GetClusterAgentConfigCheck gets config check from the server for cluster agent
-func GetClusterAgentConfigCheck(w io.Writer, withDebug bool, c authtoken.SecureClient) error {
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool, c authtoken.IPCClient) error {
 	targetURL := url.URL{
 		Scheme: "https",
 		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
 		Path:   "config-check",
 	}
 
-	r, err := c.Get(targetURL.String(), secureclient.WithLeaveConnectionOpen)
+	r, err := c.Get(targetURL.String(), ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))

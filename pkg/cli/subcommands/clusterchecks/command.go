@@ -118,17 +118,16 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(_ log.Component, _ config.Component, cliParams *cliParams, at authtoken.Component) error {
-	secureClient := at.GetClient()
+func run(_ log.Component, _ config.Component, cliParams *cliParams, client authtoken.IPCClient) error {
 
-	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName, secureClient); err != nil {
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName, client); err != nil {
 		return err
 	}
 
-	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, secureClient)
+	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, client)
 }
 
-func rebalance(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
+func rebalance(_ log.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
@@ -143,7 +142,7 @@ func rebalance(_ log.Component, at authtoken.Component, cliParams *cliParams) er
 		return fmt.Errorf("error marshalling payload: %v", err)
 	}
 
-	r, err := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer(postData))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(postData))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -173,13 +172,13 @@ func rebalance(_ log.Component, at authtoken.Component, cliParams *cliParams) er
 	return nil
 }
 
-func isolate(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
+func isolate(_ log.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
 
-	r, err := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

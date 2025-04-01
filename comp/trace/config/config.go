@@ -78,7 +78,6 @@ func NewConfig(deps Dependencies) (Component, error) {
 	c := cfg{
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
-		at:          deps.At,
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 

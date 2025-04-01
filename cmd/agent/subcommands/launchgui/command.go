@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(config config.Component, _ *cliParams, _ log.Component, auth authtoken.Component) error {
+func launchGui(config config.Component, _ *cliParams, _ log.Component, client authtoken.IPCClient) error {
 	guiPort := config.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
@@ -63,7 +63,7 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component, auth auth
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
 
-	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/gui/intent")
+	endpoint, err := client.NewIPCEndpoint("/agent/gui/intent")
 	if err != nil {
 		return err
 	}

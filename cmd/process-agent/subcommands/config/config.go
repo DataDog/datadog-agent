@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
@@ -32,7 +32,7 @@ type dependencies struct {
 
 	Config config.Component
 
-	At authtoken.Component
+	Client authtoken.IPCClient
 }
 
 // cliParams are the command-line arguments for this subcommand
@@ -107,7 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func showRuntimeConfiguration(deps dependencies, params *cliParams) error {
-	runtimeConfig, err := fetcher.ProcessAgentConfig(deps.Config, deps.At.GetClient(), params.showEntireConfig)
+	runtimeConfig, err := fetcher.ProcessAgentConfig(deps.Config, deps.Client, params.showEntireConfig)
 	if err != nil {
 		return err
 	}
@@ -193,6 +193,6 @@ func getClient(deps dependencies) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewHTTPSClient(deps.At.GetClient(), ipcAddressWithPort, "process-agent", secureclient.WithLeaveConnectionOpen)
+	settingsClient := settingshttp.NewHTTPSClient(deps.Client, ipcAddressWithPort, "process-agent", ipcclient.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

@@ -49,7 +49,7 @@ type dependencies struct {
 
 	Config config.Component
 	Log    log.Component
-	At     authtoken.Component
+	Client authtoken.IPCClient
 }
 
 func taggerList(deps dependencies) error {
@@ -60,7 +60,7 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
-	return api.GetTaggerList(deps.At.GetClient(), color.Output, taggerURL)
+	return api.GetTaggerList(deps.Client, color.Output, taggerURL)
 }
 
 func getTaggerURL() (string, error) {

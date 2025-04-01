@@ -21,7 +21,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -75,7 +75,7 @@ type inventoryotel struct {
 	m         sync.Mutex
 	data      otelMetadata
 	hostname  string
-	authToken option.Option[authtoken.Component]
+	optClient option.Option[authtoken.IPCClient]
 	f         *freshConfig
 }
 
@@ -85,7 +85,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	AuthToken  option.Option[authtoken.Component]
+	OptClient  option.Option[authtoken.IPCClient]
 }
 
 type provides struct {
@@ -105,7 +105,7 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		log:       deps.Log,
 		hostname:  hname,
 		data:      make(otelMetadata),
-		authToken: deps.AuthToken,
+		optClient: deps.OptClient,
 	}
 
 	getter := i.fetchRemoteOtelConfig
@@ -159,12 +159,12 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	auth, ok := i.authToken.Get()
+	client, ok := i.optClient.Get()
 	if !ok {
 		return nil, i.log.Error("no auth component found")
 	}
 
-	body, err := auth.GetClient().Get(u.String(), secureclient.WithTimeout(httpTO))
+	body, err := client.Get(u.String(), ipcclient.WithTimeout(httpTO))
 	if err != nil {
 		return nil, i.log.Error("error fetching remote otel config: %w", err)
 	}

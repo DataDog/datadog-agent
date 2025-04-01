@@ -47,17 +47,16 @@ func makeConfigSync(deps dependencies) *configSync {
 		Path:   "/config/v1",
 	}
 	cs := &configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       defaultURL,
-		client:    deps.Authtoken.GetClient(),
-		ctx:       context.Background(),
+		Config: deps.Config,
+		Log:    deps.Log,
+		url:    defaultURL,
+		client: deps.Client,
+		ctx:    context.Background(),
 	}
 	return cs
 }
 
-func makeServer(t *testing.T, authtoken authtoken.Mock, handler http.HandlerFunc) (*httptest.Server, authtoken.SecureClient, *url.URL) {
+func makeServer(t *testing.T, authtoken authtoken.Mock, handler http.HandlerFunc) (*httptest.Server, authtoken.IPCClient, *url.URL) {
 	server := authtoken.NewMockServer(handler)
 
 	url, err := url.Parse(server.URL)
@@ -71,9 +70,9 @@ func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.Ha
 	deps := makeDeps(t)
 	cs := makeConfigSync(deps)
 
-	authmock, ok := deps.Authtoken.(authtoken.Mock)
-	require.True(t, ok)
-	_, client, url := makeServer(t, authmock, handler)
+	atmock := authtokenmock.New(t)
+
+	_, client, url := makeServer(t, atmock, handler)
 	cs.ctx = ctx
 	cs.client = client
 	cs.url = url

@@ -45,8 +45,8 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	}
 }
 
-func printConfig(config config.Component, at authtoken.Component) error {
-	fullConfig, err := fetcher.TraceAgentConfig(config, at.GetClient())
+func printConfig(config config.Component, client authtoken.IPCClient) error {
+	fullConfig, err := fetcher.TraceAgentConfig(config, client)
 	if err != nil {
 		return fmt.Errorf("error fetching trace-agent configuration: %s", err)
 	}

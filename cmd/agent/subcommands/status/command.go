@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -111,16 +111,16 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, auth authtoken.Component) error {
+func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, client authtoken.IPCClient) error {
 	if cliParams.list {
-		return redactError(requestSections(auth.GetClient()))
+		return redactError(requestSections(client))
 	}
 
 	if len(cliParams.args) < 1 {
-		return redactError(requestStatus(cliParams, auth.GetClient()))
+		return redactError(requestStatus(cliParams, client))
 	}
 
-	return componentStatusCmd(logger, cliParams, auth.GetClient())
+	return componentStatusCmd(logger, cliParams, client)
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {
@@ -159,7 +159,7 @@ func renderResponse(res []byte, cliParams *cliParams) error {
 	return nil
 }
 
-func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
+func requestStatus(cliParams *cliParams, client authtoken.IPCClient) error {
 
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -172,7 +172,7 @@ func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
 		return err
 	}
 
-	res, err := endpoint.DoGet(secureclient.WithValues(v))
+	res, err := endpoint.DoGet(ipcclient.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, cliParams *cliParams, client authtoken.SecureClient) error {
+func componentStatusCmd(_ log.Component, cliParams *cliParams, client authtoken.IPCClient) error {
 	if len(cliParams.args) > 1 {
 		return fmt.Errorf("only one section must be specified")
 	}
@@ -194,7 +194,7 @@ func componentStatusCmd(_ log.Component, cliParams *cliParams, client authtoken.
 	return redactError(componentStatus(cliParams, cliParams.args[0], client))
 }
 
-func componentStatus(cliParams *cliParams, component string, client authtoken.SecureClient) error {
+func componentStatus(cliParams *cliParams, component string, client authtoken.IPCClient) error {
 
 	v := setIpcURL(cliParams)
 
@@ -202,7 +202,7 @@ func componentStatus(cliParams *cliParams, component string, client authtoken.Se
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(secureclient.WithValues(v))
+	res, err := endpoint.DoGet(ipcclient.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func componentStatus(cliParams *cliParams, component string, client authtoken.Se
 	return nil
 }
 
-func requestSections(client authtoken.SecureClient) error {
+func requestSections(client authtoken.IPCClient) error {
 	endpoint, err := client.NewIPCEndpoint("/agent/status/sections")
 	if err != nil {
 		return err

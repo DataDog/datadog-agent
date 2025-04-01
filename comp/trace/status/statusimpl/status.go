@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,8 +24,8 @@ import (
 type dependencies struct {
 	fx.In
 
-	Config    config.Component
-	AuthToken authtoken.Component
+	Config config.Component
+	Client authtoken.IPCClient
 }
 
 type provides struct {
@@ -41,15 +41,15 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	Config       config.Component
-	SecureClient authtoken.SecureClient
+	Config config.Component
+	Client authtoken.IPCClient
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			Config:       deps.Config,
-			SecureClient: deps.AuthToken.GetClient(),
+			Config: deps.Config,
+			Client: deps.Client,
 		}),
 	}
 }
@@ -81,7 +81,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.SecureClient.Get(url, secureclient.WithCloseConnection)
+	resp, err := s.Client.Get(url, ipcclient.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,

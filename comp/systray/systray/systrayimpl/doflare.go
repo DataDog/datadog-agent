@@ -175,7 +175,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	auth, ok := s.authToken.Get()
+	client, ok := s.optClient.Get()
 	if !ok {
 		return "", s.log.Error("unable to generate flare: no auth component found")
 	}
@@ -185,7 +185,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	r, e := auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
 	if e != nil {
 		// The agent could not make the flare, try create one from this context

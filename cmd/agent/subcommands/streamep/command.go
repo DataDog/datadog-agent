@@ -55,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func streamEventPlatform(_ log.Component, config config.Component, auth authtoken.Component, cliParams *cliParams) error {
+func streamEventPlatform(_ log.Component, config config.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -68,12 +68,12 @@ func streamEventPlatform(_ log.Component, config config.Component, auth authtoke
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-event-platform", ipcAddress, config.GetInt("cmd_port"))
-	return streamRequest(auth.GetClient(), urlstr, body, func(chunk []byte) {
+	return streamRequest(client, urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})
 }
 
-func streamRequest(client authtoken.SecureClient, url string, body []byte, onChunk func([]byte)) error {
+func streamRequest(client authtoken.IPCClient, url string, body []byte, onChunk func([]byte)) error {
 	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk)
 
 	if e == io.EOF {

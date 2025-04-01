@@ -81,12 +81,11 @@ func TestUpdater(t *testing.T) {
 	cfg.Set("key1", "base_value", model.SourceDefault)
 
 	cs := configSync{
-		Config:    cfg,
-		Log:       logmock.New(t),
-		Authtoken: authtoken,
-		url:       url,
-		client:    client,
-		ctx:       context.Background(),
+		Config: cfg,
+		Log:    logmock.New(t),
+		url:    url,
+		client: client,
+		ctx:    context.Background(),
 	}
 
 	cs.updater()

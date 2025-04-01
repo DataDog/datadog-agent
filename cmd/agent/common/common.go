@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,10 +32,10 @@ func GetPythonPaths() []string {
 }
 
 // NewSettingsClient returns a configured runtime settings client.
-func NewSettingsClient(client authtoken.SecureClient) (settings.Client, error) {
+func NewSettingsClient(client authtoken.IPCClient) (settings.Client, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	return settingshttp.NewHTTPSClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", secureclient.WithLeaveConnectionOpen), nil
+	return settingshttp.NewHTTPSClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", ipcclient.WithLeaveConnectionOpen), nil
 }

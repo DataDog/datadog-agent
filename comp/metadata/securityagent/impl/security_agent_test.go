@@ -32,8 +32,8 @@ func setupFetcher(t *testing.T) {
 		fetchSecurityAgentConfigBySource = configFetcher.SecurityAgentConfigBySource
 	})
 
-	fetchSecurityAgentConfig = func(_ model.Reader, _ authtoken.SecureClient) (string, error) { return "full config", nil }
-	fetchSecurityAgentConfigBySource = func(_ model.Reader, _ authtoken.SecureClient) (string, error) {
+	fetchSecurityAgentConfig = func(_ model.Reader, _ authtoken.IPCClient) (string, error) { return "full config", nil }
+	fetchSecurityAgentConfigBySource = func(_ model.Reader, _ authtoken.IPCClient) (string, error) {
 		data, err := json.Marshal(map[string]interface{}{
 			string(model.SourceFile):               map[string]bool{"file": true},
 			string(model.SourceEnvVar):             map[string]bool{"env": true},

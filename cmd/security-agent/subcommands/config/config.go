@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -143,14 +143,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	return []*cobra.Command{cmd}
 }
-func getSettingsClient(client authtoken.SecureClient) (settings.Client, error) {
+func getSettingsClient(client authtoken.IPCClient) (settings.Client, error) {
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))
 
-	return settingshttp.NewHTTPSClient(client, apiConfigURL, "security-agent", secureclient.WithLeaveConnectionOpen), nil
+	return settingshttp.NewHTTPSClient(client, apiConfigURL, "security-agent", ipcclient.WithLeaveConnectionOpen), nil
 }
 
-func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams, authToken authtoken.Component) error {
-	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg, authToken.GetClient())
+func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams, client authtoken.IPCClient) error {
+	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg, client)
 	if err != nil {
 		return err
 	}
@@ -159,12 +159,12 @@ func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.C
 	return nil
 }
 
-func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
+func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client authtoken.IPCClient, params *cliParams) error {
 	if len(params.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	c, err := getSettingsClient(at.GetClient())
+	c, err := getSettingsClient(client)
 	if err != nil {
 		return err
 	}
@@ -183,12 +183,12 @@ func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, at
 	return nil
 }
 
-func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
+func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client authtoken.IPCClient, params *cliParams) error {
 	if len(params.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	c, err := getSettingsClient(at.GetClient())
+	c, err := getSettingsClient(client)
 	if err != nil {
 		return err
 	}
@@ -203,8 +203,8 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, at
 	return nil
 }
 
-func showRuntimeConfigurationBySource(_ log.Component, _ secrets.Component, at authtoken.Component, _ *cliParams) error {
-	c, err := getSettingsClient(at.GetClient())
+func showRuntimeConfigurationBySource(_ log.Component, _ secrets.Component, client authtoken.IPCClient, _ *cliParams) error {
+	c, err := getSettingsClient(client)
 	if err != nil {
 		return err
 	}
@@ -219,8 +219,8 @@ func showRuntimeConfigurationBySource(_ log.Component, _ secrets.Component, at a
 	return nil
 }
 
-func listRuntimeConfigurableValue(_ log.Component, _ secrets.Component, at authtoken.Component, _ *cliParams) error {
-	c, err := getSettingsClient(at.GetClient())
+func listRuntimeConfigurableValue(_ log.Component, _ secrets.Component, client authtoken.IPCClient, _ *cliParams) error {
+	c, err := getSettingsClient(client)
 	if err != nil {
 		return err
 	}

@@ -82,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{c}
 }
 
-func triggerDump(config cconfig.Component, auth authtoken.Component) (string, error) {
+func triggerDump(config cconfig.Component, client authtoken.IPCClient) (string, error) {
 	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
@@ -91,7 +91,7 @@ func triggerDump(config cconfig.Component, auth authtoken.Component) (string, er
 	port := config.GetInt("cmd_port")
 	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
 
-	body, err := auth.GetClient().Post(url, "", nil)
+	body, err := client.Post(url, "", nil)
 	if err != nil {
 		return "", err
 	}
@@ -104,8 +104,8 @@ func triggerDump(config cconfig.Component, auth authtoken.Component) (string, er
 	return path, nil
 }
 
-func dumpContexts(config cconfig.Component, _ log.Component, auth authtoken.Component) error {
-	path, err := triggerDump(config, auth)
+func dumpContexts(config cconfig.Component, _ log.Component, client authtoken.IPCClient) error {
+	path, err := triggerDump(config, client)
 	if err != nil {
 		return err
 	}
@@ -120,16 +120,16 @@ type metric struct {
 	tags  map[string]struct{}
 }
 
-func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, at option.Option[authtoken.Component]) error {
+func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, optClient option.Option[authtoken.IPCClient]) error {
 	var err error
 
 	path := flags.path
 	if path == "" {
-		auth, ok := at.Get()
+		client, ok := optClient.Get()
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
-		path, err = triggerDump(config, auth)
+		path, err = triggerDump(config, client)
 		if err != nil {
 			return err
 		}

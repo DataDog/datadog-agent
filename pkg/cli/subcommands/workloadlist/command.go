@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -78,13 +78,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-func workloadList(_ log.Component, at authtoken.Component, cliParams *cliParams) error {
+func workloadList(_ log.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 	url, err := workloadURL(cliParams.verboseList)
 	if err != nil {
 		return err
 	}
 
-	r, err := at.GetClient().Get(url, secureclient.WithCloseConnection)
+	r, err := client.Get(url, ipcclient.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

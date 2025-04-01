@@ -48,7 +48,7 @@ type Requires struct {
 	Log log.Component
 
 	// Authtoken specifies the authentication token component.
-	Authtoken authtoken.Component
+	Client authtoken.IPCClient
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -80,7 +80,7 @@ type collectorImpl struct {
 	logsAgent      option.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
-	client         authtoken.SecureClient
+	client         authtoken.IPCClient
 	ctx            context.Context
 }
 
@@ -126,9 +126,6 @@ func (c *collectorImpl) Status() datatype.CollectorStatus {
 
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
-
-	client := reqs.Authtoken.GetClient()
-
 	collector := &collectorImpl{
 		config:         reqs.Config,
 		log:            reqs.Log,
@@ -136,7 +133,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
 		tagger:         reqs.Tagger,
-		client:         client,
+		client:         reqs.Client,
 		ctx:            context.Background(),
 	}
 

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,8 +60,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func showSecretInfo(_ log.Component, auth authtoken.Component) error {
-	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/secrets")
+func showSecretInfo(_ log.Component, client authtoken.IPCClient) error {
+	endpoint, err := client.NewIPCEndpoint("/agent/secrets")
 	if err != nil {
 		return err
 	}
@@ -74,9 +74,9 @@ func showSecretInfo(_ log.Component, auth authtoken.Component) error {
 	return nil
 }
 
-func secretRefresh(config config.Component, _ log.Component, auth authtoken.Component) error {
+func secretRefresh(config config.Component, _ log.Component, client authtoken.IPCClient) error {
 	fmt.Println("Agent refresh:")
-	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/secret/refresh")
+	endpoint, err := client.NewIPCEndpoint("/agent/secret/refresh")
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func secretRefresh(config config.Component, _ log.Component, auth authtoken.Comp
 
 	if config.GetBool("apm_config.enabled") {
 		fmt.Println("APM agent refresh:")
-		res, err = traceAgentSecretRefresh(config, auth)
+		res, err = traceAgentSecretRefresh(config, client)
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ func secretRefresh(config config.Component, _ log.Component, auth authtoken.Comp
 
 	{
 		fmt.Println("Security Agent refresh:")
-		res, err := securityAgentSecretRefresh(config, auth)
+		res, err := securityAgentSecretRefresh(config, client)
 		if err != nil {
 			// the security agent might not be running
 			// so we handle the error in a non-fatal way
@@ -109,7 +109,7 @@ func secretRefresh(config config.Component, _ log.Component, auth authtoken.Comp
 
 	{
 		fmt.Println("Process Agent refresh:")
-		res, err := processAgentSecretRefresh(config, auth)
+		res, err := processAgentSecretRefresh(config, client)
 		if err != nil {
 			// the process agent might not be running
 			// so we handle the error in a non-fatal way
@@ -122,7 +122,7 @@ func secretRefresh(config config.Component, _ log.Component, auth authtoken.Comp
 	return nil
 }
 
-func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string, auth authtoken.Component) ([]byte, error) {
+func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string, client authtoken.IPCClient) ([]byte, error) {
 	port := conf.GetInt(portConfigName)
 	if port <= 0 {
 		return nil, fmt.Errorf("invalid %s -- %d", portConfigName, port)
@@ -131,7 +131,7 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	timeout := conf.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
-	res, err := auth.GetClient().Get(url, secureclient.WithCloseConnection, secureclient.WithTimeout(timeout))
+	res, err := client.Get(url, ipcclient.WithCloseConnection, ipcclient.WithTimeout(timeout))
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
 	}
@@ -139,14 +139,14 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	return res, nil
 }
 
-func traceAgentSecretRefresh(conf config.Component, auth authtoken.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port", auth)
+func traceAgentSecretRefresh(conf config.Component, client authtoken.IPCClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port", client)
 }
 
-func securityAgentSecretRefresh(conf config.Component, auth authtoken.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port", auth)
+func securityAgentSecretRefresh(conf config.Component, client authtoken.IPCClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port", client)
 }
 
-func processAgentSecretRefresh(conf config.Component, auth authtoken.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port", auth)
+func processAgentSecretRefresh(conf config.Component, client authtoken.IPCClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port", client)
 }

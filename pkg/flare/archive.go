@@ -22,7 +22,7 @@ import (
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -230,7 +230,7 @@ func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 		return nil, log.Errorf("no auth component found")
 	}
 
-	bytes, err := auth.GetClient().Get(procStatusURL, secureclient.WithLeaveConnectionOpen)
+	bytes, err := auth.GetClient().Get(procStatusURL, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
 	}
@@ -262,7 +262,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 		}
 
 		err := fb.AddFileFromFunc(filename, func() ([]byte, error) {
-			return client.Get(checkURL+checkName, secureclient.WithLeaveConnectionOpen)
+			return client.Get(checkURL+checkName, ipcclient.WithLeaveConnectionOpen)
 		})
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
@@ -305,7 +305,7 @@ func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
 		return nil, log.Errorf("no auth component found")
 	}
 
-	resp, err := auth.GetClient().Get(remoteURL, secureclient.WithLeaveConnectionOpen)
+	resp, err := auth.GetClient().Get(remoteURL, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
 		return nil, log.Errorf("no auth component found")
 	}
 
-	resp, err := auth.GetClient().Get(url, secureclient.WithLeaveConnectionOpen)
+	resp, err := auth.GetClient().Get(url, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, log.Errorf("no auth component found")
 	}
 
-	resp, err := auth.GetClient().Do(req, secureclient.WithContext(ctx))
+	resp, err := auth.GetClient().Do(req, ipcclient.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}

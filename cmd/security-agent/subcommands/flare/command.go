@@ -69,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(_ log.Component, config config.Component, _ secrets.Component, at option.Option[authtoken.Component], params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, optClient option.Option[authtoken.IPCClient], params *cliParams) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
@@ -89,12 +89,12 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 
 	logFile := config.GetString("security_agent.log_file")
 
-	auth, ok := at.Get()
+	client, ok := optClient.Get()
 	var r []byte
 	var sr string
 	var filePath string
 	if ok {
-		r, e = auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
+		r, e = client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 		sr = string(r)
 	}
 	if !ok || e != nil {

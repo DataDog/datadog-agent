@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -85,8 +85,8 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 }
 
 // fetchConfig contacts the url in configSync and parses the returned data
-func fetchConfig(_ context.Context, client authtoken.SecureClient, url string, to time.Duration) (map[string]interface{}, error) {
-	data, err := client.Get(url, secureclient.WithLeaveConnectionOpen, secureclient.WithTimeout(to)) // TODO IPC: handle ctx and timeout at same time
+func fetchConfig(_ context.Context, client authtoken.IPCClient, url string, to time.Duration) (map[string]interface{}, error) {
+	data, err := client.Get(url, ipcclient.WithLeaveConnectionOpen, ipcclient.WithTimeout(to)) // TODO IPC: handle ctx and timeout at same time
 	if err != nil {
 		return nil, err
 	}

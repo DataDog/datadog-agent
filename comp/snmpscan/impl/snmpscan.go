@@ -26,7 +26,7 @@ type Requires struct {
 	Logger        log.Component
 	Config        config.Component
 	Demultiplexer demultiplexer.Component
-	AuthToken     option.Option[authtoken.Component]
+	OptClient     option.Option[authtoken.IPCClient]
 }
 
 // Provides defines the output of the snmpscan component
@@ -45,7 +45,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:         reqs.Logger,
 		config:      reqs.Config,
 		epforwarder: forwarder,
-		at:          reqs.AuthToken,
+		optClient:   reqs.OptClient,
 	}
 	provides := Provides{
 		Comp:       scanner,
@@ -58,7 +58,7 @@ type snmpScannerImpl struct {
 	log         log.Component
 	config      config.Component
 	epforwarder eventplatform.Forwarder
-	at          option.Option[authtoken.Component]
+	optClient   option.Option[authtoken.IPCClient]
 }
 
 func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -77,11 +77,11 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = "default"
 		}
 	}
-	auth, ok := s.at.Get()
+	client, ok := s.optClient.Get()
 	if !ok {
 		return s.log.Error("no auth component found")
 	}
-	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, auth.GetClient())
+	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, client)
 	if err != nil {
 		return err
 	}

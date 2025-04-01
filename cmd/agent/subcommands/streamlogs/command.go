@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -84,7 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(lc log.Component, config config.Component, auth authtoken.Component, cliParams *CliParams) error {
+func streamLogs(lc log.Component, config config.Component, client authtoken.IPCClient, cliParams *CliParams) error {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func streamLogs(lc log.Component, config config.Component, auth authtoken.Compon
 		}()
 	}
 
-	return streamRequest(auth.GetClient(), urlstr, body, cliParams.Duration, func(chunk []byte) {
+	return streamRequest(client, urlstr, body, cliParams.Duration, func(chunk []byte) {
 		if !cliParams.Quiet {
 			fmt.Print(string(chunk))
 		}
@@ -133,8 +133,8 @@ func streamLogs(lc log.Component, config config.Component, auth authtoken.Compon
 	})
 }
 
-func streamRequest(client authtoken.SecureClient, url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
-	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, secureclient.WithTimeout(duration))
+func streamRequest(client authtoken.IPCClient, url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
+	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, ipcclient.WithTimeout(duration))
 
 	if e == io.EOF {
 		return nil
@@ -146,6 +146,6 @@ func streamRequest(client authtoken.SecureClient, url string, body []byte, durat
 }
 
 // StreamLogs is a public function that can be used by other packages to stream logs.
-func StreamLogs(log log.Component, config config.Component, auth authtoken.Component, cliParams *CliParams) error {
-	return streamLogs(log, config, auth, cliParams)
+func StreamLogs(log log.Component, config config.Component, client authtoken.IPCClient, cliParams *CliParams) error {
+	return streamLogs(log, config, client, cliParams)
 }

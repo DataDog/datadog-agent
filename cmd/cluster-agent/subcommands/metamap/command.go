@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -59,15 +59,15 @@ as well as which services are serving the pods. Or the deployment name for the p
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(log log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 	nodeName := ""
 	if len(cliParams.args) > 0 {
 		nodeName = cliParams.args[0]
 	}
-	return getMetadataMap(at, nodeName) // if nodeName == "", call all.
+	return getMetadataMap(client, nodeName) // if nodeName == "", call all.
 }
 
-func getMetadataMap(at authtoken.Component, nodeName string) error {
+func getMetadataMap(client authtoken.IPCClient, nodeName string) error {
 	var e error
 	var urlstr string
 	if nodeName == "" {
@@ -76,7 +76,7 @@ func getMetadataMap(at authtoken.Component, nodeName string) error {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
-	r, e := at.GetClient().Get(urlstr, secureclient.WithLeaveConnectionOpen)
+	r, e := client.Get(urlstr, ipcclient.WithLeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

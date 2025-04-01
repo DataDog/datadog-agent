@@ -70,13 +70,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 }
 
-func taggerList(_ log.Component, config config.Component, at authtoken.Component, _ *cliParams) error {
+func taggerList(_ log.Component, config config.Component, client authtoken.IPCClient, _ *cliParams) error {
 	url, err := getTaggerURL(config)
 	if err != nil {
 		return err
 	}
 
-	return api.GetTaggerList(at.GetClient(), color.Output, url)
+	return api.GetTaggerList(client, color.Output, url)
 }
 
 func getTaggerURL(config config.Component) (string, error) {

@@ -230,7 +230,7 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client authtoken.SecureClient) error {
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client authtoken.IPCClient) error {
 	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentError != nil {
 		return agentError
@@ -271,7 +271,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, authtoken authtoken.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client authtoken.IPCClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -282,7 +282,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, authtoken.GetClient())
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
@@ -301,7 +301,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, authtoken authtoken.Component) error {
+func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, client authtoken.IPCClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -316,7 +316,7 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, authtoken.GetClient())
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.

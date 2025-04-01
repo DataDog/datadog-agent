@@ -28,7 +28,7 @@ type dependencies struct {
 
 	Config     config.Component
 	Log        log.Component
-	Authtoken  authtoken.Component
+	Client     authtoken.IPCClient
 	SyncParams Params
 }
 
@@ -50,12 +50,11 @@ func Module(params Params) fxutil.Module {
 }
 
 type configSync struct {
-	Config    config.Component
-	Log       log.Component
-	Authtoken authtoken.Component
+	Config config.Component
+	Log    log.Component
 
 	url       *url.URL
-	client    authtoken.SecureClient
+	client    authtoken.IPCClient
 	connected bool
 	ctx       context.Context
 	enabled   bool
@@ -88,18 +87,16 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := deps.Authtoken.GetClient()
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       url,
-		client:    client,
-		ctx:       ctx,
-		enabled:   true,
-		timeout:   deps.SyncParams.Timeout,
+		Config:  deps.Config,
+		Log:     deps.Log,
+		url:     url,
+		client:  deps.Client,
+		ctx:     ctx,
+		enabled: true,
+		timeout: deps.SyncParams.Timeout,
 	}
 
 	if deps.SyncParams.OnInitSync {

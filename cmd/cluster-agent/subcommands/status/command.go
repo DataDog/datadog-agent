@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -64,7 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(log log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, client authtoken.IPCClient, cliParams *cliParams) error {
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n")
 	}
@@ -85,7 +85,7 @@ func run(log log.Component, config config.Component, at authtoken.Component, cli
 		RawQuery: v.Encode(),
 	}
 
-	r, e := at.GetClient().Get(url.String(), secureclient.WithLeaveConnectionOpen)
+	r, e := client.Get(url.String(), ipcclient.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

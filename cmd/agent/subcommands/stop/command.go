@@ -50,14 +50,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{stopCmd}
 }
 
-func stop(config config.Component, _ *cliParams, _ log.Component, auth authtoken.Component) error {
+func stop(config config.Component, _ *cliParams, _ log.Component, client authtoken.IPCClient) error {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
 
-	_, e := auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	_, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
 		return fmt.Errorf("Error stopping the agent: %v", e)
 	}

@@ -37,12 +37,12 @@ func doConfigure(s *systrayImpl) error {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
 
-	at, ok := s.authToken.Get()
+	client, ok := s.optClient.Get()
 	if !ok {
-		return fmt.Errorf("auth token not found")
+		return fmt.Errorf("ipc client not found")
 	}
 
-	endpoint, err := at.GetClient().NewIPCEndpoint("/agent/gui/intent")
+	endpoint, err := client.NewIPCEndpoint("/agent/gui/intent")
 	if err != nil {
 		return err
 	}

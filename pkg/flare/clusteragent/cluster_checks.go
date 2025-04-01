@@ -16,7 +16,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -24,7 +24,7 @@ import (
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
-func GetClusterChecks(w io.Writer, checkName string, c authtoken.SecureClient) error {
+func GetClusterChecks(w io.Writer, checkName string, c authtoken.IPCClient) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
@@ -36,7 +36,7 @@ func GetClusterChecks(w io.Writer, checkName string, c authtoken.SecureClient) e
 		return nil
 	}
 
-	r, err := c.Get(urlstr, secureclient.WithLeaveConnectionOpen)
+	r, err := c.Get(urlstr, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
@@ -104,7 +104,7 @@ func GetClusterChecks(w io.Writer, checkName string, c authtoken.SecureClient) e
 }
 
 // GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
-func GetEndpointsChecks(w io.Writer, checkName string, c authtoken.SecureClient) error {
+func GetEndpointsChecks(w io.Writer, checkName string, c authtoken.IPCClient) error {
 	if !endpointschecksEnabled() {
 		return nil
 	}
@@ -116,7 +116,7 @@ func GetEndpointsChecks(w io.Writer, checkName string, c authtoken.SecureClient)
 	}
 
 	// Query the cluster agent API
-	r, err := c.Get(urlstr, secureclient.WithLeaveConnectionOpen)
+	r, err := c.Get(urlstr, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))

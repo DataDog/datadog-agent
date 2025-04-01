@@ -16,7 +16,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -127,7 +127,7 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 
 // GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
 // If the agent isn't running or is unreachable, this will fail.
-func GetConfigCheckSnmp(conf config.Component, client authtoken.SecureClient) ([]SNMPConfig, error) {
+func GetConfigCheckSnmp(conf config.Component, client authtoken.IPCClient) ([]SNMPConfig, error) {
 	// TODO: change the URL if the snmp check is a cluster check
 	// add /agent/config-check to cluster agent API
 	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
@@ -138,7 +138,7 @@ func GetConfigCheckSnmp(conf config.Component, client authtoken.SecureClient) ([
 	urlValues := url.Values{}
 	urlValues.Set("raw", "true")
 
-	res, err := endpoint.DoGet(secureclient.WithValues(urlValues))
+	res, err := endpoint.DoGet(ipcclient.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 }
 
 // GetParamsFromAgent returns the SNMPConfig for a specific IP address, by querying the local agent.
-func GetParamsFromAgent(deviceIP string, conf config.Component, client authtoken.SecureClient) (*SNMPConfig, error) {
+func GetParamsFromAgent(deviceIP string, conf config.Component, client authtoken.IPCClient) (*SNMPConfig, error) {
 	snmpConfigList, err := GetConfigCheckSnmp(conf, client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)

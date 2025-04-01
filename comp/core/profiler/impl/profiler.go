@@ -39,7 +39,7 @@ type Requires struct {
 	SettingsComponent settings.Component
 	Config            config.Component
 	SysProbeConfig    sysprobeconfig.Component
-	AuthToken         option.Option[authtoken.Component]
+	OptClient         option.Option[authtoken.IPCClient]
 }
 
 // Provides defines the output of the profiler component
@@ -54,7 +54,7 @@ type profiler struct {
 	settingsComponent settings.Component
 	cfg               config.Component
 	sysProbeCfg       sysprobeconfig.Component
-	authToken         option.Option[authtoken.Component]
+	optClient         option.Option[authtoken.IPCClient]
 }
 
 // ReadProfileData gathers and returns pprof server output for a variety of agent services.
@@ -91,14 +91,14 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 				defer resp.Body.Close()
 				return io.ReadAll(resp.Body)
 			}
-			auth, ok := p.authToken.Get()
+			client, ok := p.optClient.Get()
 			if !ok {
 				err := fmt.Errorf("no auth component found")
 				_ = logFunc("%v", err)
 				return nil, err
 			}
 
-			return auth.GetClient().Get(endpoint.String() + path)
+			return client.Get(endpoint.String() + path)
 		}
 	}
 
@@ -348,7 +348,7 @@ func NewComponent(req Requires) (Provides, error) {
 		settingsComponent: req.SettingsComponent,
 		cfg:               req.Config,
 		sysProbeCfg:       req.SysProbeConfig,
-		authToken:         req.AuthToken,
+		optClient:         req.OptClient,
 	}
 	return Provides{
 		Comp:          p,

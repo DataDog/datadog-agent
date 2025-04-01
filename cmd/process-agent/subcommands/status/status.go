@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
@@ -60,7 +60,7 @@ type dependencies struct {
 
 	Config config.Component
 	Log    log.Component
-	At     authtoken.Component
+	Client authtoken.IPCClient
 }
 
 // Commands returns a slice of subcommands for the `status` command in the Process Agent
@@ -110,8 +110,8 @@ func writeError(log log.Component, w io.Writer, e error) {
 	}
 }
 
-func fetchStatus(c authtoken.SecureClient, statusURL string) ([]byte, error) {
-	body, err := c.Get(statusURL, secureclient.WithLeaveConnectionOpen)
+func fetchStatus(c authtoken.IPCClient, statusURL string) ([]byte, error) {
+	body, err := c.Get(statusURL, ipcclient.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)
 	}
@@ -120,7 +120,7 @@ func fetchStatus(c authtoken.SecureClient, statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, c authtoken.SecureClient, statusURL string, w io.Writer) {
+func getAndWriteStatus(log log.Component, c authtoken.IPCClient, statusURL string, w io.Writer) {
 	body, err := fetchStatus(c, statusURL)
 	if err != nil {
 		writeNotRunning(log, w)
@@ -148,6 +148,6 @@ func runStatus(deps dependencies) error {
 		return err
 	}
 
-	getAndWriteStatus(deps.Log, deps.At.GetClient(), statusURL, os.Stdout)
+	getAndWriteStatus(deps.Log, deps.Client, statusURL, os.Stdout)
 	return nil
 }

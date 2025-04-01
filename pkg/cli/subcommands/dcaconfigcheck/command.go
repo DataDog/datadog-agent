@@ -62,8 +62,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(_ log.Component, _ config.Component, cliParams *cliParams, authToken authtoken.Component) error {
-	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose, authToken.GetClient()); err != nil {
+func run(_ log.Component, _ config.Component, cliParams *cliParams, client authtoken.IPCClient) error {
+	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose, client); err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 

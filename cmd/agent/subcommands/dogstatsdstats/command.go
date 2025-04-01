@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/authtoken/secureclient"
+	"github.com/DataDog/datadog-agent/comp/core/authtoken/ipcclient"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -68,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, at option.Option[authtoken.Component]) error {
+func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, optClient option.Option[authtoken.IPCClient]) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
@@ -78,12 +78,12 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	auth, ok := at.Get()
+	client, ok := optClient.Get()
 	if !ok {
 		return fmt.Errorf("auth token not found")
 	}
 
-	r, e := auth.GetClient().Get(urlstr, secureclient.WithLeaveConnectionOpen)
+	r, e := client.Get(urlstr, ipcclient.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

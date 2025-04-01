@@ -199,7 +199,7 @@ func makeFlare(flareComp flare.Component,
 	_ option.Option[workloadmeta.Component],
 	tagger tagger.Component,
 	flareprofiler flareprofilerdef.Component,
-	at option.Option[authtoken.Component],
+	clientOpt option.Option[authtoken.IPCClient],
 	senderManager diagnosesendermanager.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
@@ -243,12 +243,12 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if cliParams.profiling >= 30 {
-		auth, ok := at.Get()
+		client, ok := clientOpt.Get()
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
 
-		c, err := common.NewSettingsClient(auth.GetClient())
+		c, err := common.NewSettingsClient(client)
 		if err != nil {
 			return fmt.Errorf("failed to initialize settings client: %w", err)
 		}
@@ -279,13 +279,13 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if streamLogParams.Duration > 0 {
-		auth, ok := at.Get()
+		client, ok := clientOpt.Get()
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
 
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, auth, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, client, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
@@ -297,12 +297,12 @@ func makeFlare(flareComp flare.Component,
 		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
-		auth, ok := at.Get()
+		client, ok := clientOpt.Get()
 		if !ok {
 			return fmt.Errorf("auth token not found")
 		}
 
-		filePath, err = requestArchive(profile, auth, cliParams.providerTimeout)
+		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
 		if err != nil {
 			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
@@ -336,7 +336,7 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(pdata flaretypes.ProfileData, auth authtoken.Component, providerTimeout time.Duration) (string, error) {
+func requestArchive(pdata flaretypes.ProfileData, client authtoken.IPCClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -364,7 +364,7 @@ func requestArchive(pdata flaretypes.ProfileData, auth authtoken.Component, prov
 		return "", err
 	}
 
-	r, err := auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer(p))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(p))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))
