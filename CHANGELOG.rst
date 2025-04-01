@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.2:
+
+7.64.2
+======
+
+.. _Release Notes_7.64.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-04-01
+
+- Please refer to the `7.64.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7642>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.64.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Process Agent files are added to the flare archive instead of
+  displaying "no session token provided".
+
+
 .. _Release Notes_7.64.1:
 
 7.64.1
