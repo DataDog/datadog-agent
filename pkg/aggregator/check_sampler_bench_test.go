@@ -50,7 +50,6 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	cfg := pkgconfigsetup.Datadog()
-
 	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log,
 		resolver.NewSingleDomainResolvers(map[string][]utils.Endpoint{"hello": {utils.NewEndpoint("", "world")}}),
 	)

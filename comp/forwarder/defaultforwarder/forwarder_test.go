@@ -73,18 +73,13 @@ func TestNewDefaultForwarder(t *testing.T) {
 	localAuth := "tokenABCD12345678910109876543210"
 	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
-
 	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
-
 	assert.NotNil(t, forwarder2)
 	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
 	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
-
 	domainResolver := resolver.NewSingleDomainResolvers(validKeysPerDomain)
 	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
-
 	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
-
 	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
 	assert.Equal(t, forwarder2.State(), forwarder2.internalState.Load())
 }
@@ -237,12 +232,12 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
 	resolvers := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
 	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []configUtils.Endpoint{configUtils.NewEndpoint("", "api-key-4")})
 	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
 	resolvers["datadog.vector"] = additionalResolver
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
 	p1 := []byte("A payload")
@@ -281,13 +276,12 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-
 	resolvers := make(map[string]resolver.DomainResolver)
 	r := resolver.NewMultiDomainResolver(testDomain, []configUtils.Endpoint{configUtils.NewEndpoint("", "api-key-1")})
 	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "no_diverted"}
