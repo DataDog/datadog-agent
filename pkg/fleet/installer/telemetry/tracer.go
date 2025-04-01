@@ -92,6 +92,8 @@ func sampledByRate(n uint64, rate float64) bool {
 	return true
 }
 
+// SetSamplingRate sets the sampling rate for a given span name.
+// The rate must be between 0 and 1.
 func SetSamplingRate(name string, rate float64) {
 	if rate < 0 || rate > 1 {
 		return
