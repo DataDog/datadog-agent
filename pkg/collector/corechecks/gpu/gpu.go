@@ -265,10 +265,21 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// of zero to ensure it's reset and the previous value doesn't linger on for longer than necessary.
 	for key, active := range c.activeMetrics {
 		if !active {
-			tags := append(c.getProcessTagsForKey(key), c.deviceTags[key.DeviceUUID]...)
+			processTags := c.getProcessTagsForKey(key)
+			tags := append(processTags, c.deviceTags[key.DeviceUUID]...)
 			snd.Gauge(metricNameMemoryUsage, 0, "", tags)
 			snd.Gauge(metricNameCoreUsage, 0, "", tags)
 			sentMetrics += 2
+
+			// Here we also need to mark these entities as active, if we don't the limit metrics won't have
+			// the tags and utilization will not be reported for them, as the limit metric won't match
+			if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
+				activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
+			}
+
+			for _, t := range processTags {
+				activeEntitiesPerDevice[key.DeviceUUID].Add(t)
+			}
 
 			delete(c.activeMetrics, key)
 		}
