@@ -41,6 +41,8 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+env:
+  DD_OTELCOLLECTOR_ENABLED: true
 `
 	t.Parallel()
 	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
