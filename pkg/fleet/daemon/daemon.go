@@ -598,6 +598,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			// Special case for the installer package as we want the experiment installer to start the experiment itself
 			return d.startInstallerExperiment(ctx, experimentPackage.URL)
 		}
+		if request.Package == "datadog-agent" && runtime.GOOS == "windows" {
+			// Special case for the agent package on Windows as we want the experiment installer to start the experiment itself
+			return d.startInstallerExperiment(ctx, experimentPackage.URL)
+		}
 		return d.startExperiment(ctx, experimentPackage.URL)
 
 	case methodStopExperiment:

@@ -836,3 +836,6 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 	copy(res, c.extraConfigFilePaths)
 	return res
 }
+
+func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
+}

@@ -117,6 +117,18 @@ namespace WixSetup.Datadog_Agent
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),
                 new Property("DDDRIVERROLLBACK_PROCMON", "1"),
+                new Property("DD_APM_INSTRUMENTATION_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_APM_INSTRUMENTATION_LIBRARIES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_INSTALLER_REGISTRY_URL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -636,9 +648,10 @@ namespace WixSetup.Datadog_Agent
                 ));
 
             appData.AddDir(new Dir(new Id("security.d"),
-                                    "runtime-security.d",
-                                    new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                       "runtime-security.d",
+                       new Files($@"{EtcSource}\runtime-security.d\*.*")
             ));
+
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

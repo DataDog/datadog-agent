@@ -53,9 +53,11 @@ ALL_TAGS = {
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "sds",
     "serverless",
+    "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
     "test",  # used for unit-tests
     "trivy",
+    "trivy_no_javadb",
     "wmi",
     "zk",
     "zlib",
@@ -89,6 +91,7 @@ AGENT_TAGS = {
     "python",
     "systemd",
     "trivy",
+    "trivy_no_javadb",
     "zk",
     "zlib",
     "zstd",
@@ -171,6 +174,7 @@ SECURITY_AGENT_TAGS = {
 # SBOMGEN_TAGS lists the tags necessary to build sbomgen
 SBOMGEN_TAGS = {
     "trivy",
+    "trivy_no_javadb",
     "grpcnotrace",
     "no_dynamic_plugins",
     "containerd",
@@ -191,6 +195,7 @@ SYSTEM_PROBE_TAGS = {
     "nvml",
     "pcap",
     "trivy",
+    "trivy_no_javadb",
     "zlib",
     "zstd",
 }

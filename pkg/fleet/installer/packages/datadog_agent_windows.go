@@ -9,9 +9,7 @@ package packages
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"time"
@@ -31,6 +29,7 @@ import (
 const (
 	datadogAgent          = "datadog-agent"
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
+	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
 // PrepareAgent prepares the machine to install the agent
@@ -39,8 +38,39 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
-func SetupAgent(_ context.Context, _ []string) (err error) {
-	return nil
+//
+// Function requirements:
+//   - be its own process, not run within the daemon
+//   - be run from a copy of the installer, not from the install path,
+//     to avoid locking the executable
+func SetupAgent(ctx context.Context, args []string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
+	defer func() {
+		span.Finish(err)
+	}()
+	// must get env before uninstalling the Agent since it may read from the registry
+	env := getenv()
+
+	// remove the installer if it is installed
+	// if nothing is installed this will return without an error
+	err = removeInstallerIfInstalled(ctx)
+	if err != nil {
+		// failed to remove the installer
+		return fmt.Errorf("Failed to remove installer: %w", err)
+	}
+
+	// remove the Agent if it is installed
+	// if nothing is installed this will return without an error
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		// failed to remove the Agent
+		return fmt.Errorf("Failed to remove Agent: %w", err)
+	}
+
+	// install the new stable Agent
+	err = installAgentPackage(env, "stable", args, "setup_agent.log")
+	return err
+
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -253,7 +283,8 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	rootPath := ""
 	_, err := os.Stat(paths.RootTmpDir)
 	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
-	if errors.Is(err, fs.ErrNotExist) {
+	if err == nil {
+		// we can use the default tmp dir because it exists
 		rootPath = paths.RootTmpDir
 	}
 	tempDir, err := os.MkdirTemp(rootPath, "datadog-agent")
@@ -295,8 +326,8 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	return nil
 }
 
-func removeAgentIfInstalled(ctx context.Context) (err error) {
-	if msi.IsProductInstalled("Datadog Agent") {
+func removeProductIfInstalled(ctx context.Context, product string) (err error) {
+	if msi.IsProductInstalled(product) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
 			if err != nil {
@@ -306,12 +337,37 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct("Datadog Agent")
+		err := msi.RemoveProduct(product)
 		if err != nil {
 			return err
 		}
 	} else {
-		log.Debugf("Agent not installed")
+		log.Debugf("%s not installed", product)
+	}
+	return nil
+
+}
+
+func removeAgentIfInstalled(ctx context.Context) (err error) {
+	return removeProductIfInstalled(ctx, "Datadog Agent")
+}
+
+func removeInstallerIfInstalled(ctx context.Context) (err error) {
+	if msi.IsProductInstalled("Datadog Installer") {
+		err := removeProductIfInstalled(ctx, "Datadog Installer")
+		if err != nil {
+			return err
+		}
+		// remove the old installer directory
+		// check that owner of oldInstallerDir is admin/system
+		if nil == paths.IsDirSecure(oldInstallerDir) {
+			err = os.RemoveAll(oldInstallerDir)
+			if err != nil {
+				return fmt.Errorf("could not remove old installer directory: %w", err)
+			}
+		} else {
+			log.Warnf("Old installer directory is not secure, not removing: %s", oldInstallerDir)
+		}
 	}
 	return nil
 }

@@ -292,7 +292,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 		deviceDiagnosis := d.diagnoses.Report()
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, profile, values, deviceMetadataTags, collectionTime,
+		d.sender.ReportNetworkDeviceMetadata(d.config, profile, values, deviceMetadataTags, metricTags, collectionTime,
 			deviceStatus, pingStatus, deviceDiagnosis)
 	}
 

@@ -161,4 +161,6 @@ var (
 	BufferSelectorDiscarderMonitorKey = Uint32MapItem(2)
 	// BufferSelectorApproverMonitorKey is the key used to select the active approver monitor buffer key
 	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
+	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
+	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
 )

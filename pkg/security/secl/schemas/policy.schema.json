@@ -27,6 +27,12 @@
             "hash"
           ],
           "title": "HashAction"
+        },
+        {
+          "required": [
+            "log"
+          ],
+          "title": "LogAction"
         }
       ],
       "properties": {
@@ -44,6 +50,9 @@
         },
         "hash": {
           "$ref": "#/$defs/HashDefinition"
+        },
+        "log": {
+          "$ref": "#/$defs/LogDefinition"
         }
       },
       "additionalProperties": false,
@@ -185,6 +194,23 @@
       "additionalProperties": false,
       "type": "object",
       "description": "KillDisarmerParamsDefinition describes the parameters of a kill action disarmer"
+    },
+    "LogDefinition": {
+      "properties": {
+        "Level": {
+          "type": "string"
+        },
+        "Message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "Level",
+        "Message"
+      ],
+      "description": "LogDefinition describes the 'log' section of a rule action"
     },
     "MacroDefinition": {
       "oneOf": [
@@ -407,7 +433,26 @@
             }
           ]
         },
+        "default_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array"
+            }
+          ]
+        },
         "field": {
+          "type": "string"
+        },
+        "expression": {
           "type": "string"
         },
         "append": {

@@ -33,6 +33,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -53,6 +54,7 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
+	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -392,6 +394,7 @@ func getSharedFxOption() fx.Option {
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
@@ -451,6 +454,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
+		snmpscanfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux)
@@ -632,7 +636,7 @@ func startAgent(
 	})
 
 	diagnosecatalog.Register(diagnose.CoreEndpointsConnectivity, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
-		return connectivity.Diagnose(diagCfg)
+		return connectivity.Diagnose(diagCfg, log)
 	})
 
 	// start dependent services

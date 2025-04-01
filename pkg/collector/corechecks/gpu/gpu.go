@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package gpu
 
@@ -296,7 +296,7 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 func (c *Check) getContainerTags(containerID string) []string {
 	// Container ID tag will be added or not depending on the tagger configuration
 	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
+	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.ChecksConfigCardinality)
 	if err != nil {
 		log.Errorf("Error collecting container tags for container %s: %s", containerID, err)
 	}
@@ -339,7 +339,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		var extraTags []string
 		for _, container := range gpuToContainersMap[collector.DeviceUUID()] {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
-			tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
+			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 			if err != nil {
 				log.Warnf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
 				continue
