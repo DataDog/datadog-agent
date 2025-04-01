@@ -173,6 +173,11 @@ func TestOnDemandMprotect(t *testing.T) {
 		if err = unix.Mprotect(data, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC); err != nil {
 			return fmt.Errorf("couldn't mprotect segment: %w", err)
 		}
+
+		if err := unix.Munmap(data); err != nil {
+			return fmt.Errorf("couldn't unmap segment: %w", err)
+		}
+
 		return nil
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
