@@ -437,6 +437,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.64.1
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.1
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
+	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
@@ -1083,6 +1084,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata => ./pkg/networkdevice/metadata
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ./pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
