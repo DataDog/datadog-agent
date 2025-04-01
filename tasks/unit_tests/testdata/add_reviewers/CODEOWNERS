@@ -1,0 +1,8 @@
+# Fake CODEOWNERS file for testing purposes
+
+*                                                    @DataDog/agent-devx-infra
+tasks/unit_tests/testdata/add_reviewers/network/     @DataDog/universal-service-monitoring
+tasks/unit_tests/testdata/add_reviewers/fakeintake/  @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
+tasks/unit_tests/testdata/add_reviewers/debugger/    @DataDog/debugger
+tasks/unit_tests/testdata/add_reviewers/new-e2e/     @DataDog/agent-e2e-testing
+tasks/unit_tests/testdata/add_reviewers/windows/     @DataDog/windows-agent

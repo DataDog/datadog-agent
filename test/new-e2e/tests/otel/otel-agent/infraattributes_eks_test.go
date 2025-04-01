@@ -43,7 +43,10 @@ var eksParams = utils.IAParams{
 
 func (s *iaEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *iaEKSTestSuite) TestOTLPTraces() {
@@ -83,7 +86,10 @@ datadog:
 
 func (s *iaUSTEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, true)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, true, utils.CalendarService)
 }
 
 func (s *iaUSTEKSTestSuite) TestOTLPTraces() {

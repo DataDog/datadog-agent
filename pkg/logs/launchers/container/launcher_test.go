@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -37,7 +37,7 @@ func (tf *testFactory) MakeTailer(source *sources.LogSource) (tailerfactory.Tail
 }
 
 func TestStartStop(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 
@@ -57,7 +57,7 @@ func TestStartStop(t *testing.T) {
 }
 
 func TestAddsRemovesSource(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
@@ -88,7 +88,7 @@ func TestAddsRemovesSource(t *testing.T) {
 }
 
 func TestCannotMakeTailer(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
@@ -111,7 +111,7 @@ func TestCannotMakeTailer(t *testing.T) {
 }
 
 func TestCannotStartTailer(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{

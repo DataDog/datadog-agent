@@ -188,7 +188,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "HelloWorld",
+			expectedGeneratedName:       "com.datadog.example.HelloWorld",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -197,7 +197,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-m", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Elasticsearch",
+			expectedGeneratedName:       "org.elasticsearch.bootstrap.Elasticsearch",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -206,7 +206,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "--module", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch", "-Xfoo",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Elasticsearch",
+			expectedGeneratedName:       "org.elasticsearch.bootstrap.Elasticsearch",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -219,12 +219,30 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "java ignore @",
+			cmdline: []string{
+				"java", "@/tmp/foo21321312.tmp",
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "java",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "java ignore @2",
+			cmdline: []string{
+				"java", "@foo.extra", "myapp",
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "myapp",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "java kafka",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Kafka",
+			expectedGeneratedName:       "kafka.Kafka",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -245,7 +263,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "cat",
+			expectedGeneratedName:       "com.dog.cat",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -365,6 +383,60 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: Spring,
 		},
 		{
+			name: "spring boot unpacked jar with new launcher",
+			cmdline: []string{
+				"java",
+				"-jar",
+				springBootLauncher,
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "spring-boot-app-name",
+			expectedGeneratedNameSource: Spring,
+			envs:                        map[string]string{"PWD": "testdata/spring/with-prop"},
+			fs:                          &sub,
+		},
+		{
+			name: "spring boot unpacked jar with classpath",
+			cmdline: []string{
+				"java",
+				"-cp",
+				"spring/with-prop:foo",
+				"-jar",
+				springBootLauncher,
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "spring-boot-app-name",
+			expectedGeneratedNameSource: Spring,
+			envs:                        map[string]string{"PWD": "testdata"},
+			fs:                          &sub,
+		},
+		{
+			name: "spring boot unpacked jar with no properties",
+			cmdline: []string{
+				"java",
+				"-jar",
+				springBootLauncher,
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "com.example.spring_boot.ApplicationKtx",
+			expectedGeneratedNameSource: Spring,
+			envs:                        map[string]string{"PWD": "testdata/spring/without-prop"},
+			fs:                          &sub,
+		},
+		{
+			name: "spring boot unpacked jar with old launcher",
+			cmdline: []string{
+				"java",
+				"-jar",
+				springBootOldLauncher,
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "spring-boot-app-name",
+			expectedGeneratedNameSource: Spring,
+			envs:                        map[string]string{"PWD": "testdata/spring/with-prop"},
+			fs:                          &sub,
+		},
+		{
 			name: "wildfly 18 standalone",
 			cmdline: []string{
 				"home/app/.sdkman/candidates/java/17.0.4.1-tem/bin/java",
@@ -453,7 +525,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                        language.Java,
 			envs:                        map[string]string{"PWD": weblogicTestAppRootAbsolute},
-			expectedGeneratedName:       "Server",
+			expectedGeneratedName:       "weblogic.Server",
 			expectedGeneratedNameSource: WebLogic,
 			expectedAdditionalServices:  []string{"my_context", "sample4", "some_context_root"},
 		},

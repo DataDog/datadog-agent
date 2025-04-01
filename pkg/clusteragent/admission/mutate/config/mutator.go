@@ -21,6 +21,7 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // MutatorConfig contains the settings for the config injector.
@@ -31,6 +32,16 @@ type MutatorConfig struct {
 	dogStatsDSocket   string
 	socketPath        string
 	typeSocketVolumes bool
+	csiEnabled        bool
+	csiDriver         string
+}
+
+// shouldUseCSI returns true only if csi is enabled globally, on the admission controller level
+// and on the inject_config mutator level
+func shouldUseCSI(datadogConfig config.Component) bool {
+	return datadogConfig.GetBool("csi.enabled") &&
+		datadogConfig.GetBool("admission_controller.csi.enabled") &&
+		datadogConfig.GetBool("admission_controller.inject_config.csi.enabled")
 }
 
 // NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
@@ -42,6 +53,8 @@ func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 		dogStatsDSocket:   datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
 		socketPath:        datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes: datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
+		csiEnabled:        shouldUseCSI(datadogConfig),
+		csiDriver:         datadogConfig.GetString("csi.driver"),
 	}
 }
 
@@ -158,19 +171,31 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod) bool {
 		}
 
 		for volumeName, volumePath := range volumes {
-			volume, volumeMount := buildVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			var volume corev1.Volume
+			var volumeMount corev1.VolumeMount
+			if i.config.csiEnabled {
+				volume, volumeMount = buildCSIVolume(volumeName, volumePath, csiModeSocket, true, i.config.csiDriver)
+			} else {
+				volume, volumeMount = buildHostPathVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			}
 			injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 			if injectedVol {
 				injectedVolNames = append(injectedVolNames, volumeName)
 			}
 		}
 	} else {
-		volume, volumeMount := buildVolume(
-			DatadogVolumeName,
-			i.config.socketPath,
-			corev1.HostPathDirectoryOrCreate,
-			true,
-		)
+		var volume corev1.Volume
+		var volumeMount corev1.VolumeMount
+		if i.config.csiEnabled {
+			volume, volumeMount = buildCSIVolume(DatadogVolumeName, i.config.socketPath, csiModeLocal, true, i.config.csiDriver)
+		} else {
+			volume, volumeMount = buildHostPathVolume(
+				DatadogVolumeName,
+				i.config.socketPath,
+				corev1.HostPathDirectoryOrCreate,
+				true,
+			)
+		}
 		injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 		if injectedVol {
 			injectedVolNames = append(injectedVolNames, DatadogVolumeName)
@@ -227,13 +252,37 @@ func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	return
 }
 
-func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
+func buildHostPathVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
 				Path: path,
 				Type: &hostpathType,
+			},
+		},
+	}
+
+	volumeMount := corev1.VolumeMount{
+		Name:      volumeName,
+		MountPath: path,
+		ReadOnly:  readOnly,
+	}
+
+	return volume, volumeMount
+}
+
+func buildCSIVolume(volumeName, path string, injectionMode csiInjectionMode, readOnly bool, csiDriver string) (corev1.Volume, corev1.VolumeMount) {
+	volume := corev1.Volume{
+		Name: volumeName,
+		VolumeSource: corev1.VolumeSource{
+			CSI: &corev1.CSIVolumeSource{
+				Driver:   csiDriver,
+				ReadOnly: pointer.Ptr(readOnly),
+				VolumeAttributes: map[string]string{
+					"mode": string(injectionMode),
+					"path": path,
+				},
 			},
 		},
 	}

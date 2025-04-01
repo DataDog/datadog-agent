@@ -39,17 +39,18 @@ type dependencies struct {
 }
 
 type collector struct {
-	id                  string
-	store               workloadmeta.Component
-	catalog             workloadmeta.AgentType
-	metaV1              v1.Client
-	metaV3or4           func(metaURI, metaVersion string) v3or4.Client
-	clusterName         string
-	hasResourceTags     bool
-	collectResourceTags bool
-	resourceTags        map[string]resourceTags
-	seen                map[workloadmeta.EntityID]struct{}
-	config              config.Component
+	id                   string
+	store                workloadmeta.Component
+	catalog              workloadmeta.AgentType
+	metaV1               v1.Client
+	metaV3or4            func(metaURI, metaVersion string) v3or4.Client
+	clusterName          string
+	containerInstanceARN string
+	hasResourceTags      bool
+	collectResourceTags  bool
+	resourceTags         map[string]resourceTags
+	seen                 map[workloadmeta.EntityID]struct{}
+	config               config.Component
 	// taskCollectionEnabled is a flag to enable detailed task collection
 	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
 	// that is returned from the v1/tasks endpoint
@@ -117,11 +118,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	instance, err := c.metaV1.GetInstance(ctx)
 	if err == nil {
 		c.clusterName = instance.Cluster
+		c.containerInstanceARN = instance.ContainerInstanceARN
+		c.setTaskCollectionParser(instance.Version)
 	} else {
 		log.Warnf("cannot determine ECS cluster name: %s", err)
 	}
-
-	c.setTaskCollectionParser(instance.Version)
 
 	return nil
 }

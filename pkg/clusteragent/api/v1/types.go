@@ -61,7 +61,9 @@ func (m NamespacesPodsStringsSet) DeepCopy(old *NamespacesPodsStringsSet) Namesp
 			if _, ok := m[nsKey][pod]; !ok {
 				m[nsKey][pod] = sets.New[string]()
 			}
-			m[nsKey][pod] = m[nsKey][pod].Union(svcs)
+			for svc := range svcs {
+				m[nsKey][pod].Insert(svc)
+			}
 		}
 	}
 

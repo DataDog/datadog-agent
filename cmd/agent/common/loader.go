@@ -25,10 +25,12 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
-		if err != nil {
-			return fmt.Errorf("failed to create SBOM scanner: %s", err)
-		} else if sbomScanner != nil {
+		if cfg.GetBool("sbom.host.enabled") || cfg.GetBool("sbom.container_image.enabled") {
+			sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
+			if err != nil {
+				return fmt.Errorf("failed to create SBOM scanner: %s", err)
+			}
+
 			sbomScanner.Start(ctx)
 		}
 

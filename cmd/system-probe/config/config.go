@@ -112,9 +112,6 @@ func load() (*types.Config, error) {
 		DebugPort:        cfg.GetInt(spNS("debug_port")),
 		HealthPort:       cfg.GetInt(spNS("health_port")),
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
-
-		StatsdHost: pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog()),
-		StatsdPort: cfg.GetInt("dogstatsd_port"),
 	}
 
 	npmEnabled := cfg.GetBool(netNS("enabled"))

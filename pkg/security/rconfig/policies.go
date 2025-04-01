@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -63,7 +64,9 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
+		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+		apiutil.GetTLSClientConfig, // using helper command from pkg/api/util because there is no access to components
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
@@ -159,7 +162,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	r.RLock()
 	defer r.RUnlock()
 
-	load := func(id string, cfg []byte) error {
+	load := func(policyType rules.PolicyType, id string, cfg []byte) error {
 		if r.dumpPolicies {
 			name, err := writePolicy(id, cfg)
 			if err != nil {
@@ -170,7 +173,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		}
 
 		reader := bytes.NewReader(cfg)
-		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, policyType, reader, macroFilters, ruleFilters)
 		normalize(policy)
 		policies = append(policies, policy)
 		return err
@@ -179,7 +182,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastDefaults)) {
 		rawConfig := r.lastDefaults[cfgPath]
 
-		if err := load(rawConfig.Metadata.ID, rawConfig.Config); err != nil {
+		if err := load(rules.DefaultPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
@@ -190,7 +193,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastCustoms)) {
 		rawConfig := r.lastCustoms[cfgPath]
 
-		if err := load(rawConfig.Metadata.ID, rawConfig.Config); err != nil {
+		if err := load(rules.CustomPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {

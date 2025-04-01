@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -38,7 +37,7 @@ func TestOOMKillCompile(t *testing.T) {
 
 		cfg := testConfig()
 		cfg.BPFDebug = true
-		out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+		out, err := runtime.OomKill.Compile(cfg, []string{"-g"})
 		require.NoError(t, err)
 		_ = out.Close()
 	})

@@ -29,6 +29,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    fips,
     git,
     github_tasks,
     gitlab_helpers,
@@ -56,10 +57,12 @@ from tasks import (
     quality_gates,
     release,
     rtloader,
+    sbomgen,
     sds,
     security_agent,
     selinux,
     setup,
+    skaffold,
     system_probe,
     systray,
     testwasher,
@@ -177,6 +180,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(epforwarder)
+ns.add_collection(fips)
 ns.add_collection(go_deps)
 ns.add_collection(google)
 ns.add_collection(linter)
@@ -214,6 +218,7 @@ ns.add_collection(owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
+ns.add_collection(skaffold)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
@@ -221,6 +226,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(sbomgen)
 ns.configure(
     {
         "run": {

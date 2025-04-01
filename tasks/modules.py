@@ -155,7 +155,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
                 config.to_file()
             else:
                 raise Exit(
-                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
+                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `dda inv modules.validate --fix-format` to fix it'
                 )
 
     with open(base_dir / Configuration.FILE_NAME) as f:
@@ -281,7 +281,7 @@ def remove_replace_rules(data: str) -> str:
     data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
     data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
     data = re.sub(r"replace \(\s+\)", '', data)
-    data = re.sub(r"// This section was automatically added by 'invoke modules\..+", '', data)
+    data = re.sub(r"// This section was automatically added by 'dda inv modules\..+", '', data)
     return data
 
 
@@ -289,7 +289,7 @@ def update_go_mod(gomod_list, root):
     file = "go.mod"
     repo_name = "github.com/DataDog/datadog-agent/"
     replace_comment = (
-        "// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually\n\n"
+        "// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually\n\n"
     )
 
     gomod_file = os.path.join(root, file)
@@ -331,8 +331,8 @@ def add_all_replace(ctx: Context):
     and no replace rule is missing.
 
     It's meant to be used as the following:
-    - running `inv modules.add-all-replace` to add all possible replace rules to all go.mod
-    - `inv tidy` to update all the go.mod
+    - running `dda inv modules.add-all-replace` to add all possible replace rules to all go.mod
+    - `dda inv tidy` to update all the go.mod
 
     This solves the problem of `go mod tidy` failing if some replace rules are missing but needing `go mod tidy` to run
     successfully to know which replace rules are needed. This is a major pain point when creating/moving go.mod.
@@ -349,10 +349,13 @@ def add_all_replace(ctx: Context):
     """
 
     # First we find all go.mod in comp and pkg
-    gomods = [mods for mods in get_default_modules().keys() if mods.split(os.sep)[0] not in ["tools", "internal"]]
-    mod_to_replace = sorted(gomods)
+    gomods = [
+        mods for mods in get_default_modules().values() if mods.path.split(os.sep)[0] not in ["tools", "internal"]
+    ]
+    mod_to_replace = sorted([mod.path for mod in gomods])
     mod_to_replace.remove(".")
 
     # Second we iterate over all go.mod and update them
-    for folder in gomods:
-        update_go_mod(mod_to_replace, folder)
+    for mod in gomods:
+        if mod.should_replace_internal_modules:
+            update_go_mod(mod_to_replace, mod.path)

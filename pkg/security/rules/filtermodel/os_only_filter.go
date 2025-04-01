@@ -68,13 +68,13 @@ func (e *OSOnlyFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error
 }
 
 // GetFieldMetadata get the type of the field
-func (e *OSOnlyFilterEvent) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
+func (e *OSOnlyFilterEvent) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	case "os":
-		return "*", reflect.String, nil
+		return "*", reflect.String, "string", nil
 	}
 
-	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 
 // GetType returns the type for this event

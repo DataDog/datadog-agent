@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -37,9 +38,9 @@ type testPackageManager struct {
 	installerImpl
 }
 
-func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
-	packages := repository.NewRepositories(rootPath, locksPath)
-	configs := repository.NewRepositories(t.TempDir(), t.TempDir())
+func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	packages := repository.NewRepositories(rootPath, packages.PreRemoveHooks)
+	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
@@ -62,7 +63,7 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 func TestInstallStable(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -80,7 +81,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -101,7 +102,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -123,7 +124,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -145,7 +146,7 @@ func TestUninstallExperiment(t *testing.T) {
 
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -164,7 +165,7 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 
 func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -184,7 +185,7 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 func TestReinstallAfterDBClean(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -248,7 +249,7 @@ func TestPurge(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
 		rootPath := t.TempDir()
-		installer := newTestPackageManager(t, s, rootPath, t.TempDir())
+		installer := newTestPackageManager(t, s, rootPath)
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
@@ -290,7 +291,6 @@ func TestNoOutsideImport(t *testing.T) {
 	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
 	allowedPaths := []string{
 		"pkg/fleet/installer",
-		"pkg/fleet/internal",
 		"pkg/version",  // TODO: cleanup & remove
 		"pkg/util/log", // TODO: cleanup & remove
 	}
@@ -333,4 +333,34 @@ func TestNoOutsideImport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to walk directory: %v", err)
 	}
+}
+
+func TestWriteConfigSymlinks(t *testing.T) {
+	fleetDir := t.TempDir()
+	userDir := t.TempDir()
+	err := os.WriteFile(filepath.Join(userDir, "datadog.yaml"), []byte("user config"), 0644)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(fleetDir, "datadog.yaml"), []byte("fleet config"), 0644)
+	assert.NoError(t, err)
+	err = os.MkdirAll(filepath.Join(fleetDir, "conf.d"), 0755)
+	assert.NoError(t, err)
+
+	err = writeConfigSymlinks(userDir, fleetDir)
+	assert.NoError(t, err)
+	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
+	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
+	assert.FileExists(t, filepath.Join(userDir, "conf.d.override"))
+	configContent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml"))
+	assert.NoError(t, err)
+	overrideConfigConent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml.override"))
+	assert.NoError(t, err)
+	assert.Equal(t, "user config", string(configContent))
+	assert.Equal(t, "fleet config", string(overrideConfigConent))
+
+	fleetDir = t.TempDir()
+	err = writeConfigSymlinks(userDir, fleetDir)
+	assert.NoError(t, err)
+	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
+	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
+	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
 }

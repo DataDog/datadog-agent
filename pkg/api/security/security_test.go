@@ -8,6 +8,7 @@
 package security
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 
 func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 	config, expectTokenPath := initMockConf(t)
-	token, err := CreateOrFetchToken(config)
+	token, err := FetchOrCreateAuthToken(context.Background(), config)
 	require.NoError(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))
 	_, err = os.Stat(expectTokenPath)
@@ -54,7 +55,7 @@ func TestFetchAuthToken(t *testing.T) {
 	_, err = os.Stat(expectTokenPath)
 	require.True(t, os.IsNotExist(err))
 
-	newToken, err := CreateOrFetchToken(config)
+	newToken, err := FetchOrCreateAuthToken(context.Background(), config)
 	require.NoError(t, err, fmt.Sprintf("%v", err))
 	require.True(t, len(newToken) > authTokenMinimalLen, fmt.Sprintf("%d", len(newToken)))
 	_, err = os.Stat(expectTokenPath)

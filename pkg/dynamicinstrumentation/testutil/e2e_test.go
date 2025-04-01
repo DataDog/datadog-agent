@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"reflect"
@@ -51,11 +53,12 @@ func TestGoDI(t *testing.T) {
 		t.Skip("ringbuffers not supported on this kernel")
 	}
 
+	serviceName := "go-di-sample-service-" + randomLabel()
 	sampleServicePath := BuildSampleService(t)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
-		"DD_SERVICE=go-di-sample-service",
+		fmt.Sprintf("DD_SERVICE=%s", serviceName),
 		"DD_DYNAMIC_INSTRUMENTATION_OFFLINE=true",
 	}
 
@@ -112,30 +115,36 @@ func TestGoDI(t *testing.T) {
 	b := []byte{}
 	var buf *bytes.Buffer
 	doCapture = false
-	for function, expectedCaptureValue := range expectedCaptures {
-		// Generate config for this function
-		buf = bytes.NewBuffer(b)
-		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
-		t.Log("Instrumenting ", functionWithoutPackagePrefix)
-		results[function] = &testResult{
-			testName:          functionWithoutPackagePrefix,
-			expectation:       expectedCaptureValue,
-			matches:           []bool{},
-			unexpectedResults: []ditypes.CapturedValueMap{},
-		}
-		err = cfgTemplate.Execute(buf, configDataType{functionWithoutPackagePrefix})
-		require.NoError(t, err)
-		eventOutputWriter.expectedResult = expectedCaptureValue
+	for function, expectedCaptureTuples := range expectedCaptures {
+		for _, expectedCaptureValue := range expectedCaptureTuples {
+			// Generate config for this function
+			buf = bytes.NewBuffer(b)
+			functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
+			t.Log("Instrumenting ", functionWithoutPackagePrefix)
+			results[function] = &testResult{
+				testName:          functionWithoutPackagePrefix,
+				expectation:       expectedCaptureValue.CapturedValueMap,
+				matches:           []bool{},
+				unexpectedResults: []ditypes.CapturedValueMap{},
+			}
+			err = cfgTemplate.Execute(buf, configDataType{
+				ServiceName:  serviceName,
+				FunctionName: functionWithoutPackagePrefix,
+				CaptureDepth: expectedCaptureValue.Options.CaptureDepth,
+			})
+			require.NoError(t, err)
+			eventOutputWriter.expectedResult = expectedCaptureValue.CapturedValueMap
 
-		// Read the configuration via the config manager
-		_, err := cm.ConfigWriter.Write(buf.Bytes())
-		time.Sleep(time.Second * 2)
-		doCapture = true
-		if err != nil {
-			t.Errorf("could not read new configuration: %s", err)
+			// Read the configuration via the config manager
+			_, err := cm.ConfigWriter.Write(buf.Bytes())
+			time.Sleep(time.Second * 2)
+			doCapture = true
+			if err != nil {
+				t.Errorf("could not read new configuration: %s", err)
+			}
+			time.Sleep(time.Second * 2)
+			doCapture = false
 		}
-		time.Sleep(time.Second * 2)
-		doCapture = false
 	}
 
 	for i := range results {
@@ -193,17 +202,21 @@ func scrubPointerValues(captures ditypes.CapturedValueMap) {
 }
 
 func scrubPointerValue(capture *ditypes.CapturedValue) {
-	if capture.Type == "ptr" {
+	if strings.HasPrefix(capture.Type, "*") {
 		capture.Value = nil
 	}
 	scrubPointerValues(capture.Fields)
 }
 
-type configDataType struct{ FunctionName string }
+type configDataType struct {
+	ServiceName  string
+	FunctionName string
+	CaptureDepth int
+}
 
 var configTemplateText = `
 {
-    "go-di-sample-service": {
+    "{{.ServiceName}}": {
         "e504163d-f367-4522-8905-fe8bc34eb975": {
             "id": "e504163d-f367-4522-8905-fe8bc34eb975",
             "version": 0,
@@ -231,7 +244,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 5
+                "maxReferenceDepth": {{.CaptureDepth}}
             },
             "sampling": {
                 "snapshotsPerSecond": 5000
@@ -241,3 +254,12 @@ var configTemplateText = `
     }
 }
 `
+
+func randomLabel() string {
+	length := 6
+	randomString := make([]byte, length)
+	for i := 0; i < length; i++ {
+		randomString[i] = byte(65 + rand.Intn(25))
+	}
+	return string(randomString)
+}

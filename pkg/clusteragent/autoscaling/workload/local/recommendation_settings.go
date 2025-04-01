@@ -11,7 +11,7 @@ package local
 import (
 	"fmt"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -22,12 +22,10 @@ const (
 	containerMemoryUsageMetricName = "container.memory.usage"
 )
 
-var (
-	resourceToMetric = map[corev1.ResourceName]string{
-		corev1.ResourceCPU:    containerCPUUsageMetricName,
-		corev1.ResourceMemory: containerMemoryUsageMetricName,
-	}
-)
+var resourceToMetric = map[corev1.ResourceName]string{
+	corev1.ResourceCPU:    containerCPUUsageMetricName,
+	corev1.ResourceMemory: containerMemoryUsageMetricName,
+}
 
 type resourceRecommenderSettings struct {
 	metricName    string
@@ -36,17 +34,17 @@ type resourceRecommenderSettings struct {
 	highWatermark float64
 }
 
-func newResourceRecommenderSettings(target datadoghq.DatadogPodAutoscalerTarget) (*resourceRecommenderSettings, error) {
-	if target.Type == datadoghq.DatadogPodAutoscalerContainerResourceTargetType {
-		return getOptionsFromContainerResource(target.ContainerResource)
+func newResourceRecommenderSettings(objective datadoghqcommon.DatadogPodAutoscalerObjective) (*resourceRecommenderSettings, error) {
+	if objective.Type == datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType {
+		return getOptionsFromContainerResource(objective.ContainerResource)
 	}
-	if target.Type == datadoghq.DatadogPodAutoscalerResourceTargetType {
-		return getOptionsFromPodResource(target.PodResource)
+	if objective.Type == datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType {
+		return getOptionsFromPodResource(objective.PodResource)
 	}
-	return nil, fmt.Errorf("Invalid target type: %s", target.Type)
+	return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
 }
 
-func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTarget) (*resourceRecommenderSettings, error) {
+func getOptionsFromPodResource(target *datadoghqcommon.DatadogPodAutoscalerPodResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
@@ -63,7 +61,7 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 	return recSettings, nil
 }
 
-func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerContainerResourceTarget) (*resourceRecommenderSettings, error) {
+func getOptionsFromContainerResource(target *datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective) (*resourceRecommenderSettings, error) {
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
@@ -81,8 +79,8 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	return recSettings, nil
 }
 
-func validateTarget(targetType datadoghq.DatadogPodAutoscalerTargetValueType, name corev1.ResourceName, value datadoghq.DatadogPodAutoscalerTargetValue) error {
-	if targetType != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
+func validateTarget(targetType datadoghqcommon.DatadogPodAutoscalerObjectiveValueType, name corev1.ResourceName, value datadoghqcommon.DatadogPodAutoscalerObjectiveValue) error {
+	if targetType != datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType {
 		return fmt.Errorf("invalid value type: %s", targetType)
 	}
 
@@ -98,7 +96,7 @@ func validateTarget(targetType datadoghq.DatadogPodAutoscalerTargetValueType, na
 	return nil
 }
 
-func validateUtilizationValue(value datadoghq.DatadogPodAutoscalerTargetValue) error {
+func validateUtilizationValue(value datadoghqcommon.DatadogPodAutoscalerObjectiveValue) error {
 	if value.Utilization == nil {
 		return fmt.Errorf("missing utilization value")
 	}

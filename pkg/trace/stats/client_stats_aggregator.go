@@ -303,6 +303,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			Version:      payloadKey.Version,
 			ImageTag:     payloadKey.ImageTag,
 			GitCommitSha: payloadKey.GitCommitSha,
+			ContainerID:  payloadKey.ContainerID,
 			Stats:        clientBuckets,
 		})
 	}
@@ -339,6 +340,7 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		Type:           aggrKey.Type,
 		Synthetics:     aggrKey.Synthetics,
 		IsTraceRoot:    aggrKey.IsTraceRoot,
+		GRPCStatusCode: aggrKey.GRPCStatusCode,
 		PeerTags:       stats.peerTags,
 		TopLevelHits:   stats.topLevelHits,
 		Hits:           stats.hits,
@@ -362,14 +364,15 @@ func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha s
 
 func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 	k := BucketsAggregationKey{
-		Service:     b.Service,
-		Name:        b.Name,
-		SpanKind:    b.SpanKind,
-		Resource:    b.Resource,
-		Type:        b.Type,
-		Synthetics:  b.Synthetics,
-		StatusCode:  b.HTTPStatusCode,
-		IsTraceRoot: b.IsTraceRoot,
+		Service:        b.Service,
+		Name:           b.Name,
+		SpanKind:       b.SpanKind,
+		Resource:       b.Resource,
+		Type:           b.Type,
+		Synthetics:     b.Synthetics,
+		StatusCode:     b.HTTPStatusCode,
+		GRPCStatusCode: b.GRPCStatusCode,
+		IsTraceRoot:    b.IsTraceRoot,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = peerTagsHash(tags)

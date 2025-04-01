@@ -181,11 +181,17 @@ message ClientGetConfigsRequest {
   repeated TargetFileMeta cached_target_files = 2;
 }
 
+enum ConfigStatus {
+  CONFIG_STATUS_OK = 0;
+  CONFIG_STATUS_EXPIRED = 1;
+}
+
 message ClientGetConfigsResponse {
   repeated bytes roots = 1;
   bytes targets = 2;
   repeated File target_files = 3;
   repeated string client_configs = 4;
+  ConfigStatus config_status = 5;
 }
 
 // Full state

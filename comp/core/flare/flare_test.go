@@ -28,7 +28,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
@@ -39,9 +40,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type rcSettings struct {
+	duration         time.Duration
+	blockRate        int
+	mutexFrac        int
+	enableStreamLogs bool
+}
+
 func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Option) *flare {
 	fillerModule := fxutil.Component(fillers...)
-	fakeTagger := mockTagger.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	return newFlare(
 		fxutil.Test[dependencies](
 			t,
@@ -60,7 +68,7 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 			autodiscoveryimpl.MockModule(),
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
 			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
-			fx.Provide(func() mockTagger.Mock { return fakeTagger }),
+			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
 		),
@@ -148,14 +156,8 @@ func TestRunProviders(t *testing.T) {
 	assert.False(t, secondDone.Load())
 }
 
-func TestAgentTaskFlareArgs(t *testing.T) {
+func TestAgentTaskFlareProfilingArgs(t *testing.T) {
 	defer setupMockBuilder(t)()
-
-	type rcSettings struct {
-		duration  time.Duration
-		blockRate int
-		mutexFrac int
-	}
 
 	enabledDefaults := rcSettings{
 		duration:  40 * time.Second,
@@ -199,15 +201,74 @@ func TestAgentTaskFlareArgs(t *testing.T) {
 		},
 	}
 
+	runFlareTestScenarios(t, testCfg, scenarios, func(fb types.FlareBuilder, expSettings rcSettings) {
+		assert.Equal(t, expSettings.duration, fb.GetFlareArgs().ProfileDuration)
+		assert.Equal(t, expSettings.blockRate, fb.GetFlareArgs().ProfileBlockingRate)
+		assert.Equal(t, expSettings.mutexFrac, fb.GetFlareArgs().ProfileMutexFraction)
+	})
+}
+
+func TestAgentTaskFlareStreamLogsArgs(t *testing.T) {
+	defer setupMockBuilder(t)()
+
+	enabledDefaults := rcSettings{
+		enableStreamLogs: true,
+		duration:         60 * time.Second,
+	}
+
+	disabledDefaults := rcSettings{
+		enableStreamLogs: false,
+	}
+
+	testCfg := map[string]interface{}{
+		"site":                         "localhost", // Provide extra guarantees we don't try to send the flare off the box
+		"flare.rc_streamlogs.duration": enabledDefaults.duration,
+	}
+
+	scenarios := []struct {
+		name        string
+		task        string
+		expSettings rcSettings
+	}{
+		{
+			name:        "Test stream logs enabled",
+			task:        "{\"args\":{\"case_id\":\"22420\",\"enable_streamlogs\":\"true\",\"user_handle\":\"no-reply@datadoghq.com\"},\"task_type\":\"flare\",\"uuid\":\"a_uuid\"}",
+			expSettings: enabledDefaults,
+		},
+		{
+			name:        "Test stream logs disabled",
+			task:        "{\"args\":{\"case_id\":\"22420\",\"enable_streamlogs\":\"false\",\"user_handle\":\"no-reply@datadoghq.com\"},\"task_type\":\"flare\",\"uuid\":\"a_uuid\"}",
+			expSettings: disabledDefaults,
+		},
+		{
+			name:        "Test stream logs invalid",
+			task:        "{\"args\":{\"case_id\":\"22420\",\"enable_streamlogs\":\"1\",\"user_handle\":\"no-reply@datadoghq.com\"},\"task_type\":\"flare\",\"uuid\":\"a_uuid\"}",
+			expSettings: disabledDefaults,
+		},
+		{
+			name:        "Test stream logs not present",
+			task:        "{\"args\":{\"case_id\":\"22420\",\"user_handle\":\"no-reply@datadoghq.com\"},\"task_type\":\"flare\",\"uuid\":\"a_uuid\"}",
+			expSettings: disabledDefaults,
+		},
+	}
+
+	runFlareTestScenarios(t, testCfg, scenarios, func(fb types.FlareBuilder, expSettings rcSettings) {
+		assert.Equal(t, expSettings.duration, fb.GetFlareArgs().StreamLogsDuration)
+	})
+}
+
+func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenarios []struct {
+	name        string
+	task        string
+	expSettings rcSettings
+}, assertFunc func(fb types.FlareBuilder, expSettings rcSettings)) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			flare := getFlare(t, testCfg)
 
 			flare.providers = []*types.FlareFiller{
 				types.NewFiller(func(fb types.FlareBuilder) error {
-					assert.Equal(t, s.expSettings.duration, fb.GetFlareArgs().ProfileDuration)
-					assert.Equal(t, s.expSettings.blockRate, fb.GetFlareArgs().ProfileBlockingRate)
-					assert.Equal(t, s.expSettings.mutexFrac, fb.GetFlareArgs().ProfileMutexFraction)
+					assertFunc(fb, s.expSettings)
 					return nil
 				}),
 			}

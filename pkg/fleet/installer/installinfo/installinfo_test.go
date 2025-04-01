@@ -21,10 +21,15 @@ import (
 )
 
 func TestWriteInstallInfo(t *testing.T) {
+	// To avoid flakiness, remove dpkg & rpm from path, if any
+	oldPath := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", oldPath) }()
+	os.Setenv("PATH", "")
+
 	tmpDir := t.TempDir()
 	infoPath := filepath.Join(tmpDir, "install_info")
 	sigPath := filepath.Join(tmpDir, "install.json")
-	testInstallType := "manual_update_via_apt"
+	testInstallType := "deb"
 
 	// Call the internal writeInstallInfo function.
 	time := time.Now()
@@ -43,7 +48,7 @@ func TestWriteInstallInfo(t *testing.T) {
 		"install_method": {
 			"tool":              "installer",
 			"tool_version":      version.AgentVersion,
-			"installer_version": testInstallType,
+			"installer_version": testInstallType + "_package",
 		},
 	}
 	assert.Equal(t, expectedYAML, info)
@@ -57,7 +62,7 @@ func TestWriteInstallInfo(t *testing.T) {
 
 	expectedSig := map[string]string{
 		"install_id":   uuid,
-		"install_type": testInstallType,
+		"install_type": testInstallType + "_package",
 		"install_time": strconv.FormatInt(time.Unix(), 10),
 	}
 	assert.Equal(t, expectedSig, sig)

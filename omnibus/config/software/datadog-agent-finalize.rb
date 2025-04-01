@@ -39,7 +39,6 @@ build do
             if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
-              move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true
             end
             if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
@@ -108,6 +107,9 @@ build do
               move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
+            # Create the installer symlink
+            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
@@ -149,6 +151,12 @@ build do
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
 
+            # removing gtk-doc html documentation to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/gtk-doc"
+
+            # removing the info folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/share/info"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
@@ -184,7 +192,7 @@ build do
             delete "#{install_dir}/etc/conf.d/docker.d"
 
             # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

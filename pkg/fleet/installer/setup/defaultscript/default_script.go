@@ -18,17 +18,17 @@ import (
 
 const (
 	defaultAgentVersion    = "7.60.1-1"
-	defaultInjectorVersion = "0.26.0-1"
+	defaultInjectorVersion = "0.35.0-1"
 )
 
 var (
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.44.1-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.8.0-1",
-		common.DatadogAPMLibraryJSPackage:     "5.30.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.7.0-1",
-		common.DatadogAPMLibraryPythonPackage: "2.9.2-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.5.1-1",
+		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
+		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
+		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
+		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
+		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
+		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -51,7 +51,6 @@ var (
 		"DD_HOST_TAGS",
 		"DD_URL",
 		"DD_REMOTE_UPDATES",
-		"DD_REMOTE_POLICIES",
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
@@ -121,12 +120,8 @@ func setConfigSecurityProducts(s *common.Setup) {
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
 	s.Config.DatadogYAML.RemoteUpdates = true
-	s.Config.DatadogYAML.RemotePolicies = true
 	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
 		s.Config.DatadogYAML.RemoteUpdates = false
-	}
-	if val, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok && strings.ToLower(val) == "false" {
-		s.Config.DatadogYAML.RemotePolicies = false
 	}
 }
 
@@ -152,6 +147,9 @@ func setConfigTags(s *common.Setup) {
 		if tags, ok := os.LookupEnv("DD_HOST_TAGS"); ok {
 			s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
 		}
+	}
+	if tags, ok := os.LookupEnv("DD_EXTRA_TAGS"); ok {
+		s.Config.DatadogYAML.ExtraTags = strings.Split(tags, ",")
 	}
 }
 
@@ -227,7 +225,7 @@ func exitOnUnsupportedEnvVars(envVars ...string) error {
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	for _, envVar := range envVars {
-		s.Span.SetTag(fmt.Sprintf("env.%s", envVar), os.Getenv(envVar))
+		s.Span.SetTag(fmt.Sprintf("env_var.%s", envVar), os.Getenv(envVar))
 	}
 }
 

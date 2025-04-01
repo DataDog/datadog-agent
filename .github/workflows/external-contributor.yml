@@ -27,16 +27,18 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Set label on external contributor PRs
         run: |
-          inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
+          dda inv -- -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SLACK_API_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
           # labels is a comma-separated list of tags

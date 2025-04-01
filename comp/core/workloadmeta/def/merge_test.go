@@ -49,6 +49,9 @@ func container1(testTime time.Time) Container {
 			Health:     ContainerHealthUnknown,
 		},
 		CollectorTags: []string{"tag1", "tag2"},
+		EnvVars: map[string]string{
+			"DD_SERVICE-partial": "my-svc",
+		},
 	}
 }
 
@@ -91,6 +94,10 @@ func container2() Container {
 			Health:     ContainerHealthHealthy,
 		},
 		CollectorTags: []string{"tag3"},
+		EnvVars: map[string]string{
+			"DD_SERVICE-partial": "my-svc",
+			"DD_ENV-extra":       "prod",
+		},
 	}
 }
 
@@ -113,6 +120,10 @@ func TestMerge(t *testing.T) {
 			FinishedAt: time.Time{},
 			ExitCode:   pointer.Ptr(int64(100)),
 			Health:     ContainerHealthHealthy,
+		},
+		EnvVars: map[string]string{
+			"DD_SERVICE-partial": "my-svc",
+			"DD_ENV-extra":       "prod",
 		},
 	}
 

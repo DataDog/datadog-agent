@@ -31,11 +31,12 @@ type TaskCollector struct {
 func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 	return &TaskCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable:           false,
-			IsMetadataProducer: true,
-			IsManifestProducer: false,
-			Name:               "ecstasks",
-			NodeType:           orchestrator.ECSTask,
+			IsStable:                             false,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   false,
+			Name:                                 "ecstasks",
+			NodeType:                             orchestrator.ECSTask,
+			SupportsTerminatedResourceCollection: false,
 		},
 		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
 	}

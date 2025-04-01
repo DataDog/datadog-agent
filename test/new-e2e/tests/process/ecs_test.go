@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
@@ -113,9 +114,22 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		require.NotEmpty(c, payloads, "no process payloads returned")
+
+		// Check just the last payload as the process-agent should terminate by itself after a while as we are
+		// expecting the process checks to run in the core agent.
+		payloads = payloads[len(payloads)-1:]
+		requireProcessNotCollected(c, payloads, "process-agent")
+	}, 2*time.Minute, 10*time.Second)
+
+	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 2*time.Minute, 10*time.Second)
 }

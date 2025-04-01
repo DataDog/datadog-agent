@@ -61,12 +61,12 @@ func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 		// logs can submit with empty data or empty JSON object
 		return []*Log{}, nil
 	}
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	logs = []*Log{}
-	err = json.Unmarshal(enflated, &logs)
+	err = json.Unmarshal(inflated, &logs)
 	if err != nil {
 		return nil, err
 	}

@@ -65,7 +65,7 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (u *UDPv4) sendAndReceive(rs *winconn.RawConn, ttl int, timeout time.Duration) (*common.Hop, error) {
+func (u *UDPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, udpChecksum, _, err := u.createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
 	if err != nil {
 		log.Errorf("failed to create UDP packet with TTL: %d, error: %s", ttl, err.Error())

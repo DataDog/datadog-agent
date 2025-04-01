@@ -10,21 +10,19 @@ package trivy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"math"
 	"runtime"
 	"slices"
 	"sync"
+	"syscall"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
-	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
@@ -36,8 +34,12 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	// This is required to load sqlite based RPM databases
-	_ "modernc.org/sqlite"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+	uwalker "github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
 )
 
 const (
@@ -71,6 +73,16 @@ type Collector struct {
 
 var globalCollector *Collector
 
+var trivyDefaultSkipDirs = []string{
+	// already included in Trivy's defaultSkipDirs
+	// "**/.git",
+	// "proc",
+	// "sys",
+	// "dev",
+
+	"**/.cargo/git/**",
+}
+
 func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 	parallel := 1
 	if opts.Fast {
@@ -84,10 +96,23 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkerOption:      walker.Option{},
+		WalkerOption: walker.Option{
+			ErrorCallback: func(_ string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				if errors.Is(err, syscall.ESRCH) {
+					// ignore "no such process" errors when walking /proc/<pid>
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
-	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
+	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
+
+	if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers}) {
 		option.WalkerOption.OnlyDirs = []string{
 			"/etc/*",
 			"/lib/apk/db/*",
@@ -96,6 +121,35 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
 		}
+	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
+		option.WalkerOption.SkipDirs = append(
+			option.WalkerOption.SkipDirs,
+			"/bin/**",
+			"/boot/**",
+			"/dev/**",
+			"/media/**",
+			"/mnt/**",
+			"/proc/**",
+			"/run/**",
+			"/sbin/**",
+			"/sys/**",
+			"/tmp/**",
+			"/usr/bin/**",
+			"/usr/sbin/**",
+			"/var/cache/**",
+			"/var/lib/containerd/**",
+			"/var/lib/containers/**",
+			"/var/lib/docker/**",
+			"/var/lib/libvirt/**",
+			"/var/lib/snapd/**",
+			"/var/log/**",
+			"/var/run/**",
+			"/var/tmp/**",
+		)
+	}
+
+	if slices.Contains(opts.Analyzers, LanguagesAnalyzers) {
+		option.FileChecksum = true
 	}
 
 	return option
@@ -114,6 +168,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeExecutable)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
@@ -131,7 +186,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
 	disabledAnalyzers = append(disabledAnalyzers,
-		analyzer.TypeExecutable,
 		analyzer.TypeRedHatContentManifestType,
 		analyzer.TypeRedHatDockerfileType,
 		analyzer.TypeSBOM,
@@ -139,9 +193,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeLicenseFile,
 		analyzer.TypeRpmArchive,
 	)
-
-	// FIXME: the java analyzer requires some javadb, let's skip it for now
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeJar, analyzer.TypeGradleLock, analyzer.TypePom, analyzer.TypeSbtLock)
 
 	return disabledAnalyzers
 }
@@ -165,6 +216,20 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
 	}, nil
+}
+
+// NewCollectorForCLI returns a new collector, should be used only for sbomgen CLI
+func NewCollectorForCLI() *Collector {
+	return &Collector{
+		config: collectorConfig{
+			maxCacheSize: math.MaxInt,
+		},
+		marshaler: cyclonedx.NewMarshaler(""),
+
+		osScanner:   ospkg.NewScanner(),
+		langScanner: langpkg.NewScanner(),
+		vulnClient:  vulnerability.NewClient(db.Config{}),
+	}
 }
 
 // GetGlobalCollector gets the global collector
@@ -205,9 +270,9 @@ func (c *Collector) CleanCache() error {
 	return nil
 }
 
-// getCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
+// GetCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
 // only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) getCache() (CacheWithCleaner, error) {
+func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
 		c.persistentCache, err = NewCustomBoltCache(
@@ -224,55 +289,49 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 	return c.persistentCache, nil
 }
 
-// scanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+type artifactWithType struct {
+	inner     artifact.Artifact
+	forceType artifact.Type
+}
+
+func (fa *artifactWithType) Inspect(ctx context.Context) (artifact.Reference, error) {
+	ref, err := fa.inner.Inspect(ctx)
+	ref.Type = fa.forceType
+	return ref, err
+}
+
+func (fa *artifactWithType) Clean(ref artifact.Reference) error {
+	return fa.inner.Clean(ref)
+}
+
+// ScanFilesystem scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(path, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	fsArtifact, err := local2.NewArtifact(path, cache, uwalker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache, false)
+	wrapper := &artifactWithType{
+		inner:     fsArtifact,
+		forceType: artifact.TypeContainerImage,
+	}
+	if removeLayers {
+		wrapper.forceType = artifact.TypeFilesystem
+	}
+
+	trivyReport, err := c.scan(ctx, wrapper, applier.NewApplier(cache))
 	if err != nil {
-		if imgMeta != nil {
-			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
-		}
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
-	pkgCount := 0
-	for _, results := range trivyReport.Results {
-		pkgCount += len(results.Packages)
-	}
-	log.Debugf("Found %d packages", pkgCount)
-
-	return &Report{
-		Report:    trivyReport,
-		id:        cache.blobID,
-		marshaler: c.marshaler,
-	}, nil
+	return c.buildReport(trivyReport, cache.lastBlobID), nil
 }
 
-// ScanFilesystem scans file-system
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	return c.scanFilesystem(ctx, path, nil, scanOptions)
-}
-
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
-	if useCache && imgMeta != nil && cache != nil {
-		// The artifact reference is only needed to clean up the blobs after the scan.
-		// It is re-generated from cached partial results during the scan.
-		artifactReference, err := artifact.Inspect(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
-	}
-
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
 	localScanner := local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient)
 	s := scanner.NewScanner(localScanner, artifact)
 
@@ -289,25 +348,43 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, err := c.getCache()
-	if err != nil {
-		return nil, err
+func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
+	pkgCount := 0
+	for _, results := range trivyReport.Results {
+		pkgCount += len(results.Packages)
 	}
-
-	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
-	}
-
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.persistentCache, true)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
-	}
+	log.Debugf("Found %d packages", pkgCount)
 
 	return &Report{
 		Report:    trivyReport,
-		id:        trivyReport.Metadata.ImageID,
+		id:        id,
 		marshaler: c.marshaler,
-	}, nil
+	}
+}
+
+func looselyCompareAnalyzers(given []string, against []string) bool {
+	target := make(map[string]struct{}, len(against))
+	for _, val := range against {
+		target[val] = struct{}{}
+	}
+
+	validated := make(map[string]struct{})
+
+	for _, val := range given {
+		// if already validated, skip
+		// this allows to support duplicated entries
+		if _, ok := validated[val]; ok {
+			continue
+		}
+
+		// if this value is not in
+		if _, ok := target[val]; !ok {
+			return false
+		}
+		delete(target, val)
+		validated[val] = struct{}{}
+	}
+
+	return len(target) == 0
 }

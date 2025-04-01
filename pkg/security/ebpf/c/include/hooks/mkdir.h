@@ -37,6 +37,29 @@ HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) 
     return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
 }
 
+int __attribute__((always_inline)) filename_create_common(struct path *p) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall) {
+        return 0;
+    }
+
+    syscall->mkdir.path = p;
+
+    return 0;
+}
+
+HOOK_ENTRY("filename_create")
+int hook_filename_create(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM3(ctx);
+    return filename_create_common(p);
+}
+
+HOOK_ENTRY("security_path_mkdir")
+int hook_security_path_mkdir(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM1(ctx);
+    return filename_create_common(p);
+}
+
 HOOK_ENTRY("vfs_mkdir")
 int hook_vfs_mkdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
@@ -82,13 +105,14 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
         syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path
     }
 
+    syscall->retval = retval;
+
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
-    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -134,7 +158,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    s64 retval = syscall->resolver.sysretval;
+    s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;

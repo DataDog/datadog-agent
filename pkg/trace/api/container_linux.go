@@ -11,11 +11,8 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -65,13 +62,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
-// cacheExpiration determines how long a pid->container ID mapping is considered valid. This value is
-// somewhat arbitrarily chosen, but just needs to be large enough to reduce latency and I/O load
-// caused by frequently reading mappings, and small enough that pid-reuse doesn't cause mismatching
-// of pids with container ids. A one minute cache means the latency and I/O should be low, and
-// there would have to be thousands of containers spawned and dying per second to cause a mismatch.
-const cacheExpiration = time.Minute
-
 // IDProvider implementations are able to look up a container ID given a ctx and http header.
 type IDProvider interface {
 	GetContainerID(context.Context, http.Header) string
@@ -107,11 +97,9 @@ func NewIDProvider(procRoot string, containerIDFromOriginInfo func(originInfo or
 	if reader.CgroupVersion() == 1 {
 		cgroupController = cgroupV1BaseController // The 'memory' controller is used by the cgroupv1 utils in the agent to parse the procfs.
 	}
-	c := NewCache(1 * time.Minute)
 	return &cgroupIDProvider{
 		procRoot:                  procRoot,
 		controller:                cgroupController,
-		cache:                     c,
 		reader:                    reader,
 		containerIDFromOriginInfo: containerIDFromOriginInfo,
 	}
@@ -122,7 +110,6 @@ type cgroupIDProvider struct {
 	controller string
 	// reader is used to retrieve the container ID from its cgroup v2 inode.
 	reader                    *cgroups.Reader
-	cache                     *Cache
 	containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)
 }
 
@@ -160,9 +147,12 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 		return containerIDFromHeader
 	}
 
-	// Retrieve the container-id from the pid in its context.
-	if containerID := c.resolveContainerIDFromContext(ctx); containerID != "" {
-		return containerID
+	// Retrieve the PID from the context.
+	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)
+	if !ok || ucred == nil {
+		log.Debugf("Could not retrieve PID from context")
+	} else {
+		originInfo.LocalData.ProcessID = uint32(ucred.Pid)
 	}
 
 	// Parse ExternalData from the headers.
@@ -180,108 +170,4 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 		log.Debugf("Could not generate container ID from OriginInfo: %+v, err: %v", originInfo, err)
 	}
 	return generatedContainerID
-}
-
-// resolveContainerIDFromContext returns the container ID for the given context.
-// This is a fallback for when the container ID is not available in the http headers.
-func (c *cgroupIDProvider) resolveContainerIDFromContext(ctx context.Context) string {
-	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)
-	if !ok || ucred == nil {
-		return ""
-	}
-	pid := strconv.Itoa(int(ucred.Pid))
-	cid, err := c.getCachedContainerID(
-		pid,
-		func() (string, error) {
-			return cgroups.IdentiferFromCgroupReferences(c.procRoot, pid, c.controller, cgroups.ContainerFilter)
-		},
-	)
-	if err != nil {
-		log.Debugf("Could not get container ID from pid: %d: %v\n", ucred.Pid, err)
-		return ""
-	}
-	return cid
-}
-
-// getCachedContainerID returns the container ID for the given key, using a cache.
-func (c *cgroupIDProvider) getCachedContainerID(key string, retrievalFunc func() (string, error)) (string, error) {
-	currentTime := time.Now()
-	entry, found, err := c.cache.Get(currentTime, key, cacheExpiration)
-	if found {
-		if err != nil {
-			return "", err
-		}
-
-		return entry.(string), nil
-	}
-
-	// No cache, cacheValidity is 0 or too old value
-	val, err := retrievalFunc()
-	if err != nil {
-		c.cache.Store(currentTime, key, nil, err)
-		return "", err
-	}
-
-	c.cache.Store(currentTime, key, val, nil)
-	return val, nil
-}
-
-// The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go. It is not
-// imported to avoid making the datadog-agent module a dependency of the pkg/trace module. The
-// datadog-agent module contains replace directives which are not inherited by packages that
-// require it, and cannot be guaranteed to function correctly as a dependency.
-type cacheEntry struct {
-	value     interface{}
-	err       error
-	timestamp time.Time
-}
-
-// Cache provides a caching mechanism based on staleness toleration provided by requestor
-type Cache struct {
-	cache       map[string]cacheEntry
-	cacheLock   sync.RWMutex
-	gcInterval  time.Duration
-	gcTimestamp time.Time
-}
-
-// NewCache returns a new cache dedicated to a collector
-func NewCache(gcInterval time.Duration) *Cache {
-	return &Cache{
-		cache:      make(map[string]cacheEntry),
-		gcInterval: gcInterval,
-	}
-}
-
-// Get retrieves data from cache, returns not found if cacheValidity == 0
-func (c *Cache) Get(currentTime time.Time, key string, cacheValidity time.Duration) (interface{}, bool, error) {
-	if cacheValidity <= 0 {
-		return nil, false, nil
-	}
-
-	c.cacheLock.RLock()
-	entry, found := c.cache[key]
-	c.cacheLock.RUnlock()
-
-	if !found || currentTime.Sub(entry.timestamp) > cacheValidity {
-		return nil, false, nil
-	}
-
-	if entry.err != nil {
-		return nil, true, entry.err
-	}
-
-	return entry.value, true, nil
-}
-
-// Store sets data in the cache, it also clears the cache if the gcInterval has passed
-func (c *Cache) Store(currentTime time.Time, key string, value interface{}, err error) {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
-
-	if currentTime.Sub(c.gcTimestamp) > c.gcInterval {
-		c.cache = make(map[string]cacheEntry, len(c.cache))
-		c.gcTimestamp = currentTime
-	}
-
-	c.cache[key] = cacheEntry{value: value, timestamp: currentTime, err: err}
 }

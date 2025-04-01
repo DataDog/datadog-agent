@@ -14,7 +14,7 @@ This allows a fair comparison between several runs of the benchmark.
 The benchmark can be launched with the following `invoke` target:
 
 ```sh
-time inv bench.kubernetes-state
+time dda inv bench.kubernetes-state
 ```
 
 The benchmark only returns the time it took to run the main function of the KSMv2 check on the static test data built at the previous state:

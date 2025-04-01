@@ -9,6 +9,7 @@ package ddflareextensionimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -62,6 +63,10 @@ func extensionType(s string) string {
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
+	if conf == nil {
+		msg := "received a nil config in ddExtension.NotifyConfig"
+		return errors.New(msg)
+	}
 	var err error
 	confMap := conf.ToStringMap()
 	enhancedBytes, err := yaml.Marshal(confMap)
@@ -77,6 +82,8 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		ext.configStore.set(string(envBytes), string(enhancedBytes))
+	} else {
+		ext.configStore.set("", string(enhancedBytes))
 	}
 
 	extensionConfs, err := conf.Sub("extensions")
@@ -146,7 +153,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 	}
 	envConfMap, err := newEnvConfMap(ctx, cfg.configProviderSettings)
 	if err != nil {
-		ext.telemetry.Logger.Error("Failed to create envConfMap", zap.Error(err))
+		ext.telemetry.Logger.Warn(fmt.Sprintf("Cannot report environment variables to fleet automation: %v", err))
 	}
 	ext.envConfMap = envConfMap
 

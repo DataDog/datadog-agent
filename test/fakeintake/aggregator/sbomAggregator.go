@@ -38,13 +38,13 @@ func (p *SBOMPayload) GetCollectedTime() time.Time {
 
 // ParseSbomPayload parses an api.Payload into a list of SbomPayload
 func ParseSbomPayload(payload api.Payload) ([]*SBOMPayload, error) {
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
-		return nil, fmt.Errorf("could not enflate payload: %w", err)
+		return nil, fmt.Errorf("could not inflate payload: %w", err)
 	}
 
 	msg := agentmodel.SBOMPayload{}
-	if err := proto.Unmarshal(enflated, &msg); err != nil {
+	if err := proto.Unmarshal(inflated, &msg); err != nil {
 		return nil, err
 	}
 

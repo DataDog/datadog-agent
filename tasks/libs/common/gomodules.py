@@ -146,6 +146,8 @@ class GoModule:
     used_by_otel: bool = False
     # Used to load agent 6 modules from agent 7
     legacy_go_mod_version: bool | None = None
+    # Whether the module should replace internal modules
+    should_replace_internal_modules: bool = True
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
@@ -160,6 +162,9 @@ class GoModule:
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
             legacy_go_mod_version=data.get("legacy_go_mod_version", default["legacy_go_mod_version"]),
+            should_replace_internal_modules=data.get(
+                "should_replace_internal_modules", default["should_replace_internal_modules"]
+            ),
         )
 
     @staticmethod
@@ -192,6 +197,7 @@ class GoModule:
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
             "legacy_go_mod_version": self.legacy_go_mod_version,
+            "should_replace_internal_modules": self.should_replace_internal_modules,
         }
 
         if remove_path:
