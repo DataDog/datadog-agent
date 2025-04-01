@@ -51,7 +51,6 @@ func TestNonAtomicRegistryWriter(t *testing.T) {
 	// Create non-atomic registry writer
 	writer := NewNonAtomicRegistryWriter()
 
-	// Test writing registry
 	err := writer.WriteRegistry(registryPath, registryDirPath, registryTmpFile, testData)
 	require.NoError(t, err)
 
