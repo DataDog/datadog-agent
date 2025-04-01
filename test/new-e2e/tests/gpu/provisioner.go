@@ -72,6 +72,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
+			agentparams.WithAgentConfig("enable_nvml_detection: true"),
 		},
 		ami:          gpuEnabledAMI,
 		amiOS:        os.Ubuntu2204,
