@@ -28,12 +28,12 @@ lint_shell:
 lint_filename:
   extends: .lint
   script:
-    - inv -e linter.filenames
+    - inv -e lint-filenames
 
 lint_copyrights:
   extends: .lint
   script:
-    - inv -e linter.copyrights
+    - inv -e lint-copyrights
 
 lint_codeowners:
   extends: .lint
