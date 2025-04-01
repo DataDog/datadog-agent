@@ -47,7 +47,11 @@ cc_toolchain(
 # line.
 toolchain(
     name = "glibc_cc_toolchain_x86",
-    target_compatible_with = ["@platforms//cpu:x86_64"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        "//bazel/platforms:glibc_2_17",
+    ],
     toolchain = ":glibc_cc_toolchain_definition_x86",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
