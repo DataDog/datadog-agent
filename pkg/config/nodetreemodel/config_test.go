@@ -850,7 +850,7 @@ func TestSetConfigFile(t *testing.T) {
 func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 1: DD_DD_URL set before DD_URL
 	t.Run("DD_DD_URL set first", func(t *testing.T) {
-		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 		config.BindEnv("fakeapikey", "DD_API_KEY")
 		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
@@ -863,7 +863,7 @@ func TestEnvVarOrdering(t *testing.T) {
 
 	// Test scenario 2: DD_URL set before DD_DD_URL
 	t.Run("DD_URL set first", func(t *testing.T) {
-		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 		config.BindEnv("fakeapikey", "DD_API_KEY")
 		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
@@ -876,7 +876,7 @@ func TestEnvVarOrdering(t *testing.T) {
 
 	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
 	t.Run("Only DD_URL is set", func(t *testing.T) {
-		config := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 		config.BindEnv("fakeapikey", "DD_API_KEY")
 		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
