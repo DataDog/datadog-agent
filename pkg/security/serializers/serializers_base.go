@@ -202,7 +202,7 @@ type ExitEventSerializer struct {
 	Code uint32 `json:"code"`
 }
 
-// MatchingSubExprs serializes matching sub expression to JSON
+// MatchingSubExpr serializes matching sub expression to JSON
 // easyjson:json
 type MatchingSubExpr struct {
 	Offset int    `json:"offset"`
