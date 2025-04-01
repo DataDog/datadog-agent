@@ -73,7 +73,7 @@ def register_deployment_to_sheet(
         .append(
             spreadsheetId=spreadsheet_id,
             valueInputOption="USER_ENTERED",
-            range="Sheet1!A1:L1",
+            range="Sheet3!A2:L2",
             body=body,
         )
     )
