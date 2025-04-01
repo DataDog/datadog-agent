@@ -1202,6 +1202,10 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
+	// it for non-linux OSes. By adding it here the test passes on all OSes.
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1231,6 +1235,8 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
+  run_in_core_agent:
+    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1254,6 +1260,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1283,7 +1290,10 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-var testSimpleConf = []byte(`secret_backend_command: some command
+var testSimpleConf = []byte(`process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1294,6 +1304,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1304,7 +1315,10 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `secret_backend_arguments:
+	expectedYaml := `process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1406,6 +1420,7 @@ additional_endpoints:
 `)
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1420,6 +1435,9 @@ additional_endpoints:
   "0": apple
   "1": banana
   "2": cherry
+process_config:
+  run_in_core_agent:
+    enabled: false
 use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
