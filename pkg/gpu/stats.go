@@ -106,7 +106,7 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {
-		deviceCores, err := g.sysCtx.deviceCache.GetCores(sKey.gpuUUID)
+		deviceCores, err := g.sysCtx.deviceCache.Cores(sKey.gpuUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
 	}
 
 	normFactors := make(map[string]float64)
-	for _, device := range g.sysCtx.deviceCache.GetAllDevices() {
+	for _, device := range g.sysCtx.deviceCache.All() {
 		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
 		if usages[device.UUID] > float64(device.CoreCount) {
 			normFactors[device.UUID] = usages[device.UUID] / float64(device.CoreCount)

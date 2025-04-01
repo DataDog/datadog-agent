@@ -227,7 +227,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 
 	// map each device UUID to the set of tags corresponding to entities (processes) using it
 	activeEntitiesPerDevice := make(map[string]common.StringSet)
-	for _, dev := range c.deviceCache.GetAllDevices() {
+	for _, dev := range c.deviceCache.All() {
 		activeEntitiesPerDevice[dev.UUID] = common.NewStringSet()
 	}
 
@@ -278,7 +278,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// Use the list of active processes from system-probe instead of the ActivePIDs from the
 	// workloadmeta store, as the latter might not be up-to-date and we want these limit metrics
 	// to match the usage metrics reported above
-	for _, dev := range c.deviceCache.GetAllDevices() {
+	for _, dev := range c.deviceCache.All() {
 		deviceTags := c.deviceTags[dev.UUID]
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container

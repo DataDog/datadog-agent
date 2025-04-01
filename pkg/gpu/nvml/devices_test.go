@@ -60,7 +60,7 @@ func TestNewDeviceCache(t *testing.T) {
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
-	require.Equal(t, len(testutil.GPUUUIDs), cache.DeviceCount())
+	require.Equal(t, len(testutil.GPUUUIDs), cache.Count())
 }
 
 func TestNewDeviceCachePartialFailure(t *testing.T) {
@@ -80,19 +80,19 @@ func TestNewDeviceCachePartialFailure(t *testing.T) {
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
-	require.Equal(t, 2, cache.DeviceCount())
+	require.Equal(t, 2, cache.Count())
 
 	// Verify we can get the working devices
-	device0, err := cache.GetDeviceByIndex(0)
+	device0, err := cache.GetByIndex(0)
 	require.NoError(t, err)
 	require.Equal(t, 0, device0.Index)
 
-	device1, err := cache.GetDeviceByIndex(1)
+	device1, err := cache.GetByIndex(1)
 	require.NoError(t, err)
 	require.Equal(t, 1, device1.Index)
 
 	// Verify we can't get the failed device
-	_, err = cache.GetDeviceByIndex(2)
+	_, err = cache.GetByIndex(2)
 	require.Error(t, err)
 }
 
@@ -130,61 +130,61 @@ func TestNewDeviceCacheDeviceUUIDFailure(t *testing.T) {
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
-	require.Equal(t, 1, cache.DeviceCount())
+	require.Equal(t, 1, cache.Count())
 
 	// Verify we can get the working device
-	device0, err := cache.GetDeviceByIndex(0)
+	device0, err := cache.GetByIndex(0)
 	require.NoError(t, err)
 	require.Equal(t, 0, device0.Index)
 
 	// Verify we can't get the failed device
-	_, err = cache.GetDeviceByIndex(1)
+	_, err = cache.GetByIndex(1)
 	require.Error(t, err)
 }
 
-func TestDeviceCacheGetDeviceByUUID(t *testing.T) {
+func TestDeviceCacheGetByUUID(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 
-	device, err := cache.GetDeviceByUUID(testutil.DefaultGpuUUID)
-	require.NoError(t, err)
+	device, ok := cache.GetByUUID(testutil.DefaultGpuUUID)
+	require.True(t, ok)
 	require.Equal(t, testutil.DefaultGpuUUID, device.UUID)
 
-	_, err = cache.GetDeviceByUUID("non-existent-uuid")
-	require.Error(t, err)
+	_, ok = cache.GetByUUID("non-existent-uuid")
+	require.False(t, ok)
 }
 
-func TestDeviceCacheGetDeviceByIndex(t *testing.T) {
+func TestDeviceCacheGetByIndex(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 
-	device, err := cache.GetDeviceByIndex(0)
+	device, err := cache.GetByIndex(0)
 	require.NoError(t, err)
 	require.Equal(t, 0, device.Index)
 
-	_, err = cache.GetDeviceByIndex(-1)
+	_, err = cache.GetByIndex(-1)
 	require.Error(t, err)
 }
 
-func TestDeviceCacheGetSMVersionSet(t *testing.T) {
+func TestDeviceCacheSMVersionSet(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 
-	smVersions := cache.GetSMVersionSet()
+	smVersions := cache.SMVersionSet()
 	require.Len(t, smVersions, 1)
 	_, exists := smVersions[75] // 7*10 + 5
 	require.True(t, exists)
 }
 
-func TestDeviceCacheGetAllDevices(t *testing.T) {
+func TestDeviceCacheAll(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 
-	devices := cache.GetAllDevices()
+	devices := cache.All()
 	require.Len(t, devices, len(testutil.GPUUUIDs))
 	for i, device := range devices {
 		require.Equal(t, testutil.GPUUUIDs[i], device.UUID)
@@ -192,15 +192,15 @@ func TestDeviceCacheGetAllDevices(t *testing.T) {
 	}
 }
 
-func TestDeviceCacheGetCores(t *testing.T) {
+func TestDeviceCacheCores(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
 	cache, err := NewDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 
-	cores, err := cache.GetCores(testutil.DefaultGpuUUID)
+	cores, err := cache.Cores(testutil.DefaultGpuUUID)
 	require.NoError(t, err)
 	require.Equal(t, uint64(testutil.DefaultGpuCores), cores)
 
-	_, err = cache.GetCores("non-existent-uuid")
+	_, err = cache.Cores("non-existent-uuid")
 	require.Error(t, err)
 }

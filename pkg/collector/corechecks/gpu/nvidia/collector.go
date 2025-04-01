@@ -90,7 +90,7 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.GetAllDevices() {
+	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -110,14 +110,14 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
 func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	devCount := deviceCache.DeviceCount()
+	devCount := deviceCache.Count()
 	if devCount == 0 {
 		return nil
 	}
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for _, dev := range deviceCache.GetAllDevices() {
+	for _, dev := range deviceCache.All() {
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {

@@ -67,18 +67,18 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
-	// GetDeviceByUUID returns a device by its UUID
-	GetDeviceByUUID(uuid string) (*Device, error)
-	// GetDeviceByIndex returns a device by its index
-	GetDeviceByIndex(index int) (*Device, error)
-	// DeviceCount returns the number of devices in the cache
-	DeviceCount() int
-	// GetSMVersionSet returns a set of all SM versions in the cache
-	GetSMVersionSet() map[uint32]struct{}
-	// GetAllDevices returns all devices in the cache
-	GetAllDevices() []*Device
-	// GetCores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
-	GetCores(uuid string) (uint64, error)
+	// GetByUUID returns a device by its UUID
+	GetByUUID(uuid string) (*Device, bool)
+	// GetByIndex returns a device by its index
+	GetByIndex(index int) (*Device, error)
+	// Count returns the number of devices in the cache
+	Count() int
+	// SMVersionSet returns a set of all SM versions in the cache
+	SMVersionSet() map[uint32]struct{}
+	// All returns all devices in the cache
+	All() []*Device
+	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
+	Cores(uuid string) (uint64, error)
 }
 
 // deviceCache is an implementation of DeviceCache
@@ -131,17 +131,14 @@ func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	return cache, nil
 }
 
-// GetDeviceByUUID returns a device by its UUID
-func (c *deviceCache) GetDeviceByUUID(uuid string) (*Device, error) {
+// GetByUUID returns a device by its UUID
+func (c *deviceCache) GetByUUID(uuid string) (*Device, bool) {
 	device, ok := c.uuidToDevice[uuid]
-	if !ok {
-		return nil, fmt.Errorf("device with uuid %s not found", uuid)
-	}
-	return device, nil
+	return device, ok
 }
 
-// GetDeviceByIndex returns a device by its index in the host
-func (c *deviceCache) GetDeviceByIndex(index int) (*Device, error) {
+// GetByIndex returns a device by its index in the host
+func (c *deviceCache) GetByIndex(index int) (*Device, error) {
 	if index < 0 || index >= len(c.allDevices) {
 		return nil, fmt.Errorf("index %d out of range", index)
 	}
@@ -149,26 +146,26 @@ func (c *deviceCache) GetDeviceByIndex(index int) (*Device, error) {
 	return c.allDevices[index], nil
 }
 
-// DeviceCount returns the number of devices in the cache
-func (c *deviceCache) DeviceCount() int {
+// Count returns the number of devices in the cache
+func (c *deviceCache) Count() int {
 	return len(c.allDevices)
 }
 
-// GetSMVersionSet returns a set of all SM versions in the cache
-func (c *deviceCache) GetSMVersionSet() map[uint32]struct{} {
+// SMVersionSet returns a set of all SM versions in the cache
+func (c *deviceCache) SMVersionSet() map[uint32]struct{} {
 	return c.smVersionSet
 }
 
-// GetAllDevices returns all devices in the cache
-func (c *deviceCache) GetAllDevices() []*Device {
+// All returns all devices in the cache
+func (c *deviceCache) All() []*Device {
 	return c.allDevices
 }
 
-// GetCores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
-func (c *deviceCache) GetCores(uuid string) (uint64, error) {
-	device, err := c.GetDeviceByUUID(uuid)
-	if err != nil {
-		return 0, err
+// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
+func (c *deviceCache) Cores(uuid string) (uint64, error) {
+	device, ok := c.GetByUUID(uuid)
+	if !ok {
+		return 0, fmt.Errorf("device %s not found", uuid)
 	}
 	return uint64(device.CoreCount), nil
 }

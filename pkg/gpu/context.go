@@ -182,7 +182,7 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	smVersionSet := ctx.deviceCache.GetSMVersionSet()
+	smVersionSet := ctx.deviceCache.SMVersionSet()
 	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, smVersionSet)
 
 	data, err := cuda.GetSymbols(path, smVersionSet)
@@ -349,7 +349,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.GetAllDevices(), containerID)
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.All(), containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
