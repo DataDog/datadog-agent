@@ -204,6 +204,7 @@ modules:
   pkg/metrics:
     used_by_otel: true
   pkg/network/payload: default
+  pkg/networkdevice/integrations: default
   pkg/networkdevice/metadata: default
   pkg/networkdevice/profile: default
   pkg/networkpath/payload: default

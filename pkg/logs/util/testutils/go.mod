@@ -155,6 +155,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkdevice/integrations => ../../../../pkg/networkdevice/integrations
 	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata => ../../../../pkg/networkdevice/metadata
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../../pkg/networkpath/payload

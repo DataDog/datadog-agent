@@ -107,6 +107,7 @@ use (
 	pkg/logs/util/testutils
 	pkg/metrics
 	pkg/network/payload
+	pkg/networkdevice/integrations
 	pkg/networkdevice/metadata
 	pkg/networkdevice/profile
 	pkg/networkpath/payload

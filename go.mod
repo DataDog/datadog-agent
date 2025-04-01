@@ -590,6 +590,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/networkdevice/integrations v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0
@@ -1084,6 +1085,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkdevice/integrations => ./pkg/networkdevice/integrations
 	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata => ./pkg/networkdevice/metadata
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ./pkg/networkpath/payload
