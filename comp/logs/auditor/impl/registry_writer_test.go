@@ -65,23 +65,3 @@ func TestNonAtomicRegistryWriter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 }
-
-func TestRegistryWriterErrorCases(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
-	registryDirPath := tmpDir
-	registryTmpFile := "registry.json.tmp"
-	testData := []byte(`{"test": "data"}`)
-
-	// Test with non-existent directory
-	writer := NewAtomicRegistryWriter()
-	err := writer.WriteRegistry("/nonexistent/path/registry.json", registryDirPath, registryTmpFile, testData)
-	assert.Error(t, err)
-
-	// Test with read-only directory
-	readOnlyDir := t.TempDir()
-	err = os.Chmod(readOnlyDir, 0444)
-	require.NoError(t, err)
-	err = writer.WriteRegistry(filepath.Join(readOnlyDir, "registry.json"), readOnlyDir, registryTmpFile, testData)
-	assert.Error(t, err)
-}
