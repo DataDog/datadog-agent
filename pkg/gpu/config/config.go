@@ -32,6 +32,8 @@ type Config struct {
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
 	EnableFatbinParsing bool
+	// RingBufferSizePages is the number of pages to use for the ring buffer.
+	RingBufferSizePages int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -44,5 +46,6 @@ func New() *Config {
 		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
 		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
+		RingBufferSizePages:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_size_pages")),
 	}
 }
