@@ -286,7 +286,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"dda inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
+    print(f"dda inv -- kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -348,7 +348,11 @@ def ls(_, distro=True, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
+    print("\nAll Available Images:")
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+
+    print("\nLocally Downloaded Images:")
+    print(tabulate(vmconfig.get_local_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task(
@@ -788,7 +792,7 @@ def _prepare(
             kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -796,7 +800,7 @@ def _prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -1320,11 +1324,11 @@ def build(
     cc = get_compiler(ctx)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv {inv_echo} system-probe.object-files")
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} system-probe.object-files")
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

@@ -5,7 +5,7 @@
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - dda inv -- -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
   artifacts:
     expire_in: 2 weeks
@@ -78,7 +78,7 @@ agent_deb-arm64-a7-fips:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
+    - dda inv -- -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
 
 ot_agent_deb-x64-a7:
@@ -130,7 +130,7 @@ installer_deb-arm64:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
-    - dda inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - dda inv -- -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.create_signature_and_lint_linux_packages]
   artifacts:
     expire_in: 2 weeks
