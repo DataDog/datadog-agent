@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *Check) configureCreateMounts(_instanceConfig map[interface{}]interface{}) {
+func (c *Check) configureCreateMounts() {
 }
 
 // LsblkCommand specifies the command used to retrieve block device information.
@@ -85,7 +85,7 @@ var BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
 
 func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 	log.Debugf("Fetching all device labels from blkid cache")
-	rawOutput, err := BlkidCacheCommand(c.cfg.blkidCacheFile)
+	rawOutput, err := BlkidCacheCommand(c.instanceConfig.BlkidCacheFile)
 	if err != nil {
 		return err
 	}

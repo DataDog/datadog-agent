@@ -42,16 +42,6 @@ type netResource struct {
 	provider    *uint16
 }
 
-// Mount represents a network mount configuration.
-type mount struct {
-	Host       string
-	Share      string
-	User       string
-	Password   string
-	Type       string
-	MountPoint string
-}
-
 // RemotePath constructs the remote path based on the mount type.
 // It converts the Type to uppercase to ensure case-insensitive evaluation.
 func (m mount) RemotePath() (string, string) {
@@ -76,30 +66,21 @@ func (m mount) RemotePath() (string, string) {
 	return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
 }
 
-func (c *Check) configureCreateMounts(instanceConfig map[interface{}]interface{}) {
-	createMounts, found := instanceConfig["create_mounts"]
-	if createMounts, ok := createMounts.([]interface{}); found && ok {
-		for _, createMount := range createMounts {
-			var m mount
-			err := mapstructure.Decode(createMount, &m)
-			if err != nil {
-				log.Debugf("Error decoding: %s\n", err)
-				continue
-			}
-			if len(m.Host) == 0 || len(m.Share) == 0 {
-				log.Errorf("Invalid configuration. Drive mount requires remote machine and share point")
-				continue
-			}
-			log.Debugf("Mounting: %s\n", m)
-			mountType, remoteName := m.RemotePath()
-			log.Debugf("mountType: %s\n", mountType)
-			err = NetAddConnection(mountType, m.MountPoint, remoteName, m.Password, m.User)
-			if err != nil {
-				log.Errorf("Failed to mount %s on %s: %s", m.MountPoint, remoteName, err)
-				continue
-			}
-			log.Debugf("Successfully mounted %s as %s\n", m.MountPoint, remoteName)
+func (c *Check) configureCreateMounts() {
+	for _, m := range c.instanceConfig.CreateMounts {
+		if len(m.Host) == 0 || len(m.Share) == 0 {
+			log.Errorf("Invalid configuration. Drive mount requires remote machine and share point")
+			continue
 		}
+		log.Debugf("Mounting: %s\n", m)
+		mountType, remoteName := m.RemotePath()
+		log.Debugf("mountType: %s\n", mountType)
+		err := NetAddConnection(mountType, m.MountPoint, remoteName, m.Password, m.User)
+		if err != nil {
+			log.Errorf("Failed to mount %s on %s: %s", m.MountPoint, remoteName, err)
+			continue
+		}
+		log.Debugf("Successfully mounted %s as %s\n", m.MountPoint, remoteName)
 	}
 }
 

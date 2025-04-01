@@ -42,23 +42,55 @@ var (
 	DiskIOCounters = gopsutil_disk.IOCounters
 )
 
-type diskConfig struct {
-	useMount            bool
-	includedDevices     []regexp.Regexp
-	excludedDevices     []regexp.Regexp
-	includedFilesystems []regexp.Regexp
-	excludedFilesystems []regexp.Regexp
-	includedMountpoints []regexp.Regexp
-	excludedMountpoints []regexp.Regexp
-	tagByFilesystem     bool
-	allPartitions       bool
-	deviceTagRe         map[*regexp.Regexp][]string
-	includeAllDevices   bool
-	minDiskSizeBytes    uint64
-	tagByLabel          bool
-	useLsblk            bool
-	blkidCacheFile      string
-	serviceCheckRw      bool
+// diskInstanceConfig represents an instance configuration.
+type diskInitConfig struct {
+	DeviceGlobalExclude       []string `yaml:"device_global_exclude"`
+	DeviceGlobalBlacklist     []string `yaml:"device_global_blacklist"`
+	FileSystemGlobalExclude   []string `yaml:"file_system_global_exclude"`
+	FileSystemGlobalBlacklist []string `yaml:"file_system_global_blacklist"`
+	MountPointGlobalExclude   []string `yaml:"mount_point_global_exclude"`
+	MountPointGlobalBlacklist []string `yaml:"mount_point_global_blacklist"`
+}
+
+// mount represents a network mount configuration.
+type mount struct {
+	Host       string `yaml:"host"`
+	Share      string `yaml:"share"`
+	User       string `yaml:"user"`
+	Password   string `yaml:"password"`
+	Type       string `yaml:"type"`
+	MountPoint string `yaml:"mountpoint"`
+}
+
+// diskInstanceConfig represents an instance configuration.
+type diskInstanceConfig struct {
+	UseMount             bool              `yaml:"use_mount"`
+	IncludeAllDevices    bool              `yaml:"include_all_devices"`
+	AllPartitions        bool              `yaml:"all_partitions"`
+	MinDiskSize          uint64            `yaml:"min_disk_size"`
+	TagByFilesystem      bool              `yaml:"tag_by_filesystem"`
+	TagByLabel           bool              `yaml:"tag_by_label"`
+	UseLsblk             bool              `yaml:"use_lsblk"`
+	BlkidCacheFile       string            `yaml:"blkid_cache_file"`
+	ServiceCheckRw       bool              `yaml:"service_check_rw"`
+	CreateMounts         []mount           `yaml:"create_mounts"`
+	DeviceInclude        []string          `yaml:"device_include"`
+	DeviceWhitelist      []string          `yaml:"device_whitelist"`
+	DeviceExclude        []string          `yaml:"device_exclude"`
+	DeviceBlacklist      []string          `yaml:"device_blacklist"`
+	ExcludedDisks        []string          `yaml:"excluded_disks"`
+	ExcludedDiskRe       string            `yaml:"excluded_disk_re"`
+	FileSystemInclude    []string          `yaml:"file_system_include"`
+	FileSystemWhitelist  []string          `yaml:"file_system_whitelist"`
+	FileSystemExclude    []string          `yaml:"file_system_exclude"`
+	FileSystemBlacklist  []string          `yaml:"file_system_blacklist"`
+	ExcludedFileSystems  []string          `yaml:"excluded_filesystems"`
+	MountPointInclude    []string          `yaml:"mount_point_include"`
+	MountPointWhitelist  []string          `yaml:"mount_point_whitelist"`
+	MountPointExclude    []string          `yaml:"mount_point_exclude"`
+	MountPointBlacklist  []string          `yaml:"mount_point_blacklist"`
+	ExcludedMountPointRe string            `yaml:"excluded_mountpoint_re"`
+	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -73,29 +105,16 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	cfg          *diskConfig
-	deviceLabels map[string]string
-}
-
-func newDiskConfig() *diskConfig {
-	return &diskConfig{
-		useMount:            false,
-		includedDevices:     []regexp.Regexp{},
-		excludedDevices:     []regexp.Regexp{},
-		includedFilesystems: []regexp.Regexp{},
-		excludedFilesystems: []regexp.Regexp{},
-		includedMountpoints: []regexp.Regexp{},
-		excludedMountpoints: []regexp.Regexp{},
-		tagByFilesystem:     false,
-		allPartitions:       false,
-		deviceTagRe:         make(map[*regexp.Regexp][]string),
-		includeAllDevices:   true,
-		minDiskSizeBytes:    0,
-		tagByLabel:          true,
-		useLsblk:            false,
-		blkidCacheFile:      "",
-		serviceCheckRw:      false,
-	}
+	initConfig          diskInitConfig
+	instanceConfig      diskInstanceConfig
+	includedDevices     []regexp.Regexp
+	excludedDevices     []regexp.Regexp
+	includedFilesystems []regexp.Regexp
+	excludedFilesystems []regexp.Regexp
+	includedMountpoints []regexp.Regexp
+	excludedMountpoints []regexp.Regexp
+	deviceTagRe         map[*regexp.Regexp][]string
+	deviceLabels        map[string]string
 }
 
 // Run executes the check
@@ -104,7 +123,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	if c.cfg.tagByLabel {
+	if c.instanceConfig.TagByLabel {
 		err = c.fetchAllDeviceLabels()
 		if err != nil {
 			log.Debugf("Unable to fetch device labels: %s", err)
@@ -133,6 +152,64 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 }
 
 func (c *Check) configureDiskCheck(data integration.Data, initConfig integration.Data) error {
+	err := c.checkDeprecatedConfig(data, initConfig)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal([]byte(initConfig), &c.initConfig)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal([]byte(data), &c.instanceConfig)
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeDevice()
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeDevice()
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeFileSystem()
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeFileSystem()
+	if err != nil {
+		return err
+	}
+	err = c.configureExcludeMountPoint()
+	if err != nil {
+		return err
+	}
+	err = c.configureIncludeMountPoint()
+	if err != nil {
+		return err
+	}
+	if c.instanceConfig.ExcludedDiskRe != "" {
+		if re, err := regexp.Compile(c.instanceConfig.ExcludedDiskRe); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
+		}
+	}
+	for reString, tags := range c.instanceConfig.DeviceTagRe {
+		re, err := regexp.Compile(reString)
+		if err != nil {
+			return err
+		}
+		c.deviceTagRe[re] = strings.Split(tags, ",")
+	}
+	if c.instanceConfig.TagByLabel && c.instanceConfig.UseLsblk && c.instanceConfig.BlkidCacheFile != "" {
+		return errors.New("only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time")
+	}
+	c.configureCreateMounts()
+	return nil
+}
+
+func (c *Check) checkDeprecatedConfig(data integration.Data, initConfig integration.Data) error {
 	unmarshalledInstanceConfig := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(data), &unmarshalledInstanceConfig)
 	if err != nil {
@@ -172,269 +249,213 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 			log.Warnf("`%s` is deprecated and will be removed in a future release. Please use `%s` instead.", oldKey, newKey)
 		}
 	}
-
-	c.cfg = newDiskConfig()
-	useMount, found := unmarshalledInstanceConfig["use_mount"]
-	if useMount, ok := useMount.(bool); found && ok {
-		c.cfg.useMount = useMount
-	}
-	includeAllDevices, found := unmarshalledInstanceConfig["include_all_devices"]
-	if includeAllDevices, ok := includeAllDevices.(bool); found && ok {
-		c.cfg.includeAllDevices = includeAllDevices
-	}
-	allPartitions, found := unmarshalledInstanceConfig["all_partitions"]
-	if allPartitions, ok := allPartitions.(bool); found && ok {
-		c.cfg.allPartitions = allPartitions
-	}
-	minDiskSizeMiB, found := unmarshalledInstanceConfig["min_disk_size"]
-	if minDiskSizeMiB, ok := minDiskSizeMiB.(int); found && ok {
-		c.cfg.minDiskSizeBytes = uint64(minDiskSizeMiB) * 1024 * 1024
-	}
-	tagByFilesystem, found := unmarshalledInstanceConfig["tag_by_filesystem"]
-	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
-		c.cfg.tagByFilesystem = tagByFilesystem
-	}
-	err = c.configureExcludeDevice(unmarshalledInstanceConfig, unmarshalledInitConfig)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeDevice(unmarshalledInstanceConfig)
-	if err != nil {
-		return err
-	}
-	err = c.configureExcludeFileSystem(unmarshalledInstanceConfig, unmarshalledInitConfig)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeFileSystem(unmarshalledInstanceConfig)
-	if err != nil {
-		return err
-	}
-	err = c.configureExcludeMountPoint(unmarshalledInstanceConfig, unmarshalledInitConfig)
-	if err != nil {
-		return err
-	}
-	err = c.configureIncludeMountPoint(unmarshalledInstanceConfig)
-	if err != nil {
-		return err
-	}
-	deviceTagRe, found := unmarshalledInstanceConfig["device_tag_re"]
-	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
-		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
-		for reString, tags := range deviceTagRe {
-			if reString, ok := reString.(string); ok {
-				if tags, ok := tags.(string); ok {
-					re, err := regexp.Compile(reString)
-					if err != nil {
-						return err
-					}
-					c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
-				}
-			}
-		}
-	}
-	tagByLabel, found := unmarshalledInstanceConfig["tag_by_label"]
-	if tagByLabel, ok := tagByLabel.(bool); found && ok {
-		c.cfg.tagByLabel = tagByLabel
-	}
-	useLsblk, found := unmarshalledInstanceConfig["use_lsblk"]
-	if useLsblk, ok := useLsblk.(bool); found && ok {
-		c.cfg.useLsblk = useLsblk
-	}
-	blkidCacheFile, found := unmarshalledInstanceConfig["blkid_cache_file"]
-	if blkidCacheFile, ok := blkidCacheFile.(string); found && ok {
-		c.cfg.blkidCacheFile = blkidCacheFile
-	}
-	if c.cfg.tagByLabel && c.cfg.useLsblk && c.cfg.blkidCacheFile != "" {
-		return errors.New("only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time")
-	}
-	serviceCheckRw, found := unmarshalledInstanceConfig["service_check_rw"]
-	if serviceCheckRw, ok := serviceCheckRw.(bool); found && ok {
-		c.cfg.serviceCheckRw = serviceCheckRw
-	}
-	c.configureCreateMounts(unmarshalledInstanceConfig)
 	return nil
 }
 
-func (c *Check) configureExcludeDevice(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
-	for _, key := range []string{"device_global_exclude", "device_global_blacklist"} {
-		if deviceExclude, ok := initConfig[key].([]interface{}); ok {
-			for _, val := range deviceExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
-				}
-			}
-		}
-	}
-	for _, key := range []string{"device_exclude", "device_blacklist", "excluded_disks"} {
-		if deviceExclude, ok := instanceConfig[key].([]interface{}); ok {
-			for _, val := range deviceExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
-				}
-			}
-		}
-	}
-	excludedDiskRe, found := instanceConfig["excluded_disk_re"]
-	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
-		var err error
-		regexp, err := regexp.Compile(excludedDiskRe)
-		if err != nil {
+func (c *Check) configureExcludeDevice() error {
+	c.excludedDevices = []regexp.Regexp{}
+	for _, val := range c.initConfig.DeviceGlobalExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
 			return err
 		}
-		c.cfg.excludedDevices = append(c.cfg.excludedDevices, *regexp)
 	}
-	return nil
-}
-
-func (c *Check) configureIncludeDevice(instanceConfig map[interface{}]interface{}) error {
-	for _, key := range []string{"device_include", "device_whitelist"} {
-		if deviceInclude, ok := instanceConfig[key].([]interface{}); ok {
-			for _, val := range deviceInclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.includedDevices = append(c.cfg.includedDevices, *regexp)
-				}
-			}
+	for _, val := range c.initConfig.DeviceGlobalBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.DeviceExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.DeviceBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.ExcludedDisks {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
+		}
+	}
+	if c.instanceConfig.ExcludedDiskRe != "" {
+		if re, err := regexp.Compile(c.instanceConfig.ExcludedDiskRe); err == nil {
+			c.excludedDevices = append(c.excludedDevices, *re)
+		} else {
+			return err
 		}
 	}
 	return nil
 }
 
-func (c *Check) configureExcludeFileSystem(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
-	defaultFileSystems := []interface{}{"iso9660$", "tracefs$"}
-	var fileSystemExclude []interface{}
-	for _, key := range []string{"file_system_global_exclude", "file_system_global_blacklist"} {
-		if val, ok := initConfig[key].([]interface{}); ok {
-			fileSystemExclude = val
-			break // Stop at the first valid key found
+func (c *Check) configureIncludeDevice() error {
+	for _, val := range c.instanceConfig.DeviceInclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedDevices = append(c.includedDevices, *re)
+		} else {
+			return err
 		}
 	}
-	// Use default values if neither key was found
-	if fileSystemExclude == nil {
-		fileSystemExclude = defaultFileSystems
+	for _, val := range c.instanceConfig.DeviceWhitelist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedDevices = append(c.includedDevices, *re)
+		} else {
+			return err
+		}
 	}
-	for _, val := range fileSystemExclude {
-		if strVal, ok := val.(string); ok {
-			if re, err := regexp.Compile(strVal); err == nil {
-				c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *re)
+	return nil
+}
+
+func (c *Check) configureExcludeFileSystem() error {
+	c.excludedFilesystems = []regexp.Regexp{}
+	for _, val := range c.initConfig.FileSystemGlobalExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedFilesystems = append(c.excludedFilesystems, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.initConfig.FileSystemGlobalBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedFilesystems = append(c.excludedFilesystems, *re)
+		} else {
+			return err
+		}
+	}
+	if len(c.excludedFilesystems) == 0 {
+		// Use default values if neither key was found
+		for _, val := range []string{"iso9660$", "tracefs$"} {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedFilesystems = append(c.excludedFilesystems, *re)
 			} else {
 				return err
 			}
 		}
 	}
-	for _, key := range []string{"file_system_exclude", "file_system_blacklist", "excluded_filesystems"} {
-		if fileSystemExclude, ok := instanceConfig[key].([]interface{}); ok {
-			for _, val := range fileSystemExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
-				}
-			}
+	for _, val := range c.instanceConfig.FileSystemExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedFilesystems = append(c.excludedFilesystems, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.FileSystemBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedFilesystems = append(c.excludedFilesystems, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.ExcludedFileSystems {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedFilesystems = append(c.excludedFilesystems, *re)
+		} else {
+			return err
 		}
 	}
 	return nil
 }
 
-func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) error {
-	for _, key := range []string{"file_system_include", "file_system_whitelist"} {
-		if fileSystemInclude, ok := conf[key].([]interface{}); ok {
-			for _, val := range fileSystemInclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.includedFilesystems = append(c.cfg.includedFilesystems, *regexp)
-				}
-			}
+func (c *Check) configureIncludeFileSystem() error {
+	for _, val := range c.instanceConfig.FileSystemInclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedFilesystems = append(c.includedFilesystems, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.FileSystemWhitelist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedFilesystems = append(c.includedFilesystems, *re)
+		} else {
+			return err
 		}
 	}
 	return nil
 }
 
-func (c *Check) configureExcludeMountPoint(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
-	// https://github.com/DataDog/datadog-agent/issues/1961
-	// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
-	defaultMountPoints := []interface{}{"(/host)?/proc/sys/fs/binfmt_misc$"}
-	var mountPointExclude []interface{}
-	for _, key := range []string{"mount_point_global_exclude", "mount_point_global_blacklist"} {
-		if val, ok := initConfig[key].([]interface{}); ok {
-			mountPointExclude = val
-			break // Stop searching after the first valid key is found
+func (c *Check) configureExcludeMountPoint() error {
+	c.excludedMountpoints = []regexp.Regexp{}
+	for _, val := range c.initConfig.MountPointGlobalExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedMountpoints = append(c.excludedMountpoints, *re)
+		} else {
+			return err
 		}
 	}
-	// Use default values if neither key was found
-	if mountPointExclude == nil {
-		mountPointExclude = defaultMountPoints
+	for _, val := range c.initConfig.MountPointGlobalBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedMountpoints = append(c.excludedMountpoints, *re)
+		} else {
+			return err
+		}
 	}
-	for _, val := range mountPointExclude {
-		if strVal, ok := val.(string); ok {
-			if re, err := regexp.Compile(strVal); err == nil {
-				c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *re)
+	if len(c.excludedMountpoints) == 0 {
+		// https://github.com/DataDog/datadog-agent/issues/1961
+		// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-1049
+		for _, val := range []string{"(/host)?/proc/sys/fs/binfmt_misc$"} {
+			if re, err := regexp.Compile(val); err == nil {
+				c.excludedMountpoints = append(c.excludedMountpoints, *re)
 			} else {
 				return err
 			}
 		}
 	}
-	for _, key := range []string{"mount_point_exclude", "mount_point_blacklist"} {
-		if mountPointExclude, ok := instanceConfig[key].([]interface{}); ok {
-			for _, val := range mountPointExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
-				}
-			}
-		}
-	}
-	excludedMountPointRe, found := instanceConfig["excluded_mountpoint_re"]
-	if excludedMountPointRe, ok := excludedMountPointRe.(string); found && ok {
-		var err error
-		regexp, err := regexp.Compile(excludedMountPointRe)
-		if err != nil {
+	for _, val := range c.instanceConfig.MountPointExclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedMountpoints = append(c.excludedMountpoints, *re)
+		} else {
 			return err
 		}
-		c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
+	}
+	for _, val := range c.instanceConfig.MountPointBlacklist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.excludedMountpoints = append(c.excludedMountpoints, *re)
+		} else {
+			return err
+		}
+	}
+	if c.instanceConfig.ExcludedMountPointRe != "" {
+		if re, err := regexp.Compile(c.instanceConfig.ExcludedMountPointRe); err == nil {
+			c.excludedMountpoints = append(c.excludedMountpoints, *re)
+		} else {
+			return err
+		}
 	}
 	return nil
 }
 
-func (c *Check) configureIncludeMountPoint(conf map[interface{}]interface{}) error {
-	for _, key := range []string{"mount_point_include", "mount_point_whitelist"} {
-		if mountPointInclude, ok := conf[key].([]interface{}); ok {
-			for _, val := range mountPointInclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.includedMountpoints = append(c.cfg.includedMountpoints, *regexp)
-				}
-			}
+func (c *Check) configureIncludeMountPoint() error {
+	for _, val := range c.instanceConfig.MountPointInclude {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedMountpoints = append(c.includedMountpoints, *re)
+		} else {
+			return err
+		}
+	}
+	for _, val := range c.instanceConfig.MountPointWhitelist {
+		if re, err := regexp.Compile(val); err == nil {
+			c.includedMountpoints = append(c.includedMountpoints, *re)
+		} else {
+			return err
 		}
 	}
 	return nil
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := DiskPartitions(c.cfg.includeAllDevices)
+	partitions, err := DiskPartitions(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
@@ -457,18 +478,19 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
 			continue
 		}
-		// Exclude disks with total disk size smaller than 'min_disk_size'
-		if usage.Total < c.cfg.minDiskSizeBytes {
+		// Exclude disks with total disk size smaller than 'min_disk_size' (which is configured in MiB)
+		minDiskSizeInBytes := c.instanceConfig.MinDiskSize * 1024 * 1024
+		if usage.Total < minDiskSizeInBytes {
 			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
 			continue
 		}
 		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		tags := []string{}
-		if c.cfg.tagByFilesystem {
+		if c.instanceConfig.TagByFilesystem {
 			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
 		var deviceName string
-		if c.cfg.useMount {
+		if c.instanceConfig.UseMount {
 			deviceName = partition.Mountpoint
 		} else {
 			deviceName = partition.Device
@@ -482,7 +504,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		c.sendPartitionMetrics(sender, usage, tags)
 
-		if c.cfg.serviceCheckRw {
+		if c.instanceConfig.ServiceCheckRw {
 			checkStatus := servicecheck.ServiceCheckUnknown
 			for _, opt := range partition.Opts {
 				if opt == "rw" {
@@ -550,7 +572,7 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 	device := partition.Device
 	if device == "" || device == "none" {
 		device = ""
-		if !c.cfg.allPartitions {
+		if !c.instanceConfig.AllPartitions {
 			return true
 		}
 	}
@@ -564,51 +586,51 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 }
 
 func (c *Check) excludeDevice(device string) bool {
-	if device == "" || (len(c.cfg.excludedDevices) == 0) {
+	if device == "" || (len(c.excludedDevices) == 0) {
 		return false
 	}
-	return sliceMatchesExpression(c.cfg.excludedDevices, device)
+	return sliceMatchesExpression(c.excludedDevices, device)
 }
 
 func (c *Check) includeDevice(device string) bool {
-	if device == "" || len(c.cfg.includedDevices) == 0 {
+	if device == "" || len(c.includedDevices) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.cfg.includedDevices, device)
+	return sliceMatchesExpression(c.includedDevices, device)
 }
 
 func (c *Check) excludeFileSystem(fileSystem string) bool {
-	if len(c.cfg.excludedFilesystems) == 0 {
+	if len(c.excludedFilesystems) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.cfg.excludedFilesystems, fileSystem)
+	return sliceMatchesExpression(c.excludedFilesystems, fileSystem)
 }
 
 func (c *Check) includeFileSystem(fileSystem string) bool {
-	if len(c.cfg.includedFilesystems) == 0 {
+	if len(c.includedFilesystems) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.cfg.includedFilesystems, fileSystem)
+	return sliceMatchesExpression(c.includedFilesystems, fileSystem)
 }
 
 func (c *Check) excludeMountPoint(mountPoint string) bool {
-	if len(c.cfg.excludedMountpoints) == 0 {
+	if len(c.excludedMountpoints) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.cfg.excludedMountpoints, mountPoint)
+	return sliceMatchesExpression(c.excludedMountpoints, mountPoint)
 }
 
 func (c *Check) includeMountPoint(mountPoint string) bool {
-	if len(c.cfg.includedMountpoints) == 0 {
+	if len(c.includedMountpoints) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.cfg.includedMountpoints, mountPoint)
+	return sliceMatchesExpression(c.includedMountpoints, mountPoint)
 }
 
 func (c *Check) getDeviceTags(device string) []string {
 	tags := []string{}
 	log.Debugf("Getting device tags for device '%s'", device)
-	for re, deviceTags := range c.cfg.deviceTagRe {
+	for re, deviceTags := range c.deviceTagRe {
 		if re.MatchString(device) {
 			tags = append(tags, deviceTags...)
 		}
@@ -619,9 +641,9 @@ func (c *Check) getDeviceTags(device string) []string {
 
 func (c *Check) fetchAllDeviceLabels() error {
 	log.Debugf("Fetching all device labels")
-	if c.cfg.useLsblk {
+	if c.instanceConfig.UseLsblk {
 		return c.fetchAllDeviceLabelsFromLsblk()
-	} else if c.cfg.blkidCacheFile != "" {
+	} else if c.instanceConfig.BlkidCacheFile != "" {
 		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
 	return c.fetchAllDeviceLabelsFromBlkid()
@@ -634,7 +656,51 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:    core.NewCheckBase(CheckName),
-		deviceLabels: make(map[string]string),
+		CheckBase: core.NewCheckBase(CheckName),
+		initConfig: diskInitConfig{
+			DeviceGlobalExclude:       []string{},
+			DeviceGlobalBlacklist:     []string{},
+			FileSystemGlobalExclude:   []string{},
+			FileSystemGlobalBlacklist: []string{},
+			MountPointGlobalExclude:   []string{},
+			MountPointGlobalBlacklist: []string{},
+		},
+		instanceConfig: diskInstanceConfig{
+			UseMount:             false,
+			IncludeAllDevices:    true,
+			AllPartitions:        false,
+			MinDiskSize:          0,
+			TagByFilesystem:      false,
+			TagByLabel:           true,
+			UseLsblk:             false,
+			BlkidCacheFile:       "",
+			ServiceCheckRw:       false,
+			CreateMounts:         []mount{},
+			DeviceInclude:        []string{},
+			DeviceWhitelist:      []string{},
+			DeviceExclude:        []string{},
+			DeviceBlacklist:      []string{},
+			ExcludedDisks:        []string{},
+			ExcludedDiskRe:       "",
+			FileSystemInclude:    []string{},
+			FileSystemWhitelist:  []string{},
+			FileSystemExclude:    []string{},
+			FileSystemBlacklist:  []string{},
+			ExcludedFileSystems:  []string{},
+			MountPointInclude:    []string{},
+			MountPointWhitelist:  []string{},
+			MountPointExclude:    []string{},
+			MountPointBlacklist:  []string{},
+			ExcludedMountPointRe: "",
+			DeviceTagRe:          make(map[string]string),
+		},
+		includedDevices:     []regexp.Regexp{},
+		excludedDevices:     []regexp.Regexp{},
+		includedFilesystems: []regexp.Regexp{},
+		excludedFilesystems: []regexp.Regexp{},
+		includedMountpoints: []regexp.Regexp{},
+		excludedMountpoints: []regexp.Regexp{},
+		deviceTagRe:         make(map[*regexp.Regexp][]string),
+		deviceLabels:        make(map[string]string),
 	}
 }
