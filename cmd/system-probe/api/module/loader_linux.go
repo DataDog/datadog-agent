@@ -8,7 +8,7 @@
 package module
 
 import (
-	"runtime"
+	"runtime/debug"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -52,7 +52,7 @@ func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
 		ebpf.FlushBTF()
 
 		// HACK: this allows the GC to go back to regular levels after flushing the BTF
-		runtime.GC()
+		debug.FreeOSMemory()
 	}
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
 		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
