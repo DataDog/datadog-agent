@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestCommand(t *testing.T) {
@@ -95,7 +96,7 @@ func TestGetHostname(t *testing.T) {
 			config.Set("cmd_host", serverURL.Hostname(), model.SourceFile)
 			config.Set("cmd_port", serverURL.Port(), model.SourceFile)
 
-			hname, err := getHostname(cliParams, authComp.Optional())
+			hname, err := getHostname(cliParams, option.New(authComp.GetClient()))
 			require.NoError(t, err)
 
 			expectedHostname := localHostname

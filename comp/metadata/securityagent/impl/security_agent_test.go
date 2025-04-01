@@ -23,6 +23,7 @@ import (
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -57,7 +58,7 @@ func getSecurityAgentComp(t *testing.T, enableConfig bool) *secagent {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		AuthToken:  authtokenmock.New(t).Optional(),
+		OptClient:  option.New(authtokenmock.New(t).GetClient()),
 	}
 
 	comp := NewComponent(r).Comp

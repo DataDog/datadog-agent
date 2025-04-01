@@ -14,6 +14,7 @@ import (
 	authtokenmock "github.com/DataDog/datadog-agent/comp/core/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestStatusOut(t *testing.T) {
@@ -49,7 +50,7 @@ func TestStatusOut(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			provides := NewComponent(Requires{
 				Config:    config.NewMock(t),
-				Authtoken: authtokenmock.New(t).Optional(),
+				OptClient: option.New(authtokenmock.New(t).GetClient()),
 			})
 			headerProvider := provides.StatusProvider.Provider
 			test.assertFunc(t, headerProvider)

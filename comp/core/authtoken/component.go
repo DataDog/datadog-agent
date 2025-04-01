@@ -10,7 +10,6 @@ package authtoken
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -59,27 +58,6 @@ func NoneModule() fxutil.Module {
 	return fxutil.Component(fx.Provide(func() option.Option[Component] {
 		return option.None[Component]()
 	}))
-}
-
-type optionalAuthComp struct {
-	fx.In
-	At option.Option[Component]
-}
-
-func newOptionalIPCClient(deps optionalAuthComp) option.Option[IPCClient] {
-	auth, ok := deps.At.Get()
-	if !ok {
-		return option.None[IPCClient]()
-	}
-	return option.New(auth.GetClient())
-}
-
-func newIPCClient(deps optionalAuthComp) (IPCClient, error) {
-	auth, ok := deps.At.Get()
-	if !ok {
-		return nil, fmt.Errorf("ipc client not found")
-	}
-	return auth.GetClient(), nil
 }
 
 // ClientOption is a function that modifies a IPCClient
