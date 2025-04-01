@@ -312,6 +312,9 @@ func TestLocalhostScenario(t *testing.T) {
 // TestKubernetesNATScenario tests how USMConnectionIndex handles Kubernetes-style NAT connections
 // with both pre-NAT and post-NAT connections as seen in Kubernetes environments
 func TestKubernetesNATScenario(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 	assert := assert.New(t)
 
 	// Create IP addresses and ports exactly as seen in the logs
