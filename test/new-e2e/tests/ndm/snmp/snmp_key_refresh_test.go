@@ -62,7 +62,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
 
-	err := vm.CopyFolder("compose-key-refresh/data", "/tmp/data")
+	err := vm.CopyFolder("compose/data", "/tmp/data")
 	v.Require().NoError(err)
 
 	vm.CopyFile("compose-key-refresh/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
