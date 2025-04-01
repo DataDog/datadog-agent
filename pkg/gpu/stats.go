@@ -8,10 +8,6 @@
 package gpu
 
 import (
-	"fmt"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -27,9 +23,6 @@ type statsGenerator struct {
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
 	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
-
-	// coresPerDevice contains the number of cores per device. TODO: move to device manager with the refactor
-	coresPerDevice map[string]uint64
 }
 
 type statsGeneratorTelemetry struct {
@@ -45,7 +38,6 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers *streamCollection, 
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
 		telemetry:           newStatsGeneratorTelemetry(tm),
-		coresPerDevice:      make(map[string]uint64),
 	}
 }
 
@@ -106,27 +98,6 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	return stats
 }
 
-// getDeviceCores returns the number of cores for a given device UUID. This is a temporary
-// function, as it should be moved to the device manager with the refactor.
-func (g *statsGenerator) getDeviceCores(deviceUUID string) (uint64, error) {
-	if cores, ok := g.coresPerDevice[deviceUUID]; ok {
-		return cores, nil
-	}
-
-	gpuDevice, err := g.sysCtx.getDeviceByUUID(deviceUUID)
-	if err != nil {
-		return 0, fmt.Errorf("Error getting device by UUID %s: %s", deviceUUID, err)
-	}
-
-	maxThreads, ret := gpuDevice.GetNumGpuCores()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
-	}
-
-	g.coresPerDevice[deviceUUID] = uint64(maxThreads)
-	return uint64(maxThreads), nil
-}
-
 func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator, error) {
 	aggKey := model.StatsKey{
 		PID:         sKey.pid,
@@ -135,7 +106,7 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator
 	}
 
 	if _, ok := g.aggregators[aggKey]; !ok {
-		deviceCores, err := g.getDeviceCores(sKey.gpuUUID)
+		deviceCores, err := g.sysCtx.deviceCache.Cores(sKey.gpuUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -165,12 +136,12 @@ func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
 	}
 
 	normFactors := make(map[string]float64)
-	for uuid, maxThreads := range g.coresPerDevice {
+	for _, device := range g.sysCtx.deviceCache.All() {
 		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
-		if usages[uuid] > float64(maxThreads) {
-			normFactors[uuid] = usages[uuid] / float64(maxThreads)
+		if usages[device.UUID] > float64(device.CoreCount) {
+			normFactors[device.UUID] = usages[device.UUID] / float64(device.CoreCount)
 		} else {
-			normFactors[uuid] = 1
+			normFactors[device.UUID] = 1
 		}
 	}
 

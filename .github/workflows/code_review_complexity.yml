@@ -36,4 +36,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: dda inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

@@ -133,39 +133,44 @@ func xccdfEnabled() bool {
 
 var defaultSECLRuleFilter = sync.OnceValues(newSECLRuleFilter)
 
-// DefaultRuleFilter implements the default filtering of benchmarks' rules. It
+// MakeDefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
-func DefaultRuleFilter(r *Rule) bool {
-	if env.IsKubernetes() {
-		if r.SkipOnK8s {
-			return false
-		}
-	} else {
-		if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
-			return false
-		}
-	}
-	if r.IsXCCDF() && !xccdfEnabled() {
-		return false
-	}
-	if len(r.Filters) > 0 {
-		seclRuleFilter, err := defaultSECLRuleFilter()
-		if err != nil {
-			log.Errorf("failed to apply rule filters: %s", err)
-			return false
-		}
+func MakeDefaultRuleFilter() RuleFilter {
+	isK8s := env.IsKubernetes()
+	xccdfEnabled := xccdfEnabled()
 
-		accepted, err := seclRuleFilter.isRuleAccepted(r.Filters)
-		if err != nil {
-			log.Errorf("failed to apply rule filters: %s", err)
+	return func(r *Rule) bool {
+		if isK8s {
+			if r.SkipOnK8s {
+				return false
+			}
+		} else {
+			if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
+				return false
+			}
+		}
+		if r.IsXCCDF() && !xccdfEnabled {
 			return false
 		}
-		if !accepted {
-			return false
+		if len(r.Filters) > 0 {
+			seclRuleFilter, err := defaultSECLRuleFilter()
+			if err != nil {
+				log.Errorf("failed to apply rule filters: %s", err)
+				return false
+			}
+
+			accepted, err := seclRuleFilter.isRuleAccepted(r.Filters)
+			if err != nil {
+				log.Errorf("failed to apply rule filters: %s", err)
+				return false
+			}
+			if !accepted {
+				return false
+			}
 		}
+		return true
 	}
-	return true
 }
 
 // NewAgent returns a new compliance agent.
@@ -185,10 +190,11 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 	if opts.CheckIntervalLowPriority <= 0 {
 		opts.CheckIntervalLowPriority = defaultCheckIntervalLowPriority
 	}
+	defaultRuleFilter := MakeDefaultRuleFilter()
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
-		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) && ruleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) && ruleFilter(r) }
 	} else {
-		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) }
 	}
 	return &Agent{
 		telemetrySender: telemetrySender,
