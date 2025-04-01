@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && nvml
 
-package gpu
+package cuda
 
 import (
 	"os"
@@ -20,6 +20,7 @@ import (
 
 	cudatestutil "github.com/DataDog/datadog-agent/pkg/gpu/cuda/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -109,10 +110,8 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	}
 	require.NotZero(t, kernelAddress, "kernel address should be found")
 
-	sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), withProcRoot(procRoot))
-	require.NotNil(t, sysCtx.cudaKernelCache)
-
-	kc := sysCtx.cudaKernelCache
+	kc, err := NewKernelCache(procRoot, cudatestutil.SamplesSMVersionSet(), testutil.GetTelemetryMock(t), 100)
+	require.NoError(t, err)
 	kc.Start()
 	t.Cleanup(kc.Stop)
 
@@ -137,17 +136,17 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	kc.pidMaps[key.pid] = []*procfs.ProcMap{procMap}
 
 	// First call should return not processed yet
-	kernel, err := kc.GetKernelData(key.pid, key.address, key.smVersion)
-	require.ErrorIs(t, err, errKernelNotProcessedYet)
+	kernel, err := kc.Get(key.pid, key.address, key.smVersion)
+	require.ErrorIs(t, err, ErrKernelNotProcessedYet)
 	require.Nil(t, kernel)
 
 	// Wait for background processing
 	require.Eventually(t, func() bool {
-		return kc.getExistingKernelData(key) != nil
+		return kc.fromCache(key) != nil
 	}, 2000*time.Millisecond, 100*time.Millisecond)
 
 	// Second call should return the kernel
-	kernel, err = kc.GetKernelData(key.pid, key.address, key.smVersion)
+	kernel, err = kc.Get(key.pid, key.address, key.smVersion)
 	require.NoError(t, err)
 	require.NotNil(t, kernel)
 	require.Equal(t, kernelName, kernel.Name)
@@ -162,7 +161,7 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 	require.NoError(t, cachedData.err)
 
 	// Cleanup should remove the entry
-	kc.cleanProcessData(key.pid)
+	kc.CleanProcessData(key.pid)
 	kc.cacheMutex.RLock()
 	_, exists = kc.cache[key]
 	kc.cacheMutex.RUnlock()
@@ -170,10 +169,8 @@ func TestKernelCacheLoadKernelData(t *testing.T) {
 }
 
 func TestKernelCacheLoadKernelDataError(t *testing.T) {
-	sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	require.NotNil(t, sysCtx.cudaKernelCache)
-
-	kc := sysCtx.cudaKernelCache
+	kc, err := NewKernelCache(kernel.ProcFSRoot(), cudatestutil.SamplesSMVersionSet(), testutil.GetTelemetryMock(t), 100)
+	require.NoError(t, err)
 	kc.Start()
 	t.Cleanup(kc.Stop)
 
@@ -195,15 +192,15 @@ func TestKernelCacheLoadKernelDataError(t *testing.T) {
 	}
 
 	// First call should return not processed yet
-	kernel, err := kc.GetKernelData(key.pid, key.address, key.smVersion)
-	require.ErrorIs(t, err, errKernelNotProcessedYet)
+	kernel, err := kc.Get(key.pid, key.address, key.smVersion)
+	require.ErrorIs(t, err, ErrKernelNotProcessedYet)
 	require.Nil(t, kernel)
 
 	// Wait for background processing
 	time.Sleep(100 * time.Millisecond)
 
 	// Second call should return the error
-	kernel, err = kc.GetKernelData(key.pid, key.address, key.smVersion)
+	kernel, err = kc.Get(key.pid, key.address, key.smVersion)
 	require.Error(t, err)
 	require.Nil(t, kernel)
 

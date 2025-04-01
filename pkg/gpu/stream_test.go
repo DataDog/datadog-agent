@@ -8,12 +8,8 @@
 package gpu
 
 import (
-	"fmt"
-	"path"
 	"testing"
-	"time"
 
-	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -341,30 +337,14 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			sharedMem := uint64(100)
 			constantMem := uint64(200)
 
-			sysCtx.cudaKernelCache.pidMaps[int(pid)] = []*procfs.ProcMap{
-				{StartAddr: 0, EndAddr: 1000, Offset: 0, Pathname: binPath},
-			}
-
-			procBinPath := path.Join(proc, fmt.Sprintf("%d/root/%s", pid, binPath))
-			kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
-
-			fatbin := cuda.NewFatbin()
-			fatbin.AddKernel(kernKey, &cuda.CubinKernel{
+			kernel := &cuda.CubinKernel{
 				Name:        kernName,
 				KernelSize:  kernSize,
 				SharedMem:   sharedMem,
 				ConstantMem: constantMem,
-			})
-
-			procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
-			require.NoError(t, err)
-
-			sysCtx.cudaKernelCache.cudaSymbols[procBinIdent] = &symbolsEntry{
-				Symbols: &cuda.Symbols{
-					SymbolTable: map[uint64]string{kernAddress: kernName},
-					Fatbin:      fatbin,
-				},
 			}
+
+			cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 
 			stream := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx)
 
@@ -390,18 +370,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 			if fatbinParsingEnabled {
 				// We need to wait until the kernel cache loads the kernel data
-				cacheKey := kernelKey{
-					pid:       int(pid),
-					address:   kernAddress,
-					smVersion: smVersion,
-				}
-				require.Eventually(t, func() bool {
-					return sysCtx.cudaKernelCache.getExistingKernelData(cacheKey) != nil
-				}, 10000*time.Millisecond, 10*time.Millisecond)
-
-				// Ensure the kernel has been loaded correctly
-				require.NoError(t, sysCtx.cudaKernelCache.cache[cacheKey].err)
-				require.NotNil(t, sysCtx.cudaKernelCache.cache[cacheKey].kernel)
+				cuda.WaitForKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
 
 			// No sync, so we should have data

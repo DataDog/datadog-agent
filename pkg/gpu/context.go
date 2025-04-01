@@ -57,7 +57,7 @@ type systemContext struct {
 	workloadmeta workloadmeta.Component
 
 	// cudaKernelCache caches kernel data and handles background loading
-	cudaKernelCache *kernelCache
+	cudaKernelCache *cuda.KernelCache
 }
 
 type systemContextOptions struct {
@@ -140,13 +140,11 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
-	ctx.procfsObj, err = procfs.NewFS(opts.procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
-	}
-
 	if opts.fatbinParsingEnabled {
-		ctx.cudaKernelCache = newKernelCache(ctx, opts.tm, opts.config.KernelCacheQueueSize)
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		if err != nil {
+			return nil, fmt.Errorf("error creating kernel cache: %w", err)
+		}
 	}
 
 	return ctx, nil
@@ -158,7 +156,7 @@ func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.visibleDevicesCache, pid)
 
 	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.cleanProcessData(pid)
+		ctx.cudaKernelCache.CleanProcessData(pid)
 	}
 }
 
@@ -166,7 +164,7 @@ func (ctx *systemContext) removeProcess(pid int) {
 // retaining unused data forever
 func (ctx *systemContext) cleanOld() {
 	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.cleanOld()
+		ctx.cudaKernelCache.CleanOld()
 	}
 }
 

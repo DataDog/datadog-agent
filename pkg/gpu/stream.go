@@ -135,11 +135,11 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 		return nil, errFatbinParsingDisabled
 	}
 
-	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, errKernelNotProcessedYet)) {
+	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, cuda.ErrKernelNotProcessedYet)) {
 		return e.kernel, e.err
 	}
 
-	e.kernel, e.err = e.stream.sysCtx.cudaKernelCache.GetKernelData(int(e.stream.metadata.pid), e.Kernel_addr, e.stream.metadata.smVersion)
+	e.kernel, e.err = e.stream.sysCtx.cudaKernelCache.Get(int(e.stream.metadata.pid), e.Kernel_addr, e.stream.metadata.smVersion)
 	return e.kernel, e.err
 }
 
@@ -161,7 +161,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
-	if err != nil && !errors.Is(err, errKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
+	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
 		if logLimitErrorAttach.ShouldLog() {
 			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}

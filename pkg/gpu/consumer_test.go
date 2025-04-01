@@ -15,6 +15,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -132,7 +133,7 @@ func BenchmarkConsumer(b *testing.B) {
 			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
 
 			if ctx.cudaKernelCache != nil {
-				ctx.cudaKernelCache.pidMaps[pid] = nil
+				cuda.AddKernelCacheProcMap(ctx.cudaKernelCache, pid, nil)
 
 				// If we don't start the kernel cache, the request channel will be full and we'll run into
 				// errors, falsifying the results of the benchmark
