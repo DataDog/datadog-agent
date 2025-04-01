@@ -566,7 +566,6 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, ndmPayload.Diagnoses[0].ResourceID, "default:127.0.0.1")
 		assert.Equal(t, ndmPayload.Diagnoses[0].ResourceType, "device")
 		assert.Equal(t, ndmPayload.CollectTimestamp, int64(1743497402))
-
 		assert.Empty(t, ndmPayload.Subnet)
 		assert.Empty(t, ndmPayload.IPAddresses)
 		assert.Empty(t, ndmPayload.Links)
