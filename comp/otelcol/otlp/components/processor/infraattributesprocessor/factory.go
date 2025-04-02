@@ -86,6 +86,7 @@ func NewFactory() processor.Factory {
 	return newFactoryForAgent(nil)
 }
 
+// SourceProviderFunc is a function that returns the source of the host.
 type SourceProviderFunc func(context.Context) (string, error)
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
