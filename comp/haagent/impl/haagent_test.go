@@ -60,14 +60,14 @@ func Test_Enabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.WarnLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "warn")
 
-			haAgent := newTestHaAgentComponent(t, tt.configs).Comp.(*haAgentImpl)
-			haAgent.log = l
+			haAgent := newTestHaAgentComponent(t, tt.configs, l).Comp.(*haAgentImpl)
 
 			assert.Equal(t, tt.expectedEnabled, haAgent.Enabled())
+			haAgent.Enabled()
 
 			l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
 			w.Flush()
@@ -85,7 +85,7 @@ func Test_GetConfigID(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"config_id": "my-configID-01",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 	assert.Equal(t, "my-configID-01", haAgent.GetConfigID())
 }
 
@@ -93,7 +93,7 @@ func Test_GetState(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 
 	assert.Equal(t, haagent.Unknown, haAgent.GetState())
 
@@ -128,7 +128,7 @@ func Test_RCListener(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provides := newTestHaAgentComponent(t, tt.configs)
+			provides := newTestHaAgentComponent(t, tt.configs, nil)
 			if tt.expectRCListener {
 				assert.NotNil(t, provides.RCListener.ListenerProvider)
 			} else {
@@ -240,7 +240,7 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 
 func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// GIVEN
-	haAgent := newTestHaAgentComponent(t, nil)
+	haAgent := newTestHaAgentComponent(t, nil, nil)
 	haAgentComp := haAgent.Comp.(*haAgentImpl)
 	haAgentComp.state.Store(string(haagent.Active))
 	require.Equal(t, haagent.Active, haAgentComp.GetState())
@@ -256,7 +256,7 @@ func Test_IsActive(t *testing.T) {
 	agentConfigs := map[string]interface{}{
 		"hostname": "my-agent-hostname",
 	}
-	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+	haAgent := newTestHaAgentComponent(t, agentConfigs, nil).Comp
 
 	haAgent.SetLeader("another-agent")
 	assert.False(t, haAgent.IsActive())
