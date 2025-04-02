@@ -51,11 +51,6 @@ const (
 	defaultEventTTL            = defaultMapCleanerInterval
 )
 
-var (
-	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = 2 * os.Getpagesize()
-)
-
 // bpfMapName stores the name of the BPF maps storing statistics and other info
 type bpfMapName = string
 
@@ -330,7 +325,15 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	ringBufferSize := toPowerOf2(defaultRingBufferSize)
+	devCount := p.sysCtx.deviceCache.Count()
+	if devCount == 0 {
+		devCount = 1 // Don't let the buffer size be 0
+	}
+
+	// The activity of eBPF events will scale with the number of devices, unlike in other
+	// eBPF modules where the activity is bound to the number of CPUs.
+	numPages := p.cfg.RingBufferSizePagesPerDevice * devCount
+	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
