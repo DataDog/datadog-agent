@@ -147,6 +147,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -546,12 +547,26 @@ func startAgent(
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
+	ctx, _ := pkgcommon.GetMainCtxCancel()
+
+	// Start internal telemetry trace
+	span, ctx := installertelemetry.StartSpanFromContext(ctx, "agent.startup")
+	span.SetTag("agent_version", version.AgentVersion)
+	span.SetTag("agent_flavor", flavor.GetFlavor())
+	go func() {
+		timing := time.After(1 * time.Minute)
+		select {
+		case <-ctx.Done():
+			span.Finish(ctx.Err())
+		case <-timing:
+			span.Finish(err)
+		}
+	}()
+
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	ctx, _ := pkgcommon.GetMainCtxCancel()
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {

@@ -129,7 +129,7 @@ func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (str
 		},
 	})
 	s.Require().NoError(err)
-	return s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
+	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
 }
 
 func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {
