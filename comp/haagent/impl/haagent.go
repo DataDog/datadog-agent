@@ -31,7 +31,7 @@ func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentI
 }
 
 func (h *haAgentImpl) Enabled() bool {
-	if h.GetConfigID() == "" {
+	if h.haAgentConfigs.enabled && h.GetConfigID() == "" {
 		h.log.Error("HA Agent feature requires config_id to be set")
 		return false
 	}

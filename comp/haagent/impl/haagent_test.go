@@ -6,6 +6,9 @@
 package haagentimpl
 
 import (
+	"bufio"
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -13,6 +16,7 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -26,6 +30,7 @@ func Test_Enabled(t *testing.T) {
 		name            string
 		configs         map[string]interface{}
 		expectedEnabled bool
+		expectedError   string
 	}{
 		{
 			name: "enabled",
@@ -41,6 +46,7 @@ func Test_Enabled(t *testing.T) {
 				"ha_agent.enabled": true,
 			},
 			expectedEnabled: false,
+			expectedError:   "HA Agent feature requires config_id to be set",
 		},
 		{
 			name: "disabled",
@@ -52,8 +58,25 @@ func Test_Enabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			haAgent := newTestHaAgentComponent(t, tt.configs).Comp
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			haAgent := newTestHaAgentComponent(t, tt.configs).Comp.(*haAgentImpl)
+			haAgent.log = l
+
 			assert.Equal(t, tt.expectedEnabled, haAgent.Enabled())
+
+			l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
+			w.Flush()
+			logs := b.String()
+			if tt.expectedError != "" {
+				assert.Equal(t, 1, strings.Count(logs, tt.expectedError), logs)
+			} else {
+				assert.Empty(t, logs)
+			}
 		})
 	}
 }
