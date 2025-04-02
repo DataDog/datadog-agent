@@ -74,13 +74,13 @@ func TestETWRegistryNotifications(t *testing.T) {
 
 	et := createEtwTester(wp)
 
-	wp.fimwg.Add(1)
+	wp.tracingWg.Add(1)
 	go func() {
-		defer wp.fimwg.Done()
+		defer wp.tracingWg.Done()
 		var once sync.Once
 		mypid := os.Getpid()
 
-		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+		err := et.p.startFrimTracing(func(n interface{}, pid uint32) {
 			once.Do(func() {
 				close(et.etwStarted)
 			})

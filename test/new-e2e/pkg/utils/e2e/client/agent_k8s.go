@@ -7,6 +7,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 
@@ -28,22 +29,32 @@ const agentNamespace = "datadog"
 // For example, you can pass Agent.LinuxNodeAgent to select any pod that runs the node agent.
 func AgentSelectorAnyPod(agentType kubernetes.KubernetesObjRefOutput) metav1.ListOptions {
 	return metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("metadata.name", agentType.Name).String(),
+		LabelSelector: fields.OneTermEqualSelector("app", agentType.LabelSelectors["app"]).String(),
 		Limit:         1,
 	}
 }
 
 // newAgentK8sExecutor creates a new agentK8sexecutor for the given selector and cluster client. Note that
 // the selector must return a single pod, otherwise this function will panic.
-func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesClient) *agentK8sexecutor {
+func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesClient) (*agentK8sexecutor, error) {
 	// Find this specific pod object in the cluster
 	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), selector)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+
+	// We might have 0 pods returned but a continue token, so we need to query more pods
+	// again until we get a single pod or we run out of pods.
+	for len(pods.Items) == 0 && pods.Continue != "" {
+		selector.Continue = pods.Continue
+		pods, err = clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), selector)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(pods.Items) != 1 {
-		panic("Expected to find a single pod")
+		return nil, fmt.Errorf("Expected to find a single pod, got %d", len(pods.Items))
 	}
 
 	pod := pods.Items[0]
@@ -51,7 +62,7 @@ func newAgentK8sExecutor(selector metav1.ListOptions, clusterClient *KubernetesC
 	return &agentK8sexecutor{
 		pod:           pod,
 		clusterClient: clusterClient,
-	}
+	}, nil
 }
 
 func (ae agentK8sexecutor) execute(arguments []string) (string, error) {
