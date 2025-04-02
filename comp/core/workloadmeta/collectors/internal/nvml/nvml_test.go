@@ -29,7 +29,7 @@ func TestPull(t *testing.T) {
 		store:   wmetaMock,
 	}
 
-	ddnvml.SetSingletonForTest(t, nvmlMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
@@ -88,7 +88,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 		store:   wmetaMock,
 	}
 
-	ddnvml.SetSingletonForTest(t, nvmlMock)
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First pull to populate the store with initial PIDs
 	c.Pull(context.Background())

@@ -13,10 +13,10 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-// SetSingletonForTest sets the singleton NVML library for testing purposes.
+// WithMockNVML sets the singleton NVML library for testing purposes.
 // This is useful to test the NVML library without having to initialize it
 // manually. It automatically restores the original NVML library on test
-func SetSingletonForTest(t *testing.T, lib nvml.Interface) {
+func WithMockNVML(t *testing.T, lib nvml.Interface) {
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 
