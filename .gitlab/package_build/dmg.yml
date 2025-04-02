@@ -62,8 +62,12 @@ new-agent_dmg-x64-a7:
   script:
     - set -e
 
-    # If 1, will isolate the build environment
-    - export CUSTOM_HOMEBREW=
+    # TODO: Verify it works / if it needs sudo permissions
+    - ls /omnibus || true
+    - sudo rm -rf $OMNIBUS_BASE_DIR
+    - sudo mkdir -p $OMNIBUS_BASE_DIR
+    - sudo chown -R $USER $OMNIBUS_BASE_DIR
+
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     # TODO A: See OMNIBUS_BASE_DIR
@@ -94,6 +98,8 @@ new-agent_dmg-x64-a7:
           end tell
         end tell'
 
+    # # If 1, will isolate the build environment
+    # - export CUSTOM_HOMEBREW=
     # - |
     #   if [ -n "$CUSTOM_HOMEBREW" ]; then
     #     if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -d ~/rust/cargo ]; then
