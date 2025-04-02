@@ -7,6 +7,7 @@ package snmp
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -150,6 +151,18 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
 	assert.NoError(c, err)
 	assert.Greater(c, len(ndmPayloads), 0)
+
+	for _, tmp := range ndmPayloads {
+		fmt.Println("==========================")
+		fmt.Println("==========================")
+		fmt.Println("==========================")
+		fmt.Println("==========================")
+		fmt.Println("==========================")
+		fmt.Println("==========================")
+		fmt.Println("LEN: ", len(ndmPayloads))
+		fmt.Println(tmp)
+		fmt.Println(tmp.Devices)
+	}
 
 	ndmPayload := ndmPayloads[0]
 	assert.Equal(c, ndmPayload.Namespace, "default")
