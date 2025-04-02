@@ -6,6 +6,7 @@
 package infraattributesprocessor
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -14,8 +15,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
-
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // TestLoadingConfigStrictLogs tests loading testdata/logs_strict.yaml
@@ -38,7 +37,9 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
 			tc := newTestTaggerClient()
-			f := NewFactoryForAgent(tc, hostname.Get)
+			f := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
 			cfg := f.CreateDefaultConfig()
 
 			sub, err := cm.Sub(tt.id.String())

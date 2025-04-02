@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -20,9 +19,13 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 )
 
+func hostGetter(_ context.Context) (string, error) {
+	return "test-host", nil
+}
+
 func TestType(t *testing.T) {
 	tc := newTestTaggerClient()
-	factory := NewFactoryForAgent(tc, hostname.Get)
+	factory := NewFactoryForAgent(tc, hostGetter)
 	pType := factory.Type()
 
 	assert.Equal(t, pType, Type)
@@ -30,7 +33,7 @@ func TestType(t *testing.T) {
 
 func TestCreateDefaultConfig(t *testing.T) {
 	tc := newTestTaggerClient()
-	factory := NewFactoryForAgent(tc, hostname.Get)
+	factory := NewFactoryForAgent(tc, hostGetter)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
@@ -56,7 +59,9 @@ func TestCreateProcessors(t *testing.T) {
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created
-				factory := NewFactoryForAgent(tc, hostname.Get)
+				factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+					return "test-host", nil
+				})
 				cfg := factory.CreateDefaultConfig()
 
 				sub, err := cm.Sub(k)
