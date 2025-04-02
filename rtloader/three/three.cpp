@@ -46,9 +46,8 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     _config.install_signal_handlers = 1;
 
     // Configure Python home
-    const char *home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
+    const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
     status = PyConfig_SetBytesString(&_config, &_config.home, home_path);
-    PyMem_RawFree((void *)home_path);
     if (PyStatus_Exception(status)) {
         setError("Failed to set python home: " + std::string(status.err_msg));
         PyConfig_Clear(&_config);
@@ -57,7 +56,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
 
     // Configure Python executable
     if (python_exe && strlen(python_exe) > 0) {
-        status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
+        status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name: " + std::string(status.err_msg));
             PyConfig_Clear(&_config);
@@ -102,7 +101,6 @@ bool Three::init()
     if (PyStatus_Exception(status)) {
         setError("Failed to initialize Python: " + std::string(status.err_msg));
     }
-
     // Clean up the configuration
     PyConfig_Clear(&_config);
 
