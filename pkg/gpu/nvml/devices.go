@@ -18,7 +18,12 @@ import (
 
 // Device represents a GPU device with some properties already computed
 type Device struct {
-	nvml.Device
+	// NVMLDevice is the underlying NVML device. While it would make more sense to embed it,
+	// that causes this type to include all the methods of the nvml.Device, which makes it
+	// heavier than it needs to be and causes a binary size increase. As we're not using this
+	// type as a drop-in replacement for the nvml.Device in too many places, it is not
+	// too problematic to have it as a separate field.
+	NVMLDevice nvml.Device
 
 	SMVersion uint32
 	UUID      string
@@ -56,12 +61,12 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}
 
 	return &Device{
-		Device:    dev,
-		SMVersion: smVersion,
-		UUID:      uuid,
-		CoreCount: cores,
-		Index:     index,
-		Memory:    memInfo.Total,
+		NVMLDevice: dev,
+		SMVersion:  smVersion,
+		UUID:       uuid,
+		CoreCount:  cores,
+		Index:      index,
+		Memory:     memInfo.Total,
 	}, nil
 }
 
