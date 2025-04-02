@@ -48,24 +48,24 @@ const (
 
 // NT Kernel logging - https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ETW/fileio.md
 const (
-	opName              = uint8(0)
-	opNameCreate        = uint8(32)
-	opNameDelete        = uint8(35)
-	opRundownDelete     = uint8(36)
-	opCreate            = uint8(64)
-	opDirEnumeration    = uint8(72)
-	opDirNotification   = uint8(77)
-	opSetInformation    = uint8(69)
-	opDeleteFile        = uint8(70)
-	opRenameFile        = uint8(71)
-	opQueryInformation  = uint8(74)
-	opFileSystemControl = uint8(75)
-	opOperationEnd      = uint8(76)
-	opRead              = uint8(67)
-	opWrite             = uint8(68)
-	opCleanup           = uint8(65)
-	opClose             = uint8(66)
-	opFlush             = uint8(73)
+	opName              = uint8(0)  // nolint:unused
+	opNameCreate        = uint8(32) // nolint:unused
+	opNameDelete        = uint8(35) // nolint:unused
+	opRundownDelete     = uint8(36) // nolint:unused
+	opCreate            = uint8(64) // nolint:unused
+	opDirEnumeration    = uint8(72) // nolint:unused
+	opDirNotification   = uint8(77) // nolint:unused
+	opSetInformation    = uint8(69) // nolint:unused
+	opDeleteFile        = uint8(70) // nolint:unused
+	opRenameFile        = uint8(71) // nolint:unused
+	opQueryInformation  = uint8(74) // nolint:unused
+	opFileSystemControl = uint8(75) // nolint:unused
+	opOperationEnd      = uint8(76) // nolint:unused
+	opRead              = uint8(67) // nolint:unused
+	opWrite             = uint8(68) // nolint:unused
+	opCleanup           = uint8(65) // nolint:unused
+	opClose             = uint8(66) // nolint:unused
+	opFlush             = uint8(73) // nolint:unused
 )
 
 type fileObjectPointer uint64
@@ -930,47 +930,17 @@ func (wp *WindowsProbe) initializeVolumeMap() error {
 	return nil
 }
 
-/*
-
-   opName              = uint8(0)
-   opNameCreate        = uint8(32)
-   opNameDelete        = uint8(35)
-   opRundownDelete     = uint8(36)
-   opCreate            = uint8(64)
-   opDirEnumeration    = uint8(72)
-   opDirNotification   = uint8(77)
-   opSetInformation    = uint8(69)
-   opDeleteFile        = uint8(70)
-   opRenameFile        = uint8(71)
-   opQueryInformation  = uint8(74)
-   opFileSystemControl = uint8(75)
-   opOperationEnd      = uint8(76)
-   opRead              = uint8(67)
-   opWrite             = uint8(68)
-   opCleanup           = uint8(65)
-   opClose             = uint8(66)
-   opFlush             = uint8(73)
-
-*/
-
+// nolint: unused
 func (wp *WindowsProbe) parseNlCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	return wp.parseCreateArgs(e)
 }
 
-/*
-  uint64 Offset;
-  uint32 IrpPtr;
-  uint32 TTID;
-  uint32 FileObject;
-  uint32 FileKey;
-  uint32 IoSize;
-  uint32 IoFlags;
-*/
-
+// nolint: unused
 func (wp *WindowsProbe) parseNlNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
 	return wp.parseKfNameCreateArgs(e)
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseNlOperationEndArgs(e *etw.DDEventRecord) (*operationEndArgs, error) {
 
 	s := &operationEndArgs{

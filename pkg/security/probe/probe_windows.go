@@ -41,15 +41,15 @@ import (
 )
 
 const (
-	KERNEL_FILE_KEYWORD_FILENAME            = 0x10
-	KERNEL_FILE_KEYWORD_FILEIO              = 0x20
-	KERNEL_FILE_KEYWORD_OP_END              = 0x40
-	KERNEL_FILE_KEYWORD_CREATE              = 0x80
-	KERNEL_FILE_KEYWORD_READ                = 0x100
-	KERNEL_FILE_KEYWORD_WRITE               = 0x200
-	KERNEL_FILE_KEYWORD_DELETE_PATH         = 0x400
-	KERNEL_FILE_KEYWORD_RENAME_SETLINK_PATH = 0x800
-	KERNEL_FILE_KEYWORD_CREATE_NEW_FILE     = 0x1000
+	KERNEL_FILE_KEYWORD_FILENAME            = 0x10   // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_FILEIO              = 0x20   // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_OP_END              = 0x40   // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_CREATE              = 0x80   // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_READ                = 0x100  // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_WRITE               = 0x200  // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_DELETE_PATH         = 0x400  // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_RENAME_SETLINK_PATH = 0x800  // nolint:unused,revive
+	KERNEL_FILE_KEYWORD_CREATE_NEW_FILE     = 0x1000 // nolint:unused,revive
 )
 
 // WindowsProbe defines a Windows probe
@@ -496,11 +496,12 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 }
 
 func (p *WindowsProbe) startTracingNTLogger(ecb etwCallback) error {
+	_ = ecb
+
 	log.Info("Starting NT Logger tracing...")
 	err := p.ntLoggerSession.StartTracing(func(e *etw.DDEventRecord) {
-		return
-
-		switch e.EventHeader.ProviderID {
+		_ = e
+		/*switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileioguid):
 			switch e.EventHeader.EventDescriptor.Opcode {
 			case opNameCreate:
@@ -530,7 +531,7 @@ func (p *WindowsProbe) startTracingNTLogger(ecb etwCallback) error {
 				} else {
 					log.Debugf("Unable to parse opCreate event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
-				/*case opOperationEnd:
+				case opOperationEnd:
 				if oe, err := p.parseNlOperationEndArgs(e); err == nil {
 
 					if p.lastCreateArgs != nil && strings.Contains(p.lastCreateArgs.fileName, "inetpub") {
@@ -538,9 +539,8 @@ func (p *WindowsProbe) startTracingNTLogger(ecb etwCallback) error {
 						fmt.Printf("opOperationEnd '%s' : Obj: %v Opt: %v => Info/Status: %d/%d\n", ca.fileName, ca.fileObject, ca.createOptions, oe.extraInfo, oe.ntStatus)
 					}
 				}
-				p.lastCreateArgs = nil*/
 			}
-		}
+		}*/
 	})
 	return err
 }
