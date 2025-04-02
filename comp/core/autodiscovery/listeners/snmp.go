@@ -362,33 +362,14 @@ func (l *SNMPListener) initializeIPAuthenticationCounter() {
 	log.Debugf("Initialized authentication counter with %d IP addresses", len(l.ipsAuthenticationCounter))
 }
 
-func (l *SNMPListener) checkPreviousIPs(subnet *snmpSubnet, deviceIP string) (bool, error) {
-	startingIP, ipNet, err := parseCIDR(subnet.config.Network)
-	if err != nil {
-		return false, err
-	}
-
-	allScanned := true
-
-	forEachIP(startingIP, ipNet, func(currentIP net.IP) bool {
-		ipString := currentIP.String()
-		if l.ipsAuthenticationCounter[ipString] > 0 {
-			allScanned = false
+func (l *SNMPListener) checkPreviousIPs(subnet *snmpSubnet, deviceIP string) bool {
+	for ip, count := range l.ipsAuthenticationCounter {
+		if count > 0 && minimumIP(ip, deviceIP) == ip {
 			return false
 		}
-
-		if ipString == deviceIP {
-			return false
-		}
-
-		return true
-	})
-
-	if !allScanned {
-		return false, nil
 	}
 
-	return true, nil
+	return true
 }
 
 func (l *SNMPListener) initializeSubnets() []snmpSubnet {
@@ -543,10 +524,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		subnet:       subnet,
 	}
 
-	previousIPsDiscovered, err := l.checkPreviousIPs(subnet, deviceIP)
-	if err != nil {
-		log.Errorf("Error checking previous IPs for device %s: %v", deviceIP, err)
-	}
+	previousIPsDiscovered := l.checkPreviousIPs(subnet, deviceIP)
 
 	if !previousIPsDiscovered {
 		log.Debugf("Previous IPs not all scanned for device %s, adding to pending", deviceIP)
@@ -816,11 +794,7 @@ func (l *SNMPListener) flushPendingServices() {
 	log.Debugf("Checking %d pending services", len(l.pendingServicesByFingerprint))
 
 	for fingerprint, pendingSvc := range l.pendingServicesByFingerprint {
-		previousIPsScanned, err := l.checkPreviousIPs(pendingSvc.svc.subnet, pendingSvc.svc.deviceIP)
-		if err != nil {
-			log.Errorf("Error checking previous IPs for device %s: %v", pendingSvc.svc.deviceIP, err)
-			continue
-		}
+		previousIPsScanned := l.checkPreviousIPs(pendingSvc.svc.subnet, pendingSvc.svc.deviceIP)
 
 		if previousIPsScanned {
 			log.Debugf("All previous IPs scanned for device %s, activating service", pendingSvc.svc.deviceIP)
