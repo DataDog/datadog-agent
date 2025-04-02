@@ -80,23 +80,34 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			return
 		}
 
-		if setting == "additional_endpoints" {
-			// Load the additional endpoints
-			additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
-			deduped := utils.DedupEndpoints(additionalEndpoints)
-			keys := deduped[resolver.GetBaseDomain()]
-			resolver.SetAPIKeys(keys)
-
-			return
-		}
-
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
-			log.Errorf("Updating API key: %s -> %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			log.Infof("rotating API key for '%s': %s -> %s",
+				setting,
+				scrubber.HideKeyExceptLastFiveChars(oldAPIKey),
+				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+			)
+
+			if setting == "additional_endpoints" {
+				// Load the additional endpoints
+				additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+				endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+				if !ok {
+					log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
+					return
+				}
+				keys := utils.DedupAPIKeys(endpoints)
+				resolver.SetAPIKeys(keys)
+
+				return
+			}
+
 			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
 
 			return
+		} else {
+			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
 		}
 	})
 }
