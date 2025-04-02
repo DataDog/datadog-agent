@@ -835,7 +835,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
 
     # We need to make sure the CLI length is not too long
     packages = compute_gotestsum_cli_args(modules_to_test.values())
-    if sys.platform "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH:
+    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH:
         print("CLI length is too long, skipping fast tests")
         return get_default_modules().values()
 
