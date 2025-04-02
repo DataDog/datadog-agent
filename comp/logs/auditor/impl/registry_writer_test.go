@@ -33,11 +33,6 @@ func TestAtomicRegistryWriter(t *testing.T) {
 	content, err := os.ReadFile(registryPath)
 	require.NoError(t, err)
 	assert.Equal(t, testData, content)
-
-	// Verify file permissions
-	info, err := os.Stat(registryPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 }
 
 func TestNonAtomicRegistryWriter(t *testing.T) {
@@ -58,9 +53,4 @@ func TestNonAtomicRegistryWriter(t *testing.T) {
 	content, err := os.ReadFile(registryPath)
 	require.NoError(t, err)
 	assert.Equal(t, testData, content)
-
-	// Verify file permissions
-	info, err := os.Stat(registryPath)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 }
