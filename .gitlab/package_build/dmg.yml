@@ -63,16 +63,17 @@ new-agent_dmg-x64-a7:
     - set -e
 
     # TODO: Verify it works / if it needs sudo permissions
-    - ls /omnibus || true
-    - sudo rm -rf $OMNIBUS_BASE_DIR
-    - sudo mkdir -p $OMNIBUS_BASE_DIR
-    - sudo chown -R $USER $OMNIBUS_BASE_DIR
+    # - ls /omnibus || true
+    # - sudo rm -rf $OMNIBUS_BASE_DIR
+    # - sudo mkdir -p $OMNIBUS_BASE_DIR
+    # - sudo chown -R $USER $OMNIBUS_BASE_DIR
+    - unset OMNIBUS_BASE_DIR
+    - unset OMNIBUS_PACKAGE_DIR
 
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
-    # TODO A: See OMNIBUS_BASE_DIR
-    - echo "$OMNIBUS_PACKAGE_DIR"
-    - mkdir -p "$OMNIBUS_PACKAGE_DIR"
+    # - echo "$OMNIBUS_PACKAGE_DIR"
+    # - mkdir -p "$OMNIBUS_PACKAGE_DIR"
 
     - brew uses gettext --installed || true
     # - ls /usr/local/opt/gettext || true
