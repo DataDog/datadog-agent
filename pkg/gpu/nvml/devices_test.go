@@ -57,7 +57,7 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 
 func TestNewDeviceCache(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	cache, err := newDeviceCacheWithOptions(mockNvml)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
 	require.Equal(t, len(testutil.GPUUUIDs), cache.Count())
@@ -77,7 +77,9 @@ func TestNewDeviceCachePartialFailure(t *testing.T) {
 		},
 	}
 
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
+	require.NoError(t, err)
 	require.NoError(t, err)
 	require.NotNil(t, cache)
 	require.Equal(t, 2, cache.Count())
@@ -127,7 +129,8 @@ func TestNewDeviceCacheDeviceUUIDFailure(t *testing.T) {
 		},
 	}
 
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 	require.NotNil(t, cache)
 	require.Equal(t, 1, cache.Count())
@@ -144,7 +147,8 @@ func TestNewDeviceCacheDeviceUUIDFailure(t *testing.T) {
 
 func TestDeviceCacheGetByUUID(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 
 	device, ok := cache.GetByUUID(testutil.DefaultGpuUUID)
@@ -157,7 +161,8 @@ func TestDeviceCacheGetByUUID(t *testing.T) {
 
 func TestDeviceCacheGetByIndex(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 
 	device, err := cache.GetByIndex(0)
@@ -170,7 +175,8 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 
 func TestDeviceCacheSMVersionSet(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 
 	smVersions := cache.SMVersionSet()
@@ -181,7 +187,8 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 
 func TestDeviceCacheAll(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 
 	devices := cache.All()
@@ -194,7 +201,8 @@ func TestDeviceCacheAll(t *testing.T) {
 
 func TestDeviceCacheCores(t *testing.T) {
 	mockNvml := testutil.GetBasicNvmlMock()
-	cache, err := NewDeviceCacheWithOptions(mockNvml)
+	WithMockDeviceCache(t, mockNvml)
+	cache, err := GetDeviceCache()
 	require.NoError(t, err)
 
 	cores, err := cache.Cores(testutil.DefaultGpuUUID)

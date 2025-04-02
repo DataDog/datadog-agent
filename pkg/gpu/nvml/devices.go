@@ -10,6 +10,8 @@ package nvml
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -65,6 +67,13 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}, nil
 }
 
+var (
+	// globalDeviceCache is the singleton instance
+	globalDeviceCache atomic.Pointer[DeviceCache]
+	// initMutex protects initialization
+	initMutex sync.Mutex
+)
+
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
 	// GetByUUID returns a device by its UUID
@@ -88,18 +97,37 @@ type deviceCache struct {
 	smVersionSet map[uint32]struct{}
 }
 
-// NewDeviceCache creates a new DeviceCache
-func NewDeviceCache() (DeviceCache, error) {
+// GetDeviceCache returns the global DeviceCache instance
+func GetDeviceCache() (DeviceCache, error) {
+	// Fast path: check if already initialized
+	if dc := globalDeviceCache.Load(); dc != nil {
+		return *dc, nil
+	}
+
+	// Slow path: initialize if needed
+	initMutex.Lock()
+	defer initMutex.Unlock()
+
+	// Double-check after acquiring lock
+	if dc := globalDeviceCache.Load(); dc != nil {
+		return *dc, nil
+	}
+
 	lib, err := GetNvmlLib()
 	if err != nil {
 		return nil, err
 	}
+	dc, err := newDeviceCacheWithOptions(lib)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewDeviceCacheWithOptions(lib)
+	globalDeviceCache.Store(&dc)
+	return dc, nil
 }
 
 // NewDeviceCacheWithOptions creates a new DeviceCache with an already initialized NVML library
-func NewDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
+func newDeviceCacheWithOptions(nvmlLib nvml.Interface) (DeviceCache, error) {
 	cache := &deviceCache{
 		uuidToDevice: make(map[string]*Device),
 		smVersionSet: make(map[uint32]struct{}),

@@ -73,24 +73,20 @@ var factory = map[CollectorName]subsystemBuilder{
 	samples:      newSamplesCollector,
 }
 
-// CollectorDependencies holds the dependencies needed to create a set of collectors.
-type CollectorDependencies struct {
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
-
-	// DeviceCache is a cache of GPU devices.
-	DeviceCache ddnvml.DeviceCache
-}
-
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, factory)
+func BuildCollectors() ([]Collector, error) {
+	return buildCollectors(factory)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	deviceCache, err := ddnvml.GetDeviceCache()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dev := range deviceCache.All() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -109,7 +105,11 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 }
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
-func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
+func GetDeviceTagsMapping(tagger tagger.Component) map[string][]string {
+	deviceCache, err := ddnvml.GetDeviceCache()
+	if err != nil {
+		return nil
+	}
 	devCount := deviceCache.Count()
 	if devCount == 0 {
 		return nil
