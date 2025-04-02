@@ -113,7 +113,7 @@ type EBPFProbe struct {
 	statsdClient statsd.ClientInterface
 
 	probe          *Probe
-	Manager        *ddebpf.Manager
+	Manager        ebpf.ManagerInterface
 	managerOptions manager.Options
 	kernelVersion  *kernel.Version
 
@@ -448,9 +448,9 @@ func (p *EBPFProbe) initEBPFManager() error {
 		return err
 	}
 
-	p.Manager.Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
+	p.Manager.Get().Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
 
-	if err := p.Manager.InitWithOptions(bytecodeReader, &p.managerOptions); err != nil {
+	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
@@ -478,7 +478,7 @@ func (p *EBPFProbe) Init() error {
 	}
 	p.useSyscallWrapper = useSyscallWrapper
 
-	if err := p.eventStream.Init(p.Manager.Manager, p.config.Probe); err != nil {
+	if err := p.eventStream.Init(p.Manager.Get(), p.config.Probe); err != nil {
 		return err
 	}
 
@@ -508,14 +508,14 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
 	if err != nil {
 		return err
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
 
-	p.killListMap, err = managerhelper.Map(p.Manager.Manager, "kill_list")
+	p.killListMap, err = managerhelper.Map(p.Manager.Get(), "kill_list")
 	if err != nil {
 		return err
 	}
@@ -539,7 +539,7 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 }
 
 func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
-	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
+	rawPacketEventMap, _, err := p.Manager.Get().GetMap("raw_packet_event")
 	if err != nil {
 		return err
 	}
@@ -547,7 +547,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `rawpacket_event` map")
 	}
 
-	routerMap, _, err := p.Manager.GetMap("raw_packet_classifier_router")
+	routerMap, _, err := p.Manager.Get().GetMap("raw_packet_classifier_router")
 	if err != nil {
 		return err
 	}
@@ -555,7 +555,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `classifier_router` map")
 	}
 
-	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
+	enabledMap, _, err := p.Manager.Get().GetMap("raw_packet_enabled")
 	if err != nil {
 		return err
 	}
@@ -633,7 +633,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 
 	// setup tail calls
 	for i, progSpec := range progSpecs {
-		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
+		if err := p.Manager.Get().UpdateTailCallRoutes(manager.TailCallRoute{
 			Program:       col.Programs[progSpec.Name],
 			Key:           probes.TCRawPacketFilterKey + uint32(i),
 			ProgArrayName: "raw_packet_classifier_router",
@@ -1508,7 +1508,7 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
 func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table, err := managerhelper.Map(p.Manager.Manager, "filter_policy")
+	table, err := managerhelper.Map(p.Manager.Get(), "filter_policy")
 	if err != nil {
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
@@ -1547,7 +1547,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 
 	for _, newKFilter := range newKFilters {
 		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
-		if err := newKFilter.Apply(p.Manager.Manager); err != nil {
+		if err := newKFilter.Apply(p.Manager.Get()); err != nil {
 			return err
 		}
 
@@ -1559,7 +1559,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 		previousKFilters.Sub(newKFilters)
 		for _, previousKFilter := range previousKFilters {
 			seclog.Tracef("Removing previous kfilter %+v for event type %s", previousKFilter, eventType)
-			if err := previousKFilter.Remove(p.Manager.Manager); err != nil {
+			if err := previousKFilter.Remove(p.Manager.Get()); err != nil {
 				return err
 			}
 
@@ -1711,7 +1711,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
-	enabledEventsMap, err := managerhelper.Map(p.Manager.Manager, "enabled_events")
+	enabledEventsMap, err := managerhelper.Map(p.Manager.Get(), "enabled_events")
 	if err != nil {
 		return err
 	}
@@ -1731,7 +1731,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	if err = p.Manager.UpdateActivatedProbes(activatedProbes); err != nil {
+	if err = p.Manager.Get().UpdateActivatedProbes(activatedProbes); err != nil {
 		return err
 	}
 
@@ -1741,22 +1741,22 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearNameMappings("cws")
-	ddebpf.AddNameMappings(p.Manager.Manager, "cws")
+	ddebpf.AddNameMappings(p.Manager.Get(), "cws")
 }
 
 // GetDiscarders retrieve the discarders
 func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
-	inodeMap, err := managerhelper.Map(p.Manager.Manager, "inode_discarders")
+	inodeMap, err := managerhelper.Map(p.Manager.Get(), "inode_discarders")
 	if err != nil {
 		return nil, err
 	}
 
-	statsFB, err := managerhelper.Map(p.Manager.Manager, "fb_discarder_stats")
+	statsFB, err := managerhelper.Map(p.Manager.Get(), "fb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
 
-	statsBB, err := managerhelper.Map(p.Manager.Manager, "bb_discarder_stats")
+	statsBB, err := managerhelper.Map(p.Manager.Get(), "bb_discarder_stats")
 	if err != nil {
 		return nil, err
 	}
@@ -1821,7 +1821,7 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 
 // Stop the probe
 func (p *EBPFProbe) Stop() {
-	_ = p.Manager.StopReaders(manager.CleanAll)
+	_ = p.Manager.Get().StopReaders(manager.CleanAll)
 }
 
 // Close the probe
@@ -1837,8 +1837,8 @@ func (p *EBPFProbe) Close() error {
 		p.rawPacketFilterCollection.Close()
 	}
 
-	ddebpf.RemoveNameMappings(p.Manager.Manager)
-	ebpftelemetry.UnregisterTelemetry(p.Manager.Manager)
+	ddebpf.RemoveNameMappings(p.Manager.Get())
+	ebpftelemetry.UnregisterTelemetry(p.Manager.Get())
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1940,7 +1940,7 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 		p.Resolvers.NamespaceResolver.QueueNetworkDevice(device)
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
-	err = p.Resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager.Manager)
+	err = p.Resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager.Get())
 	if err != nil {
 		return err
 	}
@@ -1957,7 +1957,7 @@ func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Manager)
+	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Get())
 }
 
 func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
@@ -2473,7 +2473,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager.Get(), probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -2488,7 +2488,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	if config.RuntimeSecurity.OnDemandEnabled {
 		p.onDemandManager = &OnDemandProbesManager{
 			probe:   p,
-			manager: p.Manager.Manager,
+			manager: p.Manager.Get(),
 		}
 	}
 

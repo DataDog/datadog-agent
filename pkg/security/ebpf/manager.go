@@ -9,39 +9,15 @@
 package ebpf
 
 import (
+	"io"
+
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf/asm"
-
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
-// NewDefaultOptions returns a new instance of the default runtime security manager options
-func NewDefaultOptions() manager.Options {
-	return manager.Options{
-		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
-		DefaultKProbeMaxActive: 512,
-
-		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
-
-		RemoveRlimit: true,
-	}
-}
-
-// NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage bool) *ddebpf.Manager {
-	manager := &manager.Manager{
-		Maps: probes.AllMaps(),
-	}
-	if supportsRingBuffers {
-		manager.RingBuffers = probes.AllRingBuffers()
-	} else {
-		manager.PerfMaps = probes.AllPerfMaps()
-	}
-	var modifiers []ddebpf.Modifier
-	if !supportsTaskStorage {
-		modifiers = append(modifiers, ddebpf.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
-	}
-	return ddebpf.NewManagerWithDefault(manager, "cws", modifiers...)
+// ManagerInterface is a wrapper type for ebpf-manager and pkg/ebpf/manager.Manager types
+type ManagerInterface interface {
+	Get() *manager.Manager
+	InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error
+	Stop(cleanupType manager.MapCleanupType) error
+	Start() error
 }
