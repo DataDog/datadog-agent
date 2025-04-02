@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/registry"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 const (
