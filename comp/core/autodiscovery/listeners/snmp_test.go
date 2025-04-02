@@ -23,10 +23,7 @@ type MockConfigWrapper struct {
 }
 
 func (m *MockConfigWrapper) IsProviderEnabled(value string) bool {
-	if value == "" {
-		return false
-	}
-	return true
+	return value != ""
 }
 
 func TestSNMPListener(t *testing.T) {
