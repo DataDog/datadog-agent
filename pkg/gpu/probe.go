@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,11 +49,6 @@ const (
 	defaultMapCleanerInterval  = 5 * time.Minute
 	defaultMapCleanerBatchSize = 100
 	defaultEventTTL            = defaultMapCleanerInterval
-)
-
-var (
-	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = 2 * os.Getpagesize()
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -105,10 +101,9 @@ type ProbeDependencies struct {
 
 // NewProbeDependencies creates a new ProbeDependencies instance
 func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib := nvml.New()
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
+	nvmlLib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return ProbeDependencies{}, fmt.Errorf("unable to get NVML library: %w", err)
 	}
 
 	return ProbeDependencies{
@@ -330,7 +325,15 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	ringBufferSize := toPowerOf2(defaultRingBufferSize)
+	devCount := p.sysCtx.deviceCache.Count()
+	if devCount == 0 {
+		devCount = 1 // Don't let the buffer size be 0
+	}
+
+	// The activity of eBPF events will scale with the number of devices, unlike in other
+	// eBPF modules where the activity is bound to the number of CPUs.
+	numPages := p.cfg.RingBufferSizePagesPerDevice * devCount
+	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
