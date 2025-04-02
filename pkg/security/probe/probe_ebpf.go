@@ -966,8 +966,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		return
 	case model.ShortDNSResponseEventType:
-		fmt.Printf("SHORT DNS received response. Offset = %d\n", offset)
-
 		if p.config.Probe.DNSResolutionEnabled {
 			_, err := event.DNSResponse.UnmarshalBinary(data[offset:], p.Resolvers.DNSResolver)
 			if err != nil {
@@ -1310,8 +1308,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 	case model.FullDNSResponseEventType:
-		fmt.Printf("FULL DNS received response. Offset = %d\n", offset)
-
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
 			return
