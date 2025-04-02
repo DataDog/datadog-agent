@@ -337,7 +337,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromERPC(pathKey, true)
@@ -406,7 +406,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Manager); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromMap(pathKey, true)
@@ -474,7 +474,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromMap(pathKey, true)
