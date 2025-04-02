@@ -309,6 +309,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	if err != nil {
 		c.logger.Debugf("no pod found for process %s and containerID %s", process.ID, process.ContainerID)
 		if !isRetry {
+			c.logger.Debugf("adding process %s and containerID %s to the retry set", process.ID, process.ContainerID)
 			c.telemetry.ProcessWithoutPod.Inc()
 			evs, found := c.processesWithoutPod[process.ContainerID]
 			if found {
@@ -358,16 +359,22 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 		containerIDs = append(containerIDs, c.ID)
 	}
 
+	var eventType string
+
 	switch podEvent.Type {
 	case workloadmeta.EventTypeSet:
+		eventType = "set"
 		c.retryProcessEventsWithoutPod(containerIDs)
 	case workloadmeta.EventTypeUnset:
+		eventType = "unset"
 		delete(c.currentBatch, pod.Name)
 		delete(c.freshlyUpdatedPods, pod.Name)
 		for _, cid := range containerIDs {
 			delete(c.processesWithoutPod, cid)
 		}
 	}
+
+	c.logger.Debugf("processed %s event for pod %s/%s having container IDs: %v", eventType, pod.Namespace, pod.Name, containerIDs)
 }
 
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
