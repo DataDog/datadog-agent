@@ -76,8 +76,6 @@ require (
 )
 
 require (
-	github.com/CycloneDX/cyclonedx-go v0.9.2 // indirect
-	github.com/DataDog/datadog-agent v0.0.0-20250328174640-b8d329a55038 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
@@ -90,34 +88,21 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0 // indirect
 	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/alecthomas/repr v0.4.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.36.3 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.64 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.210.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
-	github.com/aws/smithy-go v1.22.3 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
-	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/knadh/koanf/v2 v2.1.2 // indirect
-	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
-	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.121.0 // indirect
@@ -128,10 +113,6 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.121.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.121.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.9.0 // indirect
-	k8s.io/apiextensions-apiserver v0.32.1 // indirect
-	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2 // indirect
-	k8s.io/kube-aggregator v0.31.2 // indirect
-	k8s.io/kubelet v0.31.2 // indirect
 )
 
 require (

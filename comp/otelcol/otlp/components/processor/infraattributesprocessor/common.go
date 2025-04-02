@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -36,12 +35,15 @@ type infraTagsProcessor struct {
 // newInfraTagsProcessor creates a new infraTagsProcessor instance
 func newInfraTagsProcessor(
 	tagger taggerClient,
+	hostGetterOpt option.Option[SourceProviderFunc],
 ) infraTagsProcessor {
 	infraTagsProcessor := infraTagsProcessor{
 		tagger: tagger,
 	}
-	if hostname, err := hostname.Get(context.Background()); err == nil {
-		infraTagsProcessor.hostname = option.New(hostname)
+	if hostnameGetter, found := hostGetterOpt.Get(); found {
+		if hostname, err := hostnameGetter(context.Background()); err == nil {
+			infraTagsProcessor.hostname = option.New(hostname)
+		}
 	}
 	return infraTagsProcessor
 }

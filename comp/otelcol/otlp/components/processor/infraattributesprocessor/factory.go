@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -76,7 +77,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 	if err := app.Err(); err != nil {
 		return nil, err
 	}
-	f.data.infraTags = newInfraTagsProcessor(client)
+	f.data.infraTags = newInfraTagsProcessor(client, option.None[SourceProviderFunc]())
 	return f.data, nil
 }
 
@@ -85,10 +86,12 @@ func NewFactory() processor.Factory {
 	return newFactoryForAgent(nil)
 }
 
+type SourceProviderFunc func(context.Context) (string, error)
+
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
-func NewFactoryForAgent(tagger taggerClient) processor.Factory {
+func NewFactoryForAgent(tagger taggerClient, hostGetter SourceProviderFunc) processor.Factory {
 	return newFactoryForAgent(&data{
-		infraTags: newInfraTagsProcessor(tagger),
+		infraTags: newInfraTagsProcessor(tagger, option.New(hostGetter)),
 	})
 }
 

@@ -18,6 +18,7 @@ import (
 	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 type metricNameTest struct {
@@ -133,7 +134,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
 
-			factory := NewFactoryForAgent(tc)
+			factory := NewFactoryForAgent(tc, hostname.Get)
 			fmp, err := factory.CreateMetrics(
 				context.Background(),
 				processortest.NewNopSettings(Type),
