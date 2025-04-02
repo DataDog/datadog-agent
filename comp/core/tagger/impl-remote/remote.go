@@ -477,11 +477,13 @@ func (t *remoteTagger) run() {
 		default:
 		}
 
+		taggerStreamInitialized := false
 		if t.stream == nil {
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				t.log.Warnf("error received trying to start stream with target %q: %s", t.options.Target, err)
 				continue
 			}
+			taggerStreamInitialized = true
 		}
 
 		var response *pb.StreamTagsResponse
@@ -508,7 +510,9 @@ func (t *remoteTagger) run() {
 			continue
 		}
 
-		t.log.Info("tagger stream successfully initialized")
+		if taggerStreamInitialized {
+			t.log.Info("tagger stream successfully initialized")
+		}
 
 		t.telemetryStore.Receives.Inc()
 
