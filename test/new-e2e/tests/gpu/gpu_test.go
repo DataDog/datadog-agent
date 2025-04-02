@@ -65,6 +65,10 @@ func TestGPUHostSuite(t *testing.T) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
+
+	// incident-36753: unattended-upgrades is not being disabled properly
+	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
+
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing
@@ -101,6 +105,9 @@ func TestGPUK8sSuite(t *testing.T) {
 
 	// Temporary fix while we debug the issue
 	flake.MarkOnLog(t, "panic: Expected to find a single pod")
+
+	// incident-36753: unattended-upgrades is not being disabled properly
+	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
 
 	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
 	// we're not breaking main if we get rate limited

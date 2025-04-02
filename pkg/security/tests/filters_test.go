@@ -585,6 +585,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 func TestFilterDiscarderMask(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// use the same basename to have the basename approver letting pass both open and utimes event
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -649,7 +650,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 			t.Fatal("shouldn't get a utimes event")
 		}
 
-		// not check that we still have the open allowed
+		// now check that we still have the open allowed
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
 			if err != nil {
