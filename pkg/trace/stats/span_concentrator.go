@@ -175,7 +175,7 @@ var KindsComputed = map[string]struct{}{
 	"producer": {},
 }
 
-func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string, weight float64) {
+func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	end := s.start + s.duration
@@ -184,17 +184,20 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, c
 	b, ok := sc.buckets[btime]
 	if !ok {
 		b = NewRawBucket(uint64(btime), uint64(sc.bsize))
-		if containerID != "" && len(containerTags) > 0 {
-			b.containerTagsByID[containerID] = containerTags
-		}
 		sc.buckets[btime] = b
+	}
+	if tags.processTagsHash != 0 && len(tags.processTags) > 0 {
+		b.processTagsByHash[tags.processTagsHash] = tags.processTags
+	}
+	if tags.containerID != "" && len(tags.containerTags) > 0 {
+		b.containerTagsByID[tags.containerID] = tags.containerTags
 	}
 	b.HandleSpan(s, weight, origin, aggKey)
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
-func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
-	sc.addSpan(s, aggKey, containerID, containerTags, origin, 1)
+func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string) {
+	sc.addSpan(s, aggKey, tags, origin, 1)
 }
 
 // Flush deletes and returns complete ClientStatsPayloads.
@@ -202,6 +205,7 @@ func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, c
 func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayload {
 	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
 	containerTagsByID := make(map[string][]string)
+	processTagsByHash := make(map[uint64]string)
 
 	sc.mu.Lock()
 	for ts, srb := range sc.buckets {
@@ -221,6 +225,9 @@ func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayloa
 			m[k] = append(m[k], b)
 			if ctags, ok := srb.containerTagsByID[k.ContainerID]; ok {
 				containerTagsByID[k.ContainerID] = ctags
+			}
+			if ptags, ok := srb.processTagsByHash[k.ProcessTagsHash]; ok {
+				processTagsByHash[k.ProcessTagsHash] = ptags
 			}
 		}
 		delete(sc.buckets, ts)
@@ -244,6 +251,7 @@ func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayloa
 			ImageTag:     k.ImageTag,
 			Stats:        s,
 			Tags:         containerTagsByID[k.ContainerID],
+			ProcessTags:  processTagsByHash[k.ProcessTagsHash],
 		}
 		sb = append(sb, p)
 	}
