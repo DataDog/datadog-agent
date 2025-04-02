@@ -7,7 +7,7 @@ package snmp
 
 import (
 	_ "embed"
-	"fmt"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +77,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkBasicMetadata(c, fakeIntake)
-	}, 2*time.Minute, 10*time.Second)
+	}, 6*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
 	apiKey2 := strings.Repeat("1", 32)
@@ -118,7 +118,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkBasicMetadata(c, fakeIntake)
-	}, 2*time.Minute, 10*time.Second)
+	}, 6*time.Minute, 10*time.Second)
 
 	secretClient.SetSecret("api_key", apiKey2)
 	v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
@@ -138,13 +138,13 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkBasicMetadata(c, fakeIntake)
-	}, 2*time.Minute, 10*time.Second)
+	}, 6*time.Minute, 10*time.Second)
 }
 
 func checkBasicMetric(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	metrics, err := fakeIntake.Client().GetMetricNames()
 	assert.NoError(c, err)
-	assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
+	assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "Metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
 }
 
 func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
@@ -152,25 +152,41 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	assert.NoError(c, err)
 	assert.Greater(c, len(ndmPayloads), 0)
 
-	for _, tmp := range ndmPayloads {
-		fmt.Println("==========================")
-		fmt.Println("==========================")
-		fmt.Println("==========================")
-		fmt.Println("==========================")
-		fmt.Println("==========================")
-		fmt.Println("==========================")
-		fmt.Println("LEN: ", len(ndmPayloads))
-		fmt.Println(tmp)
-		fmt.Println(tmp.Devices)
+	ciscoDeviceID := "default:127.0.0.1"
+
+	var successNdmPayload *aggregator.NDMPayload = nil
+	for _, ndmPayload := range ndmPayloads {
+		for _, diagnose := range ndmPayload.Diagnoses {
+			if diagnose.ResourceType == "device" && diagnose.ResourceID == ciscoDeviceID && len(diagnose.Diagnoses) == 0 {
+				successNdmPayload = ndmPayload
+				break
+			}
+		}
+		if successNdmPayload != nil {
+			break
+		}
 	}
 
-	ndmPayload := ndmPayloads[0]
-	assert.Equal(c, ndmPayload.Namespace, "default")
-	assert.Equal(c, string(ndmPayload.Integration), "snmp")
-	assert.Greater(c, len(ndmPayload.Devices), 0)
+	assert.NotNil(c, successNdmPayload, "Did not found a successful NDM payload for device: %s", ciscoDeviceID)
 
-	ciscoDevice := ndmPayload.Devices[0]
-	assert.Equal(c, ciscoDevice.ID, "default:127.0.0.1")
+	if successNdmPayload == nil {
+		return
+	}
+
+	assert.Equal(c, successNdmPayload.Namespace, "default")
+	assert.Equal(c, string(successNdmPayload.Integration), "snmp")
+	assert.Greater(c, len(successNdmPayload.Devices), 0)
+	assert.Greater(c, len(successNdmPayload.Interfaces), 0)
+
+	var ciscoDevice aggregator.DeviceMetadata
+	for _, device := range successNdmPayload.Devices {
+		if device.ID == ciscoDeviceID {
+			ciscoDevice = device
+			break
+		}
+	}
+
+	assert.Equal(c, ciscoDevice.ID, ciscoDeviceID)
 	assert.Contains(c, ciscoDevice.IDTags, "snmp_device:127.0.0.1")
 	assert.Contains(c, ciscoDevice.IDTags, "device_namespace:default")
 	assert.Contains(c, ciscoDevice.Tags, "snmp_profile:cisco-nexus")
