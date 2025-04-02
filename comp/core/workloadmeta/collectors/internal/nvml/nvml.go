@@ -263,8 +263,9 @@ func (c *collector) Pull(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library: %w", err)
 	}
+	c.nvmlLib = nvmlLib
 
-	count, ret := nvmlLib.DeviceGetCount()
+	count, ret := c.nvmlLib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
 	}
@@ -282,7 +283,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	var events []workloadmeta.CollectorEvent
 	for i := 0; i < count; i++ {
-		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
+		dev, ret := c.nvmlLib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
