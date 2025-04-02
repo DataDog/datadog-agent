@@ -92,6 +92,7 @@ func (p *Packages) Install(pkg string, version string) {
 	}
 }
 
+// InstallStaging marks a package to be installed with a staging version
 func (p *Packages) InstallStaging(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:            pkg,

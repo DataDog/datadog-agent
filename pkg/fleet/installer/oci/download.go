@@ -368,7 +368,7 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 	)
 }
 
-// PackageURL returns the staging package URL for the given package and version.
+// StagingPackageURL returns the staging package URL for the given package and version.
 func StagingPackageURL(pkg string, version string) string {
 	return fmt.Sprintf("oci://install.datad0g.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 }
