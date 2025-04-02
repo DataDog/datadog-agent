@@ -234,7 +234,7 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal("not supported")
 		}
 
-		if err := p.Manager.CleanupNetworkNamespace(nsid); err != nil {
+		if err := p.Manager.Get().CleanupNetworkNamespace(nsid); err != nil {
 			t.Fatal(err)
 		}
 
