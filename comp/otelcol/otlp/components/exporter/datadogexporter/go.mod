@@ -50,7 +50,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.145 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.146 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -245,7 +245,7 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99 // indirect
 	google.golang.org/grpc v1.70.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

@@ -131,7 +131,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.145 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.146 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
@@ -443,7 +443,7 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	google.golang.org/api v0.199.0 // indirect

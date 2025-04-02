@@ -27,6 +27,8 @@ func TestKindSuite(t *testing.T) {
 clusterAgent:
     envDict:
         DD_LOG_LEVEL: TRACE
+datadog:
+    logLevel: DEBUG
 `
 
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
