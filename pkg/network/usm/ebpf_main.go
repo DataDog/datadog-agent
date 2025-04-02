@@ -319,75 +319,38 @@ func (e *ebpfProgram) getProtocolsForBuildMode() ([]*protocols.ProtocolSpec, []*
 // TailCalls to the program's lists. Also, we're providing a cleanup method (the return value) which allows removal
 // of the elements we added in case of a failure in the initialization.
 func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protocols.ProtocolSpec) func() {
-	// Track already existing items
-	existingMaps := make(map[string]struct{})
-	existingProbes := make(map[string]struct{})
-	existingTailCalls := make(map[string]struct{})
-
-	// Populate sets with existing elements
-	for _, m := range e.Maps {
-		existingMaps[m.Name] = struct{}{}
-	}
-	for _, p := range e.Probes {
-		existingProbes[p.EBPFFuncName] = struct{}{}
-	}
-	for _, tc := range e.tailCallRouter {
-		existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
-	}
-
-	// Track newly added elements for cleanup
-	var addedMaps []*manager.Map
-	var addedProbes []*manager.Probe
-	var addedTailCalls []manager.TailCallRoute
-
 	for _, spec := range protocols {
-		for _, m := range spec.Maps {
-			if _, exists := existingMaps[m.Name]; !exists {
-				e.Maps = append(e.Maps, m)
-				addedMaps = append(addedMaps, m)
-				existingMaps[m.Name] = struct{}{}
-			}
-		}
-
-		for _, p := range spec.Probes {
-			if _, exists := existingProbes[p.EBPFFuncName]; !exists {
-				e.Probes = append(e.Probes, p)
-				addedProbes = append(addedProbes, p)
-				existingProbes[p.EBPFFuncName] = struct{}{}
-			}
-		}
-
-		for _, tc := range spec.TailCalls {
-			if _, exists := existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName]; !exists {
-				e.tailCallRouter = append(e.tailCallRouter, tc)
-				addedTailCalls = append(addedTailCalls, tc)
-				existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
-			}
-		}
+		e.Maps = append(e.Maps, spec.Maps...)
+		e.Probes = append(e.Probes, spec.Probes...)
+		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
 	}
-
-	// Cleanup function to remove only what was added
 	return func() {
 		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
-			for _, added := range addedMaps {
-				if m.Name == added.Name {
-					return true
+			for _, spec := range protocols {
+				for _, specMap := range spec.Maps {
+					if m.Name == specMap.Name {
+						return true
+					}
 				}
 			}
 			return false
 		})
 		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
-			for _, added := range addedProbes {
-				if p.EBPFFuncName == added.EBPFFuncName {
-					return true
+			for _, spec := range protocols {
+				for _, probe := range spec.Probes {
+					if p.EBPFFuncName == probe.EBPFFuncName {
+						return true
+					}
 				}
 			}
 			return false
 		})
 		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
-			for _, added := range addedTailCalls {
-				if tc.ProbeIdentificationPair.EBPFFuncName == added.ProbeIdentificationPair.EBPFFuncName {
-					return true
+			for _, spec := range protocols {
+				for _, tailCall := range spec.TailCalls {
+					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
+						return true
+					}
 				}
 			}
 			return false
