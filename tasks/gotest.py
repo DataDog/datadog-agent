@@ -272,7 +272,6 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
-    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
@@ -301,7 +300,6 @@ def test(
         build="unit-tests",
         build_include=build_include,
         build_exclude=build_exclude,
-        include_sds=include_sds,
     )
 
     ldflags, gcflags, env = get_build_flags(
@@ -890,7 +888,6 @@ def lint_go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
 ):
     raise Exit("This task is deprecated, please use `dda inv linter.go`", 1)

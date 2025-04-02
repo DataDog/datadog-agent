@@ -138,7 +138,6 @@ def build(
     python_home_3=None,
     major_version='7',
     exclude_rtloader=False,
-    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -221,9 +220,6 @@ def build(
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
-
-    if include_sds:
-        build_tags.append("sds")
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {

@@ -147,8 +147,6 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20250218182124-bd4ad0b8d2fd h1:ZCkas9vo9WVqmxXFo10S3rLfAB+Ls0EYldklc0MSHWs=
 github.com/DataDog/datadog-operator/api v0.0.0-20250218182124-bd4ad0b8d2fd/go.mod h1:Mc5PwgupcDXw3tCcQQLMPZLCqG0rS1vKXZrXi8qVRIo=
-github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
-github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11 h1:6vwU//TjBIghQKMgIP9UyIRhN/LWS1y8tYzvRnu8JZw=
 github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11/go.mod h1:woPHoAOfAIM7kl4GauR+qrWui7teNg44Um0verg2rzQ=
 github.com/DataDog/ebpf-manager v0.7.10 h1:0B9PfbdV8+pemf2ZckcAa2OWZwlWYV/i6YA5ki8SLAY=

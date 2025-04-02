@@ -86,7 +86,7 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
-	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+	processor := processor.New(inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
 
 	return &Pipeline{

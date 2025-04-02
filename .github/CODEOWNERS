@@ -292,7 +292,6 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/sds.rb                           @DataDog/agent-log-pipelines
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-delivery @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
@@ -527,7 +526,6 @@
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/pipeline                      @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-intake
 /pkg/process/util/address*.go           @DataDog/Networks
@@ -615,7 +613,6 @@
 /tasks/rtloader.py                      @DataDog/agent-metric-pipelines
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
-/tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/winbuild.py                      @DataDog/windows-agent

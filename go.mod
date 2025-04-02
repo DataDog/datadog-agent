@@ -584,7 +584,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3
@@ -696,7 +695,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.64.1 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.35.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20241206090539-a14610dc22b6 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0 // indirect
@@ -1075,7 +1073,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ./pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ./pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface

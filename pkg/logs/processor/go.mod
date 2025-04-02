@@ -6,11 +6,9 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.146
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/stretchr/testify v1.10.0
@@ -22,6 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
@@ -43,7 +42,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -181,7 +179,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../pkg/logs/pipeline
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
