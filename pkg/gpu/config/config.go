@@ -36,18 +36,21 @@ type Config struct {
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
 	EnableFatbinParsing bool
+	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
+	RingBufferSizePagesPerDevice int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	return &Config{
-		Config:                *ebpf.NewConfig(),
-		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
-		NVMLLibraryPath:       spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
-		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
-		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
-		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
+		Config:                       *ebpf.NewConfig(),
+		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
+		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
+		NVMLLibraryPath:              spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
+		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
+		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enable_fatbin_parsing")),
+		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "ring_buffer_pages_per_device")),
 	}
 }
