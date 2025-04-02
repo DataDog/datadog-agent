@@ -27,7 +27,7 @@
       $NO_FOLLOW'
   dependencies: []
 
-trigger_auto_staging_release:
+installer_trigger_auto_staging_release:
   extends: .installer_release_management_trigger
   timeout: 2h 30
   variables:
@@ -38,7 +38,7 @@ trigger_auto_staging_release:
       when: never
     - !reference [.on_deploy]
 
-trigger_auto_staging_release_on_failure:
+installer_trigger_auto_staging_release_on_failure:
   extends: .installer_release_management_trigger
   timeout: 2h 30
   variables:
@@ -50,7 +50,7 @@ trigger_auto_staging_release_on_failure:
       when: never
     - !reference [.on_deploy_failure]
 
-trigger_manual_prod_release:
+installer_trigger_manual_prod_release:
   extends: .installer_release_management_trigger
   variables:
     AUTO_RELEASE: "false"
@@ -61,7 +61,7 @@ trigger_manual_prod_release:
       when: never
     - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
 
-trigger_manual_prod_release_on_failure:
+installer_trigger_manual_prod_release_on_failure:
   extends: .installer_release_management_trigger
   variables:
     AUTO_RELEASE: "false"
