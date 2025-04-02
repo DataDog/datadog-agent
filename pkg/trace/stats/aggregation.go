@@ -101,6 +101,9 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 }
 
 func processTagsHash(processTags string) uint64 {
+	if processTags == "" {
+		return 0
+	}
 	return peerTagsHash(strings.Split(processTags, ","))
 }
 
