@@ -7,7 +7,6 @@ package snmp
 
 import (
 	_ "embed"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -154,32 +154,32 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 
 	ciscoDeviceID := "default:127.0.0.1"
 
-	var successNdmPayload *aggregator.NDMPayload = nil
+	var okNdmPayload *aggregator.NDMPayload
 	for _, ndmPayload := range ndmPayloads {
 		for _, diagnose := range ndmPayload.Diagnoses {
 			if diagnose.ResourceType == "device" && diagnose.ResourceID == ciscoDeviceID && len(diagnose.Diagnoses) == 0 {
-				successNdmPayload = ndmPayload
+				okNdmPayload = ndmPayload
 				break
 			}
 		}
-		if successNdmPayload != nil {
+		if okNdmPayload != nil {
 			break
 		}
 	}
 
-	assert.NotNil(c, successNdmPayload, "Did not found a successful NDM payload for device: %s", ciscoDeviceID)
+	assert.NotNil(c, okNdmPayload, "Did not found a successful NDM payload for device: %s", ciscoDeviceID)
 
-	if successNdmPayload == nil {
+	if okNdmPayload == nil {
 		return
 	}
 
-	assert.Equal(c, successNdmPayload.Namespace, "default")
-	assert.Equal(c, string(successNdmPayload.Integration), "snmp")
-	assert.Greater(c, len(successNdmPayload.Devices), 0)
-	assert.Greater(c, len(successNdmPayload.Interfaces), 0)
+	assert.Equal(c, okNdmPayload.Namespace, "default")
+	assert.Equal(c, string(okNdmPayload.Integration), "snmp")
+	assert.Greater(c, len(okNdmPayload.Devices), 0)
+	assert.Greater(c, len(okNdmPayload.Interfaces), 0)
 
 	var ciscoDevice aggregator.DeviceMetadata
-	for _, device := range successNdmPayload.Devices {
+	for _, device := range okNdmPayload.Devices {
 		if device.ID == ciscoDeviceID {
 			ciscoDevice = device
 			break
