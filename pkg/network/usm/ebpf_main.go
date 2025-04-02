@@ -52,7 +52,6 @@ var (
 		// factory.
 		opensslSpec,
 		goTLSSpec,
-		istioSpec,
 	}
 )
 
