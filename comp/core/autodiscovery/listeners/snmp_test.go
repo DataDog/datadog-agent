@@ -11,11 +11,23 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type MockConfigWrapper struct {
+	model.Config
+}
+
+func (m *MockConfigWrapper) IsProviderEnabled(value string) bool {
+	if value == "" {
+		return false
+	}
+	return true
+}
 
 func TestSNMPListener(t *testing.T) {
 	newSvc := make(chan Service, 10)
@@ -37,8 +49,9 @@ func TestSNMPListener(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := configmock.New(t)
+	mockConfig := MockConfigWrapper{Config: configmock.New(t)}
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+	mockConfig.IsProviderEnabled("")
 
 	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -47,7 +60,9 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(ServiceListernerDeps{})
+	l, err := NewSNMPListener(ServiceListernerDeps{
+		Config: &mockConfig,
+	})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

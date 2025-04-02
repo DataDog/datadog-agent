@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // features allowed for handling edge-cases
@@ -111,14 +112,20 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
+	log.Debugf("unmarshalKeyReflection for key %s, rawval type: %T, value: %v", key, rawval, rawval)
+
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
+		log.Debug("rawval is nil, returning immediately")
 		return nil
 	}
+	log.Debugf("About to create node tree from rawval: %v", rawval)
 	source, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
+		log.Debugf("Error creating node tree: %v", err)
 		return err
 	}
+	log.Debugf("Created node tree of type: %T", source)
 	outValue := reflect.ValueOf(target)
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
@@ -361,7 +368,37 @@ func copyList(target reflect.Value, sourceList []nodetreemodel.Node, fs *feature
 }
 
 func copyAny(target reflect.Value, source nodetreemodel.Node, fs *featureSet) error {
+	log.Debugf("copyAny called with target type: %v, source type: %T", target.Type(), source)
 	if target.Kind() == reflect.Pointer {
+		log.Debugf("target is a pointer to: %v", target.Type().Elem())
+		if target.Type().Elem().Kind() != reflect.Invalid && isScalarKind(reflect.New(target.Type().Elem()).Elem()) {
+			log.Debugf("target is a pointer to scalar type: %v", target.Type().Elem())
+			if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+				log.Debugf("source is a leaf node, value: %v", leaf.Get())
+				// For nil leaf values or nil leaf objects, set target to nil
+				if leaf == nil || leaf.Get() == nil {
+					target.Set(reflect.Zero(target.Type()))
+					return nil
+				}
+
+				// Create new scalar value of the pointed-to type
+				ptrElemType := target.Type().Elem()
+				elemValue := reflect.New(ptrElemType).Elem()
+
+				// Try to set the scalar value
+				err := copyLeaf(elemValue, leaf, fs)
+				if err != nil {
+					return err
+				}
+
+				// Set the pointer to point to our new value
+				ptrValue := reflect.New(ptrElemType)
+				ptrValue.Elem().Set(elemValue)
+				target.Set(ptrValue)
+				return nil
+			}
+			return fmt.Errorf("can't copy into pointer to scalar: leaf required, but source is not a leaf")
+		}
 		allocPtr := reflect.New(target.Type().Elem())
 		target.Set(allocPtr)
 		target = allocPtr.Elem()

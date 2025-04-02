@@ -99,10 +99,13 @@ type snmpJob struct {
 
 // NewSNMPListener creates a SNMPListener
 func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
+	log.Debug("About to call snmp.NewListenerConfig")
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
+		log.Debugf("Error creating listener config: %v", err)
 		return nil, err
 	}
+	log.Debugf("Created listener config: %+v", snmpConfig)
 	return &SNMPListener{
 		services: map[string]*SNMPService{},
 		stop:     make(chan bool),
