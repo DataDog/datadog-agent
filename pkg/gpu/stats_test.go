@@ -94,6 +94,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
@@ -196,6 +197,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
