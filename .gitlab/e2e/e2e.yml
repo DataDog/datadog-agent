@@ -504,6 +504,7 @@ new-e2e-installer-script:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
+    - deploy_agent_oci
     - qa_installer_script_linux
   variables:
     TARGETS: ./tests/installer/script
