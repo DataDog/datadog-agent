@@ -885,7 +885,7 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "length",
                 "value"
             ],
-            "description": "MatchingSubExprs serializes matching sub expression to JSON"
+            "description": "MatchingSubExpr serializes matching sub expression to JSON"
         },
         "ModuleEvent": {
             "properties": {
@@ -3351,7 +3351,7 @@ CSM Threats event for Linux systems have the following JSON schema:
         "length",
         "value"
     ],
-    "description": "MatchingSubExprs serializes matching sub expression to JSON"
+    "description": "MatchingSubExpr serializes matching sub expression to JSON"
 }
 
 {{< /code-block >}}
