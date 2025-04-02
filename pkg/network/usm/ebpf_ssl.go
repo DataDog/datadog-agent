@@ -283,11 +283,6 @@ var opensslSpec = &protocols.ProtocolSpec{
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe__tcp_sendmsg",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: sslReadExProbe,
 			},
 		},
@@ -523,9 +518,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
-	})
 
 	o.addProcessExitProbe(options)
 }
