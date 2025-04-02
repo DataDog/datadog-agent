@@ -89,7 +89,7 @@ func (a *InjectorInstaller) Finish(err error) {
 func (a *InjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 
-	if err := setupAppArmor(ctx); err != nil {
+	if err = setupAppArmor(ctx); err != nil {
 		return err
 	}
 
