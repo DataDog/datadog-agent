@@ -108,6 +108,7 @@ func WithPipelineID(id string) Option {
 	}
 }
 
+// WithLocalPackagePath specify a custom local package path to use when installing the agent
 func WithLocalPackagePath(localPath string) Option {
 	return func(p *Params) {
 		p.LocalPath = localPath
