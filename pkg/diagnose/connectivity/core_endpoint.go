@@ -71,8 +71,7 @@ func getLogsUseTCP() bool {
 func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 	// Create domain resolvers
-	config := pkgconfigsetup.Datadog()
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
 	if err != nil {
 		return []diagnose.Diagnosis{
 			{

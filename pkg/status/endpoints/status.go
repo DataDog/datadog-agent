@@ -23,11 +23,11 @@ func PopulateStatus(stats map[string]interface{}) {
 		return
 	}
 
-	deduped := utils.DedupEndpoints(endpoints)
 	endpointsInfos := make(map[string]interface{})
 
 	// obfuscate the api keys
-	for endpoint, keys := range deduped {
+	for endpoint, eps := range endpoints {
+		keys := utils.DedupAPIKeys(eps)
 		for i, key := range keys {
 			if len(key) > 5 {
 				keys[i] = key[len(key)-5:]

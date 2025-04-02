@@ -109,35 +109,19 @@ func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIK
 				ConfigSettingPath: root,
 				Keys:              trimmed,
 			}}
+		} else {
+			log.Infof("No API key provided for domain %q, removing domain from endpoints", url)
 		}
 	}
 
 	return result
 }
 
-// DedupEndpoints takes a map of domain to Endpoints and dedupes it so that we
-// only have a map of domain to (deduped) api keys.
-// Endpoints with no api keys are removed.
+// DedupAPIKeys takes a single array of endpoints and returns an array of unique
+// api keys that they contain.
 // This needs to be a separate process to loading because we need to keep track
 // of the endpoints with the API config location to know when they have been
 // refreshed.
-func DedupEndpoints(endpointMap map[string][]APIKeys) map[string][]string {
-	keysPerDomain := map[string][]string{}
-
-	for domain, endpoints := range endpointMap {
-		dedupedAPIKeys := DedupAPIKeys(endpoints)
-		if len(dedupedAPIKeys) > 0 {
-			keysPerDomain[domain] = dedupedAPIKeys
-		} else {
-			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-		}
-	}
-
-	return keysPerDomain
-}
-
-// DedupAPIKeys takes a single array of endpoints and returns an array of unique
-// api keys that they contain.
 func DedupAPIKeys(endpoints []APIKeys) []string {
 	dedupedAPIKeys := make([]string, 0)
 	seen := make(map[string]bool)

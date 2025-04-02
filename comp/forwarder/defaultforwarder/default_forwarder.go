@@ -143,7 +143,6 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 	for domain := range resolvers {
 		resolver := resolvers[domain]
 		pkgresolver.OnUpdateConfig(resolver, log, config)
-		resolvers[domain] = resolver
 	}
 
 	return NewOptionsWithResolvers(config, log, resolvers)
