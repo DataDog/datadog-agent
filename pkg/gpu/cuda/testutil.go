@@ -36,18 +36,17 @@ func AddKernelCacheEntry(t *testing.T, kc *KernelCache, pid int, address uint64,
 		{StartAddr: startAddr, EndAddr: endAddr, Offset: 0, Pathname: binPath},
 	})
 
-	procBinPath := path.Join(kc.procRoot, fmt.Sprintf("%d/root/%s", pid, binPath))
-	kernKey := CubinKernelKey{Name: kernel.Name, SmVersion: smVersion}
-
 	fatbin := NewFatbin()
+	kernKey := CubinKernelKey{Name: kernel.Name, SmVersion: smVersion}
 	fatbin.AddKernel(kernKey, kernel)
 
+	procBinPath := path.Join(kc.procRoot, fmt.Sprintf("%d/root/%s", pid, binPath))
 	procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
 	require.NoError(t, err)
 
 	kc.cudaSymbols[procBinIdent] = &symbolsEntry{
 		Symbols: &Symbols{
-			SymbolTable: map[uint64]string{address: binPath},
+			SymbolTable: map[uint64]string{address: kernel.Name},
 			Fatbin:      fatbin,
 		},
 	}

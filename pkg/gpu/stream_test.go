@@ -344,7 +344,9 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 				ConstantMem: constantMem,
 			}
 
-			cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
+			if fatbinParsingEnabled {
+				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
+			}
 
 			stream := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx)
 
