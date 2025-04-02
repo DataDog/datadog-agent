@@ -190,20 +190,15 @@ type DNSEventSerializer struct {
 	Question DNSQuestionSerializer `json:"question"`
 }
 
-type DNSResponseSerializer struct {
-	// rcode is the response code present in the response
-	RCode uint8 `json:"rcode"`
-}
-
-// DNSResponseEventSerializer serializes a DNS event to JSON
+// DNSResponseEventSerializer serializes a DNS response event to JSON
 // easyjson:json
 type DNSResponseEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
 	// question is a DNS question for the DNS request
 	Question DNSQuestionSerializer `json:"question"`
-	// response is the DNS response for the question
-	Response DNSResponseSerializer `json:"response"`
+	// rcode is the response code present in the response
+	RCode uint8 `json:"response_code"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -342,9 +337,7 @@ func newDNSResponseEventSerializer(d *model.DNSResponse) *DNSResponseEventSerial
 			Size:  d.Question.Size,
 			Count: d.Question.Count,
 		},
-		Response: DNSResponseSerializer{
-			RCode: d.ResponseCode,
-		},
+		RCode: d.ResponseCode,
 	}
 }
 

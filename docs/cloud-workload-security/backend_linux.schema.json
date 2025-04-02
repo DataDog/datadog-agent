@@ -330,19 +330,6 @@
       ],
       "description": "DNSQuestionSerializer serializes a DNS question to JSON"
     },
-    "DNSResponse": {
-      "properties": {
-        "rcode": {
-          "type": "integer",
-          "description": "rcode is the response code present in the response"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "rcode"
-      ]
-    },
     "DNSResponseEvent": {
       "properties": {
         "id": {
@@ -353,9 +340,9 @@
           "$ref": "#/$defs/DNSQuestion",
           "description": "question is a DNS question for the DNS request"
         },
-        "response": {
-          "$ref": "#/$defs/DNSResponse",
-          "description": "response is the DNS response for the question"
+        "response_code": {
+          "type": "integer",
+          "description": "rcode is the response code present in the response"
         }
       },
       "additionalProperties": false,
@@ -363,9 +350,9 @@
       "required": [
         "id",
         "question",
-        "response"
+        "response_code"
       ],
-      "description": "DNSResponseEventSerializer serializes a DNS event to JSON"
+      "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
     },
     "EventContext": {
       "properties": {

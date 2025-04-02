@@ -341,19 +341,6 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "DNSQuestionSerializer serializes a DNS question to JSON"
         },
-        "DNSResponse": {
-            "properties": {
-                "rcode": {
-                    "type": "integer",
-                    "description": "rcode is the response code present in the response"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "rcode"
-            ]
-        },
         "DNSResponseEvent": {
             "properties": {
                 "id": {
@@ -364,9 +351,9 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/DNSQuestion",
                     "description": "question is a DNS question for the DNS request"
                 },
-                "response": {
-                    "$ref": "#/$defs/DNSResponse",
-                    "description": "response is the DNS response for the question"
+                "response_code": {
+                    "type": "integer",
+                    "description": "rcode is the response code present in the response"
                 }
             },
             "additionalProperties": false,
@@ -374,9 +361,9 @@ CSM Threats event for Linux systems have the following JSON schema:
             "required": [
                 "id",
                 "question",
-                "response"
+                "response_code"
             ],
-            "description": "DNSResponseEventSerializer serializes a DNS event to JSON"
+            "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
         },
         "EventContext": {
             "properties": {
@@ -2573,31 +2560,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `count` | count is the total count of questions in the DNS request |
 
 
-## `DNSResponse`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "rcode": {
-            "type": "integer",
-            "description": "rcode is the response code present in the response"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "rcode"
-    ]
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `rcode` | rcode is the response code present in the response |
-
-
 ## `DNSResponseEvent`
 
 
@@ -2612,9 +2574,9 @@ CSM Threats event for Linux systems have the following JSON schema:
             "$ref": "#/$defs/DNSQuestion",
             "description": "question is a DNS question for the DNS request"
         },
-        "response": {
-            "$ref": "#/$defs/DNSResponse",
-            "description": "response is the DNS response for the question"
+        "response_code": {
+            "type": "integer",
+            "description": "rcode is the response code present in the response"
         }
     },
     "additionalProperties": false,
@@ -2622,9 +2584,9 @@ CSM Threats event for Linux systems have the following JSON schema:
     "required": [
         "id",
         "question",
-        "response"
+        "response_code"
     ],
-    "description": "DNSResponseEventSerializer serializes a DNS event to JSON"
+    "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
 }
 
 {{< /code-block >}}
@@ -2633,12 +2595,11 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `id` | id is the unique identifier of the DNS request |
 | `question` | question is a DNS question for the DNS request |
-| `response` | response is the DNS response for the question |
+| `response_code` | rcode is the response code present in the response |
 
 | References |
 | ---------- |
 | [DNSQuestion](#dnsquestion) |
-| [DNSResponse](#dnsresponse) |
 
 ## `EventContext`
 
