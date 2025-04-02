@@ -10,6 +10,9 @@ package ebpf
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/asm"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
@@ -27,7 +30,7 @@ func NewDefaultOptions() manager.Options {
 }
 
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
+func NewRuntimeSecurityManager(supportsRingBuffers bool, supportsTaskStorage bool) *ddebpf.Manager {
 	manager := &manager.Manager{
 		Maps: probes.AllMaps(),
 	}
@@ -36,5 +39,9 @@ func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
 	} else {
 		manager.PerfMaps = probes.AllPerfMaps()
 	}
-	return manager
+	var modifiers []ddebpf.Modifier
+	if !supportsTaskStorage {
+		modifiers = append(modifiers, ddebpf.NewHelperCallRemover(asm.FnTaskStorageGet, asm.FnTaskStorageDelete, asm.FnGetCurrentTaskBtf))
+	}
+	return ddebpf.NewManagerWithDefault(manager, "cws", modifiers...)
 }
