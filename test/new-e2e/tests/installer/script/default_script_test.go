@@ -183,7 +183,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 
 	// 4. Check the installer is present in the agent
 	state := s.host.State()
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0750, "dd-agent", "dd-agent")
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0755, "dd-agent", "dd-agent")
 
 	// 5. Assert the installer unit is not loaded
 	state.AssertUnitsNotLoaded("datadog-installer.service")
