@@ -53,7 +53,6 @@ var (
 		opensslSpec,
 		goTLSSpec,
 		istioSpec,
-		nodejsSpec,
 	}
 )
 
