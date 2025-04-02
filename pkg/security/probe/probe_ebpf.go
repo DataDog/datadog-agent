@@ -1299,7 +1299,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
-				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
+				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Question.Name)
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 			} else {

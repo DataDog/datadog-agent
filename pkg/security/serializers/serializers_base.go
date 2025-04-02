@@ -321,11 +321,11 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return &DNSEventSerializer{
 		ID: d.ID,
 		Question: DNSQuestionSerializer{
-			Class: model.QClass(d.Class).String(),
-			Type:  model.QType(d.Type).String(),
-			Name:  d.Name,
-			Size:  d.Size,
-			Count: d.Count,
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
 		},
 	}
 }
@@ -334,7 +334,7 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 func newDNSResponseEventSerializer(d *model.DNSResponse) *DNSResponseEventSerializer {
 	fmt.Println("DNS response event serializer")
 	return &DNSResponseEventSerializer{
-		ID: d.Question.ID,
+		ID: d.ID,
 		Question: DNSQuestionSerializer{
 			Class: model.QClass(d.Question.Class).String(),
 			Type:  model.QType(d.Question.Type).String(),

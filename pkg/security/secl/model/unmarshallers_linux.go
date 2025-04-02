@@ -1098,9 +1098,9 @@ func (e *DNSResponse) UnmarshalBinary(data []byte, dnsResolver *dns.Resolver) (i
 	}
 
 	if dnsLayer.ResponseCode != 0 {
+		e.ID = dnsLayer.ID
 		e.ResponseCode = uint8(dnsLayer.ResponseCode)
 		e.Question.Count = dnsLayer.QDCount
-		e.Question.ID = dnsLayer.ID
 		e.Question.Name = string(dnsLayer.Questions[0].Name)
 		e.Question.Class = uint16(dnsLayer.Questions[0].Class)
 		e.Question.Type = uint16(dnsLayer.Questions[0].Type)
@@ -1131,16 +1131,16 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.ID = binary.NativeEndian.Uint16(data[0:2])
-	e.Count = binary.NativeEndian.Uint16(data[2:4])
-	e.Type = binary.NativeEndian.Uint16(data[4:6])
-	e.Class = binary.NativeEndian.Uint16(data[6:8])
-	e.Size = binary.NativeEndian.Uint16(data[8:10])
+	e.Question.Count = binary.NativeEndian.Uint16(data[2:4])
+	e.Question.Type = binary.NativeEndian.Uint16(data[4:6])
+	e.Question.Class = binary.NativeEndian.Uint16(data[6:8])
+	e.Question.Size = binary.NativeEndian.Uint16(data[8:10])
 	var err error
-	e.Name, err = decodeDNSName(data[10:])
+	e.Question.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Question.Count, e.Question.Type, e.Question.Size)
 	}
-	if err = validateDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Question.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil

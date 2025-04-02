@@ -133,7 +133,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
 // If it was a success, we only send the packet to user-space
 // If it was an error, we send the packet with the process and network contexts to user-space
 // This classifier also makes use of an LRU to check if this packet had been sent to user-space recently in
-// order to avoid duplication, which can happen especially in a container in which we're hooked to many all of
+// order to avoid duplication, which can happen especially in a container in which we're hooked to all of
 // the interfaces it creates
 
     struct packet_t *pkt = get_packet();
