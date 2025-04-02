@@ -38,6 +38,7 @@ include:
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
 
 default:
   retry:
