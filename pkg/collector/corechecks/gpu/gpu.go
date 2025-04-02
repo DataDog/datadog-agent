@@ -202,14 +202,6 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
-	sentMetrics := 0
-
-	// Always send telemetry metrics
-	defer func() {
-		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
-		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
-	}()
-
 	if err := c.ensureInitDeviceCache(); err != nil {
 		return err
 	}
@@ -218,6 +210,28 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
+
+	return c.processSysprobeStats(snd, stats, gpuToContainersMap)
+}
+
+func addToActiveEntitiesPerDevice(activeEntitiesPerDevice map[string]common.StringSet, key model.StatsKey, processTags []string) {
+	if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
+		activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
+	}
+
+	for _, t := range processTags {
+		activeEntitiesPerDevice[key.DeviceUUID].Add(t)
+	}
+}
+
+func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gpuToContainersMap map[string][]*workloadmeta.Container) error {
+	sentMetrics := 0
+
+	// Always send telemetry metrics
+	defer func() {
+		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
+		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
+	}()
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
@@ -244,13 +258,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		deviceTags := c.deviceTags[key.DeviceUUID]
 
 		// Add the process tags to the active entities for the device, using a set to avoid duplicates
-		if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
-			activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
-		}
-
-		for _, t := range processTags {
-			activeEntitiesPerDevice[key.DeviceUUID].Add(t)
-		}
+		addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
 
 		allTags := append(processTags, deviceTags...)
 
@@ -271,15 +279,9 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 			snd.Gauge(metricNameCoreUsage, 0, "", tags)
 			sentMetrics += 2
 
-			// Here we also need to mark these entities as active, if we don't the limit metrics won't have
+			// Here we also need to mark these entities as active. If we don't, the limit metrics won't have
 			// the tags and utilization will not be reported for them, as the limit metric won't match
-			if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
-				activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
-			}
-
-			for _, t := range processTags {
-				activeEntitiesPerDevice[key.DeviceUUID].Add(t)
-			}
+			addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
 
 			delete(c.activeMetrics, key)
 		}
