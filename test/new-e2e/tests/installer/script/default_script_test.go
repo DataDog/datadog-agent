@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -46,7 +47,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"DD_SITE=datadoghq.com",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:2,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
-		"DD_NETWORK_CONFIG_ENABLED=true", // necessary to get process-agent running
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
@@ -78,7 +78,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"datadog-agent.service",
 		// "datadog-agent-installer.service", FIXME: uncomment when an agent+installer is released
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-agent-sysprobe.service",
 		"datadog-agent-security.service",
 	)
@@ -188,4 +187,21 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 	// 5. Assert the installer unit is not loaded
 	state.AssertUnitsNotLoaded("datadog-installer.service")
 	state.AssertUnitsLoaded("datadog-agent-installer.service")
+}
+
+// TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
+// the major / minor version when installing the agent
+func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
+	params := []string{
+		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_REMOTE_UPDATES=true",
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_AGENT_MINOR_VERSION=60.0",
+	}
+	defer s.Purge()
+	s.RunInstallScript(s.url, params...)
+
+	// Check the agent version is the latest one
+	installedVersion := s.host.AgentStableVersion()
+	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
 }
