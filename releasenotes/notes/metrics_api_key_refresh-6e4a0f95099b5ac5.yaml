@@ -9,5 +9,5 @@
 enhancements:
   - |
     Metric endpoints (main endpoint, ``additional_endpoints``,
-    ``multi_region_failover`` and ``vector``) will refresh the API
-    key returned by secrets when that secret returns a different key.
+    ``multi_region_failover`` and ``vector``) refresh the API key
+    returned by secrets when that secret returns a different key.
