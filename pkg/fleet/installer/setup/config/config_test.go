@@ -74,43 +74,6 @@ env: "old_env"
 	}, datadog)
 }
 
-func TestInjectTracerConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	config := Config{}
-	config.InjectTracerYAML = InjectTracerConfig{
-		Version:       1,
-		ConfigSources: "env",
-		AdditionalEnvironmentVariables: []InjectTracerConfigEnvVar{
-			{
-				Key:   "DD_ENV",
-				Value: "prod",
-			},
-		},
-	}
-
-	err := WriteConfigs(config, tempDir)
-	assert.NoError(t, err)
-
-	// Check inject/tracer.yaml
-	injectTracerConfigPath := filepath.Join(tempDir, injectTracerConfigFile)
-	assert.FileExists(t, injectTracerConfigPath)
-	injectTracerYAML, err := os.ReadFile(injectTracerConfigPath)
-	assert.NoError(t, err)
-	var injectTracer map[string]interface{}
-	err = yaml.Unmarshal(injectTracerYAML, &injectTracer)
-	assert.NoError(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"version":        1,
-		"config_sources": "env",
-		"additional_environment_variables": []interface{}{
-			map[string]interface{}{
-				"key":   "DD_ENV",
-				"value": "prod",
-			},
-		},
-	}, injectTracer)
-}
-
 func TestIntegrationConfigInstanceSpark(t *testing.T) {
 	tempDir := t.TempDir()
 	config := Config{
