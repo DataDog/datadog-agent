@@ -58,7 +58,6 @@ type Check struct {
 	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
 	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
 	deviceTags     map[string][]string     // deviceTags is a map of device UUID to tags
-	deviceCache    ddnvml.DeviceCache      // deviceCache is a cache of GPU devices
 }
 
 type checkTelemetry struct {
@@ -126,24 +125,6 @@ func (c *Check) ensureInitNVML() error {
 	return nil
 }
 
-func (c *Check) ensureInitDeviceCache() error {
-	if c.deviceCache != nil {
-		return nil
-	}
-
-	if err := c.ensureInitNVML(); err != nil {
-		return err
-	}
-
-	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(c.nvmlLib)
-	if err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
-	}
-
-	return nil
-}
-
 // ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
 // It returns an error if the initialization fails.
 func (c *Check) ensureInitCollectors() error {
@@ -154,17 +135,18 @@ func (c *Check) ensureInitCollectors() error {
 		return nil
 	}
 
-	if err := c.ensureInitDeviceCache(); err != nil {
+	_, err := ddnvml.GetDeviceCache()
+	if err != nil {
 		return err
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, DeviceCache: c.deviceCache})
+	collectors, err := nvidia.BuildCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
 	c.collectors = collectors
-	c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
+	c.deviceTags = nvidia.GetDeviceTagsMapping(c.tagger)
 	return nil
 }
 
@@ -210,7 +192,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 	}()
 
-	if err := c.ensureInitDeviceCache(); err != nil {
+	deviceCache, err := ddnvml.GetDeviceCache()
+	if err != nil {
 		return err
 	}
 
@@ -227,7 +210,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 
 	// map each device UUID to the set of tags corresponding to entities (processes) using it
 	activeEntitiesPerDevice := make(map[string]common.StringSet)
-	for _, dev := range c.deviceCache.All() {
+	for _, dev := range deviceCache.All() {
 		activeEntitiesPerDevice[dev.UUID] = common.NewStringSet()
 	}
 
@@ -278,7 +261,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// Use the list of active processes from system-probe instead of the ActivePIDs from the
 	// workloadmeta store, as the latter might not be up-to-date and we want these limit metrics
 	// to match the usage metrics reported above
-	for _, dev := range c.deviceCache.All() {
+	for _, dev := range deviceCache.All() {
 		deviceTags := c.deviceTags[dev.UUID]
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container

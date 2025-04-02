@@ -38,10 +38,11 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	}
 
 	nvmlMock := testutil.GetBasicNvmlMock()
-	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+	ddnvml.WithMockDeviceCache(t, nvmlMock)
+	deviceCache, err := ddnvml.GetDeviceCache()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{NVML: nvmlMock, DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	require.NotNil(t, deviceCache)
+	collectors, err := buildCollectors(map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 
@@ -125,9 +126,11 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			nvmlMock, fakeTagger := tc.mockSetup()
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+			ddnvml.WithMockDeviceCache(t, nvmlMock)
+			deviceCache, err := ddnvml.GetDeviceCache()
 			require.NoError(t, err)
-			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
+			require.NotNil(t, deviceCache)
+			tagsMapping := GetDeviceTagsMapping(fakeTagger)
 
 			// Assert
 			tc.expected(t, tagsMapping)

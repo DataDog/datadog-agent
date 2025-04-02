@@ -123,7 +123,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(nvmlLib)
+	ctx.deviceCache, err = ddnvml.GetDeviceCache()
 	if err != nil {
 		return nil, fmt.Errorf("error creating device cache: %w", err)
 	}
