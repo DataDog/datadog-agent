@@ -10,7 +10,8 @@
 
 __attribute__((always_inline)) struct imds_event_t *get_imds_event() {
     u32 key = IMDS_EVENT_KEY;
-    return bpf_map_lookup_elem(&imds_event, &key);
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
+    return &uh->imds_event;
 }
 
 __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk_buff *skb, struct packet_t *pkt) {

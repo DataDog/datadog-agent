@@ -6,9 +6,9 @@
 
 __attribute__((always_inline)) struct network_flow_monitor_event_t *get_network_flow_monitor_event() {
     u32 key = 0;
-    struct network_flow_monitor_event_t *evt = bpf_map_lookup_elem(&network_flow_monitor_event_gen, &key);
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
     // __builtin_memset doesn't work here because evt is too large and memset is allocating too much memory
-    return evt;
+    return &uh->network_flow_monitor_event;
 }
 
 __attribute__((always_inline)) struct active_flows_t *get_empty_active_flows() {

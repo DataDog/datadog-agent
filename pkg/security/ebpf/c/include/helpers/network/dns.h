@@ -11,8 +11,9 @@
 #include "maps.h"
 
 __attribute__((always_inline)) struct dns_event_t *get_dns_event() {
-    u32 key = DNS_EVENT_KEY;
-    return bpf_map_lookup_elem(&dns_event, &key);
+    u32 key = 0;
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
+    return &uh->dns_event;
 }
 
 __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
@@ -53,8 +54,9 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
 }
 
 __attribute__((always_inline)) struct dns_response_event_t *get_dns_response_event() {
-    const u32 key = DNS_EVENT_KEY;
-    return bpf_map_lookup_elem(&dns_response_event, &key);
+    const u32 key = 0;
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
+    return &uh->dns_response_event;
 }
 
 __attribute__((always_inline)) struct dns_response_event_t *reset_dns_response_event() {

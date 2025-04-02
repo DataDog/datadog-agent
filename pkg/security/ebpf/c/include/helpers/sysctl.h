@@ -10,12 +10,14 @@
 
 __attribute__((always_inline)) struct sysctl_event_t *get_sysctl_event() {
     u32 key = SYSCTL_EVENT_GEN_KEY;
-    return bpf_map_lookup_elem(&sysctl_event_gen, &key);
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
+    return &uh->sysctl_event;
 }
 
 __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     u32 key = SYSCTL_EVENT_GEN_KEY;
-    struct sysctl_event_t *evt = bpf_map_lookup_elem(&sysctl_event_gen, &key);
+    union union_heap_t* uh = bpf_map_lookup_elem(&union_heap, &key);
+    struct sysctl_event_t *evt = &uh->sysctl_event;
     if (evt == NULL) {
         // should never happen
         return NULL;
