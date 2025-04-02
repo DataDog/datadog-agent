@@ -184,7 +184,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 }
 
 func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor string) error {
-	packagePath, err := agent.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor)
+	packagePath, err := agent.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor, componentos.AMD64Arch) // Will be changed with c.Host.Architecture when it is exposed
 	if err != nil {
 		return err
 	}
