@@ -129,20 +129,6 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
-    //! initPythonHome member.
-    /*!
-      \brief This member function sets the Python home for the underlying python3 interpreter.
-      \param pythonHome A C-string to the target python home for the python runtime.
-    */
-    void initPythonHome(const char *pythonHome = NULL);
-
-    //! initPythonExe member.
-    /*!
-      \brief This member function sets the path to the underlying python3 interpreter.
-      \param python_exe A C-string to the target python executable.
-    */
-    void initPythonExe(const char *python_exe = NULL);
-
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified

@@ -42,12 +42,50 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    initPythonHome(python_home);
+    // Init config
+    PyConfig config;
+    PyStatus status;
 
-    // If not empty, set our Python interpreter path
-    if (python_exe && strlen(python_exe) > 0) {
-        initPythonExe(python_exe);
+    // Initialize the configuration with default values
+    PyConfig_InitPythonConfig(&config);
+
+    // Configure Python home
+    if (python_home && strlen(python_home) > 0) {
+        _pythonHome = Py_DecodeLocale(python_home, NULL);
+        if (_pythonHome == NULL) {
+            setError("Failed to decode python_home path");
+            PyConfig_Clear(&config);
+            return;
+        }
+        config.home = _pythonHome;
+    } else {
+        config.home = _defaultPythonHome;
     }
+
+    // Configure Python executable
+    if (python_exe && strlen(python_exe) > 0) {
+        _pythonExe = Py_DecodeLocale(python_exe, NULL);
+        if (_pythonExe == NULL) {
+            setError("Failed to decode python_exe path");
+            PyConfig_Clear(&config);
+            return;
+        }
+        status = PyConfig_SetBytesString(&config, &config.program_name, _pythonExe);
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set program name: " + std::string(status.err_msg));
+            PyConfig_Clear(&config);
+            return;
+        }
+    }
+
+    // Initialize Python with our configuration
+    status = Py_InitializeFromConfig(&config);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to initialize Python: " + std::string(status.err_msg));
+    }
+
+    // Clean up the configuration
+    PyConfig_Clear(&config);
 }
 
 Three::~Three()
@@ -58,50 +96,21 @@ Three::~Three()
     Py_XDECREF(_baseClass);
 }
 
-void Three::initPythonHome(const char *pythonHome)
-{
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonHome = _pythonHome;
-    if (pythonHome == NULL || strlen(pythonHome) == 0) {
-        _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
-    } else {
-        _pythonHome = Py_DecodeLocale(pythonHome, NULL);
-    }
-
-    Py_SetPythonHome(_pythonHome);
-    PyMem_RawFree((void *)oldPythonHome);
-}
-
-void Three::initPythonExe(const char *python_exe)
-{
-    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
-    wchar_t *oldPythonExe = _pythonExe;
-    _pythonExe = Py_DecodeLocale(python_exe, NULL);
-
-    Py_SetProgramName(_pythonExe);
-
-    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
-    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
-    // ineffective. The workaround API call will be removed at some point in the future (Python
-    // 3.12+) so we should convert this initialization to the new`PyConfig API`
-    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
-    _Py_SetProgramFullPath(_pythonExe);
-
-    PyMem_RawFree((void *)oldPythonExe);
-}
-
 bool Three::init()
 {
-    // we want the checks to be runned with the standard encoding utf-8
-    // setting this var to 1 forces the UTF8 mode for CPython >= 3.7
-    // See:
-    //	- PEP UTF8 mode https://www.python.org/dev/peps/pep-0540/
-    //	- about this var https://github.com/python/cpython/pull/12589
-    // This has to be set before the Py_Initialize() call.
-    Py_UTF8Mode = 1;
+    PyStatus status;
+    PyPreConfig preconfig;
+    PyPreConfig_InitPythonConfig(&preconfig);
+
+    preconfig.utf8_mode = 1;
+
+    status = Py_PreInitialize(&preconfig);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
 
     // add custom builtins init funcs to Python inittab, one by one
-    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
+    // Unlike its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
