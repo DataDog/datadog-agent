@@ -6,7 +6,6 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -141,13 +140,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		tags := getTagMapFromSlice(s.T(), log.Tags)
-		attrs := make(map[string]interface{})
-		err = json.Unmarshal([]byte(log.Message), &attrs)
-		assert.NoError(s.T(), err)
-		for k, v := range attrs {
-			tags[k] = fmt.Sprint(v)
-		}
+		tags := getLogTags(s.T(), log)
 		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])

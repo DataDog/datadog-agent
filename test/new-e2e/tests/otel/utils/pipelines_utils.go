@@ -319,13 +319,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		tags := getTagMapFromSlice(s.T(), log.Tags)
-		attrs := make(map[string]interface{})
-		err = json.Unmarshal([]byte(log.Message), &attrs)
-		assert.NoError(s.T(), err)
-		for k, v := range attrs {
-			tags[k] = fmt.Sprint(v)
-		}
+		tags := getLogTags(s.T(), log)
 		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
@@ -505,31 +499,19 @@ func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload
 }
 
 func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
-	logs1, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log1Body))
+	logs1, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageMatching(log1Body))
 	require.NoError(c, err)
 	require.NotEmpty(c, logs1)
 	log1 := logs1[0]
-	log1Tags := getTagMapFromSlice(c, log1.Tags)
-	attrs := make(map[string]interface{})
-	err = json.Unmarshal([]byte(log1.Message), &attrs)
-	require.NoError(c, err)
-	for k, v := range attrs {
-		log1Tags[k] = fmt.Sprint(v)
-	}
+	log1Tags := getLogTags(c, log1)
 
-	logs2, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
+	logs2, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageMatching(log2Body))
 	require.NoError(c, err)
 	require.NotEmpty(c, logs2)
 	matchedLog := false
 	for _, log2 := range logs2 {
 		// Find second log with the same trace id
-		log2Tags := getTagMapFromSlice(c, log2.Tags)
-		attrs = make(map[string]interface{})
-		err = json.Unmarshal([]byte(log2.Message), &attrs)
-		require.NoError(c, err)
-		for k, v := range attrs {
-			log2Tags[k] = fmt.Sprint(v)
-		}
+		log2Tags := getLogTags(c, log2)
 		if log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
 			// Verify that logs with the same trace id are sent to the same backend
 			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
@@ -823,6 +805,17 @@ func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 	}
 	splits := strings.Split(ctags, ",")
 	return getTagMapFromSlice(t, splits), true
+}
+
+func getLogTags(t require.TestingT, log *aggregator.Log) map[string]string {
+	tags := getTagMapFromSlice(t, log.Tags)
+	attrs := make(map[string]interface{})
+	err := json.Unmarshal([]byte(log.Message), &attrs)
+	require.NoError(t, err)
+	for k, v := range attrs {
+		tags[k] = fmt.Sprint(v)
+	}
+	return tags
 }
 
 func getTagMapFromSlice(t assert.TestingT, tagSlice []string) map[string]string {
