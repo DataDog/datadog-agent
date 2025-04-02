@@ -545,7 +545,7 @@ func TestClient(t *testing.T) {
 
 		ndmPayload := ndmPayloads[0]
 		assert.Equal(t, "default", ndmPayload.Namespace)
-		assert.Equal(t, "snmp", string(ndmPayload.Integration))
+		assert.Equal(t, "snmp", ndmPayload.Integration)
 		assert.Equal(t, "default:127.0.0.1", ndmPayload.Devices[0].ID)
 		assert.Contains(t, ndmPayload.Devices[0].IDTags, "snmp_device:127.0.0.1")
 		assert.Contains(t, ndmPayload.Devices[0].IDTags, "device_namespace:default")
@@ -554,7 +554,7 @@ func TestClient(t *testing.T) {
 		assert.Contains(t, ndmPayload.Devices[0].Tags, "snmp_device:127.0.0.1")
 		assert.Contains(t, ndmPayload.Devices[0].Tags, "device_namespace:default")
 		assert.Equal(t, "127.0.0.1", ndmPayload.Devices[0].IPAddress)
-		assert.Equal(t, int32(1), int32(ndmPayload.Devices[0].Status))
+		assert.Equal(t, int32(1), ndmPayload.Devices[0].Status)
 		assert.Equal(t, "Nexus-eu1.companyname.managed", ndmPayload.Devices[0].Name)
 		assert.Equal(t, "oxen acted but acted kept", ndmPayload.Devices[0].Description)
 		assert.Equal(t, "1.3.6.1.4.1.9.12.3.1.3.1.2", ndmPayload.Devices[0].SysObjectID)
@@ -567,11 +567,6 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "device", ndmPayload.Diagnoses[0].ResourceType)
 		assert.Equal(t, int64(1743497402), ndmPayload.CollectTimestamp)
 		assert.Empty(t, ndmPayload.Subnet)
-		assert.Empty(t, ndmPayload.IPAddresses)
-		assert.Empty(t, ndmPayload.Links)
-		assert.Empty(t, ndmPayload.NetflowExporters)
-		assert.Empty(t, ndmPayload.DeviceOIDs)
-		assert.Empty(t, ndmPayload.DeviceScanStatus)
 	})
 
 	t.Run("getNDMFlows", func(t *testing.T) {

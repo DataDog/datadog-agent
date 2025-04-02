@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
-//go:embed config-key-refresh/cisco-nexus.yaml
-var snmpKeyRefreshConfig string
+//go:embed config-vm/cisco-nexus.yaml
+var snmpVMConfig string
 
 type snmpVMSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -44,7 +44,7 @@ network_devices:
 		awshost.WithDocker(),
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpKeyRefreshConfig, true),
+			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
 		),
 	}
 	allOpts = append(allOpts, opts...)
@@ -65,7 +65,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	err := vm.CopyFolder("compose/data", "/tmp/data")
 	v.Require().NoError(err)
 
-	vm.CopyFile("compose-key-refresh/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
+	vm.CopyFile("compose-vm/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
 
 	_, err = vm.Execute("docker-compose -f /tmp/snmpCompose.yaml up -d")
 	v.Require().NoError(err)
@@ -153,7 +153,7 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 
 	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
 	assert.Equal(c, "default", ndmPayload.Namespace)
-	assert.Equal(c, "snmp", string(ndmPayload.Integration))
+	assert.Equal(c, "snmp", ndmPayload.Integration)
 	assert.Greater(c, len(ndmPayload.Devices), 0)
 	assert.Greater(c, len(ndmPayload.Interfaces), 0)
 
@@ -166,7 +166,7 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	assert.Contains(c, ciscoDevice.Tags, "snmp_device:127.0.0.1")
 	assert.Contains(c, ciscoDevice.Tags, "device_namespace:default")
 	assert.Equal(c, "127.0.0.1", ciscoDevice.IPAddress)
-	assert.Equal(c, int32(1), int32(ciscoDevice.Status))
+	assert.Equal(c, int32(1), ciscoDevice.Status)
 	assert.Equal(c, "Nexus-eu1.companyname.managed", ciscoDevice.Name)
 	assert.Equal(c, "oxen acted but acted kept", ciscoDevice.Description)
 	assert.Equal(c, "1.3.6.1.4.1.9.12.3.1.3.1.2", ciscoDevice.SysObjectID)
