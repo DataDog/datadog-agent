@@ -61,9 +61,33 @@ const (
 )
 
 type envVar struct {
-	key                string
-	valFunc            envValFunc
+	key string
+
+	valFunc   envValFunc
+	rawEnvVar *corev1.EnvVar
+
 	isEligibleToInject func(*corev1.Container) bool
+	prepend            bool
+}
+
+func (e envVar) nextEnvVar(prior corev1.EnvVar, found bool) (corev1.EnvVar, error) {
+	if e.rawEnvVar != nil {
+		return *e.rawEnvVar, nil
+	}
+
+	if !found {
+		return corev1.EnvVar{
+			Name:  e.key,
+			Value: e.valFunc(""),
+		}, nil
+	}
+
+	if prior.ValueFrom != nil {
+		return prior, fmt.Errorf("%q is defined via ValueFrom", e.key)
+	}
+
+	prior.Value = e.valFunc(prior.Value)
+	return prior, nil
 }
 
 // mutateContainer implements containerMutator for envVar.
@@ -75,21 +99,33 @@ func (e envVar) mutateContainer(c *corev1.Container) error {
 	index := slices.IndexFunc(c.Env, func(ev corev1.EnvVar) bool {
 		return ev.Name == e.key
 	})
-	if index < 0 {
-		c.Env = append(c.Env, corev1.EnvVar{
-			Name:  e.key,
-			Value: e.valFunc(""),
-		})
+
+	var found bool
+	var priorEnvVar corev1.EnvVar
+	if index >= 0 {
+		priorEnvVar = c.Env[index]
+		found = true
+	}
+
+	nextEnvVar, err := e.nextEnvVar(priorEnvVar, found)
+	if err != nil {
+		return err
+	}
+
+	if found {
+		c.Env[index] = nextEnvVar
 	} else {
-		if c.Env[index].ValueFrom != nil {
-			return fmt.Errorf("%q is defined via ValueFrom", e.key)
-		}
-		c.Env[index].Value = e.valFunc(c.Env[index].Value)
+		c.Env = appendOrPrepend(nextEnvVar, c.Env, e.prepend)
 	}
 
 	return nil
 }
 
+// envValFunc is a callback used in [[envVar]] to merge existing
+// values in environment values with previous ones if they were set.
+//
+// The input value to this callback function is the original env.Value
+// and will be empty string if there is no previous value.
 type envValFunc func(string) string
 
 func identityValFunc(s string) envValFunc {
@@ -133,4 +169,21 @@ func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
 
 func rubyEnvValFunc(predefinedVal string) string {
 	return predefinedVal + rubyOptValue
+}
+
+func useExistingEnvValOr(newVal string) func(string) string {
+	return func(predefinedVal string) string {
+		if predefinedVal != "" {
+			return predefinedVal
+		}
+		return newVal
+	}
+}
+
+func valueOrZero[T any](pointer *T) T {
+	var val T
+	if pointer != nil {
+		val = *pointer
+	}
+	return val
 }
