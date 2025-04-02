@@ -885,7 +885,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "length",
                 "value"
             ],
-            "description": "MatchingSubExprs serializes matching sub expression to JSON"
+            "description": "MatchingSubExpr serializes matching sub expression to JSON"
         },
         "ModuleEvent": {
             "properties": {
@@ -3351,7 +3351,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "length",
         "value"
     ],
-    "description": "MatchingSubExprs serializes matching sub expression to JSON"
+    "description": "MatchingSubExpr serializes matching sub expression to JSON"
 }
 
 {{< /code-block >}}
