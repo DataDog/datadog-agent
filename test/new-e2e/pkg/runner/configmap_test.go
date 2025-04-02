@@ -50,6 +50,7 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddagent:pipeline_id":                   auto.ConfigValue{Value: "pipeline_id", Secret: false},
 		"ddagent:commit_sha":                    auto.ConfigValue{Value: "commit_sha", Secret: false},
 		"ddagent:majorVersion":                  auto.ConfigValue{Value: "major_version", Secret: false},
+		"ddagent:localPackagePath":              auto.ConfigValue{Value: "local_package_path", Secret: false},
 		"ddagent:fips":                          auto.ConfigValue{Value: "fips", Secret: false},
 	}, configMap)
 }
