@@ -465,29 +465,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	// We might have shared maps, probes and TCs between supported and not supported protocols. We need to make sure
-	// that we're not excluding a shared resource if it is used by at least one supported protocol.
-	supportedMaps := make(map[string]struct{})
-	supportedProbes := make(map[string]struct{})
-	supportedTCs := make(map[string]struct{})
-	for _, p := range supported {
-		for _, m := range p.Maps {
-			supportedMaps[m.Name] = struct{}{}
-		}
-		for _, probe := range p.Probes {
-			supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
-		}
-		for _, tc := range p.TailCalls {
-			supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
-		}
-	}
-
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
 		for _, m := range p.Maps {
-			if _, ok := supportedMaps[m.Name]; ok {
-				log.Debugf("map %s is shared between enabled and disabled protocols", m.Name)
-				continue
+			// Unused maps still need to have a non-zero size
+			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
+				MaxEntries: uint32(1),
+				EditorFlag: manager.EditMaxEntries,
 			}
 			options.ExcludedMaps = append(options.ExcludedMaps, m.Name)
 
@@ -495,21 +479,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 
 		for _, probe := range p.Probes {
-			if _, ok := supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName]; ok {
-				log.Debugf("probe %s is shared between enabled and disabled protocols", probe.ProbeIdentificationPair.EBPFFuncName)
-				continue
-			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
-			log.Debugf("disabled probe: %v", probe.ProbeIdentificationPair.EBPFFuncName)
 		}
 
 		for _, tc := range p.TailCalls {
-			if _, ok := supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName]; ok {
-				log.Debugf("tail call %s is shared between enabled and disabled protocols", tc.ProbeIdentificationPair.EBPFFuncName)
-				continue
-			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
-			log.Debugf("disabled tail call: %v", tc.ProbeIdentificationPair.EBPFFuncName)
 		}
 	}
 
