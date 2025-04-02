@@ -32,13 +32,13 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	log := logmock.New(t)
 
 	// starting API Keys, before the update
-	keysPerDomains := map[string][]utils.Endpoint{
+	keysPerDomains := map[string][]utils.APIKeys{
 		"example1.com": {
-			utils.NewEndpoint("api_key", "api_key1"),
-			utils.NewEndpoint("additional_endpoints", "api_key2"),
+			utils.NewAPIKeys("api_key", "api_key1"),
+			utils.NewAPIKeys("additional_endpoints", "api_key2"),
 		},
 		"example2.com": {
-			utils.NewEndpoint("additional_endpoints", "api_key3"),
+			utils.NewAPIKeys("additional_endpoints", "api_key3"),
 		},
 	}
 	forwarderOptions := NewOptions(mockConfig, log, keysPerDomains)

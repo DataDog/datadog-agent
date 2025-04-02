@@ -39,14 +39,14 @@ func TestRemovePathIfPresent(t *testing.T) {
 func TestKeysPerDomain(t *testing.T) {
 	for _, tt := range []struct {
 		input    []Endpoint
-		expected map[string][]utils.Endpoint
+		expected map[string][]utils.APIKeys
 	}{
 		{
 			input: []Endpoint{
 				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path"},
 			},
-			expected: map[string][]utils.Endpoint{
-				"http://foo.com": {utils.NewEndpoint("path", "key1")},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {utils.NewAPIKeys("path", "key1")},
 			},
 		},
 		{
@@ -54,10 +54,10 @@ func TestKeysPerDomain(t *testing.T) {
 				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
 				{APIKey: "key2", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path2"},
 			},
-			expected: map[string][]utils.Endpoint{
+			expected: map[string][]utils.APIKeys{
 				"http://foo.com": {
-					utils.NewEndpoint("path1", "key1"),
-					utils.NewEndpoint("path2", "key2"),
+					utils.NewAPIKeys("path1", "key1"),
+					utils.NewAPIKeys("path2", "key2"),
 				},
 			},
 		},
@@ -66,9 +66,9 @@ func TestKeysPerDomain(t *testing.T) {
 				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
 				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com"), ConfigSettingPath: "path2"},
 			},
-			expected: map[string][]utils.Endpoint{
-				"http://foo.com": {utils.NewEndpoint("path1", "key1")},
-				"http://bar.com": {utils.NewEndpoint("path2", "key2")},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {utils.NewAPIKeys("path1", "key1")},
+				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
 		{
@@ -77,12 +77,12 @@ func TestKeysPerDomain(t *testing.T) {
 				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com"), ConfigSettingPath: "path2"},
 				{APIKey: "key3", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path3"},
 			},
-			expected: map[string][]utils.Endpoint{
+			expected: map[string][]utils.APIKeys{
 				"http://foo.com": {
-					utils.NewEndpoint("path1", "key1"),
-					utils.NewEndpoint("path3", "key3"),
+					utils.NewAPIKeys("path1", "key1"),
+					utils.NewAPIKeys("path3", "key3"),
 				},
-				"http://bar.com": {utils.NewEndpoint("path2", "key2")},
+				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
 	} {

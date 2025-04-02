@@ -39,7 +39,7 @@ type MetricDogStatsD struct {
 
 // MultipleEndpointConfig abstracts the config package
 type MultipleEndpointConfig interface {
-	GetMultipleEndpoints() (map[string][]utils.Endpoint, error)
+	GetMultipleEndpoints() (map[string][]utils.APIKeys, error)
 }
 
 // DogStatsDFactory allows create a new DogStatsD server
@@ -53,7 +53,7 @@ const (
 )
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func (m *MetricConfig) GetMultipleEndpoints() (map[string][]utils.Endpoint, error) {
+func (m *MetricConfig) GetMultipleEndpoints() (map[string][]utils.APIKeys, error) {
 	return utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
 }
 

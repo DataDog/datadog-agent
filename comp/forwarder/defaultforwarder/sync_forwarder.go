@@ -28,7 +28,7 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys, timeout time.Duration) *SyncForwarder {
 	return &SyncForwarder{
 		config:           config,
 		log:              log,

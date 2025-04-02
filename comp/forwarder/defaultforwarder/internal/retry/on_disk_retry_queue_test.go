@@ -134,13 +134,7 @@ func newTestOnDiskRetryQueue(t *testing.T, a *assert.Assertions, path string, ma
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
 	log := logmock.New(t)
-	storage, err := newOnDiskRetryQueue(log,
-		NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domainName, nil)),
-		path,
-		diskUsageLimit,
-		telemetry,
-		NewPointCountTelemetryMock(),
-	)
+	storage, err := newOnDiskRetryQueue(log, NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
 	a.NoError(err)
 	return storage
 }

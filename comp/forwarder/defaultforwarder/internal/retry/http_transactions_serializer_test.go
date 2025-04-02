@@ -26,11 +26,11 @@ const domain = "domain"
 const vectorDomain = "vectorDomain"
 
 func TestHTTPSerializeDeserialize(t *testing.T) {
-	r := resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)})
+	r := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("", apiKey1, apiKey2)})
 	runTestHTTPSerializeDeserializeWithResolver(t, domain, r)
 }
 func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
-	r := resolver.NewMultiDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)})
+	r := resolver.NewMultiDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("", apiKey1, apiKey2)})
 	r.RegisterAlternateDestination(vectorDomain, "name", resolver.Vector)
 	runTestHTTPSerializeDeserializeWithResolver(t, vectorDomain, r)
 }
@@ -88,7 +88,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
 	serializer := NewHTTPTransactionsSerializer(log,
-		resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1, apiKey2)}),
+		resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("", apiKey1, apiKey2)}),
 	)
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
@@ -101,7 +101,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.Equal(0, errorCount)
 
 	serializerMissingAPIKey := NewHTTPTransactionsSerializer(log,
-		resolver.NewSingleDomainResolver(domain, []utils.Endpoint{utils.NewEndpoint("", apiKey1)}),
+		resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("", apiKey1)}),
 	)
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)

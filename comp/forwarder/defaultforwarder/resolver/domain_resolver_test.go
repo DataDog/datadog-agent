@@ -14,9 +14,9 @@ import (
 
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
 	// Note key2 exists twice in the list.
-	apiKeys := []utils.Endpoint{
-		utils.NewEndpoint("additional_endpoints", "key1", "key2"),
-		utils.NewEndpoint("multi_region_failover.api_key", "key2"),
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2"),
+		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
 	}
 
 	resolver := NewSingleDomainResolver("example.com", apiKeys)

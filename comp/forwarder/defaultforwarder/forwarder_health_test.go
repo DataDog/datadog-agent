@@ -33,13 +33,13 @@ func TestCheckValidAPIKey(t *testing.T) {
 	defer ts1.Close()
 	defer ts2.Close()
 
-	keysPerDomains := map[string][]utils.Endpoint{
+	keysPerDomains := map[string][]utils.APIKeys{
 		ts1.URL: {
-			utils.NewEndpoint("", "api_key1"),
-			utils.NewEndpoint("", "api_key2"),
+			utils.NewAPIKeys("", "api_key1"),
+			utils.NewAPIKeys("", "api_key2"),
 		},
 		ts2.URL: {
-			utils.NewEndpoint("", "key3"),
+			utils.NewAPIKeys("", "key3"),
 		},
 	}
 	log := logmock.New(t)
@@ -54,19 +54,19 @@ func TestCheckValidAPIKey(t *testing.T) {
 }
 
 func TestComputeDomainsURL(t *testing.T) {
-	keysPerDomains := map[string][]utils.Endpoint{
-		"https://app.datadoghq.com":              {utils.NewEndpoint("", "api_key1")},
-		"https://custom.datadoghq.com":           {utils.NewEndpoint("", "api_key2")},
-		"https://custom.agent.datadoghq.com":     {utils.NewEndpoint("", "api_key3")},
-		"https://app.datadoghq.eu":               {utils.NewEndpoint("", "api_key4")},
-		"https://app.us2.datadoghq.com":          {utils.NewEndpoint("", "api_key5")},
-		"https://app.xx9.datadoghq.com":          {utils.NewEndpoint("", "api_key5")},
-		"https://custom.agent.us2.datadoghq.com": {utils.NewEndpoint("", "api_key6")},
+	keysPerDomains := map[string][]utils.APIKeys{
+		"https://app.datadoghq.com":              {utils.NewAPIKeys("", "api_key1")},
+		"https://custom.datadoghq.com":           {utils.NewAPIKeys("", "api_key2")},
+		"https://custom.agent.datadoghq.com":     {utils.NewAPIKeys("", "api_key3")},
+		"https://app.datadoghq.eu":               {utils.NewAPIKeys("", "api_key4")},
+		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("", "api_key5")},
+		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("", "api_key5")},
+		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
-		"https://app.datadoghq.internal": {utils.NewEndpoint("", "api_key7")},
-		"https://app.myproxy.com":        {utils.NewEndpoint("", "api_key8")},
-		"https://app.ddog-gov.com":       {utils.NewEndpoint("", "api_key9")},
-		"https://custom.ddog-gov.com":    {utils.NewEndpoint("", "api_key10")},
+		"https://app.datadoghq.internal": {utils.NewAPIKeys("", "api_key7")},
+		"https://app.myproxy.com":        {utils.NewAPIKeys("", "api_key8")},
+		"https://app.ddog-gov.com":       {utils.NewAPIKeys("", "api_key9")},
+		"https://custom.ddog-gov.com":    {utils.NewAPIKeys("", "api_key10")},
 	}
 
 	expectedMap := map[string][]string{
@@ -165,9 +165,9 @@ func TestUpdateAPIKey(t *testing.T) {
 	}
 
 	// starting API Keys, before the update
-	keysPerDomains := map[string][]utils.Endpoint{
-		ts1.URL: {utils.NewEndpoint("", "api_key1"), utils.NewEndpoint("", "api_key2")},
-		ts2.URL: {utils.NewEndpoint("", "api_key3")},
+	keysPerDomains := map[string][]utils.APIKeys{
+		ts1.URL: {utils.NewAPIKeys("", "api_key1"), utils.NewAPIKeys("", "api_key2")},
+		ts2.URL: {utils.NewAPIKeys("", "api_key3")},
 	}
 
 	log := logmock.New(t)

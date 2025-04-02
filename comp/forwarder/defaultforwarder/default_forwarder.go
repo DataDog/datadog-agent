@@ -121,7 +121,7 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.Endpoint) *Options {
+func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) *Options {
 
 	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)

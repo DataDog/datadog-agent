@@ -51,7 +51,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	cfg := pkgconfigsetup.Datadog()
 	forwarderOpts := forwarder.NewOptionsWithResolvers(cfg, deps.Log,
-		resolver.NewSingleDomainResolvers(map[string][]utils.Endpoint{"hello": {utils.NewEndpoint("", "world")}}),
+		resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}}),
 	)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true

@@ -24,14 +24,14 @@ type Endpoint struct {
 }
 
 // KeysPerDomains turns a list of endpoints into a map of URL -> []APIKey
-func KeysPerDomains(endpoints []Endpoint) map[string][]utils.Endpoint {
-	keysPerDomains := make(map[string][]utils.Endpoint)
+func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
+	keysPerDomains := make(map[string][]utils.APIKeys)
 
 	for _, ep := range endpoints {
 		domain := removePathIfPresent(ep.Endpoint)
-		keysPerDomains[domain] = append(keysPerDomains[domain], utils.Endpoint{
+		keysPerDomains[domain] = append(keysPerDomains[domain], utils.APIKeys{
 			ConfigSettingPath: ep.ConfigSettingPath,
-			APIKeys:           []string{ep.APIKey},
+			Keys:              []string{ep.APIKey},
 		})
 	}
 

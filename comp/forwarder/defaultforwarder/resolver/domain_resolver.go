@@ -38,7 +38,7 @@ type DomainResolver interface {
 	// destination type
 	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
 	// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-	GetEndpoints() []utils.Endpoint
+	GetEndpoints() []utils.APIKeys
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
 	GetAPIKeys() []string
 	// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
@@ -58,7 +58,7 @@ type DomainResolver interface {
 // SingleDomainResolver will always return the same host
 type SingleDomainResolver struct {
 	domain         string
-	apiKeys        []utils.Endpoint
+	apiKeys        []utils.APIKeys
 	dedupedAPIKeys []string
 	mu             sync.Mutex
 }
@@ -102,9 +102,9 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 }
 
 // NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []utils.Endpoint) *SingleDomainResolver {
+func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) *SingleDomainResolver {
 
-	deduped := utils.DedupEndpoint(apiKeys)
+	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &SingleDomainResolver{
 		domain,
@@ -115,7 +115,7 @@ func NewSingleDomainResolver(domain string, apiKeys []utils.Endpoint) *SingleDom
 }
 
 // NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
-func NewSingleDomainResolvers(keysPerDomain map[string][]utils.Endpoint) map[string]DomainResolver {
+func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) map[string]DomainResolver {
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
 		resolvers[domain] = NewSingleDomainResolver(domain, keys)
@@ -146,7 +146,7 @@ func (r *SingleDomainResolver) SetAPIKeys(keys []string) {
 }
 
 // GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *SingleDomainResolver) GetEndpoints() []utils.Endpoint {
+func (r *SingleDomainResolver) GetEndpoints() []utils.APIKeys {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys
@@ -169,8 +169,8 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys[idx].APIKeys))
-			for _, key := range r.apiKeys[idx].APIKeys {
+			replace := make([]string, 0, len(r.apiKeys[idx].Keys))
+			for _, key := range r.apiKeys[idx].Keys {
 				if key == oldKey {
 					replace = append(replace, newKey)
 				} else {
@@ -178,11 +178,11 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 				}
 			}
 
-			r.apiKeys[idx].APIKeys = replace
+			r.apiKeys[idx].Keys = replace
 		}
 	}
 
-	r.dedupedAPIKeys = utils.DedupEndpoint(r.apiKeys)
+	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver
@@ -198,7 +198,7 @@ type destination struct {
 // MultiDomainResolver holds a default value and can provide alternate domain for some route
 type MultiDomainResolver struct {
 	baseDomain          string
-	apiKeys             []utils.Endpoint
+	apiKeys             []utils.APIKeys
 	dedupedAPIKeys      []string
 	overrides           map[string]destination
 	alternateDomainList []string
@@ -206,8 +206,8 @@ type MultiDomainResolver struct {
 }
 
 // NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
-func NewMultiDomainResolver(baseDomain string, apiKeys []utils.Endpoint) *MultiDomainResolver {
-	deduped := utils.DedupEndpoint(apiKeys)
+func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) *MultiDomainResolver {
+	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &MultiDomainResolver{
 		baseDomain,
@@ -232,7 +232,7 @@ func (r *MultiDomainResolver) SetAPIKeys(keys []string) {
 }
 
 // GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *MultiDomainResolver) GetEndpoints() []utils.Endpoint {
+func (r *MultiDomainResolver) GetEndpoints() []utils.APIKeys {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys
@@ -268,8 +268,8 @@ func (r *MultiDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys[idx].APIKeys))
-			for _, key := range r.apiKeys[idx].APIKeys {
+			replace := make([]string, 0, len(r.apiKeys[idx].Keys))
+			for _, key := range r.apiKeys[idx].Keys {
 				if key == oldKey {
 					replace = append(replace, newKey)
 				} else {
@@ -277,11 +277,11 @@ func (r *MultiDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 				}
 			}
 
-			r.apiKeys[idx].APIKeys = replace
+			r.apiKeys[idx].Keys = replace
 		}
 	}
 
-	r.dedupedAPIKeys = utils.DedupEndpoint(r.apiKeys)
+	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
 }
 
 // RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.
@@ -305,7 +305,7 @@ func (r *MultiDomainResolver) GetBearerAuthToken() string {
 }
 
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.Endpoint, vectorEndpoint string) *MultiDomainResolver {
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.APIKeys, vectorEndpoint string) *MultiDomainResolver {
 	r := NewMultiDomainResolver(mainEndpoint, apiKeys)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
 	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
@@ -348,8 +348,8 @@ func (r *LocalDomainResolver) SetAPIKeys(_keys []string) {
 }
 
 // GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *LocalDomainResolver) GetEndpoints() []utils.Endpoint {
-	return []utils.Endpoint{}
+func (r *LocalDomainResolver) GetEndpoints() []utils.APIKeys {
+	return []utils.APIKeys{}
 }
 
 // SetBaseDomain sets the base domain to a new value
