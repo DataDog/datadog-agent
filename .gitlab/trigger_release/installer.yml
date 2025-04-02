@@ -29,7 +29,7 @@
 
 installer_trigger_auto_staging_release:
   extends: .installer_release_management_trigger
-  timeout: 2h 30
+  timeout: 2h 30m
   variables:
     AUTO_RELEASE: "true"
     TARGET_REPO: staging
@@ -40,7 +40,7 @@ installer_trigger_auto_staging_release:
 
 installer_trigger_auto_staging_release_on_failure:
   extends: .installer_release_management_trigger
-  timeout: 2h 30
+  timeout: 2h 30m
   variables:
     AUTO_RELEASE: "false"
     TARGET_REPO: staging
