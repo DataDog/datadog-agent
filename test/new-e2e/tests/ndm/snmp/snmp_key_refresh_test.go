@@ -158,7 +158,7 @@ func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	assert.Greater(c, len(ndmPayload.Interfaces), 0)
 
 	ciscoDevice := ndmPayload.Devices[0]
-	assert.Equal(c, "snmp_device:127.0.0.1", ciscoDevice.ID)
+	assert.Equal(c, "default:127.0.0.1", ciscoDevice.ID)
 	assert.Contains(c, ciscoDevice.IDTags, "snmp_device:127.0.0.1")
 	assert.Contains(c, ciscoDevice.IDTags, "device_namespace:default")
 	assert.Contains(c, ciscoDevice.Tags, "snmp_profile:cisco-nexus")
