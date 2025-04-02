@@ -79,8 +79,9 @@ type Packages struct {
 }
 
 type packageWithVersion struct {
-	name    string
-	version string
+	name            string
+	version         string
+	stagingOverride bool
 }
 
 // Install marks a package to be installed
@@ -88,6 +89,14 @@ func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:    pkg,
 		version: version,
+	}
+}
+
+func (p *Packages) InstallStaging(pkg string, version string) {
+	p.install[pkg] = packageWithVersion{
+		name:            pkg,
+		version:         version,
+		stagingOverride: true,
 	}
 }
 

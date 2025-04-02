@@ -135,6 +135,9 @@ func (s *Setup) Run() (err error) {
 
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
+		if p.stagingOverride {
+			url = oci.StagingPackageURL(p.name, p.version)
+		}
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)

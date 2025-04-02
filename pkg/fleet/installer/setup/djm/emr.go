@@ -21,7 +21,7 @@ import (
 
 const (
 	emrInjectorVersion   = "0.35.0-1"
-	emrJavaTracerVersion = "1.47.0-1"
+	emrJavaTracerVersion = "1.48.0-SNAPSHOT-f020e299f5-pipeline.60604525.beta.sha-f020e299-1"
 	emrAgentVersion      = "7.63.3-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
@@ -59,7 +59,7 @@ func SetupEmr(s *common.Setup) error {
 	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
+	s.Packages.InstallStaging(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
 	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
@@ -81,13 +81,6 @@ func SetupEmr(s *common.Setup) error {
 	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigEmr,
-	}
-	// Force injection (is it needed here?)
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = []config.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_INJECT_FORCE",
-			Value: "true",
-		},
 	}
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"

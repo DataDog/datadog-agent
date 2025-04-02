@@ -47,10 +47,6 @@ func WriteConfigs(config Config, configDir string) error {
 			return fmt.Errorf("could not write system-probe.yaml: %w", err)
 		}
 	}
-	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
-	if err != nil {
-		return fmt.Errorf("could not write tracer.yaml: %w", err)
-	}
 	for name, config := range config.IntegrationConfigs {
 		err = writeConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
 		if err != nil {
@@ -116,8 +112,6 @@ type Config struct {
 	SecurityAgentYAML *SecurityAgentConfig
 	// SystemProbeYAML is the content of the system-probe.yaml file
 	SystemProbeYAML *SystemProbeConfig
-	// InjectTracerYAML is the content of the inject/tracer.yaml file
-	InjectTracerYAML InjectTracerConfig
 	// IntegrationConfigs is the content of the integration configuration files under conf.d/
 	IntegrationConfigs map[string]IntegrationConfig
 	// ApplicationMonitoringYAML is the content of the application_monitoring.yaml configuration file
