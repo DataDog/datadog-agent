@@ -1382,6 +1382,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	case model.OnDemandEventType:
+		if p.onDemandManager.isDisabled() {
+			seclog.Debugf("on-demand event received but on-demand probes are disabled")
+			return
+		}
+
 		if !p.onDemandRateLimiter.Allow() {
 			seclog.Errorf("on-demand event rate limit reached, disabling on-demand probes to protect the system")
 			p.onDemandManager.disable()
