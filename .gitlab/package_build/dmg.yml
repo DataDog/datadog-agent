@@ -49,6 +49,7 @@ new-agent_dmg-x64-a7:
     expire_in: 2 weeks
     paths:
       # TODO: Verify
+      - $OMNIBUS_PACKAGE_DIR
       - datadog-agent-build
       # TODO
       - omnibus_build
@@ -67,9 +68,7 @@ new-agent_dmg-x64-a7:
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     # TODO A: See OMNIBUS_BASE_DIR
     - echo "$OMNIBUS_PACKAGE_DIR"
-    - export OMNIBUS_PACKAGE_DIR="$CI_PROJECT_DIR/omnibus/pkg/"
     - mkdir -p "$OMNIBUS_PACKAGE_DIR"
-    - echo "$OMNIBUS_PACKAGE_DIR"
 
     - brew uses gettext --installed || true
     # - ls /usr/local/opt/gettext || true
