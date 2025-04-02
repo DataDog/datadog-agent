@@ -191,4 +191,14 @@ func TestRawPacketTailCalls(t *testing.T) {
 
 		testRawPacketFilter(t, filters, 2, 2, opts, false)
 	})
+
+	t.Run("tcp-elf-magic-number", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp[((tcp[12] & 0xf0) >> 2):4] = 0x7f454c46",
+			},
+		}
+		testRawPacketFilter(t, filters, 0, 1, rawpacket.DefaultProgOpts(), true)
+	})
 }

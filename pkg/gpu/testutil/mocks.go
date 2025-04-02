@@ -9,12 +9,10 @@
 package testutil
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -122,6 +120,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 		},
+		GetIndexFunc: func() (int, nvml.Return) {
+			return deviceIdx, nvml.SUCCESS
+		},
 	}
 }
 
@@ -170,44 +171,6 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
-func GetTelemetryMock(t testing.TB) telemetry.Component {
-	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-}
-
-// RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better
-// output than using require.Equal on the devices themselves
-func RequireDevicesEqual(t *testing.T, expected, actual nvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	expectedUUID, ret := expected.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%s%scannot retrieve UUID for expected device %v%s", extraFmt, expected)
-
-	actualUUID, ret := actual.GetUUID()
-	require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device %v%s", extraFmt, actual)
-
-	require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match", extraFmt)
-}
-
-// RequireDeviceListsEqual checks that the two device lists are equal by comparing their UUIDs, which gives a better
-// output than using require.ElementsMatch on the lists themselves
-func RequireDeviceListsEqual(t *testing.T, expected, actual []nvml.Device, msgAndArgs ...interface{}) {
-	extraFmt := ""
-	if len(msgAndArgs) > 0 {
-		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
-	}
-
-	require.Len(t, actual, len(expected), "%sdevice lists have different lengths", extraFmt)
-
-	for i := range expected {
-		expectedUUID, ret := expected[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for expected device index %d", extraFmt, i)
-
-		actualUUID, ret := actual[i].GetUUID()
-		require.Equal(t, ret, nvml.SUCCESS, "%scannot retrieve UUID for actual device index %d", extraFmt, i)
-
-		require.Equal(t, expectedUUID, actualUUID, "%sUUIDs do not match for element %d", extraFmt, i)
-	}
+func GetTelemetryMock(t testing.TB) telemetry.Mock {
+	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 }
