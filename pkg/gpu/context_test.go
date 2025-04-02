@@ -39,7 +39,7 @@ func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *syste
 
 func TestFilterDevicesForContainer(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx := getTestSystemContext(t)
+	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
