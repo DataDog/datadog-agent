@@ -146,7 +146,7 @@ func (c *Check) ensureInitCollectors() error {
 // Cancel stops the check
 func (c *Check) Cancel() {
 	if lib, err := ddnvml.GetNvmlLib(); err == nil {
-		lib.Shutdown()
+		_ = lib.Shutdown()
 	}
 
 	c.CheckBase.Cancel()
