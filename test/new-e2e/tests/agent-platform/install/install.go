@@ -27,10 +27,6 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	params := installparams.NewParams(options...)
 	commandLine := ""
 
-	if params.LocalPath != "" {
-		client.InstallAgentFromLocalPackage(params.LocalPath, params.Flavor)
-	}
-
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
@@ -73,6 +69,12 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		} else {
 			source = "dd-agent repository"
 			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
+		}
+
+		if params.LocalPath != "" {
+			err := client.InstallAgentFromLocalPackage(params.LocalPath, params.Flavor)
+			require.NoError(tt, err, "failed to install agent from local package: ", err)
+			return
 		}
 
 		_, err := client.ExecuteWithRetry(downloadCmd)
