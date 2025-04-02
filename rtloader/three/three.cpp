@@ -50,8 +50,9 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     PyConfig_InitPythonConfig(&config);
 
     // Configure Python home
-    const char* home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
+    const char *home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
     status = PyConfig_SetBytesString(&config, &config.home, home_path);
+    PyMem_RawFree((void *)home_path);
     if (PyStatus_Exception(status)) {
         setError("Failed to set python home: " + std::string(status.err_msg));
         PyConfig_Clear(&config);
