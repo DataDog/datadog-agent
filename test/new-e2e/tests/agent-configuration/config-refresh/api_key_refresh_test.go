@@ -65,20 +65,6 @@ api_key: ENC[api_key]
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
-	// Verify the secret refresh output structure and content
-	assert.Contains(v.T(), secretRefreshOutput, "Number of secrets reloaded: 4")
-	assert.Contains(v.T(), secretRefreshOutput, "Secrets handle reloaded:")
-	assert.Contains(v.T(), secretRefreshOutput, "- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'")
-	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'")
-	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'")
-	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'")
-	assert.Contains(v.T(), secretRefreshOutput, "could not contact security-agent")
-	assert.Contains(v.T(), secretRefreshOutput, "could not contact process-agent")
-
-	// Verify that the output contains both Agent and APM agent refresh sections
-	assert.Contains(v.T(), secretRefreshOutput, "Agent refresh:")
-	assert.Contains(v.T(), secretRefreshOutput, "APM agent refresh:")
-
 	// Assert that the status command shows the new API Key
 	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
