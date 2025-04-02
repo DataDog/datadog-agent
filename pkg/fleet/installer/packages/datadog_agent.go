@@ -128,13 +128,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return err
 	}
 
-	// Put experiment units on disk, but don't start them
-	err = setupExperimentUnits(ctx, false)
-	if err != nil {
-		return err
-	}
-
-	err = setupStableUnits(ctx, true)
+	err = setupStableUnits(ctx)
 	return err
 }
 
@@ -231,17 +225,13 @@ func RemoveAgent(ctx context.Context) error {
 	}
 
 	// remove units from disk
-	for _, unit := range experimentalUnits {
-		if err := systemd.RemoveUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
-			spanErr = err
-		}
+	spanErr = removeAgentUnits(ctx, experimentalUnits)
+	if spanErr != nil {
+		log.Warnf("Failed to remove experimental units: %s", spanErr)
 	}
-	for _, unit := range stableUnits {
-		if err := systemd.RemoveUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
-			spanErr = err
-		}
+	spanErr = removeAgentUnits(ctx, stableUnits)
+	if spanErr != nil {
+		log.Warnf("Failed to remove stable units: %s", spanErr)
 	}
 	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
@@ -258,7 +248,7 @@ func StartAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	err := setupExperimentUnits(ctx, true)
+	err := setupExperimentUnits(ctx)
 	return err
 }
 
@@ -269,27 +259,40 @@ func StopAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	err := setupStableUnits(ctx, true)
-	return err
+	if err := removeAgentUnits(ctx, experimentalUnits); err != nil {
+		return err
+	}
+	return setupStableUnits(ctx)
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	err := setupStableUnits(ctx, true)
-	return err
+	if err := removeAgentUnits(ctx, experimentalUnits); err != nil {
+		return err
+	}
+	return setupStableUnits(ctx)
 }
 
-func setupStableUnits(ctx context.Context, start bool) error {
-	return setupAgentUnits(ctx, agentUnit, stableUnits, start)
+func setupStableUnits(ctx context.Context) error {
+	return setupAgentUnits(ctx, agentUnit, stableUnits)
 }
 
-func setupExperimentUnits(ctx context.Context, start bool) error {
-	return setupAgentUnits(ctx, agentExp, experimentalUnits, start, "--no-block")
+func setupExperimentUnits(ctx context.Context) error {
+	return setupAgentUnits(ctx, agentExp, experimentalUnits, "--no-block")
 }
 
-func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string, start bool, startArgs ...string) error {
+func removeAgentUnits(ctx context.Context, units []string) error {
+	for _, unit := range units {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string, startArgs ...string) error {
 	for _, unit := range units {
 		if err := systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
@@ -313,10 +316,8 @@ func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string, 
 		// the config is populated afterwards by the install method and the agent is restarted
 		return nil
 	}
-	if start {
-		if err = systemd.StartUnit(ctx, coreAgentUnit, startArgs...); err != nil {
-			return err
-		}
+	if err = systemd.StartUnit(ctx, coreAgentUnit, startArgs...); err != nil {
+		return err
 	}
 	return nil
 }
