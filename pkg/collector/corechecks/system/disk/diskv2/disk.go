@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package disk provides Disk Check.
-package disk
+// Package diskv2 provides Disk Check.
+package diskv2
 
 import (
 	"errors"

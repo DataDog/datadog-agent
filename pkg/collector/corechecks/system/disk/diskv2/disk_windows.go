@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package disk
+package diskv2
 
 import (
 	"fmt"

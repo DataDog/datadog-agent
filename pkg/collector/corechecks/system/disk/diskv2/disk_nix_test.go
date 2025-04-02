@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package disk_test
+package diskv2_test
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,13 +39,13 @@ const blkidData = string(`
 `)
 
 func setupPlatformMocks() {
-	disk.LsblkCommand = func() (string, error) {
+	diskv2.LsblkCommand = func() (string, error) {
 		return LsblkData, nil
 	}
-	disk.BlkidCacheCommand = func(_blkidCacheFile string) (string, error) {
+	diskv2.BlkidCacheCommand = func(_blkidCacheFile string) (string, error) {
 		return blkidCacheData, nil
 	}
-	disk.BlkidCommand = func() (string, error) {
+	diskv2.BlkidCommand = func() (string, error) {
 		return blkidData, nil
 	}
 }
@@ -132,7 +132,7 @@ tag_by_label: true
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	disk.BlkidCommand = func() (string, error) {
+	diskv2.BlkidCommand = func() (string, error) {
 		return "", errors.New("error calling blkid")
 	}
 	diskCheck := createCheck()
@@ -221,7 +221,7 @@ use_lsblk: true
 
 func TestGivenADiskCheckWithUseLsblkConfiguredTrue_WhenLsblkReturnsError_ThenLsblkLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
-	disk.LsblkCommand = func() (string, error) {
+	diskv2.LsblkCommand = func() (string, error) {
 		return "", errors.New("error calling lsblk")
 	}
 	diskCheck := createCheck()
@@ -246,7 +246,7 @@ use_lsblk: true
 func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenCheckRuns_ThenBlkidCacheFileLabelsAreReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
 	var actualBlkidCacheFile string
-	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+	diskv2.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
 		actualBlkidCacheFile = blkidCacheFile
 		return blkidCacheData, nil
 	}
@@ -273,7 +273,7 @@ blkid_cache_file: /run/blkid/blkid.tab
 func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheReturnsError_ThenBlkidCacheLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
 	var actualBlkidCacheFile string
-	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+	diskv2.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
 		actualBlkidCacheFile = blkidCacheFile
 		return "", errors.New("error calling blkid cache")
 	}
@@ -300,7 +300,7 @@ blkid_cache_file: /run/blkid/blkid.tab
 func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheHasWrongLines_ThenBlkidCacheLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
 	var actualBlkidCacheFile string
-	disk.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
+	diskv2.BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
 		actualBlkidCacheFile = blkidCacheFile
 		return string(`
 <device DEVNO="0x0801" LABEL="MYLABEL" UUID="1234-5678" TYPE="ext4">/dev/sda1</device>

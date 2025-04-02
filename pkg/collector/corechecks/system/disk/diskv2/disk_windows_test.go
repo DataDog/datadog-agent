@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package disk_test
+package diskv2_test
 
 import (
 	"bufio"
@@ -15,13 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupPlatformMocks() {
-	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
 		return nil
 	}
 }
@@ -49,7 +49,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
 	setupDefaultMocks()
 	var netAddConnectionCalls []NetAddConnectionCall
-	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
 		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
 			Name: "mount",
 			Args: []string{"-t", mountType, remoteName, localName},
@@ -103,7 +103,7 @@ create_mounts:
 func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
 	setupDefaultMocks()
 	var netAddConnectionCalls []NetAddConnectionCall
-	disk.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
 		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
 			Name: "mount",
 			Args: []string{"-t", mountType, remoteName, localName},
@@ -135,7 +135,7 @@ create_mounts:
 
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	disk.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
 		return errors.New("error calling NetAddConnection")
 	}
 	diskCheck := createCheck()
