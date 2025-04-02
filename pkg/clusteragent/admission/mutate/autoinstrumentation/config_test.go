@@ -18,6 +18,9 @@ import (
 )
 
 func TestNewInstrumentationConfig(t *testing.T) {
+	defaultExcludeContainers := &ExcludeContainers{
+		Names: []string{"istio-proxy"},
+	}
 	tests := []struct {
 		name       string
 		configPath string
@@ -35,8 +38,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:           "v2",
+				ExcludeContainers: defaultExcludeContainers,
+				InjectorImageTag:  "foo",
 			},
 		},
 		{
@@ -56,8 +60,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:           "v2",
+				InjectorImageTag:  "foo",
+				ExcludeContainers: defaultExcludeContainers,
 			},
 		},
 		{
@@ -70,6 +75,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
 				Version:           "v2",
+				ExcludeContainers: defaultExcludeContainers,
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -118,6 +124,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
 				Version:           "v2",
+				ExcludeContainers: defaultExcludeContainers,
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -174,6 +181,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
 				Version:            "v2",
+				ExcludeContainers:  defaultExcludeContainers,
 				LibVersions:        map[string]string{},
 				Targets: []Target{
 					{
@@ -190,6 +198,19 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		{
+			name:       "with exclude containers",
+			configPath: "testdata/with_exclude_containers.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				Version:            "v2",
+				ExcludeContainers:  &ExcludeContainers{Names: []string{"istio-proxy"}},
+				LibVersions:        map[string]string{},
 			},
 		},
 		{
@@ -258,6 +279,32 @@ func TestLibVersionsEnvVar(t *testing.T) {
 			actual, err := NewInstrumentationConfig(configmock.New(t))
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actual.LibVersions)
+		})
+	}
+}
+
+func TestExcludedContainerNamesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "nil",
+			expected: nil,
+		},
+		{
+			name:     "one",
+			expected: []string{"istio-proxy"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_EXCLUDE_CONTAINERS_NAMES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.ExcludeContainers.Names)
 		})
 	}
 }

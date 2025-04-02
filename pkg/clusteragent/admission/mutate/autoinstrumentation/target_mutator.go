@@ -33,13 +33,13 @@ const (
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	enabled                           bool
-	core                              *mutatorCore
-	targets                           []targetInternal
-	disabledNamespaces                map[string]bool
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
-	containerRegistry                 string
+	enabled                       bool
+	core                          *mutatorCore
+	targets                       []targetInternal
+	disabledNamespaces            map[string]bool
+	securityClientLibraryMutator  containerMutator
+	profilingClientLibraryMutator containerMutator
+	containerRegistry             string
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -125,15 +125,16 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 	}
 
 	m := &TargetMutator{
-		enabled:                           config.Instrumentation.Enabled,
-		targets:                           internalTargets,
-		disabledNamespaces:                disabledNamespacesMap,
-		securityClientLibraryPodMutators:  config.securityClientLibraryPodMutators,
-		profilingClientLibraryPodMutators: config.profilingClientLibraryPodMutators,
-		containerRegistry:                 config.containerRegistry,
+		enabled:                       config.Instrumentation.Enabled,
+		targets:                       internalTargets,
+		disabledNamespaces:            disabledNamespacesMap,
+		securityClientLibraryMutator:  config.securityClientLibraryMutator,
+		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
+		containerRegistry:             config.containerRegistry,
 	}
 
-	// Create the core mutator. This is a bit gross. The target mutator is also the filter which we are passing in.
+	// Create the core mutator. This is a bit gross.
+	// The target mutator is also the filter which we are passing in.
 	core := newMutatorCore(config, wmeta, m)
 	m.core = core
 
@@ -178,24 +179,21 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
 
-	// Add the configuration for the security client library.
-	for _, mutator := range m.securityClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for security client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
-	// Add the configuration for profiling.
-	for _, mutator := range m.profilingClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
-	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
-	// in the target.
+	// Inject the tracer configs.
+	// We do this before lib injection to ensure DD_SERVICE is set
+	// if the user configures it in the target.
 	for _, envVar := range target.envVars {
-		mutatecommon.InjectEnv(pod, envVar)
+		_ = m.core.mutatePodContainers(pod, containerEnvVarMutator{
+			EnvVar: envVar,
+		})
 	}
 
 	// Inject the libraries.

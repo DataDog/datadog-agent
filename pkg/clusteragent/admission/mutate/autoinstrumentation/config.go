@@ -38,8 +38,12 @@ type Config struct {
 	containerRegistry string
 
 	// precomputed mutators for the security and profiling products
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
+	securityClientLibraryMutator  containerMutator
+	profilingClientLibraryMutator containerMutator
+
+	// precomputed containerPredicate to use with filteredContainerMutator
+	// and other mutators
+	containerFilter containerPredicate
 
 	// initResources is the resource requirements for the init container
 	initResources initResourceRequirementConfiguration
@@ -82,18 +86,30 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
 	}
 
+	excludeContainerNames := map[string]bool{}
+	if instrumentationConfig.ExcludeContainers != nil {
+		for _, n := range instrumentationConfig.ExcludeContainers.Names {
+			excludeContainerNames[n] = true
+		}
+	}
+	containerFilter := func(c *corev1.Container, _ bool) bool {
+		_, exclude := excludeContainerNames[c.Name]
+		return !exclude
+	}
+
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	return &Config{
-		Webhook:                           NewWebhookConfig(datadogConfig),
-		LanguageDetection:                 NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:                   instrumentationConfig,
-		containerRegistry:                 containerRegistry,
-		initResources:                     initResources,
-		initSecurityContext:               initSecurityContext,
-		defaultResourceRequirements:       defaultResourceRequirements,
-		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
-		version:                           version,
+		Webhook:                       NewWebhookConfig(datadogConfig),
+		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+		Instrumentation:               instrumentationConfig,
+		containerRegistry:             containerRegistry,
+		initResources:                 initResources,
+		initSecurityContext:           initSecurityContext,
+		defaultResourceRequirements:   defaultResourceRequirements,
+		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+		containerFilter:               containerFilter,
+		version:                       version,
 	}, nil
 }
 
@@ -165,6 +181,15 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
+	// ExcludeContainers configuration for containers to exclude from auto instrumentation.
+	// By default, istio-proxy containers are excluded, but this can be overwritten.
+	ExcludeContainers *ExcludeContainers `mapstructure:"exclude_containers" json:"exclude_containers"`
+}
+
+// ExcludeContainers contains how we might exclude specific containers
+// from auto-instrumentation.
+type ExcludeContainers struct {
+	Names []string `mapstructure:"names" json:"names"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

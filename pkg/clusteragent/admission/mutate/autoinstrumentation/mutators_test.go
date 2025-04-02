@@ -28,10 +28,10 @@ func TestVolumeMount(t *testing.T) {
 
 	t.Run("initial volume mount", func(t *testing.T) {
 		c := corev1.Container{}
-		require.NoError(t, mount.mutateContainer(&c))
+		require.NoError(t, mount.mutateContainer(&c, false))
 		require.Equal(t, []corev1.VolumeMount{mount.VolumeMount}, c.VolumeMounts, "attach a volume mount")
 
-		require.NoError(t, mount.mutateContainer(&c))
+		require.NoError(t, mount.mutateContainer(&c, false))
 		require.Equal(t, []corev1.VolumeMount{mount.VolumeMount}, c.VolumeMounts, "we don't re-attach it")
 	})
 
@@ -47,12 +47,11 @@ func TestVolumeMount(t *testing.T) {
 			},
 		}
 
-		require.NoError(t, m2.mutateContainer(&c))
+		require.NoError(t, m2.mutateContainer(&c, false))
 		require.Equal(t, []corev1.VolumeMount{
 			m2.VolumeMount,
 			{Name: "banana"},
 		}, c.VolumeMounts, "attach a volume mount")
-
 	})
 }
 
