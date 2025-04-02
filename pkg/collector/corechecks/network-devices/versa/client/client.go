@@ -215,3 +215,72 @@ func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 
 	return resp, nil
 }
+
+// TODO: clean this up to be more generalizable
+func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
+	var rows []SLAMetrics
+	for _, row := range data {
+		m := SLAMetrics{}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for CombinedKey")
+		}
+		if m.LocalSite, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalSite")
+		}
+		if m.RemoteSite, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteSite")
+		}
+		if m.LocalAccessCircuit, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalCircuit")
+		}
+		if m.RemoteAccessCircuit, ok = row[4].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteCircuit")
+		}
+		if m.ForwardingClass, ok = row[5].(string); !ok {
+			return nil, fmt.Errorf("expected string for ForwardingClass")
+		}
+
+		// Floats from index 6–11
+		floatFields := []*float64{
+			&m.Delay, &m.FwdDelayVar, &m.RevDelayVar,
+			&m.FwdLossRatio, &m.RevLossRatio, &m.PDULossRatio,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+6].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+6)
+			}
+		}
+
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
+	// TODO: clean up params for values with multiple of the same key so a map cannot be used
+	params := url.Values{}
+	params.Set("start-date", "15minutesAgo")
+	params.Set("qt", "tableData")
+	params.Set("q", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)")
+	params.Set("ds", "aggregate")
+	params.Add("metrics", "delay")
+	params.Add("metrics", "fwdDelayVar")
+	params.Add("metrics", "revDelayVar")
+	params.Add("metrics", "fwdLossRatio")
+	params.Add("metrics", "revLossRatio")
+	params.Add("metrics", "pduLossRatio")
+	baseURL := "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
+	fullURL := baseURL + "?" + params.Encode()
+
+	resp, err := get[SLAMetricsResponse](client, fullURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseAaData(aaData)
+	return metrics, nil
+}
