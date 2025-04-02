@@ -6,7 +6,6 @@
 package log
 
 import (
-	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -14,13 +13,7 @@ import (
 
 // Limit is a utility that can be used to avoid logging noisily
 type Limit struct {
-	mu sync.Mutex
-
-	// n is the times remaining that the Limit will return true for ShouldLog.
-	// we repeatedly subtract 1 from it, if it is nonzero.
-	n int
-
-	limiter *rate.Limiter
+	s rate.Sometimes
 }
 
 // NewLogLimit creates a Limit where shouldLog will return
@@ -28,37 +21,18 @@ type Limit struct {
 // interval thereafter.
 func NewLogLimit(n int, interval time.Duration) *Limit {
 	return &Limit{
-		n:       n,
-		limiter: rate.NewLimiter(rate.Every(interval), 1),
+		s: rate.Sometimes{
+			First:    n,
+			Interval: interval,
+		},
 	}
 }
 
 // ShouldLog returns true if the caller should log
 func (l *Limit) ShouldLog() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.n > 0 {
-		l.n--
-
-		// consume one rate limit period,
-		// as if the N first events were one big event
-		if l.n == 0 {
-			l.limiter.Allow()
-		}
-
-		return true
-	}
-
-	return l.limiter.Allow()
-}
-
-// resetCounter is only used in tests
-func (l *Limit) resetCounter() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.n == 0 {
-		l.n++
-	}
+	shouldLog := false
+	l.s.Do(func() {
+		shouldLog = true
+	})
+	return shouldLog
 }
