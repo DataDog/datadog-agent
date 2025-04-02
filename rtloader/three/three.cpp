@@ -50,27 +50,17 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     PyConfig_InitPythonConfig(&config);
 
     // Configure Python home
-    if (python_home && strlen(python_home) > 0) {
-        _pythonHome = Py_DecodeLocale(python_home, NULL);
-        if (_pythonHome == NULL) {
-            setError("Failed to decode python_home path");
-            PyConfig_Clear(&config);
-            return;
-        }
-        config.home = _pythonHome;
-    } else {
-        config.home = _defaultPythonHome;
+    const char* home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
+    status = PyConfig_SetBytesString(&config, &config.home, home_path);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to set python home: " + std::string(status.err_msg));
+        PyConfig_Clear(&config);
+        return;
     }
 
     // Configure Python executable
     if (python_exe && strlen(python_exe) > 0) {
-        _pythonExe = Py_DecodeLocale(python_exe, NULL);
-        if (_pythonExe == NULL) {
-            setError("Failed to decode python_exe path");
-            PyConfig_Clear(&config);
-            return;
-        }
-        status = PyConfig_SetBytesString(&config, &config.program_name, _pythonExe);
+        status = PyConfig_SetBytesString(&config, &config.program_name, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name: " + std::string(status.err_msg));
             PyConfig_Clear(&config);
