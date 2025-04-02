@@ -641,10 +641,10 @@ def get_impacted_packages(ctx, build_tags=None):
                 message=f"No file matched {file} make sure you modified TRIGGER_ALL_TEST_FILES if you renamed one of them",
             )
 
-    # Some files like tasks/gotest.py should trigger all tests
-    if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
-        print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
-        return get_default_modules().values()
+    # # Some files like tasks/gotest.py should trigger all tests
+    # if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
+    #     print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
+    #     return get_default_modules().values()
 
     if build_tags is None:
         build_tags = []
