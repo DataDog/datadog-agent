@@ -28,6 +28,7 @@ type NDMPayload struct {
 	CollectTimestamp int64               `json:"collect_timestamp"`
 }
 
+// DeviceMetadata contains device metadata
 type DeviceMetadata struct {
 	ID             string   `json:"id"`
 	IDTags         []string `json:"id_tags"`
@@ -54,6 +55,7 @@ type DeviceMetadata struct {
 	DeviceType     string   `json:"device_type,omitempty"`
 }
 
+// InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
 	DeviceID      string   `json:"device_id"`
 	IDTags        []string `json:"id_tags"`
@@ -70,12 +72,14 @@ type InterfaceMetadata struct {
 	MerakiStatus  string   `json:"meraki_status,omitempty"`
 }
 
+// Diagnosis contain data for a diagnosis
 type Diagnosis struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
 	Code     string `json:"code"`
 }
 
+// DiagnosisMetadata contains diagnoses info
 type DiagnosisMetadata struct {
 	ResourceType string      `json:"resource_type"`
 	ResourceID   string      `json:"resource_id"`
