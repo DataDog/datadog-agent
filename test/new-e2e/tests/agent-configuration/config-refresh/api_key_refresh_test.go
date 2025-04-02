@@ -6,7 +6,6 @@
 package configrefresh
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -146,10 +145,7 @@ additional_endpoints:
 	// Refresh secrets in the agent
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 
-	fmt.Println("WACKTEST secretRefreshOutput", secretRefreshOutput, "----WACKTEST2")
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
-
-	// Verify the secret refresh output structure and content
 	assert.Contains(v.T(), secretRefreshOutput, "Number of secrets reloaded: 4")
 	assert.Contains(v.T(), secretRefreshOutput, "Secrets handle reloaded:")
 	assert.Contains(v.T(), secretRefreshOutput, "- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'")
