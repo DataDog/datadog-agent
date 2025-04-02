@@ -31,8 +31,16 @@ func Test_Enabled(t *testing.T) {
 			name: "enabled",
 			configs: map[string]interface{}{
 				"ha_agent.enabled": true,
+				"config_id":        "foo",
 			},
 			expectedEnabled: true,
+		},
+		{
+			name: "disabled due to missing config_id",
+			configs: map[string]interface{}{
+				"ha_agent.enabled": true,
+			},
+			expectedEnabled: false,
 		},
 		{
 			name: "disabled",
@@ -83,6 +91,7 @@ func Test_RCListener(t *testing.T) {
 			name: "enabled",
 			configs: map[string]interface{}{
 				"ha_agent.enabled": true,
+				"config_id":        "foo",
 			},
 			expectRCListener: true,
 		},
