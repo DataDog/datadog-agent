@@ -77,7 +77,7 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 
 func TestPackages(t *testing.T) {
 	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
-	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
+	flake.MarkOnLogRegex(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
@@ -162,6 +162,9 @@ func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
 
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()

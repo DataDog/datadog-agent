@@ -623,6 +623,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", false)
 	config.BindEnvAndSetDefault("nvml_lib_path", "")
+	config.BindEnvAndSetDefault("enable_nvml_detection", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -771,7 +772,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
-	config.BindEnvAndSetDefault("admission_controller.csi.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
@@ -784,9 +784,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.certificate.secret_name", "webhook-certificate") // name of the Secret object containing the webhook certificate
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
-	config.BindEnvAndSetDefault("admission_controller.inject_config.csi.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
+	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket / csi
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
@@ -900,6 +899,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
+	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
+	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -1345,6 +1347,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// ... and overridden by the following two lines - do not switch these 3 lines order
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
+	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
 }
 
 func serializer(config pkgconfigmodel.Setup) {
