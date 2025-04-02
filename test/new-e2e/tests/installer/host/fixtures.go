@@ -118,7 +118,7 @@ func (h *Host) SetupFakeAgentExp() FakeAgent {
 	latestAgentImageVersion := "7.66.0-devel.git.227.c065f5f.pipeline.60653627-1" // TODO use latest prod image when 7.65 is out
 	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com/agent-package:%s"`, latestAgentImageVersion))
 	h.Run("sudo systemctl stop datadog-agent-exp.service")
-	h.Run("sudo systemctl stop datadog-agent.service")
+	h.Run("sudo systemctl start datadog-agent.service")
 
 	vBroken := "/opt/datadog-packages/datadog-agent/vbroken"
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/embedded/bin", vBroken))
