@@ -658,7 +658,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagContainersTags] = ctags
 	}
-	ptags := getProcessTagsFromHeader(req.Header, ts)
+	ptags := getProcessTagsFromHeader(req.Header)
 	if ptags != "" {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
@@ -709,7 +709,7 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	return dropped
 }
 
-func getProcessTagsFromHeader(h http.Header, ts *info.TagStats) string {
+func getProcessTagsFromHeader(h http.Header) string {
 	return h.Get(header.ProcessTags)
 }
 
