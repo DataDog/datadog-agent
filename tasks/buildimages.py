@@ -3,7 +3,7 @@ from typing import Optional
 
 from invoke import Context, task
 
-from tasks.pipeline import update_circleci_config, update_gitlab_config, update_test_infra_def
+from tasks.pipeline import update_gitlab_config, update_test_infra_def
 
 
 @task(
@@ -18,7 +18,6 @@ def update(_: Context, image_tag: str, test_version: Optional[str] = True):
     Use --no-test-version to commit without the _test_only suffixes
     """
     update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
 
 
 @task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})

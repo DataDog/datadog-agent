@@ -271,7 +271,7 @@ def ssm_parameters(ctx):
     """
     Lint SSM parameters in the datadog-agent repository.
     """
-    lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
+    lint_folders = [".github", ".gitlab", "tasks", "test"]
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for file in repo_files.stdout.split("\n"):
