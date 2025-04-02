@@ -495,6 +495,7 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 	return false
 }
 
+// nolint: unused
 func (p *WindowsProbe) startTracingNTLogger(ecb etwCallback) error {
 	_ = ecb
 
