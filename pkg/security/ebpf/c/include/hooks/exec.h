@@ -30,12 +30,12 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
-    // exec is called from a non leader thread:
-    //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
-    //     before sending the event to userspace
-    //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
-    //     the corresponding exit event
     if (tgid != pid) {
+        // exec is called from a non leader thread:
+        //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
+        //     before sending the event to userspace
+        //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
+        //     the corresponding exit event
         bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
     }
 
