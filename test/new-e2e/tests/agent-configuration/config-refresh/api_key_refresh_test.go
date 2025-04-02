@@ -146,7 +146,7 @@ additional_endpoints:
 	// Refresh secrets in the agent
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 
-	fmt.Println("WACKTEST secretRefreshOutput", secretRefreshOutput)
+	fmt.Println("WACKTEST secretRefreshOutput", secretRefreshOutput, "----WACKTEST2")
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// Verify that the new API keys appear in status
