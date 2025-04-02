@@ -370,7 +370,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 			if fatbinParsingEnabled {
 				// We need to wait until the kernel cache loads the kernel data
-				cuda.WaitForKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
+				cuda.WaitForKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, kernel)
 			}
 
 			// No sync, so we should have data
