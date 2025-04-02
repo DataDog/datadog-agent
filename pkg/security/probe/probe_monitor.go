@@ -51,22 +51,22 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.statsdClient)
+	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager.Manager, p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
-	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager, p.statsdClient)
+	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager.Manager, p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
 	if p.opts.SyscallsMonitorEnabled {
-		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.statsdClient)
+		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager.Manager, p.statsdClient)
 		if err != nil {
 			return fmt.Errorf("couldn't create the approver monitor: %w", err)
 		}
@@ -75,13 +75,13 @@ func (m *EBPFMonitors) Init() error {
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.Resolvers.CGroupResolver)
 
 	if p.config.Probe.DNSResolutionEnabled {
-		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager, p.statsdClient)
+		m.dnsMonitor, err = dns.NewDNSMonitor(p.Manager.Manager, p.statsdClient)
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
 	}
 
-	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager, p.statsdClient)
+	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager.Manager, p.statsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the event sample monitor: %w", err)
 	}
