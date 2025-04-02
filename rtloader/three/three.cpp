@@ -34,49 +34,36 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
-    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    // Init config
-    PyConfig config;
     PyStatus status;
-
     // Initialize the configuration with default values
-    PyConfig_InitPythonConfig(&config);
+    PyConfig_InitPythonConfig(&_config);
+    _config.install_signal_handlers = 1;
 
     // Configure Python home
     const char *home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    status = PyConfig_SetBytesString(&config, &config.home, home_path);
+    status = PyConfig_SetBytesString(&_config, &_config.home, home_path);
     PyMem_RawFree((void *)home_path);
     if (PyStatus_Exception(status)) {
         setError("Failed to set python home: " + std::string(status.err_msg));
-        PyConfig_Clear(&config);
+        PyConfig_Clear(&_config);
         return;
     }
 
     // Configure Python executable
     if (python_exe && strlen(python_exe) > 0) {
-        status = PyConfig_SetBytesString(&config, &config.program_name, python_exe);
+        status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name: " + std::string(status.err_msg));
-            PyConfig_Clear(&config);
+            PyConfig_Clear(&_config);
             return;
         }
     }
-
-    // Initialize Python with our configuration
-    status = Py_InitializeFromConfig(&config);
-    if (PyStatus_Exception(status)) {
-        setError("Failed to initialize Python: " + std::string(status.err_msg));
-    }
-
-    // Clean up the configuration
-    PyConfig_Clear(&config);
 }
 
 Three::~Three()
@@ -110,15 +97,14 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    // force initialize siginterrupt with signal in python so it can be overwritten by the agent
-    // This only effects the windows builds as linux already has the sigint handler initialized
-    // and thus python will ignore it
-    Py_InitializeEx(1);
-
-    if (!Py_IsInitialized()) {
-        setError("Python not initialized");
-        return false;
+    // Initialize Python with our configuration
+    status = Py_InitializeFromConfig(&_config);
+    if (PyStatus_Exception(status)) {
+        setError("Failed to initialize Python: " + std::string(status.err_msg));
     }
+
+    // Clean up the configuration
+    PyConfig_Clear(&_config);
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
