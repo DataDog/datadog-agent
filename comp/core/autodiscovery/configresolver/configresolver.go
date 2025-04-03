@@ -216,6 +216,8 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		return data, err
 	}
 
+	log.Debugf("tree to parse is: %v", tree)
+
 	type treePointer struct {
 		get func() interface{}
 		set func(interface{})
@@ -293,7 +295,7 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 		case nil, int, bool:
 
 		default:
-			log.Errorf("Unknown type: %T", elem)
+			log.Errorf("Unknown type: %T, value: %v", elem, elem)
 		}
 	}
 
