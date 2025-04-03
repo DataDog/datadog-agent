@@ -205,11 +205,11 @@ func RemoveAgent(ctx context.Context) error {
 	var spanErr error
 	defer func() { span.Finish(spanErr) }()
 	// stop, disable, & delete units from disk
-	spanErr = removeAgentUnits(ctx, experimentalUnits, agentExp)
+	spanErr = removeAgentUnits(ctx, agentExp, true)
 	if spanErr != nil {
 		log.Warnf("Failed to remove experimental units: %s", spanErr)
 	}
-	spanErr = removeAgentUnits(ctx, stableUnits, agentUnit)
+	spanErr = removeAgentUnits(ctx, agentUnit, false)
 	if spanErr != nil {
 		log.Warnf("Failed to remove stable units: %s", spanErr)
 	}
@@ -242,7 +242,7 @@ func StopAgentExperiment(ctx context.Context) error {
 	if err := setupStableUnits(ctx); err != nil {
 		return err
 	}
-	return removeAgentUnits(ctx, experimentalUnits, agentExp)
+	return removeAgentUnits(ctx, agentExp, true)
 }
 
 // PromoteAgentExperiment promotes the agent experiment
@@ -252,7 +252,7 @@ func PromoteAgentExperiment(ctx context.Context) error {
 	if err := setupStableUnits(ctx); err != nil {
 		return err
 	}
-	return removeAgentUnits(ctx, experimentalUnits, agentExp)
+	return removeAgentUnits(ctx, agentExp, true)
 }
 
 func setupStableUnits(ctx context.Context) error {
@@ -260,10 +260,15 @@ func setupStableUnits(ctx context.Context) error {
 }
 
 func setupExperimentUnits(ctx context.Context) error {
-	return setupAgentUnits(ctx, agentExp, experimentalUnits, "--no-block")
+	return setupAgentUnits(ctx, agentExp, experimentalUnits)
 }
 
-func removeAgentUnits(ctx context.Context, units []string, coreAgentUnit string) error {
+func removeAgentUnits(ctx context.Context, coreAgentUnit string, experiment bool) error {
+	units, err := systemd.ListOnDiskAgentUnits(experiment)
+	if err != nil {
+		return fmt.Errorf("failed to list agent units: %v", err)
+	}
+
 	for _, unit := range units {
 		if err := systemd.StopUnit(ctx, unit); err != nil {
 			return err
@@ -282,7 +287,7 @@ func removeAgentUnits(ctx context.Context, units []string, coreAgentUnit string)
 	return nil
 }
 
-func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string, startArgs ...string) error {
+func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string) error {
 	for _, unit := range units {
 		if err := systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
@@ -306,7 +311,7 @@ func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string, 
 		// the config is populated afterwards by the install method and the agent is restarted
 		return nil
 	}
-	if err = systemd.StartUnit(ctx, coreAgentUnit, startArgs...); err != nil {
+	if err = systemd.StartUnit(ctx, coreAgentUnit); err != nil {
 		return err
 	}
 	return nil
