@@ -21,22 +21,23 @@ type nvlinkCollector struct {
 	totalNVLinks int
 }
 
-func newNvlinkCollector(device nvml.Device) (Collector, error) {
-	// Check if device supports NVLink by trying to get state of first link
-	linkCountField := nvml.FieldValue{
-		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
-		ScopeId: 0,
+func newNVLinkCollector(device nvml.Device) (Collector, error) {
+	fields := []nvml.FieldValue{
+		{
+			FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+			ScopeId: 0,
+		},
 	}
-	err := device.GetFieldValues([]nvml.FieldValue{linkCountField})
+	err := device.GetFieldValues(fields)
 	if err == nvml.ERROR_NOT_SUPPORTED {
 		return nil, errUnsupportedDevice
 	} else if err != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get total number of nvlinks: %s", nvml.ErrorString(err))
 	}
 
-	linksCount, convErr := fieldValueToNumber[int](nvml.ValueType(linkCountField.ValueType), linkCountField.Value)
+	linksCount, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
 	if convErr != nil {
-		return nil, fmt.Errorf("failed to convert number of nvlinks to integer: %s", nvml.ErrorString(err))
+		return nil, fmt.Errorf("failed to convert number of nvlinks to integer: %s", convErr)
 	}
 
 	return &nvlinkCollector{
@@ -86,12 +87,12 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 		},
 		{
 			Name:  "nvlink.count.active",
-			Value: float64(c.totalNVLinks),
+			Value: float64(active),
 			Type:  metrics.GaugeType,
 		},
 		{
 			Name:  "nvlink.count.inactive",
-			Value: float64(c.totalNVLinks),
+			Value: float64(inactive),
 			Type:  metrics.GaugeType,
 		},
 	}

@@ -71,7 +71,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
-	nvlink:       newNvlinkCollector,
+	nvlink:       newNVLinkCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
