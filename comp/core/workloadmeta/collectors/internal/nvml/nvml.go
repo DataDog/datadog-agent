@@ -35,7 +35,6 @@ type collector struct {
 	id      string
 	catalog workloadmeta.AgentType
 	store   workloadmeta.Component
-	nvmlLib nvml.Interface
 }
 
 func (c *collector) getDeviceInfo(device nvml.Device) (string, string, error) {
@@ -63,7 +62,13 @@ func (c *collector) getDeviceInfoMig(migDevice nvml.Device) (*workloadmeta.MigDe
 	if err != nil {
 		return nil, err
 	}
-	gpuInstanceID, ret := c.nvmlLib.DeviceGetGpuInstanceId(migDevice)
+
+	lib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return nil, err
+	}
+
+	gpuInstanceID, ret := lib.DeviceGetGpuInstanceId(migDevice)
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get GPU instance ID: %v", nvml.ErrorString(ret))
 	}
@@ -87,7 +92,12 @@ func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 	if err != nil {
 		return nil, err
 	}
-	gpuIndexID, ret := c.nvmlLib.DeviceGetIndex(device)
+
+	lib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return nil, err
+	}
+	gpuIndexID, ret := lib.DeviceGetIndex(device)
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get GPU index ID: %v", nvml.ErrorString(ret))
 	}
@@ -115,12 +125,16 @@ func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 }
 
 func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device nvml.Device) {
-	migEnabled, _, ret := c.nvmlLib.DeviceGetMigMode(device)
+	lib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return
+	}
+	migEnabled, _, ret := lib.DeviceGetMigMode(device)
 	if ret != nvml.SUCCESS || migEnabled != nvml.DEVICE_MIG_ENABLE {
 		return
 	}
 	// If any MIG detection fails, we will return mig disabled in config
-	migDeviceCount, ret := c.nvmlLib.DeviceGetMaxMigDeviceCount(device)
+	migDeviceCount, ret := lib.DeviceGetMaxMigDeviceCount(device)
 	if ret != nvml.SUCCESS {
 		if logLimiter.ShouldLog() {
 			log.Warnf("failed to get MIG capable device count for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
@@ -130,7 +144,7 @@ func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device nvml.Dev
 
 	migDevs := make([]*workloadmeta.MigDevice, 0, migDeviceCount)
 	for j := 0; j < migDeviceCount; j++ {
-		migDevice, ret := c.nvmlLib.DeviceGetMigDeviceHandleByIndex(device, j)
+		migDevice, ret := lib.DeviceGetMigDeviceHandleByIndex(device, j)
 		if ret != nvml.SUCCESS {
 			if logLimiter.ShouldLog() {
 				log.Warnf("failed to get handle for MIG device %d: %v", j, nvml.ErrorString(ret))
@@ -259,13 +273,12 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(_ context.Context) error {
-	nvmlLib, err := ddnvml.GetNvmlLib()
+	lib, err := ddnvml.GetNvmlLib()
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library: %w", err)
 	}
-	c.nvmlLib = nvmlLib
 
-	count, ret := c.nvmlLib.DeviceGetCount()
+	count, ret := lib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
 	}
@@ -273,7 +286,7 @@ func (c *collector) Pull(_ context.Context) error {
 	// driver version is equal to all devices of the same vendor
 	// currently we handle only nvidia.
 	// in the future this function should be refactored to support more vendors
-	driverVersion, ret := c.nvmlLib.SystemGetDriverVersion()
+	driverVersion, ret := lib.SystemGetDriverVersion()
 	//we try to get the driver version as a best effort, just log warning if it fails
 	if ret != nvml.SUCCESS {
 		if logLimiter.ShouldLog() {
@@ -283,7 +296,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	var events []workloadmeta.CollectorEvent
 	for i := 0; i < count; i++ {
-		dev, ret := c.nvmlLib.DeviceGetHandleByIndex(i)
+		dev, ret := lib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
