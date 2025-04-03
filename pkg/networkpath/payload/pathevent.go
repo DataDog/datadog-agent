@@ -6,7 +6,13 @@
 // Package payload contains Network Path payload
 package payload
 
-import "github.com/DataDog/datadog-agent/pkg/network/payload"
+import (
+	"slices"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/payload"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // Protocol defines supported network protocols
 // Please define new protocols based on the Keyword from:
@@ -19,6 +25,35 @@ const (
 	// ProtocolUDP is the UDP protocol.
 	ProtocolUDP Protocol = "UDP"
 )
+
+// TCPMethod is the method used to run a TCP traceroute.
+type TCPMethod string
+
+const (
+	// TCPConfigSYN means to only perform SYN traceroutes
+	TCPConfigSYN TCPMethod = "syn"
+	// TCPConfigSACK means to only perform SACK traceroutes
+	TCPConfigSACK TCPMethod = "sack"
+	// TCPConfigPreferSACK means to try SACK, and fall back to SYN if the remote doesn't support SACK
+	TCPConfigPreferSACK TCPMethod = "prefer_sack"
+)
+
+// TCPDefaultMethod is what method to use when nothing is specified
+const TCPDefaultMethod TCPMethod = TCPConfigSYN
+
+// ParseTCPMethod parses a method from config into a TCPMethod
+func ParseTCPMethod(methodStr string) TCPMethod {
+	method := TCPMethod(strings.ToLower(methodStr))
+	if method == "" {
+		return TCPDefaultMethod
+	}
+	allOptions := []TCPMethod{TCPConfigSYN, TCPConfigSACK, TCPConfigPreferSACK}
+	if slices.Contains(allOptions, method) {
+		return method
+	}
+	log.Errorf("invalid tcp_method specified for network path, falling back to %s: '%s'", TCPDefaultMethod, method)
+	return TCPDefaultMethod
+}
 
 // PathOrigin origin of the path e.g. network_traffic, network_path_integration
 type PathOrigin string

@@ -37,6 +37,7 @@ hostname: 1.2.3.4
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -73,6 +74,7 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -89,6 +91,7 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -102,6 +105,7 @@ hostname: 1.2.3.4
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -120,6 +124,7 @@ destination_service: service-b
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -136,6 +141,7 @@ protocol: udp
 				Protocol:              payload.ProtocolUDP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -152,6 +158,7 @@ protocol: UDP
 				Protocol:              payload.ProtocolUDP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -168,6 +175,7 @@ protocol: TCP
 				Protocol:              payload.ProtocolTCP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -186,6 +194,7 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               50000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -205,6 +214,7 @@ timeout: 70000
 				Namespace:             "my-namespace",
 				Timeout:               50000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -223,6 +233,7 @@ timeout: 70000
 				Namespace:             "my-namespace",
 				Timeout:               70000 * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -240,6 +251,7 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -270,6 +282,7 @@ min_collection_interval: 10
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                50,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -289,6 +302,7 @@ max_ttl: 64
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                50,
+				TCPMethod:             payload.TCPDefaultMethod,
 			},
 		},
 		{
@@ -307,6 +321,25 @@ max_ttl: 64
 				Namespace:             "my-namespace",
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                64,
+				TCPMethod:             payload.TCPDefaultMethod,
+			},
+		},
+		{
+			name: "overriding the TCP method",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_method: sack
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TCPMethod:             payload.TCPConfigSACK,
 			},
 		},
 	}
