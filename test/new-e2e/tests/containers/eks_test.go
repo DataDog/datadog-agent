@@ -51,7 +51,7 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
-				`^kube_deployment:dogstatsd-fargate`,
+				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_priority_class:system-node-critical$`,
