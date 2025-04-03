@@ -710,27 +710,28 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 	assert.Len(t, s.itemChan, 0)
 }
 
-func TestHostRemoval(t *testing.T) {
+func setupTestSender(t *testing.T, disallowList []string) (*checkSender, chan senderItem) {
 	// Save the current configuration state
 	originalConfig := pkgconfigsetup.Datadog().AllSettings()
 
 	// Mock the configuration to include the hostTagDisallowList
-	pkgconfigsetup.Datadog().SetWithoutSource("host_tag_disallow_list", []string{"request.dist.elena"})
+	pkgconfigsetup.Datadog().SetWithoutSource("host_tag_disallow_list", disallowList)
 
 	// Ensure the configuration is reset after the test
-	defer func() {
+	t.Cleanup(func() {
 		for key, value := range originalConfig {
 			pkgconfigsetup.Datadog().SetWithoutSource(key, value)
 		}
-	}()
+	})
 
-	// Use a bidirectional channel for itemsOut
+	// Create a bidirectional channel for itemsOut
 	itemsOut := make(chan senderItem, 10)
 
+	// Initialize and return the sender
 	s := newCheckSender(
 		checkID1,
 		"default-host",
-		itemsOut, // Pass the bidirectional channel here
+		itemsOut,
 		make(chan servicecheck.ServiceCheck, 10),
 		make(chan event.Event, 10),
 		nil,
@@ -738,13 +739,37 @@ func TestHostRemoval(t *testing.T) {
 		nil,
 	)
 
-	// Test with a metric in the disallow list
-	s.Gauge("request.dist.elena", 42, "custom-host", nil)
-	metricSample := (<-itemsOut).(*senderMetricSample)
-	assert.Equal(t, "default-host", metricSample.metricSample.Host) // Host should be set to default value
+	return s, itemsOut
+}
 
-	// Test with a metric not in the disallow list
-	s.Gauge("request.dist.referrer", 42, "custom-host", nil)
-	metricSample = (<-itemsOut).(*senderMetricSample)
-	assert.Equal(t, "custom-host", metricSample.metricSample.Host) // Custom host should be preserved
+// A helper function to test what host value was set on the metric
+func assertHostValueOnMetric(t *testing.T, s *checkSender, itemsOut chan senderItem, metricName string, metricType metrics.MetricType, customHostValue string, expectedHostValue string) {
+	s.sendMetricSample(metricName, 42, customHostValue, nil, metricType, false, false, 0)
+	metricSample := (<-itemsOut).(*senderMetricSample)
+	assert.Equal(t, expectedHostValue, metricSample.metricSample.Host)
+}
+
+func TestHostRemoval(t *testing.T) {
+	s, itemsOut := setupTestSender(t, []string{"request.latency", "db.query.time"})
+
+	// Distribution Metrics in the list should get "default-host"
+	assertHostValueOnMetric(t, s, itemsOut, "request.latency", metrics.DistributionType, "custom-host-1", "default-host")
+	assertHostValueOnMetric(t, s, itemsOut, "db.query.time", metrics.DistributionType, "custom-host-2", "default-host")
+
+	// Distribution Metrics not in the list should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "api.response.time", metrics.DistributionType, "custom-host-3", "custom-host-3")
+
+	// Non-Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "http.requests.count", metrics.GaugeType, "custom-host-1", "custom-host-1")
+}
+
+func TestHostRemovalEmptyList(t *testing.T) {
+	// Provide empty disallow list
+	s, itemsOut := setupTestSender(t, []string{})
+
+	// Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "request.latency", metrics.DistributionType, "custom-host-1", "custom-host-1")
+
+	// Non-Distribution Metrics should get the custom host value
+	assertHostValueOnMetric(t, s, itemsOut, "http.requests.count", metrics.GaugeType, "custom-host-1", "custom-host-1")
 }
