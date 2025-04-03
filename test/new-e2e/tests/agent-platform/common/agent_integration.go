@@ -18,7 +18,7 @@ import (
 
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
-	flake.Mark(t)
+	// flake.Mark(t)
 	requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
 	ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
