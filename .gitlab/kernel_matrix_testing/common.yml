@@ -92,7 +92,8 @@
   - !reference [.tag_kmt_ci_job]
 
 .upload_junit_kmt:
-  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
+  - tar -xzvf $DD_AGENT_TESTING_DIR/testjson-*.tar.gz
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz" out.json
 
 # Important: this job needs DD_API_KEY to be set. Some caveats:
 # - if this command is called in the after_script section, note that variables exported in the before_script and
@@ -106,7 +107,7 @@
 
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]

@@ -60,15 +60,7 @@ PACKAGE_SIZE_TEMPLATE = {
 
 
 class InfraError(Exception):
-    """Assertion failed."""
-
-    def __init__(self, *args, **kwargs):  # real signature unknown
-        pass
-
-    @staticmethod  # known case of __new__
-    def __new__(*args, **kwargs):  # real signature unknown
-        """Create and return a new object.  See help(type) for accurate signature."""
-        pass
+    pass
 
 
 def extract_deb_package(ctx, package_path, extract_dir):
@@ -76,10 +68,13 @@ def extract_deb_package(ctx, package_path, extract_dir):
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
+    log_dir = os.environ.get("CI_PROJECT_DIR", None)
+    if log_dir is None:
+        log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null", warn=True)
+        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
         if out.exited == 2:
-            raise InfraError()
+            raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):

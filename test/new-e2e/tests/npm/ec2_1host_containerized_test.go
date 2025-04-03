@@ -88,6 +88,8 @@ func TestEC2VMContainerizedSuite(t *testing.T) {
 // SetupSuite
 func (v *ec2VMContainerizedSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
 

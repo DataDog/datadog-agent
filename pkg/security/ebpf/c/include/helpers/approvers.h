@@ -5,14 +5,18 @@
 #include "maps.h"
 #include "rate_limiter.h"
 
-void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
     if (approver_stats == NULL) {
-        return;
+        return NULL;
     }
 
     u32 key = event_type;
-    struct approver_stats_t *stats = bpf_map_lookup_elem(approver_stats, &key);
+    return bpf_map_lookup_elem(approver_stats, &key);
+}
+
+void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+    struct approver_stats_t *stats = get_active_approver_stats(event_type);
     if (stats == NULL) {
         return;
     }
@@ -24,6 +28,14 @@ void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 a
     } else if (approver_type == AUID_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_auid, 1);
     }
+}
+
+void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
+    struct approver_stats_t *stats = get_active_approver_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
 void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
@@ -386,7 +398,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    return approve_syscall_with_tgid(tgid, syscall, check_approvers);
+    enum SYSCALL_STATE state = approve_syscall_with_tgid(tgid, syscall, check_approvers);
+    if (state == DISCARDED) {
+        monitor_event_rejected(syscall->type);
+    }
+    return state;
 }
 
 #endif

@@ -91,6 +91,10 @@ agents:
       env:
         - name: HOST_PROC
           value: "/host/root/proc"
+    agent:
+      env:
+        - name: DD_ENABLE_NVML_DETECTION
+          value: "true"
 `
 
 const dockerPullMaxRetries = 3
@@ -108,6 +112,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
+			agentparams.WithAgentConfig("enable_nvml_detection: true"),
 		},
 		kubernetesAgentOptions: nil,
 		ami:                    gpuEnabledAMI,

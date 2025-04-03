@@ -62,3 +62,8 @@ static_quality_gates:
   retry:
     max: 2
     exit_codes: 42
+  artifacts:
+    when: always
+    paths:
+      - extract_rpm_package_report
+    expire_in: 1 week

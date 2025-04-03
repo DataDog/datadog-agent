@@ -37,16 +37,16 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                     }
                 ),
             )
-        assert new_config["some_gate_high"]["max_on_wire_size"] == "48.16 MiB", print(
-            f"Expected 57.22 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        assert new_config["some_gate_high"]["max_on_wire_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_high"]["max_on_disk_size"] == "48.16 MiB", print(
-            f"Expected 57.22 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        assert new_config["some_gate_high"]["max_on_disk_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_wire_size"] == "4.29 MiB", print(
+        assert new_config["some_gate_low"]["max_on_wire_size"] == "4.77 MiB", print(
             f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_disk_size"] == "4.29 MiB", print(
+        assert new_config["some_gate_low"]["max_on_disk_size"] == "4.77 MiB", print(
             f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
         )
 
