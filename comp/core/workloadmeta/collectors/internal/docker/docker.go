@@ -659,12 +659,6 @@ func isInheritedLayer(layer image.HistoryResponseItem) bool {
 func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
-	// Sanity check our current assumption that there cannot be more RootFS layer IDs than history layers
-	if len(inspect.RootFS.Layers) > len(history) {
-		log.Warn("The number of RootFS layers exceeded the number of history layers")
-		return layers
-	}
-
 	// Loop through history and check how many layers should be assigned a corresponding docker inspect digest
 	layersWithDigests := 0
 	for _, layer := range history {
@@ -673,8 +667,14 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 		}
 	}
 
-	// If the number of history layers with digests > the number of total digests, there was a problem, and we should
-	// not assign digests
+	// Layers that should be assigned a digest are determined by either of the following criteria:
+
+	// A. The layer size > 0
+	// B. The layer's size == 0 AND its CreatedBy field is empty, which means it's an inherited layer
+
+	// This checks if the number of layers that should be assigned a digest exceeds the number of RootFS digests,
+	// and prevents the agent from panicking from an index out of range error.
+
 	shouldAssignDigests := true
 	if layersWithDigests > len(inspect.RootFS.Layers) {
 		log.Warn("Detected more history layers with possible digests than inspect layers, will not attempt to assign digests")

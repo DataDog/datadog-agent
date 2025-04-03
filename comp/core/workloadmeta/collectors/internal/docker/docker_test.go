@@ -164,22 +164,6 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 		},
 		{
-			name: "Number of inspect layers exceeds history layers breaks our assumption and results in no layers returned",
-			history: []image.HistoryResponseItem{
-				{
-					Size:      nonEmptySize,
-					CreatedBy: cmd,
-					Created:   baseTimeUnix,
-				},
-			},
-			inspect: types.ImageInspect{
-				RootFS: types.RootFS{
-					Layers: []string{layerID, layerID},
-				},
-			},
-			expected: []workloadmeta.ContainerImageLayer{},
-		},
-		{
 			name: "Number of assignable history layers exceeds inspect layers does not result in panic",
 			history: []image.HistoryResponseItem{
 				{
