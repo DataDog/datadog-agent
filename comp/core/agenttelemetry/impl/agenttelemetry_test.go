@@ -427,24 +427,6 @@ func TestDisable(t *testing.T) {
 	assert.False(t, a.enabled)
 }
 
-func TestDisableIfFipsEnabled(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "foo.bar",
-		"fips.enabled":            true}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
-	assert.False(t, a.enabled)
-}
-
-func TestEnableIfFipsDisabled(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "foo.bar",
-		"fips.enabled":            false}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
-	assert.True(t, a.enabled)
-}
-
 func TestDisableIfGovCloud(t *testing.T) {
 	o := map[string]any{
 		"agent_telemetry.enabled": true,

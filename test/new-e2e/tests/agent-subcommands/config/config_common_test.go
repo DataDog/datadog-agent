@@ -59,7 +59,6 @@ func (v *baseConfigSuite) TestDefaultConfig() {
 	config := getFullConfig(v)
 
 	assertConfigValueContains(v.T(), config, "api_key", "*******")
-	assertConfigValueEqual(v.T(), config, "fips.enabled", false)
 	assertConfigValueEqual(v.T(), config, "expvar_port", "5000")
 	assertConfigValueEqual(v.T(), config, "network_devices.snmp_traps.forwarder.logs_no_ssl", false)
 	assertConfigValueContains(v.T(), config, "cloud_provider_metadata", "aws")

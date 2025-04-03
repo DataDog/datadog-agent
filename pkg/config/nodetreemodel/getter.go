@@ -63,9 +63,6 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	if hasProxies != nil {
 		return hasProxies
 	}
-	if c.GetBool("fips.enabled") {
-		return nil
-	}
 	if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
 		return nil
 	}
