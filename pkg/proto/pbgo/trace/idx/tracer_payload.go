@@ -11,6 +11,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+const maxSize = 25 * 1e6 // maxSize protects the decoder from payloads lying about their size
+
 // UnmarshalMsg unmarshals a TracerPayload from a byte stream, updating the strings slice with new strings
 func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	if tp.Strings == nil {
@@ -109,10 +111,34 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 	return
 }
 
+func limitedReadArrayHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
+	sz, o, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		return
+	}
+	if sz > maxSize {
+		err = msgp.WrapError(err, "Array too large")
+		return
+	}
+	return
+}
+
+func limitedReadMapHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
+	sz, o, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		return
+	}
+	if sz > maxSize {
+		err = msgp.WrapError(err, "Map too large")
+		return
+	}
+	return
+}
+
 // unmarshalStringTable unmarshals a list of strings from a byte stream
 func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numStrings uint32
-	numStrings, o, err = msgp.ReadArrayHeaderBytes(bts)
+	numStrings, o, err = limitedReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read string list header")
 		return
@@ -135,7 +161,7 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 // UnmarshalTraceChunkList unmarshals a list of TraceChunks from a byte stream, updating the strings slice with new strings
 func UnmarshalTraceChunkList(bts []byte, strings *StringTable) (chunks []*InternalTraceChunk, o []byte, err error) {
 	var numChunks uint32
-	numChunks, o, err = msgp.ReadArrayHeaderBytes(bts)
+	numChunks, o, err = limitedReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read trace chunk list header")
 		return
