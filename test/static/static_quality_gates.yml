@@ -8,7 +8,7 @@ static_quality_gate_agent_heroku_amd64:
   max_on_disk_size: 429.84 MiB
   max_on_wire_size: 113.11 MiB
 static_quality_gate_agent_msi:
-  max_on_disk_size: 977.94 MiB
+  max_on_disk_size: 979.94 MiB
   max_on_wire_size: 149.85 MiB
 static_quality_gate_agent_rpm_amd64:
   max_on_disk_size: 781.53 MiB
@@ -71,10 +71,10 @@ static_quality_gate_docker_agent_windows2022_jmx:
   max_on_disk_size: 865.3 MiB
   max_on_wire_size: 291.35 MiB
 static_quality_gate_docker_cluster_agent_amd64:
-  max_on_disk_size: 263.29 MiB
+  max_on_disk_size: 264.23 MiB
   max_on_wire_size: 106.03 MiB
 static_quality_gate_docker_cluster_agent_arm64:
-  max_on_disk_size: 279.25 MiB
+  max_on_disk_size: 280.19 MiB
   max_on_wire_size: 100.87 MiB
 static_quality_gate_docker_cws_instrumentation_amd64:
   max_on_disk_size: 7.12 MiB
