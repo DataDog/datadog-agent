@@ -18,16 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SackNotSupportedError means the target did not respond with the SACK Permitted
+// NotSupportedError means the target did not respond with the SACK Permitted
 // TCP option, or we couldn't establish a TCP connection to begin with
-type SackNotSupportedError struct {
+type NotSupportedError struct {
 	Err error
 }
 
-func (e *SackNotSupportedError) Error() string {
+func (e *NotSupportedError) Error() string {
 	return fmt.Sprintf("SACK not supported by the target: %s", e.Err)
 }
-func (e *SackNotSupportedError) Unwrap() error {
+func (e *NotSupportedError) Unwrap() error {
 	return e.Err
 }
 
@@ -125,8 +125,8 @@ func runSackTraceroute(ctx context.Context, p Params) (*sackResult, error) {
 	conn, err := dialSackTCP(ctx, p)
 	if err != nil {
 		// if we can't dial the remote (e.g. their server is not listening), we can't SACK traceroute,
-		// but we could still SYN traceroute so return a SackNotSupportedError
-		return nil, &SackNotSupportedError{
+		// but we could still SYN traceroute so return a NotSupportedError
+		return nil, &NotSupportedError{
 			Err: fmt.Errorf("sack traceroute failed to dial: %w", err),
 		}
 	}
