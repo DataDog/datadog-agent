@@ -35,8 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dda inv -e install-tools
-          dda inv -e collector.update
-          dda inv -e collector.generate
-          dda inv -e generate-licenses
-          dda inv -e collector.pull-request
+          dda inv -- -e install-tools
+          dda inv -- -e collector.update
+          dda inv -- -e collector.generate
+          dda inv -- -e generate-licenses
+          dda inv -- -e collector.pull-request
