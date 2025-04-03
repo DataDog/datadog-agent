@@ -20,6 +20,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +37,7 @@ const (
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
+	nvlink       CollectorName = "nvlink"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -69,12 +71,14 @@ var factory = map[CollectorName]subsystemBuilder{
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
+	nvlink:       newNVLinkCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
+
+	// DeviceCache is a cache of GPU devices.
+	DeviceCache ddnvml.DeviceCache
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -85,21 +89,11 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	devCount, ret := deps.NVML.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
-
-	for i := 0; i < devCount; i++ {
-		dev, ret := deps.NVML.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
-		}
-
+	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
-			c, err := builder(dev)
+			c, err := builder(dev.NVMLDevice)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev, name)
+				log.Warnf("device %s does not support collector %s", dev.UUID, name)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
@@ -114,41 +108,28 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 }
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
-func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[string][]string {
-	devCount, ret := lib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		log.Errorf("failed to get devices tags mapping, couldn't get available GPU devices: %s", nvml.ErrorString(ret))
+func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
+	devCount := deviceCache.Count()
+	if devCount == 0 {
 		return nil
 	}
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for i := 0; i < devCount; i++ {
-		dev, ret := lib.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			// skip retrieving tags for this device if we failed to get its handle
-			continue
-		}
-
-		uuid, ret := dev.GetUUID()
-		if ret != nvml.SUCCESS {
-			// skip retrieving tags for this device if we failed to get its UUID
-			continue
-		}
-
-		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
+	for _, dev := range deviceCache.All() {
+		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
-			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
+			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", dev.UUID, err)
 		}
 
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
+			tags = []string{fmt.Sprintf("gpu_uuid:%s", dev.UUID)}
 		}
 
-		tagsMapping[uuid] = tags
+		tagsMapping[dev.UUID] = tags
 	}
 
 	return tagsMapping

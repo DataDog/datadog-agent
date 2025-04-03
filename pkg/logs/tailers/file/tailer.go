@@ -59,7 +59,7 @@ type Tailer struct {
 	fullpath string
 
 	// osFile is the os.File object from which log data is read.  The read implementation
-	// is platform-specific.
+	// is platform-specific, and not every platform will have a non-nil value here.
 	osFile *os.File
 
 	// tags are the tags to be attached to each log message, excluding tags provided
@@ -271,13 +271,15 @@ func (t *Tailer) StopAfterFileRotation() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
 			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
-			fileStat, err := t.osFile.Stat()
-			if err != nil {
-				log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
-			} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
-				metrics.BytesMissed.Add(remainingBytes)
-				metrics.TlmBytesMissed.Add(float64(remainingBytes))
-				log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+			if t.osFile != nil {
+				fileStat, err := t.osFile.Stat()
+				if err != nil {
+					log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
+				} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
+					metrics.BytesMissed.Add(remainingBytes)
+					metrics.TlmBytesMissed.Add(float64(remainingBytes))
+					log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+				}
 			}
 		}
 		t.stopForward()
@@ -290,7 +292,9 @@ func (t *Tailer) StopAfterFileRotation() {
 // until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
 	defer func() {
-		t.osFile.Close()
+		if t.osFile != nil {
+			t.osFile.Close()
+		}
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
