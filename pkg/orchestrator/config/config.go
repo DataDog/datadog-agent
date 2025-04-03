@@ -51,13 +51,14 @@ type OrchestratorConfig struct {
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewDefaultOrchestratorConfig() *OrchestratorConfig {
+func NewDefaultOrchestratorConfig(extraTags []string) *OrchestratorConfig {
 	orchestratorEndpoint, err := url.Parse(defaultEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
 	oc := OrchestratorConfig{
+		ExtraTags:                extraTags,
 		Scrubber:                 redact.NewDefaultDataScrubber(),
 		MaxPerMessage:            100,
 		MaxWeightPerMessageBytes: 10000000,
@@ -119,7 +120,6 @@ func (oc *OrchestratorConfig) Load() error {
 
 	oc.CollectorDiscoveryEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
-	oc.ExtraTags = pkgconfigsetup.Datadog().GetStringSlice(OrchestratorNSKey("extra_tags"))
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
