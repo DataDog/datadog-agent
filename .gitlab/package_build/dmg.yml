@@ -85,7 +85,6 @@ include:
 
 
 
-# TODO: Update image + rm gettext dependencies
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
@@ -102,17 +101,10 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent || true
   after_script:
     - sudo umount /Volumes/Agent || true
-    # TODO A
-    - rm -rf ~/datadog-agent
-    - ls ~
   script:
     - set -euo pipefail
 
-    - rm -rf ~/datadog-agent
-    - mkdir -p ~/datadog-agent
-    - cp -rf ./* ~/datadog-agent
-    - WORKDIR="$PWD"
-    - cd "$HOME/datadog-agent"
+    - brew uses gettext --installed || true
 
     # - !reference [.setup_signing]
 
@@ -140,9 +132,12 @@ new-agent_dmg-x64-a7:
       export PYTHON_RUNTIMES=3
       export INSTALL_DIR="$PWD/datadog-agent-build/bin"
       export CONFIG_DIR="$PWD/datadog-agent-build/config"
-      export OMNIBUS_DIR=omnibus_build
+      export OMNIBUS_DIR="$PWD/omnibus_build"
       unset OMNIBUS_BASE_DIR
       unset OMNIBUS_PACKAGE_DIR
+    # - |
+    #   export OMNIBUS_BASE_DIR="$PWD/omnibus_build"
+    #   mkdir -p "$OMNIBUS_BASE_DIR/pkg"
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # Omnibus TODO: Useless?
@@ -172,8 +167,6 @@ new-agent_dmg-x64-a7:
     # +--------- BUILD ---------+
     # +=========================+
     # TODO A: Move this to this script section
-    - bash "$WORKDIR"/.gitlab/package_build/build_script.sh
-    - mkdir -p "$WORKDIR"/omnibus_build/pkg
-    - cp -r omnibus_build/pkg/* "$WORKDIR"/omnibus_build/pkg
+    - bash .gitlab/package_build/build_script.sh
     # TODO: Other things...
     - echo Done
