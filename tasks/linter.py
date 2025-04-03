@@ -147,7 +147,6 @@ def go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -198,7 +197,6 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        include_sds=include_sds,
         verbose=verbose,
     )
 
@@ -232,7 +230,6 @@ def run_lint_go(
     timeout=None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     verbose=False,
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
@@ -240,7 +237,6 @@ def run_lint_go(
         build=build,
         build_include=build_include,
         build_exclude=build_exclude,
-        include_sds=include_sds,
     )
 
     lint_result, execution_times = lint_flavor(

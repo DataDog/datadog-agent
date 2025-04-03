@@ -57,7 +57,6 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
-    sds,
     security_agent,
     selinux,
     setup,
@@ -195,7 +194,6 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
-ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
