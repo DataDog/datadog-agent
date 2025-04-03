@@ -67,10 +67,11 @@ func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticche
 }
 
 // Parse extract data
-func (af *AstFiles) Parse() ([]ast.Spec, []string) {
+func (af *AstFiles) Parse() ([]ast.Spec, []string, []string) {
 	var (
-		specs   []ast.Spec
-		getters []string
+		specs     []ast.Spec
+		getters   []string
+		fvSetters []string
 	)
 
 	for _, file := range af.files {
@@ -92,6 +93,12 @@ func (af *AstFiles) Parse() ([]ast.Spec, []string) {
 						getters = append(getters, strings.TrimSpace(els[1]))
 					}
 				}
+				if strings.Contains(document.Text, "genfvsetter") {
+					els := strings.Split(document.Text, ":")
+					if len(els) > 1 {
+						fvSetters = append(fvSetters, strings.TrimSpace(els[1]))
+					}
+				}
 			}
 
 			if !genaccessors {
@@ -102,7 +109,7 @@ func (af *AstFiles) Parse() ([]ast.Spec, []string) {
 		}
 	}
 
-	return specs, getters
+	return specs, getters, fvSetters
 }
 
 func origTypeToBasicType(kind string) string {
@@ -757,8 +764,9 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 		module.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
 	}
 
-	specs, getters := astFiles.Parse()
+	specs, getters, fvSetters := astFiles.Parse()
 	module.Getters = getters
+	module.FvSetters = fvSetters
 
 	for _, spec := range specs {
 		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
@@ -1108,6 +1116,10 @@ func genGetter(getters []string, getter string) bool {
 	return slices.Contains(getters, "*") || slices.Contains(getters, getter)
 }
 
+func genSetFieldValue(fieldValueSetters []string, field string) bool {
+	return slices.Contains(fieldValueSetters, field)
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1128,6 +1140,7 @@ var funcMap = map[string]interface{}{
 	"GetSetHandler":            getSetHandler,
 	"IsReadOnly":               isReadOnly,
 	"GenGetter":                genGetter,
+	"GenSetFieldValue":         genSetFieldValue,
 }
 
 //go:embed accessors.tmpl

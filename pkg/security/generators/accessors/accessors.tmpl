@@ -15,7 +15,6 @@ import (
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // to always require the math package
@@ -302,6 +301,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
+			{{continue}}
+		{{end}}
+
+		{{if not ($Name | GenSetFieldValue $.FvSetters) }}
 			{{continue}}
 		{{end}}
 

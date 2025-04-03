@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix
-
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
@@ -59,11 +57,11 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 
 // Event represents an event sent from the kernel
 // genaccessors
+// - getters : mainly by consumers of the event data stream
 // gengetter: GetContainerCreatedAt
 // gengetter: GetContainerId
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -79,6 +77,44 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetProcessUser
 // gengetter: GetTimestamp
 // gengetter: GetEventService
+// - genfvsetters : used by approavers & discarders
+// genfvsetter: open.file.path
+// genfvsetter: openf.file.name
+// genfvsetter: unlink.file.path
+// genfvsetter: unlink.file.name
+// genfvsetter: mkdir.file.path
+// genfvsetter: mkdir.file.name
+// genfvsetter: rmdir.file.path
+// genfvsetter: rmdir.file.name
+// genfvsetter: chmod.file.path
+// genfvsetter: chmod.file.name
+// genfvsetter: chown.file.path
+// genfvsetter: chown.file.name
+// genfvsetter: utimes.file.path
+// genfvsetter: utimes.file.name
+// genfvsetter: setxattr.file.path
+// genfvsetter: setxattr.file.name
+// genfvsetter: removexattr.file.path
+// genfvsetter: removexattr.file.name
+// genfvsetter: mmap.file.path
+// genfvsetter: mmap.file.name
+// genfvsetter: mmap.protection
+// genfvsetter: mmap.flags
+// genfvsetter: splice.file.path
+// genfvsetter: splice.file.name
+// genfvsetter: splice.pipe_entry_flag
+// genfvsetter: splice.pipe_exit_flag
+// genfvsetter: chdir.file.path
+// genfvsetter: chdir.file.name
+// genfvsetter: link.file.path
+// genfvsetter: link.file.destination.path
+// genfvsetter: rename.file.path
+// genfvsetter: rename.file.destination.path
+// genfvsetter: mprotect.req_protection
+// genfvsetter: mprotect.vm_protection
+// genfvsetter: bpf.cmd
+// genfvsetter: sysctl.action
+// genfvsetter: process.auid
 type Event struct {
 	BaseEvent
 
