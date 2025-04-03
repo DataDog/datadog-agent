@@ -51,14 +51,13 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg             sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv        *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out            chan<- *Payload     // the outgoing payload channel
-	conf           *config.AgentConfig // receiver config
-	cidProvider    IDProvider          // container ID provider
-	statsd         statsd.ClientInterface
-	timing         timing.Reporter
-	ignoreResNames map[string]struct{}
+	wg          sync.WaitGroup      // waits for a graceful shutdown
+	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out         chan<- *Payload     // the outgoing payload channel
+	conf        *config.AgentConfig // receiver config
+	cidProvider IDProvider          // container ID provider
+	statsd      statsd.ClientInterface
+	timing      timing.Reporter
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -94,17 +93,13 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
 	}
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range cfg.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	enableReceiveResourceSpansV2Val := 1.0
 	if cfg.HasFeature("disable_receive_resource_spans_v2") {
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -244,18 +239,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, transform.KeyDatadogResource)
-			if resourceName == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-				if transform.OperationAndResourceNameV2Enabled(o.conf) {
-					resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-				} else {
-					resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-				}
-			}
-			if _, exists := o.ignoreResNames[resourceName]; exists {
-				continue
-			}
-
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
