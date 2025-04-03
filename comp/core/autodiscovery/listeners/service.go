@@ -91,7 +91,7 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), s.tagger.ChecksCardinality())
+	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), types.ChecksConfigCardinality)
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality.

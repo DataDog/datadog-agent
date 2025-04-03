@@ -255,6 +255,9 @@ func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.checksCardinality
+	}
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
@@ -426,10 +429,6 @@ func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.Origi
 	}
 }
 
-func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
-	return t.checksCardinality
-}
-
 // Subscribe currently returns a non-nil error indicating that the method is not supported
 // for remote tagger. Currently, there are no use cases for client subscribing to remote tagger events
 func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
@@ -447,11 +446,13 @@ func (t *remoteTagger) run() {
 		default:
 		}
 
+		taggerStreamInitialized := false
 		if t.stream == nil {
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				t.log.Warnf("error received trying to start stream with target %q: %s", t.options.Target, err)
 				continue
 			}
+			taggerStreamInitialized = true
 		}
 
 		var response *pb.StreamTagsResponse
@@ -478,7 +479,9 @@ func (t *remoteTagger) run() {
 			continue
 		}
 
-		t.log.Info("tagger stream successfully initialized")
+		if taggerStreamInitialized {
+			t.log.Info("tagger stream successfully initialized")
+		}
 
 		t.telemetryStore.Receives.Inc()
 

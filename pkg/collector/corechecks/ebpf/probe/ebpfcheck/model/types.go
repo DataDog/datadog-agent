@@ -8,8 +8,6 @@ package model
 
 import (
 	"time"
-
-	"github.com/cilium/ebpf"
 )
 
 // EBPFStats contains the statistics from the ebpf check
@@ -26,7 +24,7 @@ type EBPFMapStats struct {
 	Module     string
 	RSS        uint64
 	MaxSize    uint64
-	Type       ebpf.MapType
+	Type       string
 	Entries    int64 // Allow negative values to indicate that the number of entries could not be calculated
 
 	// used only for tests
@@ -45,5 +43,5 @@ type EBPFProgramStats struct {
 	RecursionMisses uint64
 	Runtime         time.Duration
 	VerifiedInsns   uint32
-	Type            ebpf.ProgramType
+	Type            string
 }

@@ -501,64 +501,6 @@ func TestServiceLifetime(t *testing.T) {
 	})
 }
 
-func TestInjectedServiceName(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"OTHER_ENV=test",
-		"DD_SERVICE=injected-service-name",
-		"DD_INJECTION_ENABLED=service_name",
-		"YET_ANOTHER_ENV=test",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, "injected-service-name", startEvent.DDService)
-	require.Equal(t, startEvent.DDService, startEvent.Name)
-	// The GeneratedName can vary depending on how the tests are run, so don't
-	// assert for a specific value.
-	require.NotEmpty(t, startEvent.GeneratedName)
-	require.NotEmpty(t, startEvent.GeneratedNameSource)
-	require.NotEqual(t, startEvent.DDService, startEvent.GeneratedName)
-	assert.True(t, startEvent.DDServiceInjected)
-}
-
-func TestAPMInstrumentationInjected(t *testing.T) {
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	createEnvsMemfd(t, []string{
-		"DD_INJECTION_ENABLED=service_name,tracer",
-	})
-
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
-
-	pid := os.Getpid()
-
-	// Firt call will not return anything, as all services will be potentials.
-	_ = getServices(t, url)
-	resp := getServices(t, url)
-	startEvent := findService(pid, resp.StartedServices)
-	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
-
-	require.Equal(t, string(apm.Injected), startEvent.APMInstrumentation)
-}
-
 func makeAlias(t *testing.T, alias string, serverBin string) string {
 	binDir := filepath.Dir(serverBin)
 	aliasPath := filepath.Join(binDir, alias)
@@ -1088,8 +1030,70 @@ func TestCache(t *testing.T) {
 		require.NotContains(t, discovery.cache, int32(pid))
 	}
 
+	// Add some PIDs to noPortTries to verify it gets cleaned up
+	discovery.noPortTries[int32(1)] = 0
+
 	discovery.Close()
 	require.Empty(t, discovery.cache)
+	require.Empty(t, discovery.noPortTries)
+}
+
+func TestMaxPortCheck(t *testing.T) {
+	_, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
+	// Start a process that will be ignored due to no ports
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	cmd := exec.CommandContext(ctx, "sleep", "100")
+	err := cmd.Start()
+	require.NoError(t, err)
+	pid := int32(cmd.Process.Pid)
+
+	serverf, _ := startTCPServer(t, "tcp4", "")
+	t.Cleanup(func() { serverf.Close() })
+
+	selfPid := os.Getpid()
+
+	params := defaultParams()
+	params.heartbeatTime = 0
+
+	discovery := newDiscovery(mockContainerProvider, mTimeProvider)
+
+	for i := 0; i < maxPortCheckTries-5; i++ {
+		_, err = discovery.getServices(params)
+		require.NoError(t, err)
+	}
+
+	discovery.mux.RLock()
+	require.Contains(t, discovery.noPortTries, pid, "process should be in noPortTries")
+	require.NotContains(t, discovery.noPortTries, selfPid, "self should not be in noPortTries")
+	discovery.mux.RUnlock()
+
+	for i := 0; i < 5; i++ {
+		_, err = discovery.getServices(params)
+		require.NoError(t, err)
+	}
+
+	discovery.mux.RLock()
+	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
+	require.Contains(t, discovery.ignorePids, pid, "process should be in ignorePids")
+	discovery.mux.RUnlock()
+
+	err = cmd.Process.Kill()
+	require.NoError(t, err)
+	err = cmd.Wait()
+	require.Error(t, err)
+
+	// Call getServices to trigger cleanup
+	_, err = discovery.getServices(params)
+	require.NoError(t, err)
+
+	discovery.mux.RLock()
+	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
+	require.NotContains(t, discovery.ignorePids, pid, "process should not be in ignorePids")
+	discovery.mux.RUnlock()
 }
 
 func TestTagsPriority(t *testing.T) {

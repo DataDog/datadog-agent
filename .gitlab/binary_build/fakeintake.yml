@@ -8,4 +8,4 @@ build_fakeintake:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - dda inv fakeintake.build
+    - dda inv -- fakeintake.build
