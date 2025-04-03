@@ -1660,6 +1660,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		rattr                      map[string]string
 		libname                    string
 		libver                     string
+		sattr                      map[string]string
 		in                         ptrace.Span
 		operationNameV1            string
 		operationNameV2            string
@@ -2437,6 +2438,75 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			},
 			ignoreMissingDatadogFields: true,
 		},
+		{
+			rattr: map[string]string{
+				"service.instance.id": "02aa8742-d8a2-46b3-87d1-1ccaeb48e0ab",
+				"service.name":        "otelcol",
+				"service.version":     "0.123.0",
+			},
+			libname: "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+			libver:  "0.60.0",
+			sattr: map[string]string{
+				"otelcol.component.id":   "otlp",
+				"otelcol.component.kind": "Receiver",
+			},
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "opentelemetry.proto.collector.trace.v1.TraceService/Export",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 2000000,
+				Attributes: map[string]any{
+					"net.sock.peer.addr":   "127.0.0.1",
+					"net.sock.peer.port":   63333,
+					"rpc.grpc.status_code": 0,
+					"rpc.method":           "Export",
+					"rpc.service":          "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":           "grpc",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "otelcol",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				Start:    int64(now),
+				Duration: 2000000,
+				Meta: map[string]string{
+					"service.instance.id": "02aa8742-d8a2-46b3-87d1-1ccaeb48e0ab",
+					"service.version":     "0.123.0",
+					"version":             "0.123.0",
+
+					"otel.library.name":      "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+					"otel.library.version":   "0.60.0",
+					"otelcol.component.id":   "otlp",
+					"otelcol.component.kind": "Receiver",
+
+					"net.sock.peer.addr": "127.0.0.1",
+					"rpc.method":         "Export",
+					"rpc.service":        "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":         "grpc",
+
+					"span.kind":        "server",
+					"otel.status_code": "Unset",
+					"otel.trace_id":    "72df520af2bde7a5240031ead750e5f3",
+				},
+				Metrics: map[string]float64{
+					"net.sock.peer.port":   63333,
+					"rpc.grpc.status_code": 0,
+				},
+				Type: "web",
+			},
+			operationNameV1: "go.opentelemetry.io_contrib_instrumentation_google.golang.org_grpc_otelgrpc.server",
+			resourceNameV1:  "Export opentelemetry.proto.collector.trace.v1.TraceService",
+			operationNameV2: "grpc.server.request",
+			resourceNameV2:  "Export opentelemetry.proto.collector.trace.v1.TraceService",
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":           1,
+				"net.sock.peer.port":   63333,
+				"rpc.grpc.status_code": 0,
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			cfg.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
@@ -2444,6 +2514,9 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
+			for k, v := range tt.sattr {
+				lib.Attributes().PutStr(k, v)
+			}
 			assert := assert.New(t)
 			want := tt.out
 			res := pcommon.NewResource()
