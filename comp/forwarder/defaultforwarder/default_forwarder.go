@@ -138,18 +138,18 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 		)
 	}
 
-	// Add a hook into the config for each resolver to track API key changes.
-	// Do this after the OP resolver may have replaced the original resolver so we don't leak a callback in the config.
-	for domain := range resolvers {
-		resolver := resolvers[domain]
-		pkgresolver.OnUpdateConfig(resolver, log, config)
-	}
-
 	return NewOptionsWithResolvers(config, log, resolvers)
 }
 
 // NewOptionsWithResolvers creates new Options with default values
 func NewOptionsWithResolvers(config config.Component, log log.Component, domainResolvers map[string]pkgresolver.DomainResolver) *Options {
+	// Add a hook into the config for each resolver to track API key changes.
+	// Do this after the OP resolver may have replaced the original resolver so we don't leak a callback in the config.
+	for domain := range domainResolvers {
+		resolver := domainResolvers[domain]
+		pkgresolver.OnUpdateConfig(resolver, log, config)
+	}
+
 	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
