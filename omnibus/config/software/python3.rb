@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.12.9"
+default_version "3.13.2"
 
 unless windows?
   dependency "libxcrypt"
