@@ -531,8 +531,6 @@ func startAgent(
 	var err error
 
 	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
-	span.SetTag("agent_version", version.AgentVersion)
-	span.SetTag("agent_flavor", flavor.GetFlavor())
 	defer func() {
 		span.Finish(err)
 	}()
