@@ -288,12 +288,13 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	}
 
 	containers := s.getContainersMap()
+	containerTagsCache := make(map[string][]string)
 	for _, pid := range pids {
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containers)
+		s.enrichContainerData(service, containers, containerTagsCache)
 
 		services = append(services, *service)
 	}
@@ -952,10 +953,15 @@ func (s *discovery) getContainersMap() map[int]*workloadmeta.Container {
 	return containersMap
 }
 
-func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container) (string, []string, bool) {
+func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) (string, []string, bool) {
 	container, ok := containers[pid]
 	if !ok {
 		return "", nil, false
+	}
+
+	tags, ok := containerTagsCache[container.EntityID.ID]
+	if ok {
+		return container.EntityID.ID, tags, true
 	}
 
 	containerID := container.EntityID.ID
@@ -969,13 +975,14 @@ func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloa
 		log.Tracef("Could not get tags for container %s: %v", containerID, err)
 		return containerID, collectorTags, false
 	}
-	tags := append(collectorTags, entityTags...)
+	tags = append(collectorTags, entityTags...)
+	containerTagsCache[containerID] = tags
 
 	return containerID, tags, true
 }
 
-func (s *discovery) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container) {
-	containerID, containerTags, ok := s.getProcessContainerInfo(service.PID, containers)
+func (s *discovery) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
+	containerID, containerTags, ok := s.getProcessContainerInfo(service.PID, containers, containerTagsCache)
 	if !ok {
 		return
 	}
@@ -1073,6 +1080,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 	alivePids := make(pidSet, len(pids))
 	containers := s.getContainersMap()
+	containerTagsCache := make(map[string][]string)
 
 	now := s.timeProvider.Now()
 
@@ -1099,7 +1107,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containers)
+		s.enrichContainerData(service, containers, containerTagsCache)
 
 		if knownService {
 			service.LastHeartbeat = now.Unix()
