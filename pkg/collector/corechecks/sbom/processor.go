@@ -130,11 +130,8 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range containerEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			container := event.Entity.(*workloadmeta.Container)
-			if containerFilter.IsExcluded(nil, container.Name, container.Image.Name, "") {
-				continue
-			}
-			p.registerContainer(container)
+			p.registerContainer(event.Entity.(*workloadmeta.Container))
+
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
