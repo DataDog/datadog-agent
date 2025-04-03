@@ -103,14 +103,17 @@ new-agent_dmg-x64-a7:
   after_script:
     - sudo umount /Volumes/Agent || true
     # TODO A
+    - rm -rf ~/datadog-agent
     - ls ~
   script:
     - set -euo pipefail
 
-    # TODO
-    # - export SIGN=true
+    - rm -rf ~/datadog-agent
+    - cp -r ./* ~/datadog-agent
     - WORKDIR="$PWD"
-    - cd "$HOME"
+    - cd "$HOME/datadog-agent"
+
+    # - !reference [.setup_signing]
 
     # TODO A: Remove
     # Adds one fix
@@ -118,10 +121,9 @@ new-agent_dmg-x64-a7:
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
 
-    # - !reference [.setup_signing]
-
     # Setup
     - |
+      # export SIGN=true
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
       unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
