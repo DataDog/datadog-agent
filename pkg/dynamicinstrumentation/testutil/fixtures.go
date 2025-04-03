@@ -148,68 +148,80 @@ var stringCaptures = fixtures{
 var arrayCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_byte_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("uint8", "1"),
-				"arg_1": capturedValue("uint8", "1"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "uint8", Value: strPtr("1")},
+				{Type: "uint8", Value: strPtr("1")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_rune_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("int32", "1"),
-				"arg_1": capturedValue("int32", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "int32", Value: strPtr("1")},
+				{Type: "int32", Value: strPtr("2")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("string", "one"),
-				"arg_1": capturedValue("string", "two"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "string", Value: strPtr("one")},
+				{Type: "string", Value: strPtr("two")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("int", "1"),
-				"arg_1": capturedValue("int", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "int", Value: strPtr("1")},
+				{Type: "int", Value: strPtr("2")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int8_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("int8", "1"),
-				"arg_1": capturedValue("int8", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "int8", Value: strPtr("1")},
+				{Type: "int8", Value: strPtr("2")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Fields: fieldMap{
-				"arg_0": capturedValue("uint", "1"),
-				"arg_1": capturedValue("uint", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "uint", Value: strPtr("1")},
+				{Type: "uint", Value: strPtr("2")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"arg_0": {Type: "array", Fields: fieldMap{
-				"arg_0": {Type: "array", Fields: fieldMap{
-					"arg_0": capturedValue("int", "1"),
-					"arg_1": capturedValue("int", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"arg_0": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "array", Elements: []ditypes.CapturedValue{
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "int", Value: strPtr("1")},
+						{Type: "int", Value: strPtr("2")},
+					}},
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "int", Value: strPtr("3")},
+						{Type: "int", Value: strPtr("4")},
+					}},
 				}},
-				"arg_1": {Type: "array", Fields: fieldMap{
-					"arg_0": capturedValue("int", "3"),
-					"arg_1": capturedValue("int", "4"),
+				{Type: "array", Elements: []ditypes.CapturedValue{
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "int", Value: strPtr("5")},
+						{Type: "int", Value: strPtr("6")},
+					}},
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "int", Value: strPtr("7")},
+						{Type: "int", Value: strPtr("8")},
+					}},
 				}},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
@@ -217,14 +229,14 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_structs": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"a": {Type: "array", Fields: fieldMap{
-				"[2]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct[0]": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct", Fields: fieldMap{
-					"anotherInt":    capturedValue("int", "42"),
-					"anotherString": capturedValue("string", "foo"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"a": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct", Elements: []ditypes.CapturedValue{
+					{Type: "int", Value: strPtr("42")},
+					{Type: "string", Value: strPtr("foo")},
 				}},
-				"[2]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct[1]": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct", Fields: fieldMap{
-					"anotherInt":    capturedValue("int", "24"),
-					"anotherString": capturedValue("string", "bar"),
+				{Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct", Elements: []ditypes.CapturedValue{
+					{Type: "int", Value: strPtr("24")},
+					{Type: "string", Value: strPtr("bar")},
 				}},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
@@ -232,25 +244,27 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays_of_arrays": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"b": {Type: "array", Fields: fieldMap{
-				"[2][2][2]int[0]": {Type: "array", Fields: fieldMap{
-					"[2][2]int[0]": {Type: "array", Fields: fieldMap{
-						"[2]int[0]": capturedValue("int", "1"),
-						"[2]int[1]": capturedValue("int", "2"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"b": {Type: "array", Elements: []ditypes.CapturedValue{
+				{Type: "array", Elements: []ditypes.CapturedValue{
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "array", Elements: []ditypes.CapturedValue{
+							{Type: "int", Value: strPtr("1")},
+							{Type: "int", Value: strPtr("2")},
+						}},
+						{Type: "array", Elements: []ditypes.CapturedValue{
+							{Type: "int", Value: strPtr("3")},
+							{Type: "int", Value: strPtr("4")},
+						}},
 					}},
-					"[2][2]int[1]": {Type: "array", Fields: fieldMap{
-						"[2]int[0]": capturedValue("int", "3"),
-						"[2]int[1]": capturedValue("int", "4"),
-					}},
-				}},
-				"[2][2][2]int[1]": {Type: "array", Fields: fieldMap{
-					"[2][2]int[0]": {Type: "array", Fields: fieldMap{
-						"[2]int[0]": capturedValue("int", "5"),
-						"[2]int[1]": capturedValue("int", "6"),
-					}},
-					"[2][2]int[1]": {Type: "array", Fields: fieldMap{
-						"[2]int[0]": capturedValue("int", "7"),
-						"[2]int[1]": capturedValue("int", "8"),
+					{Type: "array", Elements: []ditypes.CapturedValue{
+						{Type: "array", Elements: []ditypes.CapturedValue{
+							{Type: "int", Value: strPtr("5")},
+							{Type: "int", Value: strPtr("6")},
+						}},
+						{Type: "array", Elements: []ditypes.CapturedValue{
+							{Type: "int", Value: strPtr("7")},
+							{Type: "int", Value: strPtr("8")},
+						}},
 					}},
 				}},
 			}}},
@@ -262,10 +276,10 @@ var arrayCaptures = fixtures{
 var sliceCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"u": {Type: "[]uint", Fields: fieldMap{
-				"[0]uint": capturedValue("uint", "1"),
-				"[1]uint": capturedValue("uint", "2"),
-				"[2]uint": capturedValue("uint", "3"),
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"u": {Type: "[]uint", Elements: []ditypes.CapturedValue{
+				{Type: "uint", Value: strPtr("1")},
+				{Type: "uint", Value: strPtr("2")},
+				{Type: "uint", Value: strPtr("3")},
 			}}},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
@@ -276,15 +290,15 @@ var sliceCaptures = fixtures{
 				"a": capturedValue("int", "3"),
 				"xs": {
 					Type: "[]struct",
-					Fields: fieldMap{
-						"[0]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings": &ditypes.CapturedValue{
+					Elements: []ditypes.CapturedValue{
+						{
 							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings",
 							Fields: fieldMap{
 								"aUint8": capturedValue("uint8", "42"),
 								"aBool":  capturedValue("bool", "true"),
 							},
 						},
-						"[1]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings": &ditypes.CapturedValue{
+						{
 							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithNoStrings",
 							Fields: fieldMap{
 								"aUint8": capturedValue("uint8", "24"),
@@ -520,10 +534,10 @@ var pointerCaptures = fixtures{
 								"x": capturedValue("int", "5"),
 								"slice": &ditypes.CapturedValue{
 									Type: "[]uint8",
-									Fields: fieldMap{
-										"[0]uint8": capturedValue("uint8", "2"),
-										"[1]uint8": capturedValue("uint8", "3"),
-										"[2]uint8": capturedValue("uint8", "4"),
+									Elements: []ditypes.CapturedValue{
+										{Type: "uint8", Value: strPtr("2")},
+										{Type: "uint8", Value: strPtr("3")},
+										{Type: "uint8", Value: strPtr("4")},
 									},
 								},
 								"z": capturedValue("uint64", "5"),
