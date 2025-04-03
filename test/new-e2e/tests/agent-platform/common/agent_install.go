@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 // CheckInstallation run tests to check the installation of the agent
@@ -73,39 +72,6 @@ func (client *TestClient) CheckAgentVersion(t *testing.T, expected string) bool 
 		require.NoErrorf(t, err, "invalid actual version %s", matchList[1])
 
 		require.Equal(t, expectedVersion.GetNumberAndPre(), actualVersion.GetNumberAndPre(), "Expected datadog-agent version %s got %s", expectedVersion, actualVersion)
-	})
-}
-
-// CheckInstallationInstallScript run tests to check the installation of the agent with the install script
-func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
-	t.Run("site config attribute", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
-
-		var configYAML map[string]any
-		config, err := client.FileManager.ReadFile(configFilePath)
-		require.NoError(tt, err)
-
-		err = yaml.Unmarshal([]byte(config), &configYAML)
-		require.NoError(tt, err)
-		require.Equal(tt, configYAML["site"], "datadoghq.eu")
-	})
-
-	t.Run("install info file", func(tt *testing.T) {
-		installInfoFilePath := client.Helper.GetConfigFolder() + "install_info"
-
-		var installInfoYaml map[string]map[string]string
-		installInfo, err := client.FileManager.ReadFile(installInfoFilePath)
-		require.NoError(tt, err)
-
-		err = yaml.Unmarshal([]byte(installInfo), &installInfoYaml)
-		require.NoError(tt, err)
-		toolVersionRegex := regexp.MustCompile(`^install_script_agent\d+$`)
-		installerVersionRegex := regexp.MustCompile(`^install_script-\d+\.\d+\.\d+(.post)?$`)
-		installMethodJSON := installInfoYaml["install_method"]
-
-		require.True(tt, toolVersionRegex.MatchString(installMethodJSON["tool_version"]))
-		require.True(tt, installerVersionRegex.MatchString(installMethodJSON["installer_version"]))
-		require.Equal(tt, installMethodJSON["tool"], "install_script")
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path"
 	"strings"
 	"time"
 
@@ -189,11 +190,21 @@ func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor 
 		return err
 	}
 
-	c.Host.CopyFile(packagePath, "./")
-	_, err = c.PkgManager.Install(packagePath)
+	c.Host.CopyFile(packagePath, path.Base(packagePath))
+	_, err = c.PkgManager.Install("./" + path.Base(packagePath))
 	if err != nil {
 		return err
 	}
+	configFolder := c.Helper.GetConfigFolder()
+	_ = c.Host.MustExecute(fmt.Sprintf("sudo cp -r %sdatadog.yaml.example %sdatadog.yaml", configFolder, configFolder))
+
+	_ = c.Host.MustExecute(fmt.Sprintf("sudo sed -i 's/api_key:.*/api_key: %s/' %sdatadog.yaml", "deadbeefdeadbeefdeadbeefdeadbeef", configFolder))
+
+	_, err = c.SvcManager.Start(c.Helper.GetServiceName())
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
