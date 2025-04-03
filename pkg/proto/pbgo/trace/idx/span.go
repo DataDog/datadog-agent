@@ -12,8 +12,29 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-// UnmarshalMsg unmarshals a Span from a byte stream, updating the strings slice with new strings
-func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err error) {
+// UnmarshalSpanList unmarshals a list of InternalSpans from a byte stream, updating the strings slice with new strings
+func UnmarshalSpanList(bts []byte, strings *StringTable) (spans []*InternalSpan, o []byte, err error) {
+	var numSpans uint32
+	numSpans, o, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to read span list header")
+		return
+	}
+	spans = make([]*InternalSpan, numSpans)
+	for i := range spans {
+		spans[i] = &InternalSpan{Strings: strings}
+		o, err = spans[i].UnmarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, fmt.Sprintf("Failed to read span %d", i))
+			return
+		}
+	}
+	return
+}
+
+// UnmarshalMsg unmarshals the wire representation of a Span from a byte stream, updating the strings slice with new strings
+// directly into an InternalSpan. Note that the Strings field of the InternalSpan must already be initialized.
+func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var numSpanFields uint32
 	numSpanFields, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
@@ -31,7 +52,7 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 		switch fieldNum {
 		case 1:
 			var service uint32
-			service, bts, err = UnmarshalStreamingString(bts, strings)
+			service, bts, err = UnmarshalStreamingString(bts, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span service")
 				return
@@ -39,7 +60,7 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 			span.Service = service
 		case 2:
 			var name uint32
-			name, bts, err = UnmarshalStreamingString(bts, strings)
+			name, bts, err = UnmarshalStreamingString(bts, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span name")
 				return
@@ -48,7 +69,7 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 
 		case 3:
 			var resc uint32
-			resc, bts, err = UnmarshalStreamingString(bts, strings)
+			resc, bts, err = UnmarshalStreamingString(bts, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span resource")
 				return
@@ -95,13 +116,13 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 			}
 			span.Error = spanError
 		case 9:
-			var kvl []*KeyValue
-			kvl, bts, err = UnmarshalKeyValueList(bts, strings)
+			var kvl map[uint32]*AnyValue
+			kvl, bts, err = UnmarshalKeyValueMap(bts, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span attributes")
 				return
 			}
-			span.Attributes = kvl //TODO: what if attributes should be a map?
+			span.Attributes = kvl
 		case 10:
 			var typ uint32
 			typ, bts, err = msgp.ReadUint32Bytes(bts)
@@ -111,14 +132,53 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 			}
 			span.Type = typ
 		case 11:
-			var spanLinks []*SpanLink
-			spanLinks, bts, err = UnmarshalSpanLinks(bts, strings)
+			var spanLinks []*InternalSpanLink
+			spanLinks, bts, err = UnmarshalSpanLinks(bts, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span links")
 				return
 			}
 			span.SpanLinks = spanLinks
-
+		case 12:
+			var spanEvents []*InternalSpanEvent
+			spanEvents, bts, err = UnmarshalSpanEventList(bts, span.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span events")
+				return
+			}
+			span.SpanEvents = spanEvents
+		case 13:
+			var env uint32
+			env, bts, err = UnmarshalStreamingString(bts, span.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span env")
+				return
+			}
+			span.Env = env
+		case 14:
+			var version uint32
+			version, bts, err = UnmarshalStreamingString(bts, span.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span version")
+				return
+			}
+			span.Version = version
+		case 15:
+			var component uint32
+			component, bts, err = UnmarshalStreamingString(bts, span.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span component")
+				return
+			}
+			span.Component = component
+		case 16:
+			var kind uint32
+			kind, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span kind")
+				return
+			}
+			span.Kind = SpanKind(kind)
 		default:
 			fmt.Printf("Unknown field number %d\n", fieldNum)
 		}
@@ -126,8 +186,115 @@ func (span *Span) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err err
 	return
 }
 
-// UnmarshalKeyValueList unmarshals a list of key-value pairs from the byte stream, updating the strings slice with new strings
-func UnmarshalKeyValueList(bts []byte, strings *[]string) (kvl []*KeyValue, o []byte, err error) {
+//TODO list:
+// - expand span tests to cover all fields
+// - add span Marshalling code
+// - Add fuzz tests that go back and forth between the two
+// - Expand
+
+// UnmarshalSpanEventList unmarshals a list of SpanEvents from a byte stream, updating the strings slice with new strings
+func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*InternalSpanEvent, o []byte, err error) {
+	var numSpanEvents uint32
+	numSpanEvents, o, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to read span event list header")
+		return
+	}
+	spanEvents = make([]*InternalSpanEvent, numSpanEvents)
+	for i := range spanEvents {
+		spanEvents[i] = &InternalSpanEvent{Strings: strings}
+		o, err = spanEvents[i].UnmarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, fmt.Sprintf("Failed to read span event %d", i))
+			return
+		}
+	}
+	return
+}
+
+// UnmarshalMsg unmarshals a SpanEvent from a byte stream, updating the strings slice with new strings
+func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var numSpanEventFields uint32
+	numSpanEventFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to read span event fields header")
+		return
+	}
+	for numSpanEventFields > 0 {
+		numSpanEventFields--
+		var fieldNum uint32
+		fieldNum, bts, err = msgp.ReadUint32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read a span event field")
+			return
+		}
+		switch fieldNum {
+		case 1:
+			var time uint64
+			time, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span event time")
+				return
+			}
+			spanEvent.Time = time
+		case 2:
+			var name uint32
+			name, bts, err = UnmarshalStreamingString(bts, spanEvent.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span event name")
+				return
+			}
+			spanEvent.Name = name
+		case 3:
+			var kvl map[uint32]*AnyValue
+			kvl, bts, err = UnmarshalKeyValueMap(bts, spanEvent.Strings)
+			if err != nil {
+				err = msgp.WrapError(err, "Failed to read span event attributes")
+				return
+			}
+			spanEvent.Attributes = kvl
+		default:
+			fmt.Printf("Unknown span event field number %d\n", fieldNum)
+		}
+	}
+	return
+}
+
+// UnmarshalKeyValueMap unmarshals a map of key-value pairs from the byte stream, updating the StringTable with new strings
+func UnmarshalKeyValueMap(bts []byte, strings *StringTable) (kvl map[uint32]*AnyValue, o []byte, err error) {
+	var numAttributes uint32
+	numAttributes, o, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err, "Failed to read span attributes header")
+		return
+	}
+	if numAttributes > 0 && numAttributes%3 != 0 {
+		err = msgp.WrapError(err, fmt.Sprintf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes))
+		return
+	}
+	kvl = make(map[uint32]*AnyValue, numAttributes/3) //todo: limit size of attributes
+	var i uint32
+	for i < numAttributes {
+		var key uint32
+		key, o, err = UnmarshalStreamingString(o, strings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read attribute key")
+			return
+		}
+		var value *AnyValue
+		value, o, err = UnmarshalAnyValue(o, strings)
+		if err != nil {
+			err = msgp.WrapError(err, "Failed to read attribute value")
+			return
+		}
+		kvl[key] = value
+		i += 3
+	}
+	return
+}
+
+// UnmarshalKeyValueList unmarshals a list of key-value pairs from the byte stream, updating the StringTable with new strings
+func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o []byte, err error) {
 	var numAttributes uint32
 	numAttributes, o, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
@@ -160,7 +327,7 @@ func UnmarshalKeyValueList(bts []byte, strings *[]string) (kvl []*KeyValue, o []
 }
 
 // UnmarshalAnyValue unmarshals an AnyValue from a byte stream, updating the strings slice with new strings
-func UnmarshalAnyValue(bts []byte, strings *[]string) (value *AnyValue, o []byte, err error) {
+func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []byte, err error) {
 	value = &AnyValue{}
 	var valueType uint32
 	valueType, o, err = msgp.ReadUint32Bytes(bts)
@@ -250,7 +417,7 @@ func UnmarshalAnyValue(bts []byte, strings *[]string) (value *AnyValue, o []byte
 
 // UnmarshalStreamingString unmarshals a streaming string from a byte stream, updating the strings slice with new strings
 // For streaming string details see pkg/trace/api/version.go for details
-func UnmarshalStreamingString(bts []byte, strings *[]string) (index uint32, o []byte, err error) {
+func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o []byte, err error) {
 	if len(bts) < 1 {
 		err = msgp.WrapError(err, "Expected streaming string but EOF")
 		return
@@ -262,15 +429,14 @@ func UnmarshalStreamingString(bts []byte, strings *[]string) (index uint32, o []
 			err = msgp.WrapError(err, "Failed to read streaming string as a string")
 			return
 		}
-		*strings = append(*strings, s)
-		index = uint32(len(*strings) - 1)
+		index = strings.Add(s)
 	} else {
 		index, o, err = msgp.ReadUint32Bytes(bts)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read streaming string, failed to read uint32")
 			return
 		}
-		if index >= uint32(len(*strings)) {
+		if int(index) >= strings.Len() {
 			err = msgp.WrapError(err, "Streaming string referenced an unseen string index")
 			return
 		}
@@ -315,17 +481,17 @@ func isfixstr(b byte) bool {
 }
 
 // UnmarshalSpanLinks unmarshals a list of SpanLinks from a byte stream, updating the strings slice with new strings
-func UnmarshalSpanLinks(bts []byte, strings *[]string) (links []*SpanLink, o []byte, err error) {
+func UnmarshalSpanLinks(bts []byte, strings *StringTable) (links []*InternalSpanLink, o []byte, err error) {
 	var numLinks uint32
 	numLinks, o, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read span links header")
 		return
 	}
-	links = make([]*SpanLink, numLinks)
+	links = make([]*InternalSpanLink, numLinks)
 	for i := range links {
-		links[i] = &SpanLink{}
-		o, err = links[i].UnmarshalMsg(o, strings)
+		links[i] = &InternalSpanLink{Strings: strings}
+		o, err = links[i].UnmarshalMsg(o)
 		if err != nil {
 			err = msgp.WrapError(err, fmt.Sprintf("Failed to read span link %d", i))
 			return
@@ -335,7 +501,7 @@ func UnmarshalSpanLinks(bts []byte, strings *[]string) (links []*SpanLink, o []b
 }
 
 // UnmarshalMsg unmarshals a SpanLink from a byte stream, updating the strings slice with new strings
-func (link *SpanLink) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err error) {
+func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var numFields uint32
 	numFields, o, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
@@ -364,13 +530,13 @@ func (link *SpanLink) UnmarshalMsg(bts []byte, strings *[]string) (o []byte, err
 				return
 			}
 		case 3: // attributes
-			link.Attributes, o, err = UnmarshalKeyValueList(o, strings)
+			link.Attributes, o, err = UnmarshalKeyValueMap(o, link.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read attributes")
 				return
 			}
 		case 4: // tracestate
-			link.Tracestate, o, err = UnmarshalStreamingString(o, strings)
+			link.Tracestate, o, err = UnmarshalStreamingString(o, link.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracestate")
 				return

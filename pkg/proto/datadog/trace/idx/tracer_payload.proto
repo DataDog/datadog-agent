@@ -13,16 +13,22 @@ message TraceChunk {
 	int32 priority = 1;
 	// origin specifies origin product ("lambda", "rum", etc.) of the trace.
 	// @gotags: json:"origin" msg:"origin"
-	string origin = 2;
+	uint32 origin = 2;
+	// tags specifies tags common in all `spans`.
+	// @gotags: json:"attributes" msg:"attributes"
+	repeated KeyValue attributes = 3;
 	// spans specifies list of containing spans.
 	// @gotags: json:"spans" msg:"spans"
-	repeated Span spans = 3;
-	// tags specifies tags common in all `spans`.
-	// @gotags: json:"tags" msg:"tags"
-	map<string, string> tags = 4;
+	repeated Span spans = 4;
 	// droppedTrace specifies whether the trace was dropped by samplers or not.
 	// @gotags: json:"dropped_trace" msg:"dropped_trace"
 	bool droppedTrace = 5;
+	// the ID of the trace to which all spans in this chunk belong
+	// @gotags: json:"traceID" msg:"traceID"
+	bytes traceID = 6;
+	// the optional string decision maker (previously span tag _dd.p.dm)
+	// @gotags: json:"decisionMaker" msg:"decisionMaker"
+	uint32 decisionMaker = 7;
 }
 
 // TracerPayload represents a payload the trace agent receives from tracers.
@@ -32,32 +38,33 @@ message TracerPayload {
 	repeated string strings = 1;
 	// containerID specifies the ID of the container where the tracer is running on.
 	// @gotags: json:"container_id" msg:"container_id"
-	string containerID = 2;
+	uint32 containerID = 2;
 	// languageName specifies language of the tracer.
 	// @gotags: json:"language_name" msg:"language_name"
-	string languageName = 3;
+	uint32 languageName = 3;
 	// languageVersion specifies language version of the tracer.
 	// @gotags: json:"language_version" msg:"language_version"
-	string languageVersion = 4;
+	uint32 languageVersion = 4;
 	// tracerVersion specifies version of the tracer.
 	// @gotags: json:"tracer_version" msg:"tracer_version"
-	string tracerVersion = 5;
+	uint32 tracerVersion = 5;
 	// runtimeID specifies V4 UUID representation of a tracer session.
 	// @gotags: json:"runtime_id" msg:"runtime_id"
-	string runtimeID = 6;
-	// chunks specifies list of containing trace chunks.
-	// @gotags: json:"chunks" msg:"chunks"
-	repeated TraceChunk chunks = 7;
-	// a collection of key to value pairs common in all `chunks`
-	// @gotags: json:"attributes" msg:"attributes"
-	repeated KeyValue attributes = 8;
+	uint32 runtimeID = 6;
 	// env specifies `env` tag that set with the tracer.
 	// @gotags: json:"env" msg:"env"
-	string env = 9;
+	uint32 env = 8;
 	// hostname specifies hostname of where the tracer is running.
 	// @gotags: json:"hostname" msg:"hostname"
-	string hostname = 10;
+	uint32 hostname = 9;
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
-	string appVersion = 11;
+	uint32 appVersion = 10;
+	// a collection of key to value pairs common in all `chunks`
+	// @gotags: json:"attributes" msg:"attributes"
+	repeated KeyValue attributes = 11;
+	// chunks specifies list of containing trace chunks.
+	// @gotags: json:"chunks" msg:"chunks"
+	repeated TraceChunk chunks = 12;
+
 }
