@@ -110,7 +110,7 @@ new-agent_dmg-x64-a7:
 
     - rm -rf ~/datadog-agent
     - mkdir -p ~/datadog-agent
-    - cp -r ./* ~/datadog-agent
+    - cp -rf ./* ~/datadog-agent
     - WORKDIR="$PWD"
     - cd "$HOME/datadog-agent"
 
