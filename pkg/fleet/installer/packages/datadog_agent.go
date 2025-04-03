@@ -204,32 +204,12 @@ func RemoveAgent(ctx context.Context) error {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent_units")
 	var spanErr error
 	defer func() { span.Finish(spanErr) }()
-	// stop experiments, they can restart stable agent
-	for _, unit := range experimentalUnits {
-		if err := systemd.StopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
-			spanErr = err
-		}
-	}
-	// stop stable agents
-	for _, unit := range stableUnits {
-		if err := systemd.StopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
-			spanErr = err
-		}
-	}
-
-	if err := systemd.DisableUnit(ctx, agentUnit); err != nil {
-		log.Warnf("Failed to disable %s: %s", agentUnit, err)
-		spanErr = err
-	}
-
-	// remove units from disk
-	spanErr = removeAgentUnits(ctx, experimentalUnits)
+	// stop, disable, & delete units from disk
+	spanErr = removeAgentUnits(ctx, experimentalUnits, agentExp)
 	if spanErr != nil {
 		log.Warnf("Failed to remove experimental units: %s", spanErr)
 	}
-	spanErr = removeAgentUnits(ctx, stableUnits)
+	spanErr = removeAgentUnits(ctx, stableUnits, agentUnit)
 	if spanErr != nil {
 		log.Warnf("Failed to remove stable units: %s", spanErr)
 	}
@@ -259,20 +239,20 @@ func StopAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	if err := removeAgentUnits(ctx, experimentalUnits); err != nil {
+	if err := setupStableUnits(ctx); err != nil {
 		return err
 	}
-	return setupStableUnits(ctx)
+	return removeAgentUnits(ctx, experimentalUnits, agentExp)
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	if err := removeAgentUnits(ctx, experimentalUnits); err != nil {
+	if err := setupStableUnits(ctx); err != nil {
 		return err
 	}
-	return setupStableUnits(ctx)
+	return removeAgentUnits(ctx, experimentalUnits, agentExp)
 }
 
 func setupStableUnits(ctx context.Context) error {
@@ -283,7 +263,17 @@ func setupExperimentUnits(ctx context.Context) error {
 	return setupAgentUnits(ctx, agentExp, experimentalUnits, "--no-block")
 }
 
-func removeAgentUnits(ctx context.Context, units []string) error {
+func removeAgentUnits(ctx context.Context, units []string, coreAgentUnit string) error {
+	for _, unit := range units {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
+			return err
+		}
+	}
+
+	if err := systemd.DisableUnit(ctx, coreAgentUnit); err != nil {
+		return err
+	}
+
 	for _, unit := range units {
 		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			return err
