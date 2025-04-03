@@ -109,6 +109,7 @@ new-agent_dmg-x64-a7:
     - set -euo pipefail
 
     - rm -rf ~/datadog-agent
+    - mkdir -p ~/datadog-agent
     - cp -r ./* ~/datadog-agent
     - WORKDIR="$PWD"
     - cd "$HOME/datadog-agent"
