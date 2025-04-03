@@ -75,8 +75,6 @@ var factory = map[CollectorName]subsystemBuilder{
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
 
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
