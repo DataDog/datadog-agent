@@ -18,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/ipv4"
 
@@ -388,11 +387,7 @@ func (s *sackDriver) readAndParse(conn *ipv4.RawConn) error {
 
 	// TODO ipv6
 	err = s.parser.ParseIPv4(s.buffer[:n])
-	var errUnsupportedLayer *gopacket.UnsupportedLayerType
-	if errors.As(err, &errUnsupportedLayer) {
-		// this is fine for e.g. UDP
-		return common.ErrReceiveProbeNoPkt
-	} else if err != nil {
+	if err != nil {
 		log.DebugFunc(func() string {
 			return fmt.Sprintf("error parsing packet of length %d: %s, %s", n, err, hex.EncodeToString(s.buffer[:n]))
 		})

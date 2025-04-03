@@ -29,6 +29,7 @@ type FrameParser struct {
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+	p.v4Parser.IgnoreUnsupported = true
 	return p
 }
 
