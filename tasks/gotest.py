@@ -44,6 +44,7 @@ from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
+WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
@@ -149,17 +150,7 @@ def test_flavor(
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
-    targets = []
-    for module in modules:
-        if not module.should_test():
-            continue
-        for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
-            if not target_path.startswith('./'):
-                target_path = f"./{target_path}"
-            targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    packages = compute_gotestsum_cli_args(modules)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -842,6 +833,12 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         for module in modules_to_test:
             print(f"- {module}: {modules_to_test[module].test_targets}")
 
+    # We need to make sure the CLI length is not too long
+    packages = compute_gotestsum_cli_args(modules_to_test.values())
+    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH:
+        print("CLI length is too long, skipping fast tests")
+        return get_default_modules().values()
+
     return modules_to_test.values()
 
 
@@ -873,6 +870,21 @@ def get_go_modified_files(ctx):
         if file.find("unit_tests/testdata/components_src") == -1
         and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     ]
+
+
+def compute_gotestsum_cli_args(modules: list[GoModule]):
+    targets = []
+    for module in modules:
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            target_path = os.path.join(module.path, target)
+            if not target_path.startswith('./'):
+                target_path = f"./{target_path}"
+            targets.append(target_path)
+
+    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    return packages
 
 
 @task
