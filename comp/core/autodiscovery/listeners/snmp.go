@@ -362,9 +362,10 @@ func (l *SNMPListener) initializeIPAuthenticationCounter() {
 	log.Debugf("Initialized authentication counter with %d IP addresses", len(l.ipsAuthenticationCounter))
 }
 
-func (l *SNMPListener) checkPreviousIPs(subnet *snmpSubnet, deviceIP string) bool {
+func (l *SNMPListener) checkPreviousIPs(deviceIP string) bool {
 	for ip, count := range l.ipsAuthenticationCounter {
 		if count > 0 && minimumIP(ip, deviceIP) == ip {
+			log.Debugf("Device %s not yet discovered", deviceIP)
 			return false
 		}
 	}
@@ -524,7 +525,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		subnet:       subnet,
 	}
 
-	previousIPsDiscovered := l.checkPreviousIPs(subnet, deviceIP)
+	previousIPsDiscovered := l.checkPreviousIPs(deviceIP)
 
 	if !previousIPsDiscovered {
 		log.Debugf("Previous IPs not all scanned for device %s, adding to pending", deviceIP)
@@ -794,7 +795,8 @@ func (l *SNMPListener) flushPendingServices() {
 	log.Debugf("Checking %d pending services", len(l.pendingServicesByFingerprint))
 
 	for fingerprint, pendingSvc := range l.pendingServicesByFingerprint {
-		previousIPsScanned := l.checkPreviousIPs(pendingSvc.svc.subnet, pendingSvc.svc.deviceIP)
+		log.Debugf("Checking pending service for device %s", pendingSvc.svc.deviceIP)
+		previousIPsScanned := l.checkPreviousIPs(pendingSvc.svc.deviceIP)
 
 		if previousIPsScanned {
 			log.Debugf("All previous IPs scanned for device %s, activating service", pendingSvc.svc.deviceIP)
