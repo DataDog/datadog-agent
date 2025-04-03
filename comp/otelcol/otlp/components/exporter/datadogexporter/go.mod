@@ -349,6 +349,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../../../pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkdevice/integrations => ../../../../../../pkg/networkdevice/integrations
+	github.com/DataDog/datadog-agent/pkg/networkdevice/metadata => ../../../../../../pkg/networkdevice/metadata
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../../../../pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../../../pkg/obfuscate
@@ -359,6 +361,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../../../pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib => ../../../../../../pkg/snmp/gosnmplib
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../../pkg/tagset

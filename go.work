@@ -107,6 +107,8 @@ use (
 	pkg/logs/util/testutils
 	pkg/metrics
 	pkg/network/payload
+	pkg/networkdevice/integrations
+	pkg/networkdevice/metadata
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
 	pkg/obfuscate
@@ -117,6 +119,7 @@ use (
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/snmp/gosnmplib
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
