@@ -27,6 +27,7 @@ import (
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -707,4 +708,43 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 	err = s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, -10000)
 	assert.Error(t, err)
 	assert.Len(t, s.itemChan, 0)
+}
+
+func TestHostRemoval(t *testing.T) {
+	// Save the current configuration state
+	originalConfig := pkgconfigsetup.Datadog().AllSettings()
+
+	// Mock the configuration to include the hostTagDisallowList
+	pkgconfigsetup.Datadog().SetWithoutSource("host_tag_disallow_list", []string{"request.dist.elena"})
+
+	// Ensure the configuration is reset after the test
+	defer func() {
+		for key, value := range originalConfig {
+			pkgconfigsetup.Datadog().SetWithoutSource(key, value)
+		}
+	}()
+
+	// Use a bidirectional channel for itemsOut
+	itemsOut := make(chan senderItem, 10)
+
+	s := newCheckSender(
+		checkID1,
+		"default-host",
+		itemsOut, // Pass the bidirectional channel here
+		make(chan servicecheck.ServiceCheck, 10),
+		make(chan event.Event, 10),
+		nil,
+		nil,
+		nil,
+	)
+
+	// Test with a metric in the disallow list
+	s.Gauge("request.dist.elena", 42, "custom-host", nil)
+	metricSample := (<-itemsOut).(*senderMetricSample)
+	assert.Equal(t, "default-host", metricSample.metricSample.Host) // Host should be set to default value
+
+	// Test with a metric not in the disallow list
+	s.Gauge("request.dist.referrer", 42, "custom-host", nil)
+	metricSample = (<-itemsOut).(*senderMetricSample)
+	assert.Equal(t, "custom-host", metricSample.metricSample.Host) // Custom host should be preserved
 }

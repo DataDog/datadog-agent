@@ -1504,6 +1504,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
+	config.BindEnvAndSetDefault("host_tag_disallow_list", []string{})
 }
 
 func logsagent(config pkgconfigmodel.Setup) {

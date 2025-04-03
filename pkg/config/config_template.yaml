@@ -221,6 +221,13 @@ api_key:
 # histogram_percentiles:
 #   - "0.95"
 
+## @param host_tag_disallow_list - list of strings - optional - default: []string{}
+## @env DD_HOST_TAG_DISALLOW_LIST - space separated list of strings - optional - default:[]string{}
+## Configure which metrics will receive a default datadog host, rather than auto-assigning it. It must be a list of strings.
+#
+# host_tag_disallow_list:
+#   - "request.dist.time"
+
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
 ## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
