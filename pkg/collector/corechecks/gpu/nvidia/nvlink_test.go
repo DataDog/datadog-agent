@@ -27,7 +27,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 			name: "Unsupported device",
 			mockSetup: func() *nvmlmock.Device {
 				return &nvmlmock.Device{
-					GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+					GetFieldValuesFunc: func(_ []nvml.FieldValue) nvml.Return {
 						return nvml.ERROR_NOT_SUPPORTED
 					},
 				}
@@ -38,7 +38,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 			name: "Unknown error",
 			mockSetup: func() *nvmlmock.Device {
 				return &nvmlmock.Device{
-					GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+					GetFieldValuesFunc: func(_ []nvml.FieldValue) nvml.Return {
 						return nvml.ERROR_UNKNOWN
 					},
 				}
