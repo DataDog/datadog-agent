@@ -293,6 +293,8 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
 		// Take max(initContainer ressource)
+		maxInitContainerLimit := resource.Quantity{}
+		maxInitContainerRequest := resource.Quantity{}
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
 			if initContainerIsSidecar(c) {
@@ -300,45 +302,28 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				// we need to add it's resources to the main container's resources
 				continue
 			}
-
-			request, requestFound := c.Resources.Requests[k]
-			limit, limitFound := c.Resources.Limits[k]
-
-			if requestFound {
-				maxRequest := ressourceRequirement.Requests[k]
-				if request.Cmp(maxRequest) == 1 {
-					ressourceRequirement.Requests[k] = request
+			if limit, ok := c.Resources.Limits[k]; ok {
+				if limit.Cmp(maxInitContainerLimit) == 1 {
+					maxInitContainerLimit = limit
 				}
 			}
-
-			if limitFound || requestFound {
-				if !limitFound {
-					limit = request
-				}
-				maxLimit := ressourceRequirement.Limits[k]
-				if limit.Cmp(maxLimit) == 1 {
-					ressourceRequirement.Limits[k] = limit
+			if request, ok := c.Resources.Requests[k]; ok {
+				if request.Cmp(maxInitContainerRequest) == 1 {
+					maxInitContainerRequest = request
 				}
 			}
 		}
 
+		// Take sum(container resources) + sum(sidecar containers)
 		limitSum := resource.Quantity{}
 		reqSum := resource.Quantity{}
 		for i := range pod.Spec.Containers {
 			c := &pod.Spec.Containers[i]
-
-			request, requestFound := c.Resources.Requests[k]
-			limit, limitFound := c.Resources.Limits[k]
-
-			if requestFound {
-				reqSum.Add(request)
+			if l, ok := c.Resources.Limits[k]; ok {
+				limitSum.Add(l)
 			}
-
-			if requestFound || limitFound {
-				if !limitFound {
-					limit = request
-				}
-				limitSum.Add(limit)
+			if l, ok := c.Resources.Requests[k]; ok {
+				reqSum.Add(l)
 			}
 		}
 		for i := range pod.Spec.InitContainers {
@@ -346,31 +331,32 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 			if !initContainerIsSidecar(c) {
 				continue
 			}
-
-			request, requestFound := c.Resources.Requests[k]
-			limit, limitFound := c.Resources.Limits[k]
-
-			if requestFound {
-				reqSum.Add(request)
+			if l, ok := c.Resources.Limits[k]; ok {
+				limitSum.Add(l)
 			}
-
-			if requestFound || limitFound {
-				if !limitFound {
-					limit = request
-				}
-				limitSum.Add(limit)
+			if l, ok := c.Resources.Requests[k]; ok {
+				reqSum.Add(l)
 			}
 		}
 
-		// Take max(sum(container resources) + sum(sidecar container resources))
-		existingLimit := ressourceRequirement.Limits[k]
-		if limitSum.Cmp(existingLimit) == 1 {
-			ressourceRequirement.Limits[k] = limitSum
+		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
+		if limitSum.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = limitSum
+		}
+		if reqSum.Cmp(maxInitContainerRequest) == 1 {
+			maxInitContainerRequest = reqSum
 		}
 
-		existingReq := ressourceRequirement.Requests[k]
-		if reqSum.Cmp(existingReq) == 1 {
-			ressourceRequirement.Requests[k] = reqSum
+		// Ensure that the limit is greater or equal to the request
+		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = maxInitContainerRequest
+		}
+
+		if maxInitContainerLimit.CmpInt64(0) == 1 {
+			ressourceRequirement.Limits[k] = maxInitContainerLimit
+		}
+		if maxInitContainerRequest.CmpInt64(0) == 1 {
+			ressourceRequirement.Requests[k] = maxInitContainerRequest
 		}
 	}
 
