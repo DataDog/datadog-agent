@@ -29,12 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 )
 
 const (
@@ -113,13 +112,9 @@ func (c *Check) ensureInitNVML() error {
 		return nil
 	}
 
-	// Initialize NVML library. if the config parameter doesn't exist or is
-	// empty string, the default value is used as defined in go-nvml library
-	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
+	nvmlLib, err := ddnvml.GetNvmlLib()
+	if err != nil {
+		return fmt.Errorf("failed to get NVML library: %w", err)
 	}
 
 	c.nvmlLib = nvmlLib
@@ -202,14 +197,6 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
-	sentMetrics := 0
-
-	// Always send telemetry metrics
-	defer func() {
-		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
-		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
-	}()
-
 	if err := c.ensureInitDeviceCache(); err != nil {
 		return err
 	}
@@ -218,6 +205,28 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
+
+	return c.processSysprobeStats(snd, stats, gpuToContainersMap)
+}
+
+func addToActiveEntitiesPerDevice(activeEntitiesPerDevice map[string]common.StringSet, key model.StatsKey, processTags []string) {
+	if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
+		activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
+	}
+
+	for _, t := range processTags {
+		activeEntitiesPerDevice[key.DeviceUUID].Add(t)
+	}
+}
+
+func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gpuToContainersMap map[string][]*workloadmeta.Container) error {
+	sentMetrics := 0
+
+	// Always send telemetry metrics
+	defer func() {
+		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
+		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
+	}()
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
@@ -244,13 +253,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 		deviceTags := c.deviceTags[key.DeviceUUID]
 
 		// Add the process tags to the active entities for the device, using a set to avoid duplicates
-		if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
-			activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
-		}
-
-		for _, t := range processTags {
-			activeEntitiesPerDevice[key.DeviceUUID].Add(t)
-		}
+		addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
 
 		allTags := append(processTags, deviceTags...)
 
@@ -265,10 +268,15 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[st
 	// of zero to ensure it's reset and the previous value doesn't linger on for longer than necessary.
 	for key, active := range c.activeMetrics {
 		if !active {
-			tags := append(c.getProcessTagsForKey(key), c.deviceTags[key.DeviceUUID]...)
+			processTags := c.getProcessTagsForKey(key)
+			tags := append(processTags, c.deviceTags[key.DeviceUUID]...)
 			snd.Gauge(metricNameMemoryUsage, 0, "", tags)
 			snd.Gauge(metricNameCoreUsage, 0, "", tags)
 			sentMetrics += 2
+
+			// Here we also need to mark these entities as active. If we don't, the limit metrics won't have
+			// the tags and utilization will not be reported for them, as the limit metric won't match
+			addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
 
 			delete(c.activeMetrics, key)
 		}
