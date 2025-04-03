@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -60,7 +60,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func BenchmarkConsumer(b *testing.B) {
 
 			cfg := config.New()
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
 			ctx.pidMaps[pid] = nil
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))

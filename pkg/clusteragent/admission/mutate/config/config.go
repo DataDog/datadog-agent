@@ -43,6 +43,9 @@ const (
 	hostIP  = "hostip"
 	socket  = "socket"
 	service = "service"
+	// csi mode allows mounting datadog sockets using CSI volumes instead of hostpath volumes
+	// in case CSI is disabled globally, the mutator will default to use 'socket' mode instead
+	csi = "csi"
 
 	// DatadogVolumeName is the name of the volume used to mount the sockets when the volume source is a directory
 	DatadogVolumeName = "datadog"

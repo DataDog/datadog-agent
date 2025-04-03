@@ -218,6 +218,9 @@ def get_build_flags(
     We need to invoke external processes here so this function need the
     Context object.
     """
+    if arch is None:
+        arch = Arch.local()
+
     gcflags = ""
     ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
@@ -317,15 +320,17 @@ def get_build_flags(
                 file=sys.stderr,
             )
 
-    if arch and arch.is_cross_compiling():
+    if os.getenv("DD_CC"):
+        env["CC"] = os.getenv("DD_CC")
+    if os.getenv("DD_CXX"):
+        env["CXX"] = os.getenv("DD_CXX")
+
+    if arch.is_cross_compiling():
         # For cross-compilation we need to be explicit about certain Go settings
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = arch.gcc_compiler()
-    if os.getenv('DD_CC'):
-        env['CC'] = os.getenv('DD_CC')
-    if os.getenv('DD_CXX'):
-        env['CXX'] = os.getenv('DD_CXX')
+        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
+        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "

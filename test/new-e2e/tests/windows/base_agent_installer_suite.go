@@ -41,6 +41,8 @@ func (b *BaseAgentInstallerSuite[Env]) NewTestClientForHost(host *components.Rem
 // SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install.
 func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	b.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer b.CleanupOnSetupFailure()
 
 	var err error
 	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()

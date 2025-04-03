@@ -156,11 +156,6 @@ func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion st
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
 
-// StartInstallerExperiment will use the Datadog Installer service to start an experiment
-func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
-}
-
 // PromoteExperiment will use the Datadog Installer service to promote an experiment
 func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon promote-experiment '%s'", packageName))

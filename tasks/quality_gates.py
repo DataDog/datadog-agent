@@ -14,7 +14,7 @@ from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
 
-BUFFER_SIZE = 500000
+BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 

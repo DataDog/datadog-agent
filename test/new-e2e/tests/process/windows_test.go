@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -43,6 +43,9 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	// Install chocolatey - https://chocolatey.org/install
@@ -156,8 +159,6 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
-	// https://datadoghq.atlassian.net/browse/CTK-3960
-	flake.Mark(t)
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
@@ -197,10 +198,6 @@ func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	// MsMpEng.exe process missing IO stats, agent process does not always have CPU stats populated as it is restarted multiple times during the test suite run
-	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
-	flake.Mark(s.T())
-
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),

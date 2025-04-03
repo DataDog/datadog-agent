@@ -34,6 +34,8 @@ func TestEC2VMWKitSuite(t *testing.T) {
 // SetupSuite
 func (v *ec2VMWKitSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	v.Env().RemoteHost.MustExecute("Invoke-WebRequest -UseBasicParsing http://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip -OutFile httpd.zip")
 	v.Env().RemoteHost.MustExecute("Expand-Archive httpd.zip")

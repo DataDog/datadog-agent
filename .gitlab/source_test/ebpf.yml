@@ -2,8 +2,10 @@
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/bin
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${ARCH}${CLANG_BUILD_VERSION}" /tmp/clang-bpf
-  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${ARCH}${CLANG_BUILD_VERSION}" /tmp/llc-bpf
+  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${ARCH}.${CLANG_BUILD_VERSION}" /opt/datadog-agent/embedded/bin/clang-bpf
+  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${ARCH}.${CLANG_BUILD_VERSION}" /opt/datadog-agent/embedded/bin/llc-bpf
+  - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llvm-strip-${CLANG_LLVM_VER}.${ARCH}.${CLANG_BUILD_VERSION}" /opt/datadog-agent/embedded/bin/llvm-strip
+  - chmod +x /opt/datadog-agent/embedded/bin/{clang-bpf,llc-bpf,llvm-strip}
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
@@ -26,7 +28,7 @@
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
@@ -34,7 +36,7 @@ tests_ebpf_x64:
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -62,17 +64,21 @@ tests_ebpf_arm64:
 
 prepare_sysprobe_ebpf_functional_tests_arm64:
   extends: .prepare_sysprobe_ebpf_functional_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 prepare_sysprobe_ebpf_functional_tests_x64:
   extends: .prepare_sysprobe_ebpf_functional_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
+    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
+    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
 
 .prepare_secagent_ebpf_functional_tests:
   stage: source_test
@@ -92,20 +98,21 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - !reference [.retrieve_sysprobe_deps]
   script:
     - dda inv -- -e kmt.prepare --ci --component="security-agent"
-    - mkdir -p /opt/datadog-agent/embedded/bin
-    - cp /tmp/clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
-    - cp /tmp/llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
 
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 prepare_secagent_ebpf_functional_tests_x64:
   extends: .prepare_secagent_ebpf_functional_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
+    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
+    DD_CXX: 'x86_64-unknown-linux-gnu-g++'

@@ -322,7 +322,6 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
-
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
@@ -380,7 +379,7 @@ func (k *Version) HasSKStorage() bool {
 		return true
 	}
 
-	return k.Code != 0 && k.Code > Kernel5_2
+	return k.Code != 0 && k.Code >= Kernel5_2
 }
 
 // HasSKStorageInTracingPrograms returns true if the kernel supports SK_STORAGE maps in tracing programs
@@ -399,13 +398,13 @@ func (k *Version) HasSKStorageInTracingPrograms() bool {
 	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) == nil {
 		return true
 	}
-	return k.Code != 0 && k.Code > Kernel5_11
+	return k.Code != 0 && k.Code >= Kernel5_11
 }
 
 // IsMapValuesToMapHelpersAllowed returns true if the kernel supports passing map values to map helpers
 // See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
 func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
-	return k.Code != 0 && k.Code > Kernel4_18
+	return k.Code != 0 && k.Code >= Kernel4_18
 }
 
 // HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
@@ -414,7 +413,7 @@ func (k *Version) HasBPFForEachMapElemHelper() bool {
 	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
 		return true
 	}
-	return k.Code != 0 && k.Code > Kernel5_13
+	return k.Code != 0 && k.Code >= Kernel5_13
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19

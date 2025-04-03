@@ -68,6 +68,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
+	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+		return errors.New("service discovery is disabled")
+	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
 	}
@@ -88,10 +91,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 
 // Run executes the check.
 func (c *Check) Run() error {
-	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
-		return nil
-	}
-
 	response, err := c.os.DiscoverServices()
 	if err != nil {
 		return err

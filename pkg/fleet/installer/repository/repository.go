@@ -80,12 +80,22 @@ func (s *State) HasExperiment() bool {
 
 // StableFS returns the stable package fs.
 func (r *Repository) StableFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, stableVersionLink))
+	return os.DirFS(r.StablePath())
 }
 
 // ExperimentFS returns the experiment package fs.
 func (r *Repository) ExperimentFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, experimentVersionLink))
+	return os.DirFS(r.ExperimentPath())
+}
+
+// StablePath returns the stable package path.
+func (r *Repository) StablePath() string {
+	return filepath.Join(r.rootPath, stableVersionLink)
+}
+
+// ExperimentPath returns the experiment package path.
+func (r *Repository) ExperimentPath() string {
+	return filepath.Join(r.rootPath, experimentVersionLink)
 }
 
 // GetState returns the state of the repository.
