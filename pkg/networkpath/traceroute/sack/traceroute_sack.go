@@ -18,6 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SackNotSupportedError means the target did not respond with the SACK Permitted
+// TCP option, or we couldn't establish a TCP connection to begin with
+type SackNotSupportedError struct {
+	Err error
+}
+
+func (e *SackNotSupportedError) Error() string {
+	return fmt.Sprintf("SACK not supported by the target: %s", e.Err)
+}
+func (e *SackNotSupportedError) Unwrap() error {
+	return e.Err
+}
+
 // Params is the SACK traceroute parameters
 type Params struct {
 	// Target is the IP:port to traceroute
@@ -111,7 +124,11 @@ func runSackTraceroute(ctx context.Context, p Params) (*sackResult, error) {
 	// because sackDriver needs to watch the SYNACK to see if SACK is supported
 	conn, err := dialSackTCP(ctx, p)
 	if err != nil {
-		return nil, fmt.Errorf("sack traceroute failed to dial: %w", err)
+		// if we can't dial the remote (e.g. their server is not listening), we can't SACK traceroute,
+		// but we could still SYN traceroute so return a SackNotSupportedError
+		return nil, &SackNotSupportedError{
+			Err: fmt.Errorf("sack traceroute failed to dial: %w", err),
+		}
 	}
 	defer conn.Close()
 
@@ -144,28 +161,5 @@ func runSackTraceroute(ctx context.Context, p Params) (*sackResult, error) {
 		LocalAddr: local.AddrPort(),
 		Hops:      resp,
 	}
-	return result, nil
-}
-
-// RunSackTraceroute fully executes a SACK traceroute using the given parameters
-func RunSackTraceroute(ctx context.Context, p Params) (*common.Results, error) {
-	sackResult, err := runSackTraceroute(ctx, p)
-	if err != nil {
-		return nil, fmt.Errorf("sack traceroute failed: %w", err)
-	}
-
-	hops, err := common.ToHops(p.ParallelParams, sackResult.Hops)
-	if err != nil {
-		return nil, fmt.Errorf("sack traceroute ToHops failed: %w", err)
-	}
-
-	result := &common.Results{
-		Source:     sackResult.LocalAddr.Addr().AsSlice(),
-		SourcePort: sackResult.LocalAddr.Port(),
-		Target:     p.Target.Addr().AsSlice(),
-		DstPort:    p.Target.Port(),
-		Hops:       hops,
-	}
-
 	return result, nil
 }

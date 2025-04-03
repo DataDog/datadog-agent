@@ -26,10 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrSackNotSupported means the target did not respond with the SACK Permitted
-// TCP option, meaning they will not respond properly to a SACK traceroute
-var ErrSackNotSupported = errors.New("SACK not supported by the target")
-
 type sackDriver struct {
 	tcpConn     *ipv4.RawConn
 	icmpConn    *ipv4.RawConn
@@ -344,13 +340,13 @@ func (s *sackDriver) handleHandshake() error {
 		return nil
 	}
 	// check if they support SACK otherwise we can't traceroute this way
-	foundSack := false
+	foundSackPermitted := false
 	state := sackTCPState{}
 	for _, opt := range s.parser.TCP.Options {
 		log.Tracef("handleHandshake saw option %s", opt.OptionType)
 		switch opt.OptionType {
 		case layers.TCPOptionKindSACKPermitted:
-			foundSack = true
+			foundSackPermitted = true
 		case layers.TCPOptionKindTimestamps:
 			if len(opt.OptionData) < 8 {
 				return fmt.Errorf("sackDriver found truncated timestamps option")
@@ -365,8 +361,10 @@ func (s *sackDriver) handleHandshake() error {
 			state.tsEcr = remoteTSValue
 		}
 	}
-	if !foundSack {
-		return ErrSackNotSupported
+	if !foundSackPermitted {
+		return &SackNotSupportedError{
+			Err: fmt.Errorf("SACK not supported by the target %s (missing SACK-permitted option)", s.params.Target),
+		}
 	}
 
 	// set the localInitSeq and localInitAck based off the response
@@ -380,9 +378,11 @@ func (s *sackDriver) readAndParse(conn *ipv4.RawConn) error {
 	n, err := conn.Read(s.buffer)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return common.ErrReceiveProbeNoPkt
-	} else if err != nil {
+	}
+	if err != nil {
 		return fmt.Errorf("sackDriver failed to ReadFromIP: %w", err)
-	} else if n == 0 {
+	}
+	if n == 0 {
 		return common.ErrReceiveProbeNoPkt
 	}
 
