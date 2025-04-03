@@ -77,6 +77,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/create
 	pkg/config/env
 	pkg/config/mock
 	pkg/config/model
