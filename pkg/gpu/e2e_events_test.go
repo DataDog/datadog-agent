@@ -14,6 +14,7 @@ package gpu
 import (
 	"testing"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -44,7 +45,8 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), telemetryMock)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx, err := getSystemContext(kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), telemetryMock)
 	require.NoError(t, err)
 
 	handlers := newStreamCollection(ctx, telemetryMock)

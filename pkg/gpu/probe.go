@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -48,11 +47,6 @@ const (
 	defaultMapCleanerInterval  = 5 * time.Minute
 	defaultMapCleanerBatchSize = 100
 	defaultEventTTL            = defaultMapCleanerInterval
-)
-
-var (
-	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = 2 * os.Getpagesize()
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -92,9 +86,6 @@ type ProbeDependencies struct {
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
-	// NvmlLib is the NVML library interface
-	NvmlLib nvml.Interface
-
 	// ProcessMonitor is the process monitor interface
 	ProcessMonitor uprobes.ProcessMonitor
 
@@ -105,15 +96,8 @@ type ProbeDependencies struct {
 
 // NewProbeDependencies creates a new ProbeDependencies instance
 func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib := nvml.New()
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
-	}
-
 	return ProbeDependencies{
 		Telemetry:      telemetry,
-		NvmlLib:        nvmlLib,
 		ProcessMonitor: processMonitor,
 		WorkloadMeta:   workloadMeta,
 	}, nil
@@ -160,7 +144,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
+	sysCtx, err := getSystemContext(cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
@@ -330,7 +314,15 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	ringBufferSize := toPowerOf2(defaultRingBufferSize)
+	devCount := p.sysCtx.deviceCache.Count()
+	if devCount == 0 {
+		devCount = 1 // Don't let the buffer size be 0
+	}
+
+	// The activity of eBPF events will scale with the number of devices, unlike in other
+	// eBPF modules where the activity is bound to the number of CPUs.
+	numPages := p.cfg.RingBufferSizePagesPerDevice * devCount
+	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
