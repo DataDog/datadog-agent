@@ -8,8 +8,8 @@ package sender
 import (
 	"sync"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -86,7 +86,7 @@ func NewSender(
 // NewSenderV2 returns a new sender.
 func NewSenderV2(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	destinationFactory DestinationFactory,
 	bufferSize int,
 	senderDoneChan chan *sync.WaitGroup,
