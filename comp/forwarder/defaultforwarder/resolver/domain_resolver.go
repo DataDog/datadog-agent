@@ -109,9 +109,9 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			)
 
 			return
-		} else {
-			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
 		}
+
+		log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
 	})
 }
 
