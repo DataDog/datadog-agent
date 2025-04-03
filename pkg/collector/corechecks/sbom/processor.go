@@ -134,10 +134,11 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			container := event.Entity.(*workloadmeta.Container)
+			p.registerContainer(container)
+
 			if containerFilter.IsExcluded(nil, container.Name, container.Image.Name, "") {
 				continue
 			}
-			p.registerContainer(container)
 
 			if p.procfsSBOM {
 				if ok, err := procfs.IsAgentContainer(container.ID); !ok && err == nil {
