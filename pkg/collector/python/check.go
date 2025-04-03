@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"runtime/pprof"
 	"strings"
@@ -90,6 +91,25 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	return pyCheck, nil
 }
 
+// setTraceID sets the trace ID on the Python check instance
+// unsafe because it does not get the sticky lock
+func (c *PythonCheck) setTraceID(traceID string, parentSpanID string) (string, error) {
+	// Insert the trace ID into the instance config yaml
+	var parsed map[string]interface{}
+	err := yaml.Unmarshal([]byte(c.instanceConfig), &parsed)
+	if err != nil {
+		return "", err
+	}
+	parsed["dd_trace_id"] = traceID
+	parsed["dd_parent_span_id"] = parentSpanID
+	instanceConfig, err := yaml.Marshal(parsed)
+	if err != nil {
+		return "", err
+	}
+
+	return string(instanceConfig), nil
+}
+
 func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
@@ -100,7 +120,24 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
-	cResult := C.run_check(rtloader, c.instance)
+	instance := c.instance
+	if c.telemetry {
+		// Get trace ID from environment variable
+		traceID := os.Getenv("DATADOG_TRACE_ID")
+		parentSpanID := os.Getenv("DATADOG_PARENT_SPAN_ID")
+		if traceID != "" {
+			instanceConfig, err := c.setTraceID(traceID, parentSpanID)
+			if err != nil {
+				log.Warnf("Failed to set trace ID for check %s: %v", c.ModuleName, err)
+			} else {
+				cInstance := TrackedCString(instanceConfig)
+				defer C._free(unsafe.Pointer(cInstance))
+				instance = cInstance
+			}
+		}
+	}
+
+	cResult := C.run_check(rtloader, instance)
 	if cResult == nil {
 		if err := getRtLoaderError(); err != nil {
 			return err
