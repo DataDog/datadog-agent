@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/test/new-e2e
 
 go 1.23.1
 
-toolchain go1.23.7
+toolchain go1.24.1
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -30,7 +30,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.57.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/docker/cli v27.5.0+incompatible
+	github.com/docker/cli v28.0.4+incompatible
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
