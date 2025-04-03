@@ -432,4 +432,5 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
+	github.com/DataDog/test-infra-definitions => ../../../test/test-infra-definitions
 )
