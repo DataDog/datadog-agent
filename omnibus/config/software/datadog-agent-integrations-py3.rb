@@ -13,7 +13,7 @@ license_file "./LICENSE"
 
 dependency 'datadog-agent-integrations-py3-dependencies'
 
-python_version = "3.12"
+python_version = "3.13"
 
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
