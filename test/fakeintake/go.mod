@@ -2,6 +2,8 @@ module github.com/DataDog/datadog-agent/test/fakeintake
 
 go 1.23.0
 
+toolchain go1.24.1
+
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
@@ -22,7 +24,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.5
 	google.golang.org/protobuf v1.36.5
-	modernc.org/sqlite v1.36.2
+	modernc.org/sqlite v1.37.0
 )
 
 require (
@@ -57,9 +59,9 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.61.13 // indirect
+	modernc.org/libc v1.62.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.2 // indirect
+	modernc.org/memory v1.9.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
