@@ -59,7 +59,6 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		id := getClientID(req)
 		cfg, err := parseParams(req)
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
@@ -87,7 +86,8 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		runCount := runCounter.Inc()
-		logTracerouteRequests(cfg, id, runCount, start)
+
+		logTracerouteRequests(req.URL, runCount, start)
 	})
 
 	return nil
@@ -99,14 +99,13 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (t *traceroute) Close() {}
 
-func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
-	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, cfg.Protocol, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d&protocol=%s (count: %d): retrieved traceroute in %s"
+func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
+	msg := fmt.Sprintf("Got request on %s?%s (count: %d): retrieved traceroute in %s", url.RawPath, url.RawQuery, runCount, time.Since(start))
 	switch {
 	case runCount <= 5, runCount%200 == 0:
-		log.Infof(msg, args...)
+		log.Info(msg)
 	default:
-		log.Debugf(msg, args...)
+		log.Debug(msg)
 	}
 }
 
@@ -129,6 +128,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
 	protocol := query.Get("protocol")
+	tcpMethod := query.Get("tcp_method")
 
 	return tracerouteutil.Config{
 		DestHostname: host,
@@ -136,6 +136,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		MaxTTL:       uint8(maxTTL),
 		Timeout:      time.Duration(timeout),
 		Protocol:     payload.Protocol(protocol),
+		TCPMethod:    payload.TCPMethod(tcpMethod),
 	}, nil
 }
 
