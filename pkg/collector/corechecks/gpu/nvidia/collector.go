@@ -92,7 +92,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
-			c, err := builder(dev)
+			c, err := builder(dev.NVMLDevice)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.UUID, name)
 				continue

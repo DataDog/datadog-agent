@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -26,8 +27,9 @@ func TestPull(t *testing.T) {
 		id:      collectorID,
 		catalog: workloadmeta.NodeAgent,
 		store:   wmetaMock,
-		nvmlLib: nvmlMock,
 	}
+
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
@@ -84,8 +86,9 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 		id:      collectorID,
 		catalog: workloadmeta.NodeAgent,
 		store:   wmetaMock,
-		nvmlLib: nvmlMock,
 	}
+
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First pull to populate the store with initial PIDs
 	c.Pull(context.Background())
