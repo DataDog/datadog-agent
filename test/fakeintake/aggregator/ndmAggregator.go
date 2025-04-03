@@ -18,7 +18,7 @@ import (
 type NDMPayload struct {
 	collectedTime time.Time
 
-	// We redefine NetworkDevicesMetadata from pkg/networkdevice/metadata to have to export it
+	// We redefine NetworkDevicesMetadata from pkg/networkdevice/metadata to not have to export it
 	Subnet           string              `json:"subnet,omitempty"`
 	Namespace        string              `json:"namespace"`
 	Integration      string              `json:"integration"`
