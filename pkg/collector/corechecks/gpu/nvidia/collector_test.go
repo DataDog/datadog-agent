@@ -40,7 +40,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMock()
 	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
 	require.NoError(t, err)
-	deps := &CollectorDependencies{NVML: nvmlMock, DeviceCache: deviceCache}
+	deps := &CollectorDependencies{DeviceCache: deviceCache}
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)

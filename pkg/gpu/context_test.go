@@ -17,14 +17,16 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestFilterDevicesForContainer(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
+	sysCtx, err := getSystemContext(kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
@@ -123,8 +125,9 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 	})
 
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock, testutil.GetTelemetryMock(t))
+	sysCtx, err := getSystemContext(procFs, wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
