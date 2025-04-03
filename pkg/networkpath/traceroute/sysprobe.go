@@ -19,13 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, maxTTL uint8, timeout time.Duration) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", host, clientID, port, maxTTL, timeout, protocol))
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s", host, clientID, port, maxTTL, timeout, protocol, tcpMethod))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

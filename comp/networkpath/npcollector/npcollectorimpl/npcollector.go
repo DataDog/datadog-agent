@@ -348,6 +348,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
 		Timeout:      s.collectorConfigs.timeout,
 		Protocol:     ptest.Pathtest.Protocol,
+		TCPMethod:    s.collectorConfigs.tcpMethod,
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
