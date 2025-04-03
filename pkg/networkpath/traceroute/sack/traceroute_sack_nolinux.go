@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 )
 
-var errPlatformNotSupported = &SackNotSupportedError{
+var errPlatformNotSupported = &NotSupportedError{
 	Err: errors.New("SACK traceroute is not supported on this platform"),
 }
 

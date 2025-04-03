@@ -361,7 +361,7 @@ func (s *sackDriver) handleHandshake() error {
 		}
 	}
 	if !foundSackPermitted {
-		return &SackNotSupportedError{
+		return &NotSupportedError{
 			Err: fmt.Errorf("SACK not supported by the target %s (missing SACK-permitted option)", s.params.Target),
 		}
 	}
