@@ -69,8 +69,9 @@ new-agent_dmg-x64-a7:
     # - sudo chown -R $USER $OMNIBUS_BASE_DIR
     - unset OMNIBUS_BASE_DIR
     - unset OMNIBUS_PACKAGE_DIR
-    - export OMNIBUS_PACKAGE_DIR="$PWD/omnibus-pkg"
-    - mkdir -p "$OMNIBUS_PACKAGE_DIR"
+    # - export OMNIBUS_PACKAGE_DIR="$PWD/omnibus-pkg"
+    # - mkdir -p "$OMNIBUS_PACKAGE_DIR"
+    # - mkdir -p "omnibus_build/pkg"
 
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
