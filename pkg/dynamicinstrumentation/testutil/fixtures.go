@@ -351,32 +351,248 @@ var sliceCaptures = fixtures{
 }
 
 var structCaptures = fixtures{
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_struct": []CapturedValueMapWithOptions{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_unsupported_fields": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"t": {
-					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.threestrings", Fields: fieldMap{
-						"a": capturedValue("string", "a"),
-						"b": capturedValue("string", "bb"),
-						"c": capturedValue("string", "ccc"),
+				"a": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.hasUnsupportedFields",
+					Fields: fieldMap{
+						"a": capturedValue("int", "1"),
+						"b": capturedValue("float32", ""),
+						"c": {
+							Type: "[]uint8",
+							Elements: []ditypes.CapturedValue{
+								*capturedValue("uint8", "3"),
+								*capturedValue("uint8", "4"),
+								*capturedValue("uint8", "5"),
+							},
+						},
 					},
 				},
 			},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": []CapturedValueMapWithOptions{
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_method_receiver": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
 				"r": {
-					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver", Fields: fieldMap{
+					Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver",
+					Fields: fieldMap{
+						"arg_0": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver",
+							Fields: fieldMap{
+								"u": capturedValue("uint", "3"),
+							},
+						},
+					},
+				},
+				"a": capturedValue("int", "4"),
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_method_receiver": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"r": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver",
+					Fields: fieldMap{
 						"u": capturedValue("uint", "1"),
-					}},
+					},
+				},
 				"a": capturedValue("int", "2"),
 			},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_array": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithAnArray",
+					Fields: fieldMap{
+						"arr": {
+							Type: "[5]uint8",
+							Elements: []ditypes.CapturedValue{
+								*capturedValue("uint8", "1"),
+								*capturedValue("uint8", "2"),
+								*capturedValue("uint8", "3"),
+								*capturedValue("uint8", "4"),
+								*capturedValue("uint8", "5"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_a_slice": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithASlice",
+					Fields: fieldMap{
+						"x": capturedValue("int", "1"),
+						"slice": {
+							Type: "[]uint8",
+							Elements: []ditypes.CapturedValue{
+								*capturedValue("uint8", "2"),
+								*capturedValue("uint8", "3"),
+								*capturedValue("uint8", "4"),
+							},
+						},
+						"z": capturedValue("int", "5"),
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_an_empty_slice": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithASlice",
+					Fields: fieldMap{
+						"x": capturedValue("int", "9"),
+						"slice": {
+							Type:     "[]int",
+							Elements: []ditypes.CapturedValue{},
+						},
+						"z": capturedValue("int", "5"),
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_a_nil_slice": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithASlice",
+					Fields: fieldMap{
+						"x":     capturedValue("int", "9"),
+						"slice": {Type: "[]uint8"},
+						"z":     capturedValue("uint64", "5"),
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_slice": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithASlice",
+					Fields: fieldMap{
+						"arg_0": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithASlice",
+							Fields: fieldMap{
+								"x": capturedValue("int", "5"),
+								"slice": {
+									Type: "[]int",
+									Elements: []ditypes.CapturedValue{
+										*capturedValue("int", "2"),
+										*capturedValue("int", "3"),
+										*capturedValue("int", "4"),
+									},
+								},
+								"z": capturedValue("int", "5"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_string": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithAString",
+					Fields: fieldMap{
+						"arg_0": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithAString",
+							Fields: fieldMap{
+								"x": capturedValue("int", "5"),
+								"s": capturedValue("string", "abcdef"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"x": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
+					Fields: fieldMap{
+						"aBool":   capturedValue("bool", "true"),
+						"aString": capturedValue("string", "one"),
+						"aNumber": capturedValue("int", "2"),
+						"nested": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+							Fields: fieldMap{
+								"anotherInt":    capturedValue("int", "3"),
+								"anotherString": capturedValue("string", "four"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_with_arrays": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"s": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.structWithTwoArrays",
+					Fields: fieldMap{
+						"a": {
+							Type: "[3]uint64",
+							Elements: []ditypes.CapturedValue{
+								*capturedValue("uint64", "1"),
+								*capturedValue("uint64", "2"),
+								*capturedValue("uint64", "3"),
+							},
+						},
+						"b": capturedValue("int", "4"),
+						"c": {
+							Type: "[5]int64",
+							Elements: []ditypes.CapturedValue{
+								*capturedValue("int64", "6"),
+								*capturedValue("int64", "7"),
+								*capturedValue("int64", "8"),
+								*capturedValue("int64", "9"),
+								*capturedValue("int64", "10"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
@@ -386,26 +602,13 @@ var structCaptures = fixtures{
 						"aBool":  capturedValue("bool", "true"),
 						"aInt":   capturedValue("int", "1"),
 						"aInt16": capturedValue("int16", "2"),
-					}}},
+					},
+				},
+			},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": []CapturedValueMapWithOptions{
-		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"x": {
-					Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
-					Fields: fieldMap{
-						"arg_0": {
-							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct", Fields: fieldMap{
-								"aBool":  capturedValue("bool", "true"),
-								"aInt":   capturedValue("int", "1"),
-								"aInt16": capturedValue("int16", "2"),
-							}},
-					}}},
-			Options: TestInstrumentationOptions{CaptureDepth: 10},
-		},
-	},
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_embedded_struct": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
@@ -414,18 +617,230 @@ var structCaptures = fixtures{
 					Fields: fieldMap{
 						"aInt16": capturedValue("int16", "42"),
 						"nested": {
-							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct", Fields: fieldMap{
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
+							Fields: fieldMap{
 								"aBool":   capturedValue("bool", "true"),
 								"aString": capturedValue("string", "one"),
 								"aNumber": capturedValue("int", "2"),
-								"nested": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct", Fields: fieldMap{
-									"anotherInt":    capturedValue("int", "3"),
-									"anotherString": capturedValue("string", "four"),
-								}},
-							}},
+								"nested": {
+									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+									Fields: fieldMap{
+										"anotherInt":    capturedValue("int", "3"),
+										"anotherString": capturedValue("string", "four"),
+									},
+								},
+							},
+						},
 						"aBool":  capturedValue("bool", "true"),
 						"aInt32": capturedValue("int32", "31"),
-					}}},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_no_string_struct": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"c": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.cStruct",
+					Fields: fieldMap{
+						"aInt32": capturedValue("int32", "4"),
+						"aUint":  capturedValue("uint", "1"),
+						"nested": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedNoString",
+							Fields: fieldMap{
+								"aUint8": capturedValue("uint8", "9"),
+								"aBool":  capturedValue("bool", "true"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_and_byte": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"w": capturedValue("byte", "97"),
+				"x": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
+					Fields: fieldMap{
+						"aBool":   capturedValue("bool", "true"),
+						"aString": capturedValue("string", "one"),
+						"aNumber": capturedValue("int", "2"),
+						"nested": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+							Fields: fieldMap{
+								"anotherInt":    capturedValue("int", "3"),
+								"anotherString": capturedValue("string", "four"),
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nested_pointer": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"x": {
+					Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.anotherStruct",
+					Fields: fieldMap{
+						"arg_0": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.anotherStruct",
+							Fields: fieldMap{
+								"nested": {
+									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+									Fields: fieldMap{
+										"anotherInt":    capturedValue("int", "42"),
+										"anotherString": capturedValue("string", "xyz"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_ten_strings": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"x": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.tenStrings",
+					Fields: fieldMap{
+						"first":   capturedValue("string", "one"),
+						"second":  capturedValue("string", "two"),
+						"third":   capturedValue("string", "three"),
+						"fourth":  capturedValue("string", "four"),
+						"fifth":   capturedValue("string", "five"),
+						"sixth":   capturedValue("string", "six"),
+						"seventh": capturedValue("string", "seven"),
+						"eighth":  capturedValue("string", "eight"),
+						"ninth":   capturedValue("string", "nine"),
+						"tenth":   capturedValue("string", "ten"),
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_struct": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"t": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.threestrings",
+					Fields: fieldMap{
+						"a": capturedValue("string", "a"),
+						"b": capturedValue("string", "bb"),
+						"c": capturedValue("string", "ccc"),
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_deep_struct": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"t": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct1",
+					Fields: fieldMap{
+						"a": capturedValue("int", "1"),
+						"b": {
+							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct2",
+							Fields: fieldMap{
+								"c": capturedValue("int", "2"),
+								"d": {
+									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct3",
+									Fields: fieldMap{
+										"e": capturedValue("int", "3"),
+										"f": {
+											Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct4",
+											Fields: fieldMap{
+												"g": capturedValue("int", "4"),
+												"h": {
+													Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct5",
+													Fields: fieldMap{
+														"i": capturedValue("int", "5"),
+														"j": {
+															Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.deepStruct6",
+															Fields: fieldMap{
+																"k": capturedValue("int", "6"),
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_empty_struct": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"e": {
+					Type:   "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.emptyStruct",
+					Fields: fieldMap{},
+				},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_lots_of_fields": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"l": {
+					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.lotsOfFields",
+					Fields: fieldMap{
+						"a": capturedValue("int", "1"),
+						"b": capturedValue("int", "2"),
+						"c": capturedValue("int", "3"),
+						"d": capturedValue("int", "4"),
+						"e": capturedValue("int", "5"),
+						"f": capturedValue("int", "6"),
+						"g": capturedValue("int", "7"),
+						"h": capturedValue("int", "8"),
+						"i": capturedValue("int", "9"),
+						"j": capturedValue("int", "10"),
+						"k": capturedValue("int", "11"),
+						"l": capturedValue("int", "12"),
+						"m": capturedValue("int", "13"),
+						"n": capturedValue("int", "14"),
+						"o": capturedValue("int", "15"),
+						"p": capturedValue("int", "16"),
+						"q": capturedValue("int", "17"),
+						"r": capturedValue("int", "18"),
+						"s": capturedValue("int", "19"),
+						"t": capturedValue("int", "20"),
+						"u": capturedValue("int", "21"),
+						"v": capturedValue("int", "22"),
+						"w": capturedValue("int", "23"),
+						"x": capturedValue("int", "24"),
+						"y": capturedValue("int", "25"),
+						"z": capturedValue("int", "26"),
+					},
+				},
+			},
 			Options: TestInstrumentationOptions{CaptureDepth: 10},
 		},
 	},
