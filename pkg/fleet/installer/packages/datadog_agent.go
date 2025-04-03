@@ -29,7 +29,10 @@ import (
 const (
 	agentPackage = "datadog-agent"
 
-	agentSymlink   = "/usr/bin/datadog-agent"
+	agentSymlink       = "/usr/bin/datadog-agent"
+	installerSymlink   = "/usr/bin/datadog-installer"
+	legacyAgentSymlink = "/opt/datadog-agent"
+
 	stablePath     = "/opt/datadog-packages/datadog-agent/stable"
 	experimentPath = "/opt/datadog-packages/datadog-agent/experiment"
 
@@ -198,8 +201,16 @@ func PostInstallAgent(ctx context.Context, installPath string, caller string) (e
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
 
-	// 4. Create symlink to the agent binary
+	// 4. Create symlinks
 	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
+		return fmt.Errorf("failed to create symlink: %v", err)
+	}
+	if installPath == stablePath {
+		if err = file.EnsureSymlink(installPath, legacyAgentSymlink); err != nil {
+			return fmt.Errorf("failed to create symlink: %v", err)
+		}
+	}
+	if err = file.EnsureSymlinkIfNotExists(filepath.Join(installPath, "embedded/bin/installer"), installerSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
@@ -265,7 +276,15 @@ func RemoveAgent(ctx context.Context) error {
 			spanErr = err
 		}
 	}
-	if err := os.Remove(agentSymlink); err != nil {
+	if err := os.Remove(agentSymlink); err != nil && !os.IsNotExist(err) {
+		log.Warnf("Failed to remove agent symlink: %s", err)
+		spanErr = err
+	}
+	if err := os.Remove(legacyAgentSymlink); err != nil && !os.IsNotExist(err) {
+		log.Warnf("Failed to remove legacy agent symlink: %s", err)
+		spanErr = err
+	}
+	if err := os.Remove(installerSymlink); err != nil && !os.IsNotExist(err) {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 		spanErr = err
 	}
