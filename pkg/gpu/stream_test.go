@@ -17,12 +17,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -329,8 +331,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			proc := kernel.ProcFSRoot()
-			sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-			require.NoError(t, err)
+			sysCtx := getSystemContextForTest(t)
 			sysCtx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			// Set up the caches in system context so no actual queries are done
