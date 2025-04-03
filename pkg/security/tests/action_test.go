@@ -32,6 +32,7 @@ import (
 
 func TestActionKill(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if !ebpfLessEnabled {
 		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
@@ -76,6 +77,7 @@ func TestActionKill(t *testing.T) {
 	}
 
 	t.Run("kill-action-usr2", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-kill-action-usr2")
 		if err != nil {
 			t.Fatal(err)
@@ -138,6 +140,7 @@ func TestActionKill(t *testing.T) {
 	})
 
 	t.Run("kill-action-kill", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-kill-action-kill")
 		if err != nil {
 			t.Fatal(err)
@@ -198,6 +201,7 @@ func TestActionKill(t *testing.T) {
 
 func TestActionKillExcludeBinary(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
 		return !kv.SupportBPFSendSignal() && env.IsContainerized()
@@ -254,6 +258,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 
 func TestActionKillRuleSpecific(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if !ebpfLessEnabled {
 		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
@@ -452,6 +457,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	}
 
 	t.Run("executable", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// test that we can kill processes with the same executable more than once
 		for i := 0; i < 2; i++ {
 			t.Logf("test iteration %d", i)
@@ -480,6 +486,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	})
 
 	t.Run("container", func(t *testing.T) {
+		CheckFlakyTest(t)
 		dockerInstance, err := test.StartADocker()
 		if err != nil {
 			t.Fatalf("failed to start a Docker instance: %v", err)
@@ -519,6 +526,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 
 func TestActionKillDisarm(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -588,6 +596,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 func TestActionKillDisarmFromRule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -685,6 +694,7 @@ func TestActionKillDisarmFromRule(t *testing.T) {
 
 func TestActionHash(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping in docker, not  sharing the same pid ns and doesn't have a container ID")
@@ -740,6 +750,7 @@ func TestActionHash(t *testing.T) {
 	done := make(chan bool, 10)
 
 	t.Run("open-process-exit", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -787,6 +798,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("open-timeout", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -835,6 +847,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			return exec.Command(testExecutable, "/tmp/aaa").Run()

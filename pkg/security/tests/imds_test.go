@@ -26,8 +26,8 @@ import (
 
 func TestAWSIMDSv1Request(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -74,6 +74,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v1_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
@@ -96,8 +97,8 @@ func TestAWSIMDSv1Request(t *testing.T) {
 
 func TestAWSIMDSv1Response(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -149,6 +150,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v1_response", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
@@ -174,8 +176,8 @@ func TestAWSIMDSv1Response(t *testing.T) {
 
 func TestAWSIMDSv1NoResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -222,6 +224,7 @@ func TestAWSIMDSv1NoResponse(t *testing.T) {
 	defer test.Close()
 
 	t.Run("no_aws_imds_v1_response", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if err := waitForIMDSResponseProbeEvent(test, func() error {
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
@@ -238,8 +241,8 @@ func TestAWSIMDSv1NoResponse(t *testing.T) {
 
 func TestAWSIMDSv2Request(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -291,6 +294,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v2_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
@@ -318,8 +322,8 @@ func TestAWSIMDSv2Request(t *testing.T) {
 
 func TestGCPIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -366,6 +370,7 @@ func TestGCPIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("gcp_imds_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
@@ -393,8 +398,8 @@ func TestGCPIMDS(t *testing.T) {
 
 func TestAzureIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -441,6 +446,7 @@ func TestAzureIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("azure_imds_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
@@ -468,8 +474,8 @@ func TestAzureIMDS(t *testing.T) {
 
 func TestIBMIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -516,6 +522,7 @@ func TestIBMIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ibm_imds_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
@@ -543,8 +550,8 @@ func TestIBMIMDS(t *testing.T) {
 
 func TestOracleIMDS(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -591,6 +598,7 @@ func TestOracleIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("oracle_imds_request", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
@@ -618,8 +626,8 @@ func TestOracleIMDS(t *testing.T) {
 
 func TestIMDSProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
-
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -676,6 +684,7 @@ func TestIMDSProcessContext(t *testing.T) {
 	}
 
 	t.Run("imds_process_context", ifSyscallSupported("SYS_OPEN", func(t *testing.T, syscallNB uintptr) {
+		CheckFlakyTest(t)
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {

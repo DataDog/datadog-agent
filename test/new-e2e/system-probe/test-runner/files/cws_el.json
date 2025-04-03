@@ -6,5 +6,8 @@
     },
     "additional_test_args": [
         "-trace"
-    ]
+    ],
+    "additional_env_vars": [
+		"GO_TEST_SKIP_FLAKE=false"
+	]
 }

@@ -43,6 +43,7 @@ import (
 
 func TestProcess(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -78,6 +79,7 @@ func TestProcess(t *testing.T) {
 
 func TestProcessEBPFLess(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if !ebpfLessEnabled {
 		t.Skip("ebpfless specific")
@@ -100,6 +102,7 @@ func TestProcessEBPFLess(t *testing.T) {
 	}
 
 	t.Run("proc-scan", func(t *testing.T) {
+		CheckFlakyTest(t)
 		err := retry.Do(func() error {
 			var found bool
 			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
@@ -119,6 +122,7 @@ func TestProcessEBPFLess(t *testing.T) {
 
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -228,6 +232,7 @@ func TestProcessContext(t *testing.T) {
 	}
 
 	t.Run("exec-time", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
@@ -270,6 +275,7 @@ func TestProcessContext(t *testing.T) {
 
 	t.Run("inode", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 
 		testFile, _, err := test.Path("test-process-context")
 		if err != nil {
@@ -296,6 +302,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
@@ -365,6 +372,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
@@ -378,6 +386,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("argv", func(t *testing.T) {
+		CheckFlakyTest(t)
 		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
@@ -389,6 +398,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-flags", func(t *testing.T) {
+		CheckFlakyTest(t)
 		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
@@ -400,6 +410,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
+		CheckFlakyTest(t)
 		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
@@ -411,6 +422,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -455,6 +467,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
@@ -505,6 +518,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// force seed to have something we can reproduce
@@ -563,6 +577,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -610,6 +625,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
@@ -670,6 +686,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"-al"}
 
 		// force seed to have something we can reproduce
@@ -740,6 +757,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-envs-empty-strings", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"-al", ""}
 			envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
@@ -778,6 +796,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
 			t.Fatal(err)
@@ -818,6 +837,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "ancestors", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -844,6 +864,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "parent", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-process-parent")
 		if err != nil {
 			t.Fatal(err)
@@ -871,6 +892,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		SkipIfNotAvailable(t)
 
 		testFile, _, err := test.Path("test-process-pid1")
@@ -896,6 +918,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "service-tag", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
@@ -923,6 +946,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "ancestors-args", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-ancestors-args")
 		if err != nil {
 			t.Fatal(err)
@@ -943,6 +967,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
@@ -981,6 +1006,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("ancestors-glob", func(t *testing.T) {
+		CheckFlakyTest(t)
 		lsExecutable := which(t, "ls")
 
 		test.WaitSignal(t, func() error {
@@ -994,6 +1020,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{"self-exec", "selfexec123", "abc"}
 		envs := []string{}
 
@@ -1011,6 +1038,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		testFile, _, err := test.Path("test-container")
 		if err != nil {
 			t.Fatal(err)
@@ -1039,6 +1067,7 @@ func TestProcessContext(t *testing.T) {
 
 	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
 		test.Run(t, ruleID, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+			CheckFlakyTest(t)
 			testFile, _, err := test.Path(filename)
 			if err != nil {
 				t.Fatal(err)
@@ -1065,6 +1094,7 @@ func TestProcessContext(t *testing.T) {
 
 func TestProcessEnvsWithValue(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	lsExec := which(t, "ls")
 	ruleDefs := []*rules.RuleDefinition{
@@ -1085,6 +1115,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ldpreload", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{}
 			envp := []string{"LD_PRELOAD=/tmp/dyn.so"}
@@ -1103,6 +1134,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 
 func TestProcessExecCTime(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable := which(t, "touch")
 
@@ -1133,6 +1165,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable := which(t, "touch")
 
@@ -1157,6 +1190,7 @@ func TestProcessPIDVariable(t *testing.T) {
 
 func TestProcessScopedVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
@@ -1268,6 +1302,7 @@ func TestProcessScopedVariable(t *testing.T) {
 
 func TestTimestampVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_timestamp_var",
@@ -1317,6 +1352,7 @@ func TestTimestampVariable(t *testing.T) {
 
 func TestProcessExec(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable := which(t, "touch")
 
@@ -1337,6 +1373,7 @@ func TestProcessExec(t *testing.T) {
 	}
 
 	t.Run("exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command("sh", "-c", executable+" /dev/null")
 			return cmd.Run()
@@ -1350,6 +1387,7 @@ func TestProcessExec(t *testing.T) {
 	})
 
 	t.Run("exec-in-pthread", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"exec-in-pthread", executable, "/dev/null"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1363,6 +1401,7 @@ func TestProcessExec(t *testing.T) {
 
 func TestProcessMetadata(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1399,6 +1438,7 @@ func TestProcessMetadata(t *testing.T) {
 	f.Close()
 
 	t.Run("executable", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testFile)
 			return cmd.Run()
@@ -1413,6 +1453,7 @@ func TestProcessMetadata(t *testing.T) {
 	})
 
 	t.Run("credentials", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			attr := &syscall.SysProcAttr{
 				Credential: &syscall.Credential{
@@ -1440,6 +1481,7 @@ func TestProcessMetadata(t *testing.T) {
 
 func TestProcessExecExit(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	executable := which(t, "touch")
 
@@ -1529,6 +1571,7 @@ func TestProcessExecExit(t *testing.T) {
 
 func TestProcessCredentialsUpdate(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1582,6 +1625,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	}
 
 	t.Run("setuid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setuid", "1001", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1591,6 +1635,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setreuid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1601,6 +1646,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setresuid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1611,6 +1657,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setfsuid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1620,6 +1667,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setgid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setgid", "1005", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1629,6 +1677,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setregid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setregid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1639,6 +1688,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setresgid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1649,6 +1699,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("setfsgid", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -1658,6 +1709,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 
 	t.Run("capset", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// Parse kernel capabilities of the current thread
 		threadCapabilities, err := capability.NewPid2(0)
 		if err != nil {
@@ -1710,6 +1762,7 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 
 func TestProcessIsThread(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1734,6 +1787,7 @@ func TestProcessIsThread(t *testing.T) {
 	}
 
 	t.Run("fork-is-not-exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"fork"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1749,6 +1803,7 @@ func TestProcessIsThread(t *testing.T) {
 	})
 
 	t.Run("exec-is-exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"fork", "exec"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1765,6 +1820,7 @@ func TestProcessIsThread(t *testing.T) {
 
 func TestProcessExit(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	sleepExec := which(t, "sleep")
 	timeoutExec := which(t, "timeout")
@@ -1806,6 +1862,7 @@ func TestProcessExit(t *testing.T) {
 	defer test.Close()
 
 	t.Run("exit-ok", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"0"}
 			envp := []string{envpExitSleep}
@@ -1824,6 +1881,7 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-error", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{} // sleep with no argument should exit with return code 1
 			envp := []string{envpExitSleep}
@@ -1843,6 +1901,7 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-coredumped", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1863,6 +1922,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
@@ -1883,6 +1943,7 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-time-1", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "2"}
 			envp := []string{envpExitSleepTime}
@@ -1901,6 +1962,7 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-time-2", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "5"}
 			envp := []string{envpExitSleepTime}
@@ -1921,6 +1983,7 @@ func TestProcessExit(t *testing.T) {
 
 func TestProcessBusybox(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -1954,6 +2017,7 @@ func TestProcessBusybox(t *testing.T) {
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/usr/bin/whoami", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1966,6 +2030,7 @@ func TestProcessBusybox(t *testing.T) {
 	})
 
 	wrapper.Run(t, "busybox-2", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/sync", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1978,6 +2043,7 @@ func TestProcessBusybox(t *testing.T) {
 	})
 
 	wrapper.Run(t, "busybox-3", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/df", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1990,6 +2056,7 @@ func TestProcessBusybox(t *testing.T) {
 	})
 
 	wrapper.Run(t, "busybox-4", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/touch", []string{"/tmp/busybox-test"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -2004,6 +2071,7 @@ func TestProcessBusybox(t *testing.T) {
 
 func TestProcessInterpreter(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	python, whichPythonErr := whichNonFatal("python")
 	if whichPythonErr != nil {
@@ -2153,6 +2221,7 @@ chmod 755 pyscript.py
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+			CheckFlakyTest(t)
 			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
@@ -2180,6 +2249,7 @@ chmod 755 pyscript.py
 
 func TestProcessResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -2298,6 +2368,7 @@ func TestProcessResolution(t *testing.T) {
 
 func TestProcessFilelessExecution(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	filelessDetectionRule := &rules.RuleDefinition{
 		ID:         "test_fileless",
@@ -2369,6 +2440,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			CheckFlakyTest(t)
 			if test.syscallTesterToRun == "none" {
 				err = testModule.GetSignal(t, func() error {
 					fileMode := 0o477

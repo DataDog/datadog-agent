@@ -28,6 +28,7 @@ func TestEnv(t *testing.T) {
 
 func TestOsOrigin(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	origin := "ebpf"
 	if ebpfLessEnabled {
@@ -58,6 +59,7 @@ func TestOsOrigin(t *testing.T) {
 
 func TestHostname(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {

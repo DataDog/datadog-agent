@@ -3,5 +3,8 @@
 		"*": {
 			"exclude": false
 		}
-	}
+	},
+	"additional_env_vars": [
+		"GO_TEST_SKIP_FLAKE=false"
+	]
 }

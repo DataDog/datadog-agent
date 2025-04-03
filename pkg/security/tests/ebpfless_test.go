@@ -27,6 +27,7 @@ import (
 
 func TestEBPFLessAttach(t *testing.T) {
 	t.Skip("not stable yet")
+	CheckFlakyTest(t)
 
 	// This test doesn't support nested ptrace, so doesn't run with the wrapper
 	SkipIfNotAvailable(t)

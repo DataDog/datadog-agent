@@ -1,0 +1,18 @@
+runners:
+  - tags: "test_set:cws_host"
+    flaky_tests_regex:
+      - ".*"
+  - tags: "test_set:cws_docker"
+    flaky_tests_regex:
+      - ".*"
+  - tags: "test_set:cws_ad"
+    flaky_tests_regex:
+      - ".*"
+  - tags: "test_set:cws_el"
+    flaky_tests_regex:
+      - ".*"
+  - tags: "test_set:cws_el_ns"
+    flaky_tests_regex:
+      - ".*"
+  - tags: "test_set:cws_req"
+  - tags: "test_set:cws_peds"

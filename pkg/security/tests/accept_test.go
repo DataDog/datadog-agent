@@ -14,15 +14,17 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestAcceptEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -50,6 +52,7 @@ func TestAcceptEvent(t *testing.T) {
 	const MAX = 5000
 
 	t.Run("accept-af-inet-any-tcp-success-no-sockaddrin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if ebpfLessEnabled {
 			t.Skip("Not available for ebpfLess")
 		}
@@ -69,6 +72,7 @@ func TestAcceptEvent(t *testing.T) {
 	})
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin", func(t *testing.T) {
+		CheckFlakyTest(t)
 
 		port := rand.IntN(MAX-MIX) + MIX
 
@@ -85,6 +89,7 @@ func TestAcceptEvent(t *testing.T) {
 	})
 
 	t.Run("accept-af-inet6-any-tcp-success-no-sockaddrin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if ebpfLessEnabled {
 			t.Skip("Not available for ebpfLess")
 		}
@@ -109,6 +114,7 @@ func TestAcceptEvent(t *testing.T) {
 	})
 
 	t.Run("accept-af-inet6-any-tcp-success-sockaddrin", func(t *testing.T) {
+		CheckFlakyTest(t)
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
 		}
