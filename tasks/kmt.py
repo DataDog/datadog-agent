@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import getpass
 import io
 import itertools
 import json
@@ -2259,7 +2260,7 @@ def install_ddagent(
         # setup datadog yaml
         if datadog_yaml is not None:
             # hostnames with '_' are not accepted according to RFC1123
-            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["hostname"] = f"{getpass.getuser()}_{d.tag}".replace("_", "-")
             ddyaml["api_key"] = api_key
             with tempfile.NamedTemporaryFile(mode='w') as tmp:
                 yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
