@@ -290,7 +290,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
-					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(actionDef.Set.Value), actionDef.Set.Name, err))
+					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
 				}
 
@@ -644,6 +644,36 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 	return nil
 }
 
+func (rs *RuleSet) runLogActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
+	for _, action := range rule.PolicyRule.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
+		switch {
+		// other actions are handled by ruleset listeners
+		case action.Def.Log != nil:
+			message := action.Def.Log.Message
+			if message == "" {
+				message = fmt.Sprintf("Rule %s triggered", rule.ID)
+			}
+
+			switch strings.ToLower(action.Def.Log.Level) {
+			case "debug":
+				rs.logger.Debugf("%s", message)
+			case "info":
+				rs.logger.Infof("%s", message)
+			case "warning":
+				rs.logger.Warnf("%s", message)
+			case "error":
+				rs.logger.Errorf("%s", message)
+			}
+		}
+	}
+
+	return nil
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event)
@@ -673,7 +703,11 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 
 				if err := rs.runSetActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing Set actions: %s", err)
+					rs.logger.Errorf("Error while executing 'set' actions: %s", err)
+				}
+
+				if err := rs.runLogActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
 				}
 
 				rs.NotifyRuleMatch(rule, event)

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -252,7 +253,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	defer currentNs.Close()
 	nss = append(nss, currentNs)
 
-	rootNs, err := kernel.GetRootNetNamespace(kernel.ProcFSRoot())
+	rootNs, err := netnsutil.GetRootNetNamespace(kernel.ProcFSRoot())
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +332,7 @@ func newConntrackEventGenerator(ns netns.NsHandle) (*conntrackEventGenerator, er
 	// port 0 means we let the kernel choose a free port
 	var err error
 	addr := fmt.Sprintf("%s:0", listenIPv4)
-	err = kernel.WithNS(eg.ns, func() error {
+	err = netnsutil.WithNS(eg.ns, func() error {
 		eg.udpAddr, eg.udpDone, err = newUDPServer(addr)
 		return err
 	})
@@ -351,7 +352,7 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 			e.udpConn.Close()
 		}
 		var err error
-		err = kernel.WithNS(e.ns, func() error {
+		err = netnsutil.WithNS(e.ns, func() error {
 			// we use a dialer instance to override the local
 			// address to use with the udp connection. this is
 			// because on kernel 4.4 using the default loopback
@@ -389,7 +390,7 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 
 	expected.saddr = saddr
 	expected.daddr = daddr
-	expected.netns, err = kernel.GetCurrentIno()
+	expected.netns, err = netnsutil.GetCurrentIno()
 	if err != nil {
 		return err
 	}

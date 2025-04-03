@@ -57,6 +57,7 @@ ALL_TAGS = {
     "systemd",
     "test",  # used for unit-tests
     "trivy",
+    "trivy_no_javadb",
     "wmi",
     "zk",
     "zlib",
@@ -90,6 +91,7 @@ AGENT_TAGS = {
     "python",
     "systemd",
     "trivy",
+    "trivy_no_javadb",
     "zk",
     "zlib",
     "zstd",
@@ -172,6 +174,7 @@ SECURITY_AGENT_TAGS = {
 # SBOMGEN_TAGS lists the tags necessary to build sbomgen
 SBOMGEN_TAGS = {
     "trivy",
+    "trivy_no_javadb",
     "grpcnotrace",
     "no_dynamic_plugins",
     "containerd",
@@ -192,6 +195,7 @@ SYSTEM_PROBE_TAGS = {
     "nvml",
     "pcap",
     "trivy",
+    "trivy_no_javadb",
     "zlib",
     "zstd",
 }

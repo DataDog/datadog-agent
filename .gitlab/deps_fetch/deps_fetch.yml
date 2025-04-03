@@ -41,8 +41,8 @@ go_deps:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
-    - dda inv -e deps --verbose
-    - dda inv -e install-tools
+    - dda inv -- -e deps --verbose
+    - dda inv -- -e install-tools
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
@@ -68,7 +68,7 @@ go_tools_deps:
   extends: .cache
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
-    - dda inv -e install-tools
+    - dda inv -- -e install-tools
     # Partial mitigation for #incident-30779. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
     # Long term solution will be to provide the datadog-packages as a binary hosted internally
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
@@ -92,7 +92,7 @@ go_e2e_deps:
   extends: .cache
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
-    - dda inv -e new-e2e-tests.deps
+    - dda inv -- -e new-e2e-tests.deps
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
   artifacts:
     expire_in: 1 day

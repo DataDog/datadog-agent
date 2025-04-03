@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +48,10 @@ const (
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
 	containerCacheValidity = 2 * time.Second
+
+	// The maximum number of times that we check if a process has open ports
+	// before ignoring it forever.
+	maxPortCheckTries = 10
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -148,6 +153,10 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
+	// noPortTries stores the number of times in a row that we did not find
+	// open ports for this process.
+	noPortTries map[int32]int
+
 	// potentialServices stores processes that we have seen once in the previous
 	// iteration, but not yet confirmed to be a running service.
 	potentialServices pidSet
@@ -201,6 +210,7 @@ func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider,
 		config:             cfg,
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		noPortTries:        make(map[int32]int),
 		potentialServices:  make(pidSet),
 		runningServices:    make(pidSet),
 		ignorePids:         make(pidSet),
@@ -243,6 +253,7 @@ func (s *discovery) Close() {
 		s.network.close()
 	}
 	clear(s.cache)
+	clear(s.noPortTries)
 	clear(s.ignorePids)
 }
 
@@ -596,27 +607,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 // service.
 const maxNumberOfPorts = 50
 
-// getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	if s.shouldIgnorePid(pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(pid) {
-		s.addIgnoredPid(pid)
-		return nil
-	}
-
+func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
 	sockets, err := getSockets(pid)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	if len(sockets) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	ns, err := kernel.GetNetNsInoFromPid(context.procRoot, int(pid))
+	ns, err := netns.GetNetNsInoFromPid(context.procRoot, int(pid))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	// The socket and network address information are different for each
@@ -627,7 +629,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if !ok {
 		nsInfo, err = getNsInfo(int(pid))
 		if err != nil {
-			return nil
+			return nil, err
 		}
 
 		context.netNsInfo[ns] = nsInfo
@@ -648,7 +650,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	if len(ports) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if len(ports) > maxNumberOfPorts {
@@ -660,6 +662,39 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		slices.SortFunc(ports, portCmp)
 		ports = ports[:maxNumberOfPorts]
 	}
+
+	return ports, nil
+}
+
+// getService gets information for a single service.
+func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnorePid(pid) {
+		return nil
+	}
+	if s.shouldIgnoreComm(pid) {
+		s.addIgnoredPid(pid)
+		return nil
+	}
+
+	ports, err := s.getPorts(context, pid)
+	if err != nil {
+		return nil
+	}
+	if len(ports) == 0 {
+		tries := s.noPortTries[pid]
+		tries++
+		s.noPortTries[pid] = tries
+
+		if tries >= maxPortCheckTries {
+			log.Tracef("[pid: %d] ignoring due to no ports", pid)
+			s.addIgnoredPid(pid)
+			delete(s.noPortTries, pid)
+		}
+		return nil
+	}
+
+	// Reset the try counter since we only count tries in a row.
+	delete(s.noPortTries, pid)
 
 	rss, err := getRSS(pid)
 	if err != nil {
@@ -710,6 +745,14 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 		}
 
 		delete(s.cache, pid)
+	}
+
+	for pid := range s.noPortTries {
+		if alivePids.has(pid) {
+			continue
+		}
+
+		delete(s.noPortTries, pid)
 	}
 }
 
@@ -1005,18 +1048,31 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	for _, pid := range pids {
 		alivePids.add(pid)
 
+		_, knownService := s.runningServices[pid]
+		if knownService {
+			info, ok := s.cache[pid]
+			if !ok {
+				// Should never happen
+				continue
+			}
+
+			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
+			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
+				// We only need to refresh the service info (ports, etc.) for
+				// this service if it's time to send a heartbeat.
+				continue
+			}
+		}
+
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
 		s.enrichContainerData(service, containersMap, pidToCid)
 
-		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
-				service.LastHeartbeat = now.Unix()
-				response.HeartbeatServices = append(response.HeartbeatServices, *service)
-			}
-
+		if knownService {
+			service.LastHeartbeat = now.Unix()
+			response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			continue
 		}
 

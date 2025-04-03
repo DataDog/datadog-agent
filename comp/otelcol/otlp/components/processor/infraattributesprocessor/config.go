@@ -17,7 +17,8 @@ type Config struct {
 	Logs    LogInfraAttributes    `mapstructure:"logs"`
 	Traces  TraceInfraAttributes  `mapstructure:"traces"`
 
-	Cardinality types.TagCardinality `mapstructure:"cardinality"`
+	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
+	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
 }
 
 // MetricInfraAttributes - configuration for metrics.

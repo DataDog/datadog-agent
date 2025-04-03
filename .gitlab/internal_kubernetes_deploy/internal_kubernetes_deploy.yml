@@ -68,4 +68,4 @@ notify-slack:
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - dda self dep sync -f legacy-tasks -f legacy-notifications
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - dda inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?
+    - dda inv -- pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

@@ -238,7 +238,7 @@ def launch_stack(
         local,
         provision,
     ]
-    ctx.run(f"{' '.join(env)} {prefix} dda inv -e system-probe.start-microvms {' '.join(args)}")
+    ctx.run(f"{' '.join(env)} {prefix} dda inv -- -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
 
@@ -263,7 +263,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} dda inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
+        f"{env_vars} {prefix} dda inv -- system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
 
 

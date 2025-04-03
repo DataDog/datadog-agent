@@ -28,6 +28,8 @@ type Config struct {
 	// config-wide and "compiled" fields
 	schedule map[Schedule][]*Profile
 	events   map[string]*Event
+
+	StartupTraceSampling float64 `yaml:"startup_trace_sampling"`
 }
 
 // Profile is a single agent telemetry profile

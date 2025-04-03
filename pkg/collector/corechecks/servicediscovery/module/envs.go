@@ -17,46 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const (
-	injectorMemFdName = "dd_process_inject_info.msgpack"
-
-	// memFdMaxSize is used to limit the amount of data we read from the memfd.
-	// This is for safety to limit our memory usage in the case of a corrupt
-	// file.
-	// matches limit in the [auto injector](https://github.com/DataDog/auto_inject/blob/5ae819d01d8625c24dcf45b8fef32a7d94927d13/librouter.c#L52)
-	memFdMaxSize = 65536
-)
-
-// getInjectionMeta gets metadata from auto injector injection, if
-// present. The auto injector creates a memfd file where it writes
-// injection metadata such as injected environment variables, or versions
-// of the auto injector and the library.
-func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
-	data, err := kernel.GetProcessMemFdFile(
-		int(proc.Pid),
-		kernel.ProcFSRoot(),
-		injectorMemFdName,
-		memFdMaxSize,
-	)
-	if err != nil {
-		if err == kernel.ErrMemFdFileNotFound {
-			return nil, false
-		}
-		log.Warnf("failed extracting injected envs: %s", err)
-		return nil, false
-	}
-
-	var injectedProc InjectedProcess
-	if _, err := injectedProc.UnmarshalMsg(data); err != nil {
-		log.Warnf("error parsing injected process: %s", err)
-		return nil, false
-	}
-
-	return &injectedProc, true
-}
 
 // addEnvToMap splits a list of strings containing environment variables of the
 // format NAME=VAL to a map.
@@ -67,8 +28,7 @@ func addEnvToMap(env string, envs map[string]string) {
 	}
 }
 
-// getEnvs gets the environment variables for the process, both the initial
-// ones, and if present, the ones injected via the auto injector.
+// getEnvs gets the environment variables for the process.
 func getEnvs(proc *process.Process) (map[string]string, error) {
 	procEnvs, err := proc.Environ()
 	if err != nil {
@@ -77,13 +37,6 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 	envs := make(map[string]string, len(procEnvs))
 	for _, env := range procEnvs {
 		addEnvToMap(env, envs)
-	}
-	injectionMeta, ok := getInjectionMeta(proc)
-	if !ok {
-		return envs, nil
-	}
-	for _, env := range injectionMeta.InjectedEnv {
-		addEnvToMap(string(env), envs)
 	}
 	return envs, nil
 }
@@ -158,15 +111,5 @@ func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 		reader.add()
 	}
 
-	injectionMeta, ok := getInjectionMeta(proc)
-	if !ok {
-		return reader.envs, nil
-	}
-	for _, env := range injectionMeta.InjectedEnv {
-		name, val, found := strings.Cut(string(env), "=")
-		if found {
-			reader.envs.Set(name, val)
-		}
-	}
 	return reader.envs, nil
 }

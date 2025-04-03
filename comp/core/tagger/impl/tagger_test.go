@@ -410,7 +410,7 @@ func TestDefaultCardinality(t *testing.T) {
 			tagger, err := newLocalTagger(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent(), nil)
 			assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantChecksCardinality, tagger.ChecksCardinality())
+			assert.Equal(t, tt.wantChecksCardinality, tagger.datadogConfig.checksCardinality)
 		})
 	}
 }

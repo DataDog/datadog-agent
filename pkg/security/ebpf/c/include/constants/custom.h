@@ -73,8 +73,7 @@ enum TC_RAWPACKET_KEYS {
 };
 
 #define DNS_MAX_LENGTH 256
-// 468 is the maximum that can go in the stack of the dns_response classifier without blowing it
-#define DNS_RECEIVE_MAX_LENGTH 468
+#define DNS_RECEIVE_MAX_LENGTH 512
 #define DNS_EVENT_KEY 0
 
 #define EGRESS 1

@@ -134,3 +134,14 @@ func (se *File) DWARF() (d *dwarf.Data, err error) {
 	d, err = se.File.DWARF()
 	return
 }
+
+// SectionsByType returns all sections in the file with the specified section type.
+func (se *File) SectionsByType(typ elf.SectionType) []*elf.Section {
+	sections := make([]*elf.Section, 0, 1)
+	for _, section := range se.Sections {
+		if section.Type == typ {
+			sections = append(sections, section)
+		}
+	}
+	return sections
+}

@@ -51,6 +51,23 @@ func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *Datad
 }
 
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
+	// Ensure the API key and site are set for telemetry
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+	envVars := map[string]string{
+		"DD_API_KEY": apiKey,
+		"DD_SITE":    "datadoghq.com",
+	}
+
+	// Append the environment variables to any existing options
+	options = append(options, client.WithEnvVariables(envVars))
+
 	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", d.binaryPath, cmd), options...)
 	if err != nil {
 		return output, err
@@ -115,15 +132,6 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 
 	envVars := installer.InstallScriptEnvWithPackages(e2eos.AMD64Arch, []installer.TestPackageConfig{packageConfig})
 
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
-	envVars["DD_API_KEY"] = apiKey
-
 	packageURL := fmt.Sprintf("oci://%s/%s:%s", packageConfig.Registry, registryTag, packageConfig.Version)
 
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
@@ -146,11 +154,6 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 // StartExperiment will use the Datadog Installer service to start an experiment
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
-}
-
-// StartInstallerExperiment will use the Datadog Installer service to start an experiment
-func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }
 
 // PromoteExperiment will use the Datadog Installer service to promote an experiment

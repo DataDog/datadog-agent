@@ -93,7 +93,11 @@ func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.Docker
 // such as AgentSelectorAnyPod that will select any pod that runs the agent.
 func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
-	ae := newAgentK8sExecutor(podSelector, clusterClient)
+	ae, err := newAgentK8sExecutor(podSelector, clusterClient)
+	if err != nil {
+		return nil, fmt.Errorf("could not create k8s agent executor: %w", err)
+	}
+
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {

@@ -161,7 +161,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	} else if checkArgs.framework != "" {
 		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
 	} else {
-		ruleFilter = compliance.DefaultRuleFilter
+		ruleFilter = compliance.MakeDefaultRuleFilter()
 		benchDir, benchGlob = configDir, "*.yaml"
 	}
 

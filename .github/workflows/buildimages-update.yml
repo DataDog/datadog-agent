@@ -79,12 +79,12 @@ jobs:
       - name: Get current Go version
         id: current_go_version
         run: |
-          echo "GO_VERSION=$(dda inv go-version)" >> $GITHUB_OUTPUT
+          echo "GO_VERSION=$(dda inv -- go-version)" >> $GITHUB_OUTPUT
 
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
-            echo "BUILDIMAGE_TAG=$(dda inv buildimages.get-tag)" >> $GITHUB_OUTPUT
+            echo "BUILDIMAGE_TAG=$(dda inv -- buildimages.get-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
@@ -97,10 +97,10 @@ jobs:
           IMAGES_ID: ${{ inputs.images_id }}
         run: |
           if [ "$CURRENT_GO_VERSION" = "$INPUT_GO_VERSION" ]; then
-            dda inv -e buildimages.update --tag "$IMAGES_ID" "$TEST_VERSION_FLAG"
+            dda inv -- -e buildimages.update --tag "$IMAGES_ID" "$TEST_VERSION_FLAG"
             echo "MESSAGE=Update buildimages ID to $IMAGES_ID" >> $GITHUB_OUTPUT
           else
-            dda inv -e update-go --image-tag "$IMAGES_ID" "$TEST_VERSION_FLAG" $INCLUDE_OTEL_MODULES -v "$INPUT_GO_VERSION"
+            dda inv -- -e update-go --image-tag "$IMAGES_ID" "$TEST_VERSION_FLAG" $INCLUDE_OTEL_MODULES -v "$INPUT_GO_VERSION"
             echo "MESSAGE=Update Go version to $INPUT_GO_VERSION" >> $GITHUB_OUTPUT
           fi
 
@@ -152,7 +152,7 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
         run: |
           # Generate the PR description
-          dda inv -e buildimages.generate-pr-body \
+          dda inv -- -e buildimages.generate-pr-body \
           "$CURRENT_BUILDIMAGE_TAG" \
           "$IMAGES_ID" \
           "$CURRENT_GO_VERSION" \

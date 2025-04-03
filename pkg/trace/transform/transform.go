@@ -421,7 +421,7 @@ func MarshalLinks(links ptrace.SpanLinkSlice) string {
 		str.WriteString(hex.EncodeToString(s[:]))
 		str.WriteString(`"`)
 		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
-			str.WriteString(`,"trace_state":"`)
+			str.WriteString(`,"tracestate":"`)
 			str.WriteString(ts)
 			str.WriteString(`"`)
 		}

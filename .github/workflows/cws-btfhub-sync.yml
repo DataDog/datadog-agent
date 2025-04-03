@@ -84,7 +84,7 @@ jobs:
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
-          dda inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
+          dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -128,8 +128,8 @@ jobs:
 
       - name: Combine constants
         run: |
-          dda inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
-          dda inv -e security-agent.split-btfhub-constants
+          dda inv -- -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          dda inv -- -e security-agent.split-btfhub-constants
 
       - name: Compute branch name
         id: branch-name

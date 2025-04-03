@@ -20,4 +20,4 @@ update_rc_build_links:
     - python3 -m dda self dep sync -f legacy-tasks
     - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
     - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi
-    - dda inv -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}
+    - dda inv -- -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}

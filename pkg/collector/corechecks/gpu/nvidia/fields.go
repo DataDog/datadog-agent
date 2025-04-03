@@ -94,7 +94,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			continue
 		}
 
-		value, convErr := metricValueToDouble(nvml.ValueType(val.ValueType), val.Value)
+		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}

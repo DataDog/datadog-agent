@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/nodejs:14
+FROM public.ecr.aws/lambda/nodejs:22
 
 ENV AWS_LAMBDA_FUNCTION_TIMEOUT=3
 ENV DD_API_KEY=xxxx

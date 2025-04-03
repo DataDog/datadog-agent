@@ -81,6 +81,8 @@ func (s *BaseSuite) StableAgentVersion() PackageVersion {
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
@@ -127,7 +129,7 @@ func (s *BaseSuite) startExperimentWithCustomPackage(opts ...PackageOption) (str
 		},
 	})
 	s.Require().NoError(err)
-	return s.Installer().StartInstallerExperiment(consts.AgentPackage, packageConfig.Version)
+	return s.Installer().StartExperiment(consts.AgentPackage, packageConfig.Version)
 }
 
 func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {

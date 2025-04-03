@@ -9,13 +9,9 @@ package runner
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"net"
-	"os"
 	"time"
-
-	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -28,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -256,26 +251,6 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	}
 	srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	return destPort, srcPort, useSourcePort
-}
-
-func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.GatewayLookup, uint32, error) {
-	rootNs, err := rootNsLookup()
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to look up root network namespace: %w", err)
-	}
-	defer rootNs.Close()
-
-	nsIno, err := kernel.GetInoForNs(rootNs)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get inode number: %w", err)
-	}
-
-	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32, telemetryComp)
-	return gatewayLookup, nsIno, nil
-}
-
-func rootNsLookup() (netns.NsHandle, error) {
-	return netns.GetFromPid(os.Getpid())
 }
 
 // retryGetNetworkID attempts to get the network ID from the cloud provider or config with a few retries

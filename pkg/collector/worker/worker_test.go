@@ -716,7 +716,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			agentConfigs := map[string]interface{}{
 				"hostname":         testHostname,
 				"ha_agent.enabled": tt.haAgentEnabled,
-				"ha_agent.group":   "my-group-01",
+				"config_id":        "my-config-01",
 			}
 			logComponent := logmock.New(t)
 			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(

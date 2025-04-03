@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +38,7 @@ type BoundPorts struct {
 
 // NewBoundPorts returns a new BoundPorts instance
 func NewBoundPorts(cfg *config.Config) *BoundPorts {
-	ino, _ := kernel.GetCurrentIno()
+	ino, _ := netns.GetCurrentIno()
 	return &BoundPorts{
 		config: cfg,
 		ports:  map[boundPortsKey]struct{}{},

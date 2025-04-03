@@ -347,11 +347,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 					return err
 				}
 
-				apiServerClient, err := apiserver.GetAPIClient()
-				if err != nil {
-					return err
-				}
-
 				err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
 				if err != nil {
 					return err
@@ -675,7 +670,9 @@ func (k *KSMCheck) Run() error {
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
-	k.cancel()
+	if k.cancel != nil {
+		k.cancel()
+	}
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator

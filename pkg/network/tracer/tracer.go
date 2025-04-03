@@ -42,6 +42,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -464,7 +466,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
-	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	conns.KernelHeaderFetchResult = int32(headers.HeaderProvider.GetResult())
 	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
@@ -530,10 +532,19 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	return result
 }
 
+func (t *Tracer) getCachedConntrack() *cachedConntrack {
+	newConntrack := netlink.NewConntrack
+	// if we already established that netlink conntracker is not supported, don't try again
+	if t.conntracker.GetType() == "" {
+		newConntrack = netlink.NewNoOpConntrack
+	}
+	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
+}
+
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
-	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
+	cachedConntrack := t.getCachedConntrack()
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()
@@ -799,7 +810,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -823,7 +834,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 	defer ns.Close()
 
-	rootNS, err := kernel.GetInoForNs(ns)
+	rootNS, err := netnsutil.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +893,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 // GetNetworkID retrieves the vpc_id (network_id) from IMDS
 func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	id := ""
-	err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
 		var err error
 		id, err = ec2.GetNetworkID(context)
 		return err

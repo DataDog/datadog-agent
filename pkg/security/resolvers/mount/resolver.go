@@ -174,12 +174,14 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 	return err
 }
 
+const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
+
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
 	mr.deleteOne(mount, now)
 
-	openQueue := make([]uint32, 0, mr.mounts.Len())
+	openQueue := make([]uint32, 0, openQueuePreAllocSize)
 	openQueue = append(openQueue, mount.MountID)
 
 	for len(openQueue) != 0 {

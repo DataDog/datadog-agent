@@ -445,3 +445,18 @@ func ValidateAPMInstrumentationEnabled(value string) error {
 	}
 	return nil
 }
+
+// GetAgentVersion returns the agent version from the environment variables.
+func (e *Env) GetAgentVersion() string {
+	minorVersion := e.AgentMinorVersion
+	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
+		minorVersion = minorVersion + "-1"
+	}
+	if e.AgentMajorVersion != "" && minorVersion != "" {
+		return e.AgentMajorVersion + "." + minorVersion
+	}
+	if minorVersion != "" {
+		return "7." + minorVersion
+	}
+	return "latest"
+}

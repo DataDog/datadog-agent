@@ -45,8 +45,9 @@ type cudaEventConsumer struct {
 }
 
 type cudaEventConsumerTelemetry struct {
-	events      telemetry.Counter
-	eventErrors telemetry.Counter
+	events             telemetry.Counter
+	eventErrors        telemetry.Counter
+	eventCounterByType map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
@@ -65,9 +66,18 @@ func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollectio
 func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTelemetry {
 	subsystem := gpuTelemetryModule + "__consumer"
 
+	events := tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer")
+	eventCounterByType := make(map[gpuebpf.CudaEventType]telemetry.SimpleCounter)
+
+	for i := 0; i < int(gpuebpf.CudaEventTypeCount); i++ {
+		eventType := gpuebpf.CudaEventType(i)
+		eventCounterByType[eventType] = events.WithTags(map[string]string{"event_type": eventType.String()})
+	}
+
 	return &cudaEventConsumerTelemetry{
-		events:      tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer"),
-		eventErrors: tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		events:             events,
+		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		eventCounterByType: eventCounterByType,
 	}
 }
 
@@ -131,15 +141,7 @@ func (c *cudaEventConsumer) Start() {
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
 				dataPtr := unsafe.Pointer(&batchData.Data[0])
-
-				var err error
-				eventType := gpuebpf.CudaEventType(header.Type)
-				c.telemetry.events.Inc(eventType.String())
-				if isStreamSpecificEvent(eventType) {
-					err = c.handleStreamEvent(header, dataPtr, dataLen)
-				} else {
-					err = c.handleGlobalEvent(header, dataPtr, dataLen)
-				}
+				err := c.handleEvent(header, dataPtr, dataLen)
 
 				if err != nil {
 					log.Errorf("Error processing CUDA event: %v", err)
@@ -159,6 +161,15 @@ func (c *cudaEventConsumer) Start() {
 
 func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
 	return eventType != gpuebpf.CudaEventTypeSetDevice
+}
+
+func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
+	eventType := gpuebpf.CudaEventType(header.Type)
+	c.telemetry.eventCounterByType[eventType].Inc()
+	if isStreamSpecificEvent(eventType) {
+		return c.handleStreamEvent(header, dataPtr, dataLen)
+	}
+	return c.handleGlobalEvent(header, dataPtr, dataLen)
 }
 
 func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {

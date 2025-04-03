@@ -123,6 +123,7 @@ type DatadogConfig struct {
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
+	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`

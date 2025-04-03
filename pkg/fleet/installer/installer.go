@@ -515,6 +515,10 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 			fmt.Errorf("could not promote experiment: %w", err),
 		)
 	}
+	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
+	if err != nil {
+		log.Warnf("could not write user-facing config symlinks: %v", err)
+	}
 	return i.promoteExperiment(ctx, pkg)
 }
 
@@ -889,6 +893,38 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
+		}
+	}
+	return nil
+}
+
+// writeConfigSymlinks writes `.override` symlinks to help surface configurations to the user
+func writeConfigSymlinks(userDir string, fleetDir string) error {
+	userFiles, err := os.ReadDir(userDir)
+	if err != nil {
+		return fmt.Errorf("could not list user config files: %w", err)
+	}
+	for _, userFile := range userFiles {
+		if userFile.Type()&os.ModeSymlink != 0 && strings.HasSuffix(userFile.Name(), ".override") {
+			err = os.Remove(filepath.Join(userDir, userFile.Name()))
+			if err != nil {
+				return fmt.Errorf("could not remove existing symlink: %w", err)
+			}
+		}
+	}
+	var files []string
+	fleetFiles, err := os.ReadDir(fleetDir)
+	if err != nil {
+		return fmt.Errorf("could not list fleet config files: %w", err)
+	}
+	for _, fleetFile := range fleetFiles {
+		files = append(files, fleetFile.Name())
+	}
+	for _, file := range files {
+		overrideFile := file + ".override"
+		err = os.Symlink(filepath.Join(fleetDir, file), filepath.Join(userDir, overrideFile))
+		if err != nil {
+			return fmt.Errorf("could not create symlink: %w", err)
 		}
 	}
 	return nil

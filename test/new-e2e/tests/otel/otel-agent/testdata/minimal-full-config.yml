@@ -114,6 +114,7 @@ processors:
     send_batch_size: 8192
     timeout: 200ms
   infraattributes/dd-autoconfigured:
+    allow_hostname_override: false
     cardinality: 0
     logs:
       log: []

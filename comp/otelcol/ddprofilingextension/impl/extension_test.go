@@ -73,7 +73,7 @@ func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Componen
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{}, log.NewTemporaryLoggerWithoutInit())
+	ext, err := NewExtension(&Config{}, component.BuildInfo{}, testComponent{}, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	_, ok := ext.(*ddExtension)
@@ -110,7 +110,7 @@ func TestAgentExtension(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 5,
 		},
-	}, component.BuildInfo{}, testComponent{traceagent}, log.NewTemporaryLoggerWithoutInit())
+	}, component.BuildInfo{}, testComponent{traceagent}, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	ext, ok := ext.(*ddExtension)
@@ -152,7 +152,7 @@ func TestOSSExtension(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 5,
 		},
-	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit())
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(
@@ -181,8 +181,126 @@ func TestOSSExtension(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+type fargateSourceProvider struct{}
+
+func (*fargateSourceProvider) Source(_ context.Context) (source.Source, error) {
+	return source.Source{
+		Kind:       "task_arn",
+		Identifier: "arn:aws:ecs:us-east-1:123456789012:cluster/default",
+	}, nil
+}
+
+func TestOSSExtensionFargate(t *testing.T) {
+	// fake intake
+	got := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		got <- req.Header.Get(additionalTagsHeader)
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	// create extension
+	os.Setenv("DD_PROFILING_URL", server.URL)
+	defer os.Unsetenv("DD_PROFILING_URL")
+	ext, err := NewExtension(&Config{
+		API: ossconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		ProfilerOptions: ProfilerOptions{
+			Period: 5,
+		},
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
+	assert.NoError(t, err)
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("ddprofiling", "custom"): nil,
+		},
+	)
+
+	err = ext.Start(context.Background(), host)
+	assert.NoError(t, err)
+
+	extt, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+	assert.Equal(t, nil, extt.traceAgent)
+	var unitializedHTTPServer *http.Server
+	assert.Equal(t, unitializedHTTPServer, extt.server)
+
+	timeout := time.After(15 * time.Second)
+	select {
+	case out := <-got:
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,orchestrator:fargate_ecs,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+	case <-timeout:
+		t.Fatal("Timed out")
+	}
+	err = ext.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
+type hostSourceProvider struct{}
+
+func (*hostSourceProvider) Source(_ context.Context) (source.Source, error) {
+	return source.Source{
+		Kind:       "host",
+		Identifier: "i-123456789",
+	}, nil
+}
+
+func TestOSSExtensionHost(t *testing.T) {
+	// fake intake
+	got := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		got <- req.Header.Get(additionalTagsHeader)
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	// create extension
+	os.Setenv("DD_PROFILING_URL", server.URL)
+	defer os.Unsetenv("DD_PROFILING_URL")
+	ext, err := NewExtension(&Config{
+		API: ossconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		ProfilerOptions: ProfilerOptions{
+			Period: 5,
+		},
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &hostSourceProvider{})
+	assert.NoError(t, err)
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("ddprofiling", "custom"): nil,
+		},
+	)
+
+	err = ext.Start(context.Background(), host)
+	assert.NoError(t, err)
+
+	extt, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+	assert.Equal(t, nil, extt.traceAgent)
+	var unitializedHTTPServer *http.Server
+	assert.Equal(t, unitializedHTTPServer, extt.server)
+
+	timeout := time.After(15 * time.Second)
+	select {
+	case out := <-got:
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,host:i-123456789", out)
+	case <-timeout:
+		t.Fatal("Timed out")
+	}
+	err = ext.Shutdown(context.Background())
+	assert.NoError(t, err)
+}
+
 func TestOSSExtensionNoAPIKey(t *testing.T) {
-	ext, err := NewExtension(&Config{}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit())
+	ext, err := NewExtension(&Config{}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(

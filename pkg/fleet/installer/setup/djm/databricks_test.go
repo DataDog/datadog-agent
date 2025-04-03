@@ -69,6 +69,31 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"data_workload_monitoring_trial:true",
 			},
 		},
+		{
+			name: "workspace name with quotes",
+			env: map[string]string{
+				"DB_DRIVER_IP":         "192.168.1.100",
+				"DB_INSTANCE_TYPE":     "m4.xlarge",
+				"DB_IS_JOB_CLUSTER":    "true",
+				"DD_JOB_NAME":          "example,'job,name",
+				"DB_CLUSTER_NAME":      "example[,'job]name",
+				"DB_CLUSTER_ID":        "cluster123",
+				"DATABRICKS_WORKSPACE": "\"example_workspace\"",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"spark_host_ip:192.168.1.100",
+				"databricks_instance_type:m4.xlarge",
+				"databricks_is_job_cluster:true",
+				"job_name:example__job_name",
+				"databricks_cluster_name:example___job_name",
+				"databricks_cluster_id:cluster123",
+				"cluster_id:cluster123",
+				"cluster_name:example___job_name",
+				"databricks_workspace:\"example_workspace\"",
+				"workspace:example_workspace",
+			},
+		},
 	}
 
 	for _, tt := range tests {

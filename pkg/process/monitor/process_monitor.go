@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -208,7 +209,7 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkErrorsChannel = make(chan error, 10)
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-	if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
@@ -382,7 +383,7 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 
 			go pm.mainEventLoop()
 
-			if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+			if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
 				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 			}); err != nil {
 				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)

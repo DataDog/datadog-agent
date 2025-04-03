@@ -39,7 +39,7 @@ jobs:
       - name: Auto assign team label
         env:
           PR_ID: ${{ github.event.pull_request.number }}
-        run: dda inv -e github.assign-team-label --pr-id="$PR_ID"
+        run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.head_ref }}
           PR_ID: ${{ github.event.pull_request.number }}
-        run: dda inv -e linter.releasenote
+        run: dda inv -- -e linter.releasenote
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -124,7 +124,7 @@ jobs:
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
         run: |
-          dda inv -e github.check-qa-labels --labels "${LABELS[@]}"
+          dda inv -- -e github.check-qa-labels --labels "${LABELS[@]}"
 
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
@@ -145,7 +145,7 @@ jobs:
         with:
           features: legacy-tasks
       - name: Check agent telemetry metric list
-        run: dda inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
+        run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
 
   ask-reviews:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
@@ -168,4 +168,4 @@ jobs:
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        run: dda inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
+        run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}

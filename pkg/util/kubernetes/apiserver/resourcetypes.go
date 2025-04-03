@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
 	"k8s.io/client-go/discovery"
 )
@@ -20,6 +22,7 @@ import (
 var (
 	resourceCache *ResourceTypeCache
 	cacheOnce     sync.Once
+	initRetry     retry.Retrier
 	cacheErr      error
 )
 
@@ -43,12 +46,32 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 			discoveryClient: discoveryClient,
 		}
 
-		err := resourceCache.prepopulateCache()
+		err := initRetry.SetupRetrier(&retry.Config{
+			Name: "ResourceTypeCache_configuration",
+			AttemptMethod: func() error {
+				err := resourceCache.prepopulateCache()
+				if err != nil {
+					return fmt.Errorf("failed to prepopulate resource type cache: %w", err)
+				}
+				return nil
+			},
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 30 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
+		})
 		if err != nil {
-			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
+			cacheErr = fmt.Errorf("failed to initialize resource type cache: %w", err)
 		}
 	})
-	return cacheErr
+
+	if cacheErr != nil {
+		return cacheErr
+	}
+	err := initRetry.TriggerRetry()
+	if err != nil {
+		return err.Unwrap()
+	}
+	return nil
 }
 
 // GetResourceType retrieves the resource type for the given kind and group.

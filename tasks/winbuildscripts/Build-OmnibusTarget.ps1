@@ -70,8 +70,8 @@ Invoke-BuildScript `
         exit 1
     }
 
-    Write-Host "dda inv -e omnibus.build $inv_args"
-    dda inv -e omnibus.build @inv_args
+    Write-Host "dda inv -- -e omnibus.build $inv_args"
+    dda inv -- -e omnibus.build @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1

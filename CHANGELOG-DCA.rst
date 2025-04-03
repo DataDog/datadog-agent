@@ -2,6 +2,19 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.2:
+
+7.64.2
+======
+
+.. _Release Notes_7.64.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-04-02
+Pinned to datadog-agent v7.64.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7642>`_.
+
 .. _Release Notes_7.64.1:
 
 7.64.1
@@ -58,7 +71,7 @@ New Features
         ddTraceVersions:
           python: "default"
   ```
-  
+
   Targets can also be chained together, with the first matching rule taking precedence. For example, the following
   configuration installs the Python tracer for pods labeled `language=python` and the Java tracer for pods in a
   namespace labeled `language=java`. If a pod matches both rules, the first match takes precedence:
@@ -79,7 +92,7 @@ New Features
         ddTraceVersions:
           python: "default"
   ```
-  
+
   Targets support tracer configuration options in the form of environment variables. All options must have the
   `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
   ```
@@ -196,7 +209,7 @@ Enhancement Notes
 -----------------
 
 - Added support for `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags` in the
-  orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels 
+  orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels
   and annotations as tags, improving consistency with existing tagging configurations.
 
 - The Cluster Agent is now able to delete `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`

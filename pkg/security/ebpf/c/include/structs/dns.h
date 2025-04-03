@@ -25,4 +25,16 @@ struct dnshdr {
     uint16_t arcount;
 };
 
+struct dns_receiver_stats_t {
+    // Packets that were filtered on the kernel
+    u32 filtered_dns_packets;
+    // Packets with the same ID and different size that didn't get filtered
+    u32 same_id_different_size;
+};
+
+struct dns_responses_sent_to_userspace_lru_entry_t {
+    u64 timestamp;
+    u64 packet_size;
+};
+
 #endif

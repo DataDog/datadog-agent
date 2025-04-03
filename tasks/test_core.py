@@ -4,7 +4,6 @@ import abc
 import json
 import os
 from collections import defaultdict
-from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
@@ -13,18 +12,21 @@ from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import running_in_ci
 from tasks.modules import GoModule
 
+DEFAULT_TEST_OUTPUT_JSON = "test_output.json"
+DEFAULT_E2E_TEST_OUTPUT_JSON = "e2e_test_output.json"
 
-class ModuleResult(abc.ABC):
+
+class ExecResult(abc.ABC):
     def __init__(self, path):
         # The full path of the module
         self.path = path
-        # Whether the command failed for that module
+        # Whether the command failed
         self.failed = False
         # String for representing the result type in printed output
         self.result_type = "generic"
 
     def failure_string(self, flavor):
-        return color_message(f"{self.result_type} for module {self.path} failed ({flavor.name} flavor)\n", "red")
+        return color_message(f"{self.result_type} failed ({flavor.name} flavor)\n", "red")
 
     @abc.abstractmethod
     def get_failure(self, flavor):  # noqa: U100
@@ -36,7 +38,7 @@ class ModuleResult(abc.ABC):
         pass
 
 
-class ModuleLintResult(ModuleResult):
+class LintResult(ExecResult):
     def __init__(self, path):
         super().__init__(path)
         self.result_type = "Linters"
@@ -57,7 +59,7 @@ class ModuleLintResult(ModuleResult):
         return self.failed, failure_string
 
 
-class ModuleTestResult(ModuleResult):
+class TestResult(ExecResult):
     def __init__(self, path):
         super().__init__(path)
         self.result_type = "Tests"
@@ -107,6 +109,9 @@ class ModuleTestResult(ModuleResult):
                             elif action == "pass" and name in failed_tests.get(package, set()):
                                 # The test was retried and succeeded, removing from the list of tests to report
                                 failed_tests[package].remove(name)
+            else:
+                failure_string += "No result json saved, cannot determine whether tests failed or not."
+                return self.failed, failure_string
 
             if failed_packages:
                 failure_string += "Test failures:\n"
@@ -124,36 +129,6 @@ class ModuleTestResult(ModuleResult):
                 failure_string += "The test command failed, but no test failures detected in the result json."
 
         return self.failed, failure_string
-
-
-def test_core(
-    modules: Iterable[GoModule],
-    flavor: AgentFlavor,
-    module_class: GoModule,
-    operation_name: str,
-    command,
-    skip_module_class: bool = False,
-    headless_mode: bool = False,
-):
-    """
-    Run the command function on each module of the modules list.
-    """
-    modules_results = []
-    if not headless_mode:
-        print(f"--- Flavor {flavor.name}: {operation_name}")
-    for module in modules:
-        module_result = None
-        if not skip_module_class:
-            module_result = module_class(path=module.full_path())
-        if not headless_mode:
-            skipped_header = "[Skipped]" if not module.should_test() else ""
-            print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.should_test():
-            continue
-
-        command(modules_results, module, module_result)
-
-    return modules_results
 
 
 def process_input_args(
@@ -198,17 +173,16 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results):
+def process_result(flavor: AgentFlavor, result: ExecResult):
     """
-    Prints failures in module results, and returns False if at least one module failed.
+    Prints failures in results, and returns False if the result is a failure.
     """
 
-    success = True
-    for module_result in module_results:
-        if module_result is not None:
-            module_failed, failure_string = module_result.get_failure(flavor)
-            success = success and (not module_failed)
-            if module_failed:
-                print(failure_string)
+    if result is None:
+        return True
 
-    return success
+    failed, failure_string = result.get_failure(flavor)
+    if failed:
+        print(failure_string)
+
+    return not failed

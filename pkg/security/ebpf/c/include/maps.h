@@ -17,7 +17,7 @@
 
 BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
-BPF_ARRAY_MAP(buffer_selector, u32, 4)
+BPF_ARRAY_MAP(buffer_selector, u32, 5)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH * 2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
@@ -81,6 +81,7 @@ BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 102
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
+BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
@@ -95,12 +96,15 @@ BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DI
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER + 1)
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
 BPF_PERCPU_ARRAY_MAP(bb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
+BPF_PERCPU_ARRAY_MAP(fb_dns_stats, struct dns_receiver_stats_t, 1)
+BPF_PERCPU_ARRAY_MAP(bb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, struct str_array_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(process_event_gen, struct process_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, struct is_discarded_by_inode_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_event, struct dns_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dns_response_event, struct dns_response_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(imds_event, struct imds_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)

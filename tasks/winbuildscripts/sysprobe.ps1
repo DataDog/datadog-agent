@@ -11,20 +11,20 @@ $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 $PROBE_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$PROBE_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:PATH"
 
-& dda inv -e deps
-& dda inv -e install-tools
+& dda inv -- -e deps
+& dda inv -- -e install-tools
 
 # Must build the rtloader libs cgo depends on before running golangci-lint, which requires code to be compilable
 & .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
 
-& dda inv -e linter.go --build system-probe-unit-tests --targets .\pkg
+& dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
 $err = $LASTEXITCODE
 if ($err -ne 0) {
     Write-Host -ForegroundColor Red "linter.go failed $err"
     [Environment]::Exit($err)
 }
 
-& dda inv -e system-probe.e2e-prepare --ci
+& dda inv -- -e system-probe.e2e-prepare --ci
 
 $err = $LASTEXITCODE
 if($err -ne 0){

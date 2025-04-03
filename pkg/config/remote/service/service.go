@@ -168,7 +168,8 @@ type CoreAgentService struct {
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
 
-	lastUpdateErr error
+	lastUpdateTimestamp time.Time
+	lastUpdateErr       error
 
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
@@ -661,6 +662,16 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 
 func (s *CoreAgentService) refresh() error {
 	s.Lock()
+
+	// We can't let the backend process an update twice in the same second due to the fact that we
+	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
+	// the update will appear to TUF as being identical to the previous update and it will be dropped.
+	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
+	if timeSinceUpdate < time.Second {
+		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
+		time.Sleep(time.Second - timeSinceUpdate)
+	}
+
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
@@ -730,6 +741,8 @@ func (s *CoreAgentService) refresh() error {
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
+
+	s.lastUpdateTimestamp = time.Now()
 
 	s.firstUpdate = false
 	for product := range s.newProducts {

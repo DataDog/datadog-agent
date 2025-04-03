@@ -18,17 +18,17 @@ import (
 
 const (
 	defaultAgentVersion    = "7.60.1-1"
-	defaultInjectorVersion = "0.26.0-1"
+	defaultInjectorVersion = "0.35.0-1"
 )
 
 var (
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.44.1-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.8.0-1",
-		common.DatadogAPMLibraryJSPackage:     "5.30.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.7.0-1",
-		common.DatadogAPMLibraryPythonPackage: "2.9.2-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.5.1-1",
+		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
+		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
+		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
+		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
+		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
+		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -147,6 +147,9 @@ func setConfigTags(s *common.Setup) {
 		if tags, ok := os.LookupEnv("DD_HOST_TAGS"); ok {
 			s.Config.DatadogYAML.Tags = strings.Split(tags, ",")
 		}
+	}
+	if tags, ok := os.LookupEnv("DD_EXTRA_TAGS"); ok {
+		s.Config.DatadogYAML.ExtraTags = strings.Split(tags, ",")
 	}
 }
 

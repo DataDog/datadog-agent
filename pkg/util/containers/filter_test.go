@@ -444,9 +444,9 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 }
 
 func TestNewMetricFilterFromConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
-	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
 
 	f, err := newMetricFilterFromConfig()
 	require.NoError(t, err)
@@ -457,20 +457,20 @@ func TestNewMetricFilterFromConfig(t *testing.T) {
 	assert.True(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 	assert.True(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
 
-	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", false)
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
 	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 
-	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
-	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{})
-	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_include", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_exclude", []string{})
 
-	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", false)
-	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:nginx.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:ddmetric-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include_metrics", []string{"image:nginx.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude_metrics", []string{"name:ddmetric-.*"})
 
 	f, err = newMetricFilterFromConfig()
 	require.NoError(t, err)
@@ -486,8 +486,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Global - legacy config
-	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
 
 	f := NewAutodiscoveryFilter(GlobalFilter)
 	assert.Emptyf(t, f.Errors, "Expected no errors.")
@@ -500,10 +500,10 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Global - new config - legacy config ignored
-	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*"})
-	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache/legacy.*"})
-	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_include", []string{"image:apache/legacy.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_exclude", []string{"name:dd/legacy-.*"})
 
 	f = NewAutodiscoveryFilter(GlobalFilter)
 	assert.Emptyf(t, f.Errors, "Expected no errors.")
@@ -517,8 +517,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Metrics
-	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include_metrics", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude_metrics", []string{"name:dd-.*"})
 
 	f = NewAutodiscoveryFilter(MetricsFilter)
 	assert.Emptyf(t, f.Errors, "Expected no errors.")
@@ -531,8 +531,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Logs
-	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{"image:apache.*"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{"name:dd-.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include_logs", []string{"image:apache.*"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude_logs", []string{"name:dd-.*"})
 
 	f = NewAutodiscoveryFilter(LogsFilter)
 	assert.Emptyf(t, f.Errors, "Expected no errors.")
@@ -545,8 +545,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Filter errors - non-duplicate error messages
-	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "invalid"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include", []string{"image:apache.*", "invalid"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
 
 	f = NewAutodiscoveryFilter(GlobalFilter)
 
@@ -563,8 +563,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	resetConfig()
 
 	// Filter errors - invalid regex
-	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include", []string{"image:apache.*", "kube_namespace:?"})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
 
 	f = NewAutodiscoveryFilter(GlobalFilter)
 	_, errFound := f.Errors["invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"]
@@ -701,13 +701,13 @@ func TestParseFilters(t *testing.T) {
 }
 
 func resetConfig() {
-	pkgconfigsetup.Datadog().SetDefault("exclude_pause_container", true)
-	pkgconfigsetup.Datadog().SetDefault("container_include", []string{})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{})
-	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{})
-	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{})
-	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{})
-	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{})
-	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include_metrics", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude_metrics", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_include_logs", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("container_exclude_logs", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_include", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("ac_exclude", []string{})
 }

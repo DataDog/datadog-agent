@@ -37,6 +37,7 @@ import (
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -144,7 +145,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
-	rootNS, err := kernel.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	rootNS, err := netns.GetNetNsInoFromPid(cfg.ProcRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("could not find network root namespace: %w", err)
 	}

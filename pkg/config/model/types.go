@@ -157,6 +157,11 @@ type Reader interface {
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
 
+	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
+	// This lets tests use the config is more flexible ways (can add to the schema at any point,
+	// can modify env vars and the config will rebuild itself, etc)
+	SetTestOnlyDynamicSchema(allow bool)
+
 	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
 	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
 	// this).

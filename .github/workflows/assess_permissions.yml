@@ -42,4 +42,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        run: dda inv -e github.check-permissions --repo ${{ matrix.value }}
+        run: dda inv -- -e github.check-permissions --repo ${{ matrix.value }}

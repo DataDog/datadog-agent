@@ -30,6 +30,11 @@ func TestOTelAgentSampling(t *testing.T) {
 	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }
 
+func (s *samplingTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s, false, utils.CalendarService)
+}
+
 func (s *samplingTestSuite) TestSampling() {
 	utils.TestSampling(s, true)
 }

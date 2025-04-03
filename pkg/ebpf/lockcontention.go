@@ -317,7 +317,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		maps[uint32(mapid)] = &targetMap{mp.FD(), uint32(mapid), name, mp, info}
 	}
 
-	constants := make(map[string]interface{})
+	constants := make(map[string]uint64)
 	l.objects = new(bpfObjects)
 
 	kaddrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
@@ -357,9 +357,17 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		}
 		constants["num_of_ranges"] = uint64(ranges)
 		constants["log2_num_of_ranges"] = uint64(math.Log2(float64(ranges)))
-
-		if err := collectionSpec.RewriteConstants(constants); err != nil {
-			return fmt.Errorf("failed to write constant: %w", err)
+		for k, v := range constants {
+			if vs, ok := collectionSpec.Variables[k]; !ok {
+				return fmt.Errorf("missing ebpf variable %s", k)
+			} else {
+				if !vs.Constant() {
+					return fmt.Errorf("non-constant ebpf variable %s", k)
+				}
+				if err := vs.Set(v); err != nil {
+					return fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
+				}
+			}
 		}
 
 		opts := ebpf.CollectionOptions{

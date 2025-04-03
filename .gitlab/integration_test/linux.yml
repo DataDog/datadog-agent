@@ -25,7 +25,7 @@ agent_integration_tests:
     - export DOCKER_REGISTRY_URL
     # DockerHub login not to be rate-limited during the docker compose
     - echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
-    - dda inv -e integration-tests --race --remote-docker
+    - dda inv -- -e integration-tests --race --remote-docker
 
 docker_integration_tests:
   extends: .integration_tests_deb
@@ -33,7 +33,7 @@ docker_integration_tests:
   # This job is not stable yet because of rate limit issues and micro vms beta status.
   allow_failure: true
   script:
-    - dda inv -e docker.test
+    - dda inv -- -e docker.test
 
 trace_agent_integration_tests:
   extends: .integration_tests_deb
@@ -41,4 +41,4 @@ trace_agent_integration_tests:
   timeout: 50m
   retry: 2
   script:
-    - dda inv -e integration-tests --race --only="Trace Agent"
+    - dda inv -- -e integration-tests --race --only="Trace Agent"

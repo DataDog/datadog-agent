@@ -7,6 +7,7 @@
 package versa
 
 import (
+	"fmt"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -15,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/payload"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +34,11 @@ const (
 type checkCfg struct {
 	// add versa specific fields
 	Name                            string `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint                string `yaml:"director_endpoint"`
+	AnalyticsEndpoint               string `yaml:"analytics_endpoint"` // TODO: remove this field once OAuth is implemented
+	Username                        string `yaml:"username"`
+	Password                        string `yaml:"password"`
+	UseHTTP                         bool   `yaml:"use_http"`
 	Namespace                       string `yaml:"namespace"`
 	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
 	MinCollectionInterval           int    `yaml:"min_collection_interval"`
@@ -59,8 +67,25 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	// Commit
-	//v.metricsSender.Commit()
+	client, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	if err != nil {
+		return fmt.Errorf("error creating Versa client: %w", err)
+	}
+
+	appliances, err := client.GetAppliancesLite()
+	if err != nil {
+		return fmt.Errorf("error getting appliances from Versa client: %w", err)
+	}
+
+	for _, appliance := range appliances {
+		log.Tracef("Processing appliance: %+v", appliance)
+	}
+
+	devicesMetadata := payload.GetDevicesMetadata(v.config.Namespace, appliances)
+
+	if *v.config.SendNDMMetadata {
+		v.metricsSender.SendMetadata(devicesMetadata, nil, nil)
+	}
 
 	return nil
 }

@@ -37,4 +37,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
       run: |
-        dda inv -e release.chase-release-managers --version "$VERSION"
+        dda inv -- -e release.chase-release-managers --version "$VERSION"

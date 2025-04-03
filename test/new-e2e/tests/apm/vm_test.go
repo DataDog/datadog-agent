@@ -203,7 +203,13 @@ func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 		s.logJournal(false)
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionTraces() {

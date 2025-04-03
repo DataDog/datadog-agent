@@ -42,10 +42,19 @@ func TestBlacklister(t *testing.T) {
 		stat := pb.ClientGroupedStats{Resource: test.resource}
 		span.Resource = test.resource
 		filter := NewBlacklister(test.filter)
-
-		assert.Equal(t, test.expectation, filter.Allows(span))
+		result, _ := filter.Allows(span)
+		assert.Equal(t, test.expectation, result)
 		assert.Equal(t, test.expectation, filter.AllowsStat(&stat))
 	}
+}
+
+func TestBlacklisterDenyingRule(t *testing.T) {
+	span := testutil.RandomSpan()
+	span.Resource = "potato"
+	filter := NewBlacklister([]string{"/foo/bar", "potato", "otherRule"})
+	result, denyingRule := filter.Allows(span)
+	assert.False(t, result)
+	assert.Equal(t, "potato", denyingRule.String())
 }
 
 func TestCompileRules(t *testing.T) {
@@ -53,7 +62,8 @@ func TestCompileRules(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		span := testutil.RandomSpan()
 		stat := pb.ClientGroupedStats{Resource: span.Resource}
-		assert.True(t, filter.Allows(span))
+		result, _ := filter.Allows(span)
+		assert.True(t, result)
 		assert.True(t, filter.AllowsStat(&stat))
 	}
 }

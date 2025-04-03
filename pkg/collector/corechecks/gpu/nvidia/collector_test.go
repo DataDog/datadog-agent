@@ -11,52 +11,17 @@ import (
 	"errors"
 	"testing"
 
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
+
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	testutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
-
-// this mock returns proper values only for devices with index 0 and 1, otherwise it will return an error
-func getBasicNvmlDeviceMock(index int) nvml.Device {
-	return &nvmlmock.Device{
-		GetUUIDFunc: func() (string, nvml.Return) {
-			switch index {
-			case 0:
-				return "GPU-123", nvml.SUCCESS
-			case 1:
-				return "GPU-456", nvml.SUCCESS
-			default:
-				return "", nvml.ERROR_UNKNOWN
-			}
-		},
-		GetNameFunc: func() (string, nvml.Return) {
-			switch index {
-			case 0:
-				return "Tesla UltraMegaPower", nvml.SUCCESS
-			case 1:
-				return "H100", nvml.SUCCESS
-			default:
-				return "", nvml.ERROR_UNKNOWN
-			}
-		},
-	}
-}
-
-// getBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
-// useful for basic tests that need only the basic interaction with NVML to be working.
-func getBasicNvmlMock() *nvmlmock.Interface {
-	return &nvmlmock.Interface{
-		DeviceGetCountFunc: func() (int, nvml.Return) {
-			return 1, nvml.SUCCESS
-		},
-		DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-			return getBasicNvmlDeviceMock(index), nvml.SUCCESS
-		},
-	}
-}
 
 func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	succeedCollector := &mockCollector{}
@@ -72,8 +37,10 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := getBasicNvmlMock()
-	deps := &CollectorDependencies{NVML: nvmlMock}
+	nvmlMock := testutil.GetBasicNvmlMock()
+	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+	require.NoError(t, err)
+	deps := &CollectorDependencies{DeviceCache: deviceCache}
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
@@ -94,23 +61,23 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return 2, nvml.SUCCESS
 					},
 					DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-						return getBasicNvmlDeviceMock(index), nvml.SUCCESS
+						return testutil.GetDeviceMock(index), nvml.SUCCESS
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-123"), "foo", []string{"gpu_uuid=GPU-123", "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-456"), "foo", []string{"gpu_uuid=GPU-456", "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[0], "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[1], "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Len(t, tagsMapping, 2)
-				tags, ok := tagsMapping["GPU-123"]
+				tags, ok := tagsMapping[testutil.GPUUUIDs[0]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-123"})
+				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[0]})
 
-				tags, ok = tagsMapping["GPU-456"]
+				tags, ok = tagsMapping[testutil.GPUUUIDs[1]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=turing", "gpu_uuid=GPU-456"})
+				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=turing", "gpu_uuid=" + testutil.GPUUUIDs[1]})
 			},
 		},
 		{
@@ -118,7 +85,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			mockSetup: func() (*nvmlmock.Interface, taggermock.Mock) {
 				nvmlMock := &nvmlmock.Interface{
 					DeviceGetCountFunc: func() (int, nvml.Return) {
-						return 0, nvml.ERROR_UNKNOWN
+						return 0, nvml.SUCCESS
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -136,12 +103,14 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 						return 2, nvml.SUCCESS
 					},
 					DeviceGetHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
-						// off by 1 on index will return error for device with index==1 and succeed for the device with index==0
-						return getBasicNvmlDeviceMock(index + 1), nvml.SUCCESS
+						if index == 0 {
+							return testutil.GetDeviceMock(index), nvml.SUCCESS
+						}
+						return nil, nvml.ERROR_INVALID_ARGUMENT
 					},
 				}
 				fakeTagger := taggerfxmock.SetupFakeTagger(t)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, "GPU-456"), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=GPU-456"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[1]}, nil, nil, nil)
 				return nvmlMock, fakeTagger
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
@@ -156,7 +125,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			nvmlMock, fakeTagger := tc.mockSetup()
 
 			// Execute
-			tagsMapping := GetDeviceTagsMapping(nvmlMock, fakeTagger)
+			deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+			require.NoError(t, err)
+			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
 			tc.expected(t, tagsMapping)

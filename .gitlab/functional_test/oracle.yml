@@ -1,6 +1,6 @@
 oracle:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   stage: functional_test
   needs: ["go_deps"]
   rules:
@@ -13,10 +13,17 @@ oracle:
         ORACLE_PWD: "datad0g"
   variables:
     CI_DEBUG_SERVICES: "true"
+    DD_HOSTNAME: "oracle-test"
+    # Configure static CPUs
+    KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
+    KUBERNETES_CPU_LIMIT: "3"
+    KUBERNETES_MEMORY_LIMIT: "6Gi"
+    KUBERNETES_SERVICE_CPU_REQUEST: "1"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda inv oracle.test
+    - dda inv -- oracle.test

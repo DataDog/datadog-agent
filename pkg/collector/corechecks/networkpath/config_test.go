@@ -17,7 +17,7 @@ import (
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	setup.Datadog().SetDefault("network_devices.namespace", "my-namespace")
+	setup.Datadog().SetWithoutSource("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data

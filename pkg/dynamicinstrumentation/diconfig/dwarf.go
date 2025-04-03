@@ -84,6 +84,7 @@ entryLoop:
 			if cuLineReader != nil {
 				for _, file := range cuLineReader.Files() {
 					if file == nil {
+						files = append(files, &dwarf.LineFile{Name: "no file", Mtime: 0, Length: 0})
 						continue
 					}
 

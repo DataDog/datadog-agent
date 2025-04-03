@@ -40,4 +40,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          dda inv -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
+          dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

@@ -102,6 +102,8 @@ const (
 	CoreDumpAction ActionName = "coredump"
 	// HashAction name of the hash action
 	HashAction ActionName = "hash"
+	// LogAction name of the log action
+	LogAction ActionName = "log"
 )
 
 // ActionDefinition describes a rule action section
@@ -111,6 +113,7 @@ type ActionDefinition struct {
 	Kill     *KillDefinition     `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
 	CoreDump *CoreDumpDefinition `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash     *HashDefinition     `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+	Log      *LogDefinition      `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
 }
 
 // Name returns the name of the action
@@ -124,6 +127,8 @@ func (a *ActionDefinition) Name() ActionName {
 		return CoreDumpAction
 	case a.Hash != nil:
 		return HashAction
+	case a.Log != nil:
+		return LogAction
 	default:
 		return ""
 	}
@@ -174,6 +179,12 @@ type CoreDumpDefinition struct {
 
 // HashDefinition describes the 'hash' section of a rule action
 type HashDefinition struct{}
+
+// LogDefinition describes the 'log' section of a rule action
+type LogDefinition struct {
+	Level   string
+	Message string
+}
 
 // OnDemandHookPoint represents a hook point definition
 type OnDemandHookPoint struct {

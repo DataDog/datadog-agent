@@ -115,23 +115,9 @@ class CopyrightLinter:
         return False
 
     @staticmethod
-    def _get_matching_files(root_dir, glob_pattern, exclude=None):
-        if exclude is None:
-            exclude = []
-
+    def _get_matching_files(root_dir, glob_pattern):
         # Glob is a generator so we have to do the counting ourselves
-        all_matching_files_cnt = 0
-
-        filtered_files = []
-        for filepath in Path(root_dir).glob(glob_pattern):
-            all_matching_files_cnt += 1
-            if not CopyrightLinter._is_excluded_path(filepath, exclude):
-                filtered_files.append(filepath)
-
-        excluded_files_cnt = all_matching_files_cnt - len(filtered_files)
-        print(f"[INFO] Excluding {excluded_files_cnt} files based on path filters!")
-
-        return sorted(filtered_files)
+        return sorted(Path(root_dir).glob(glob_pattern))
 
     @staticmethod
     def _get_header(filepath):
@@ -181,10 +167,14 @@ class CopyrightLinter:
     def _assert_copyrights(self, files):
         failing_files = []
         for filepath in files:
+            if self._is_excluded_path(Path(filepath), COMPILED_PATH_EXCLUSION_REGEX):
+                if self._debug:
+                    print(f"[EXCLUDE] {filepath}")
+                continue
+
             if self._has_copyright(filepath):
                 if self._debug:
-                    print(f"[ OK ] {filepath}")
-
+                    print(f"[OK] {filepath}")
                 continue
 
             print(f"[FAIL] {filepath}")
@@ -266,11 +256,7 @@ class CopyrightLinter:
                 print(f"[DEBG] Repo root: {git_repo_dir}")
                 print(f"[DEBG] Finding all files in {git_repo_dir} matching '{GLOB_PATTERN}'...")
 
-            files = CopyrightLinter._get_matching_files(
-                git_repo_dir,
-                GLOB_PATTERN,
-                exclude=COMPILED_PATH_EXCLUSION_REGEX,
-            )
+            files = CopyrightLinter._get_matching_files(git_repo_dir, GLOB_PATTERN)
             print(f"[INFO] Found {len(files)} files matching '{GLOB_PATTERN}'")
 
         failing_files = self._assert_copyrights(files)

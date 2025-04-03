@@ -132,15 +132,15 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "dda inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = (shellout! "dda inv release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
+    cache_branch = (shellout! "dda inv -- release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     if cache_bucket != ''
       mkdir cached_wheels_dir
-      shellout! "dda inv -e agent.get-integrations-from-cache " \
+      shellout! "dda inv -- -e agent.get-integrations-from-cache " \
                 "--python 3 --bucket #{cache_bucket} " \
                 "--branch #{cache_branch || 'main'} " \
                 "--integrations-dir #{windows_safe_path(project_dir)} " \
@@ -188,7 +188,7 @@ build do
         end
         shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-          shellout! "dda inv -e agent.upload-integration-to-cache " \
+          shellout! "dda inv -- -e agent.upload-integration-to-cache " \
                     "--python 3 --bucket #{cache_bucket} " \
                     "--branch #{cache_branch} " \
                     "--integrations-dir #{windows_safe_path(project_dir)} " \

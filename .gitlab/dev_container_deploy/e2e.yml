@@ -128,9 +128,9 @@ qa_dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.on_container_or_e2e_changes]
-    - !reference [.on_orchestrator_or_e2e_changes]
-    - !reference [.manual]
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
+    - when: on_success
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64

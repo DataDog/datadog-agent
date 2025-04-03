@@ -123,7 +123,7 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			sampleInterval := sample.TimeStamp - lastTimestamp
 
 			var value float64
-			value, err = metricValueToDouble(valueType, sample.SampleValue)
+			value, err = fieldValueToNumber[float64](valueType, sample.SampleValue)
 			if err != nil {
 				err = multierror.Append(err, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metric.name, sample.SampleValue, valueType, err))
 				continue

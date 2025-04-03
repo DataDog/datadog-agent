@@ -857,7 +857,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -879,7 +879,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -905,7 +905,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -936,7 +936,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
 				})
 				require.NoError(t, err)
@@ -1048,13 +1048,13 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				produceClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)
 				fetchClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        defaultDialer.DialContext,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)

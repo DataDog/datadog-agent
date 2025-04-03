@@ -313,6 +313,9 @@ const (
 	MetricSourceVelero
 	MetricSourceCelery
 	MetricSourceInfiniband
+	MetricSourceSilverstripeCMS
+	MetricSourceAnecdote
+	MetricSourceSonatypeNexus
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -1033,6 +1036,8 @@ func (ms MetricSource) String() string {
 // CheckNameToMetricSource returns a MetricSource given the name
 func CheckNameToMetricSource(name string) MetricSource {
 	switch name {
+	case "anecdote":
+		return MetricSourceAnecdote
 	case "container":
 		return MetricSourceContainer
 	case "containerd":
@@ -1321,10 +1326,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceScylla
 	case "silk":
 		return MetricSourceSilk
+	case "silverstripe_cms":
+		return MetricSourceSilverstripeCMS
 	case "singlestore":
 		return MetricSourceSinglestore
 	case "snowflake":
 		return MetricSourceSnowflake
+	case "sonatype_nexus":
+		return MetricSourceSonatypeNexus
 	case "spark":
 		return MetricSourceSpark
 	case "sqlserver":

@@ -8,14 +8,13 @@
 package gpu
 
 import (
-	"fmt"
 	"iter"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,7 +88,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	// Global streams depend on which GPU is active when they are used, so we need to get the current active GPU device
 	// The expensive step here is the container ID parsing, but we don't always need to do it so we pass a function
 	// that can be called to retrieve it only when needed
-	gpuUUID, err := sc.getActiveDevice(int(pid), int(tid), memoizedContainerID)
+	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), memoizedContainerID)
 	if err != nil {
 		sc.telemetry.missingDevices.Inc()
 		return nil, err
@@ -97,12 +96,12 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 
 	key := globalStreamKey{
 		pid:     pid,
-		gpuUUID: gpuUUID,
+		gpuUUID: device.UUID,
 	}
 
 	stream, ok := sc.globalStreams[key]
 	if !ok {
-		stream = sc.createStreamHandler(header, &gpuUUID, memoizedContainerID)
+		stream = sc.createStreamHandler(header, device, memoizedContainerID)
 		sc.globalStreams[key] = stream
 		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
@@ -129,8 +128,8 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 }
 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
-// If the GPU UUID is not provided (it's nil), it will be retrieved from the system context.
-func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, gpuUUID *string, containerIDFunc func() string) *StreamHandler {
+// If the device not provided (it's nil), it will be retrieved from the system context.
+func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) *StreamHandler {
 	pid, tid := getPidTidFromHeader(header)
 	metadata := streamMetadata{
 		pid:         pid,
@@ -138,19 +137,18 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 		containerID: containerIDFunc(),
 	}
 
-	if gpuUUID != nil {
-		metadata.gpuUUID = *gpuUUID
-	} else {
+	if device == nil {
 		var err error
-		metadata.gpuUUID, err = sc.getActiveDevice(int(pid), int(tid), containerIDFunc)
+		device, err = sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
 		if err != nil {
-			log.Warnf("error getting GPU UUID for process %d: %s", pid, err)
+			log.Warnf("error getting GPU device for process %d: %s", pid, err)
 			sc.telemetry.missingDevices.Inc()
 			return nil
 		}
 	}
 
-	metadata.smVersion = sc.sysCtx.deviceSmVersions[metadata.gpuUUID]
+	metadata.gpuUUID = device.UUID
+	metadata.smVersion = device.SMVersion
 
 	return newStreamHandler(metadata, sc.sysCtx)
 }
@@ -174,21 +172,6 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 
 		return containerID
 	})
-}
-
-// getActiveDevice returns the GPU UUID for the current active GPU device for a given process and thread.
-func (sc *streamCollection) getActiveDevice(pid int, tid int, containerIDFunc func() string) (string, error) {
-	device, err := sc.sysCtx.getCurrentActiveGpuDevice(pid, tid, containerIDFunc)
-	if err != nil {
-		return "", err
-	}
-
-	uuid, ret := device.GetUUID()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
-	}
-
-	return uuid, nil
 }
 
 func (sc *streamCollection) allStreams() iter.Seq[*StreamHandler] {
