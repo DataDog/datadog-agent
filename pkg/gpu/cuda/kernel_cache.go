@@ -297,6 +297,7 @@ func (kc *KernelCache) processRequests() {
 			kc.cacheMutex.Unlock()
 		case pid := <-kc.pidsToDelete:
 			delete(kc.pidMaps, pid)
+			kc.telemetry.activePIDs.Set(float64(len(kc.pidMaps)))
 		case <-fatbinCleanup.C:
 			kc.CleanOld()
 		case <-kc.done:
@@ -343,7 +344,6 @@ func (kc *KernelCache) CleanProcessData(pid int) {
 	kc.pidsToDelete <- pid
 
 	kc.telemetry.kernelCacheSize.Set(float64(len(kc.cache)))
-	kc.telemetry.activePIDs.Set(float64(len(kc.pidMaps)))
 }
 
 // CleanOld removes any old entries that have not been accessed in a while.
