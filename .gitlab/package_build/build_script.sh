@@ -356,27 +356,20 @@ export INSTALL_DIR="$PWD/datadog-agent-build/bin"
 export CONFIG_DIR="$PWD/datadog-agent-build/config"
 
 # Launch omnibus build
-# if [ "$SIGN" = "true" ]; then
-# TODO
-if false; then
-    echo SIGNING
-
+if [ "$SIGN" = "true" ]; then
     # Unlock the keychain to get access to the signing certificates
     security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
     inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     # Lock the keychain once we're done
     security lock-keychain "$KEYCHAIN_NAME"
 else
-    echo NOT SIGNING
-
     inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
 fi
 
 echo ls -la "$INSTALL_DIR"
 ls -la "$INSTALL_DIR"
+echo
 echo ls -la "$CONFIG_DIR"
 ls -la "$CONFIG_DIR"
-echo du "$INSTALL_DIR"
-du "$INSTALL_DIR"
 
 echo "--- CC END ---"

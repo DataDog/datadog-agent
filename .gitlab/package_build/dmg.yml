@@ -36,6 +36,53 @@ include:
 #   before_script:
 #     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+# Add certificates to temporary keychain
+.setup_signing:
+  # CODESIGNING_CERT_BASE64: ${{ secrets.CODESIGNING_CERT_2025_B64 }}
+  # CODESIGNING_CERT_PASSPHRASE: ${{ secrets.CODESIGNING_CERT_2025_PASSPHRASE }}
+  # INSTALLER_CERT_BASE64: ${{ secrets.INSTALLER_CERT_2024_B64 }}
+  # INSTALLER_CERT_PASSPHRASE: ${{ secrets.INSTALLER_CERT_2024_PASSPHRASE }}
+  # KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PASSWORD }}
+  # ENABLE_SIGN: ${{ secrets.ENABLE_SIGN }}
+  - |
+    # Create temporary build keychain
+    security create-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+
+    # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
+    # it again after a period of inactivity.
+    security set-keychain-settings -lut 7200 "build.keychain"
+
+    # Add the build keychain to the list of active keychains
+    security list-keychains -d user -s "build.keychain" "login.keychain"
+
+    security unlock-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+
+    # Apple has two different kinds of certificates:
+    # - code signing certificates, to sign binaries.
+    # - installer certificates, to sign the .pkg archive.
+    # We use both, because having signed binaries & a signed installer is a prerequisite to
+    # have an app notarized by Apple.
+    echo "$CODESIGNING_CERT_BASE64" | base64 -d > ~/codesigning_cert.p12
+    echo "$INSTALLER_CERT_BASE64" | base64 -d > ~/installer_cert.p12
+
+    # Import codesigning cert, only allow codesign to use it without confirmation
+    security import ~/codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
+    rm -f ~/codesigning_cert.p12
+
+    # Import installer cert, only allow productbuild to use it without confirmation
+    security import ~/installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
+    rm -f ~/installer_cert.p12
+
+    # Update the key partition list
+    # Since MacOS Sierra, this line is needed to "apply" the security import changes above
+    # (namely the changes that allow using codesign and productbuild without user prompts)
+    # See: https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
+    #      https://stackoverflow.com/questions/43002579/after-set-key-partition-list-codesign-still-prompts-for-key-access/43002580
+    # for reference.
+    # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
+    # Note: we silence the output of this command because it contains metadata about the certificates.
+    security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
+
 
 
 # TODO: Update image + rm gettext dependencies
@@ -48,7 +95,7 @@ new-agent_dmg-x64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      # TODO: Verify
+      # TODO: Verify + only *.dmg + version manifest
       - omnibus_build/pkg
     when: always
   before_script:
@@ -60,6 +107,8 @@ new-agent_dmg-x64-a7:
   script:
     - set -euo pipefail
 
+    # TODO
+    # - export SIGN=true
     - WORKDIR="$PWD"
     - cd "$HOME"
 
@@ -68,6 +117,8 @@ new-agent_dmg-x64-a7:
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
+
+    # - !reference [.setup_signing]
 
     # Setup
     - |
@@ -117,7 +168,8 @@ new-agent_dmg-x64-a7:
     # +=========================+
     # +--------- BUILD ---------+
     # +=========================+
-    - bash .gitlab/package_build/build_script.sh
+    # TODO A: Move this to this script section
+    - bash "$WORKDIR"/.gitlab/package_build/build_script.sh
     - mkdir -p "$WORKDIR"/omnibus_build/pkg
     - cp -r omnibus_build/pkg/* "$WORKDIR"/omnibus_build/pkg
     # TODO: Other things...
