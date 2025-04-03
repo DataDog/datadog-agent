@@ -15,7 +15,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "45313e4c5f0e8acdec9580161d565cf5fea578e3eabf25df7cc6355bf4afa1ee"
+       :sha256 => "b8d79530e3b7c96a5cb2d40d431ddb512af4a563e863728d8713039aa50203f9"
 
 relative_path "Python-#{version}"
 
