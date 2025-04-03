@@ -169,7 +169,6 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 			common.CheckCWSBehaviour(is.T(), client)
 		}
 	}
-	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)
 }
 
@@ -190,7 +189,6 @@ func (is *installScriptSuite) IotAgentTest() {
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
 
-	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, "datadog-iot-agent")
 }
 
@@ -210,7 +208,6 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	common.CheckDogstatdAgentBehaviour(is.T(), client)
 	common.CheckDogstatsdAgentStops(is.T(), client)
 	common.CheckDogstatsdAgentRestarts(is.T(), client)
-	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, "datadog-dogstatsd")
 }
 

@@ -124,7 +124,7 @@ def run(
         parsed_params[parts[0]] = parts[1]
 
     if local_package:
-        parsed_params["E2E_LOCAL_PACKAGE_PATH"] = local_package
+        env_vars["E2E_LOCAL_PACKAGE_PATH"] = local_package
 
     if agent_image:
         parsed_params["ddagent:fullImagePath"] = agent_image

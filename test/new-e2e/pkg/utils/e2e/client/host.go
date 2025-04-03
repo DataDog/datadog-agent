@@ -592,10 +592,3 @@ func convertPathSeparatorFactory(osFamily oscomp.Family) convertPathSeparatorFn 
 		return s
 	}
 }
-
-// InstallAgentFromLocalPackage installs the agent from a local package
-func (h *Host) InstallAgentFromLocalPackage(localPath string) error {
-	cmd := fmt.Sprintf("sudo dpkg -i %s", localPath)
-	_, err := h.Execute(cmd)
-	return err
-}
