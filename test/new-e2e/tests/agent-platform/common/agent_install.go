@@ -40,7 +40,7 @@ func CheckSigningKeys(t *testing.T, client *TestClient) {
 		if _, err := client.Host.Execute("dpkg --version"); err != nil {
 			tt.Skip()
 		}
-		_, err := client.Host.Execute(("dpkg -l datadog-signing-keys"))
+		_, err := client.Host.Execute(("dpkgd -l datadog-signing-keys"))
 		require.NoError(tt, err, "datadog-signing-keys package should be installed")
 	})
 }

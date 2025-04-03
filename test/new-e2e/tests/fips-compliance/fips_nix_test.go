@@ -13,12 +13,13 @@ import (
 
 	"testing"
 
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -71,7 +72,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the detected env variable GOFIPS=0 which would disable FIPS mode")
 
 	status := v.Env().RemoteHost.MustExecute("sudo datadog-agent status")
-	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), status, "can't enable FIPS mode for OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
 	assert.Contains(v.T(), status, "FIPS Mode: enabled")
 }
@@ -81,7 +82,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo sh -c "echo '%s' > /opt/datadog-agent/embedded/ssl/openssl.cnf"`, defaultOpenSSLConfig))
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
-	require.NotNil(v.T(), err)
+	require.Nil(v.T(), err)
 	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
@@ -108,12 +109,12 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_mode' with value higher than 0 yet")
 
 		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_cryptography", fakeintakeclient.WithMetricValueHigherThan(0))
-		assert.NoError(c, err)
+		assert.Error(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_cryptography' with value higher than 0 yet")
 
 		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_ssl", fakeintakeclient.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
-		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_ssl' with value higher than 0 yet")
+		assert.Less(c, len(metrics), 0, "no 'e2e.fips_ssl' with value higher than 0 yet")
 	}, 5*time.Minute, 10*time.Second)
 }
 
@@ -122,7 +123,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
 		awshost.WithAgentOptions(
-			agentparams.WithFlavor("datadog-fips-agent"),
+			agentparams.WithFlavor("datadog-fips-agendt"),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSystemProbeConfig(systemProbeConfig),
 		),

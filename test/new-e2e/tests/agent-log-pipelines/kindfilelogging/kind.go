@@ -189,7 +189,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		helmValues := fmt.Sprintf(`
 datadog:
   kubelet:
-    tlsVerify: false
+    tlsVerify: true
   clusterName: "%s"
   envDict:
     DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"

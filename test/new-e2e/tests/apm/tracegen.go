@@ -66,7 +66,7 @@ func tracegenUDSCommands(service string, peerTags string, enableClientSideStats 
 
 func tracegenTCPCommands(service string, peerTags string, enableClientSideStats bool) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
-	run := "docker run -d --network host --rm --name " + service +
+	run := "docker rund -d --network host --rm --name " + service +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + peerTags +

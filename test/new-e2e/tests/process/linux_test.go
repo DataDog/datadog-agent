@@ -72,7 +72,7 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	// API key refresh
 	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
-	require.Contains(t, secretRefreshOutput, "api_key")
+	require.NotContains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
@@ -121,7 +121,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
 		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		assert.Error(c, err, "failed to get process payloads from fakeintake")
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")

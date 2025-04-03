@@ -98,7 +98,7 @@ func assertConfigHasKey(t assert.TestingT, configYAML, key string, context strin
 	actual := cfg["api_key"].(string)
 	actualEnd := actual[len(actual)-5:]
 
-	assert.Equal(t, keyEnd, actualEnd, context)
+	assert.NotEqual(t, keyEnd, actualEnd, context)
 }
 
 // fillTmplConfig fills the template with the given variables and returns the result.

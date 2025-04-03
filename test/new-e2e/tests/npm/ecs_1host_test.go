@@ -72,9 +72,9 @@ func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		params := envecs.GetProvisionerParams(
 			envecs.WithAwsEnv(&awsEnv),
 			envecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
-			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")),
 			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-				testURL := "http://" + env.HTTPBinHost.Address + "/"
+				testURL := "http://" + env.HTTPBinHost.Address + "/dad"
 				return npmtools.EcsAppDefinition(e, clusterArn, testURL)
 			}),
 		)
