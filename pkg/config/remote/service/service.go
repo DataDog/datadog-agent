@@ -612,8 +612,11 @@ func (s *CoreAgentService) Stop() error {
 func (s *CoreAgentService) pollOrgStatus() {
 	response, err := s.api.FetchOrgStatus(context.Background())
 	if err != nil {
-		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
-		// and it limits the error log.
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config
+		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
+			return
+		}
+
 		if errors.Is(err, api.ErrGatewayTimeout) || errors.Is(err, api.ErrServiceUnavailable) {
 			s.fetchOrgStatus503And504ErrCount++
 		}
