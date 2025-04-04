@@ -45,43 +45,53 @@ include:
   # KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PASSWORD }}
   # ENABLE_SIGN: ${{ secrets.ENABLE_SIGN }}
   - |
-    # Create temporary build keychain
-    security create-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+    if [ "$SIGN" = true ]; then
+      echo "Setting up signing secrets"
 
-    # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
-    # it again after a period of inactivity.
-    security set-keychain-settings -lut 7200 "build.keychain"
+      KEYCHAIN_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_KEYCHAIN_PWD password) || exit $?; export KEYCHAIN_PWD
+      CODESIGNING_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING certificate) || exit $?; export CODESIGNING_CERT_BASE64
+      CODESIGNING_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
+      INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
+      INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-    # Add the build keychain to the list of active keychains
-    security list-keychains -d user -s "build.keychain" "login.keychain"
+      # Create temporary build keychain
+      security create-keychain -p "$KEYCHAIN_PWD" "build.keychain"
 
-    security unlock-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+      # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
+      # it again after a period of inactivity.
+      security set-keychain-settings -lut 7200 "build.keychain"
 
-    # Apple has two different kinds of certificates:
-    # - code signing certificates, to sign binaries.
-    # - installer certificates, to sign the .pkg archive.
-    # We use both, because having signed binaries & a signed installer is a prerequisite to
-    # have an app notarized by Apple.
-    echo "$CODESIGNING_CERT_BASE64" | base64 -d > ~/codesigning_cert.p12
-    echo "$INSTALLER_CERT_BASE64" | base64 -d > ~/installer_cert.p12
+      # Add the build keychain to the list of active keychains
+      security list-keychains -d user -s "build.keychain" "login.keychain"
 
-    # Import codesigning cert, only allow codesign to use it without confirmation
-    security import ~/codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
-    rm -f ~/codesigning_cert.p12
+      security unlock-keychain -p "$KEYCHAIN_PWD" "build.keychain"
 
-    # Import installer cert, only allow productbuild to use it without confirmation
-    security import ~/installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
-    rm -f ~/installer_cert.p12
+      # Apple has two different kinds of certificates:
+      # - code signing certificates, to sign binaries.
+      # - installer certificates, to sign the .pkg archive.
+      # We use both, because having signed binaries & a signed installer is a prerequisite to
+      # have an app notarized by Apple.
+      echo "$CODESIGNING_CERT_BASE64" | base64 -d > ~/codesigning_cert.p12
+      echo "$INSTALLER_CERT_BASE64" | base64 -d > ~/installer_cert.p12
 
-    # Update the key partition list
-    # Since MacOS Sierra, this line is needed to "apply" the security import changes above
-    # (namely the changes that allow using codesign and productbuild without user prompts)
-    # See: https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
-    #      https://stackoverflow.com/questions/43002579/after-set-key-partition-list-codesign-still-prompts-for-key-access/43002580
-    # for reference.
-    # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
-    # Note: we silence the output of this command because it contains metadata about the certificates.
-    security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
+      # Import codesigning cert, only allow codesign to use it without confirmation
+      security import ~/codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
+      rm -f ~/codesigning_cert.p12
+
+      # Import installer cert, only allow productbuild to use it without confirmation
+      security import ~/installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
+      rm -f ~/installer_cert.p12
+
+      # Update the key partition list
+      # Since MacOS Sierra, this line is needed to "apply" the security import changes above
+      # (namely the changes that allow using codesign and productbuild without user prompts)
+      # See: https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
+      #      https://stackoverflow.com/questions/43002579/after-set-key-partition-list-codesign-still-prompts-for-key-access/43002580
+      # for reference.
+      # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
+      # Note: we silence the output of this command because it contains metadata about the certificates.
+      security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
+    fi
 
 
 
@@ -113,6 +123,9 @@ new-agent_dmg-x64-a7:
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
+    - |
+      export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+      export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
 
     # Setup
     - |
@@ -175,8 +188,6 @@ new-agent_dmg-x64-a7:
       echo Setting up Go
       export GO_VERSION="$(cat .go-version)"
       eval "$(gimme $GO_VERSION)"
-      echo "GOROOT: $GOROOT"
-      echo "GOPATH: $GOPATH"
       export GOPATH="$GOROOT" # TODO
       export PATH="$PATH:$GOPATH/bin"
       echo Go version should be $GO_VERSION
