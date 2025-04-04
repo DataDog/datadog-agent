@@ -266,7 +266,7 @@ variables:
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing  # agent-delivery
   MACOS_ARTIFACTORY: artifactory-api  # agent-delivery
   MACOS_KEYCHAIN_PWD: ci-keychain  # agent-delivery
-  MACOS_NOTARIZATION: notarization  # agent-delivery
+  MACOS_NOTARIZATION: notarization-api  # agent-delivery
   SLACK_AGENT: slack-agent-ci  # agent-devx-infra
   SMP_ACCOUNT: smp  # single-machine-performance
   # End vault variables
