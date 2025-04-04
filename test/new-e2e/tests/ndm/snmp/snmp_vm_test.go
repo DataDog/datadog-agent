@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 package snmp
 
@@ -33,17 +33,9 @@ type snmpVMSuite struct {
 }
 
 func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provisioner {
-	agentConfig := `
-log_level: debug
-
-network_devices:
-  namespace: default
-`
-
 	allOpts := []awshost.ProvisionerOption{
 		awshost.WithDocker(),
 		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
 		),
 	}
