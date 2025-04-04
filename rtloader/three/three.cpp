@@ -40,7 +40,17 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
+    // Pre-Initialize Python with UTF-8 mode
     PyStatus status;
+    PyPreConfig preconfig;
+    PyPreConfig_InitPythonConfig(&preconfig);
+    preconfig.utf8_mode = 1;
+
+    status = Py_PreInitialize(&preconfig);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
+
     // Initialize the configuration with default values
     PyConfig_InitPythonConfig(&_config);
     _config.install_signal_handlers = 1;
@@ -75,17 +85,6 @@ Three::~Three()
 
 bool Three::init()
 {
-    PyStatus status;
-    PyPreConfig preconfig;
-    PyPreConfig_InitPythonConfig(&preconfig);
-
-    preconfig.utf8_mode = 1;
-
-    status = Py_PreInitialize(&preconfig);
-    if (PyStatus_Exception(status)) {
-        Py_ExitStatusException(status);
-    }
-
     // add custom builtins init funcs to Python inittab, one by one
     // Unlike its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
@@ -97,7 +96,7 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    status = Py_InitializeFromConfig(&_config);
+    PyStatus status = Py_InitializeFromConfig(&_config);
     if (PyStatus_Exception(status)) {
         setError("Failed to initialize Python: " + std::string(status.err_msg));
     }
