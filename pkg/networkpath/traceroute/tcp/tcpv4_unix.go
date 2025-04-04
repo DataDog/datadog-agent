@@ -48,11 +48,11 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}
 	conn.Close() // we don't need the UDP port here
 	t.srcIP = addr.IP
-	localAddr, ok := netip.AddrFromSlice(addr.IP)
+	localAddr, ok := common.UnmappedAddrFromSlice(addr.IP)
 	if !ok {
 		return nil, fmt.Errorf("failed to get netipAddr for source %s", addr)
 	}
-	targetAddr, ok := netip.AddrFromSlice(t.Target)
+	targetAddr, ok := common.UnmappedAddrFromSlice(t.Target)
 	if !ok {
 		return nil, fmt.Errorf("failed to get netipAddr for target %s", t.Target)
 	}
