@@ -667,7 +667,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
-	github.com/rickar/props v1.0.0
+	github.com/rickar/props v1.1.0
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/valyala/fastjson v1.6.4
