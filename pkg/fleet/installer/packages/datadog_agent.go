@@ -261,7 +261,7 @@ func PreRemoveAgent(ctx context.Context, installPath string, caller string, upgr
 		}
 	}
 
-	if !upgrade || caller != installerCaller { // We don't want to remove anything during remote upgrades as we may need to fall back
+	if !upgrade || caller != installerCaller { // We don't want to remove anything during installer remote upgrades as we may need to fall back
 		// 2. Remove custom integrations
 		if _, err := os.Stat(filepath.Join(installPath, "embedded/.installed_by_pkg.txt")); err == nil {
 			fmt.Println("Removing integrations installed with the 'agent integration' command")
@@ -339,7 +339,7 @@ func RemoveAgent(ctx context.Context) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	PreRemoveAgent(ctx, stablePath, installerCaller, true)
+	PreRemoveAgent(ctx, stablePath, installerCaller, true) // TODO: broken
 	if err := PostInstallAgent(ctx, experimentPath, installerCaller); err != nil {
 		return err
 	}

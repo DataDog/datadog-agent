@@ -473,3 +473,6 @@ func getenv() *env.Env {
 func PostInstallAgent(_ context.Context, _, _ string) error {
 	return nil
 }
+
+// PreRemoveAgent runs pre remove scripts for a given package. Noop for Windows
+func PreRemoveAgent(_ context.Context, _ string, _ string, _ bool) {}
