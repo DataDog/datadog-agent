@@ -43,7 +43,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     // Pre-Initialize Python with UTF-8 mode
     PyStatus status;
     PyPreConfig preconfig;
-    PyPreConfig_InitPythonConfig(&preconfig);
+    PyPreConfig_InitIsolatedConfig(&preconfig);
     preconfig.utf8_mode = 1;
 
     status = Py_PreInitialize(&preconfig);
@@ -52,8 +52,8 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     }
 
     // Initialize the configuration with default values
-    PyConfig_InitPythonConfig(&_config);
-    _config.install_signal_handlers = 0;
+    PyConfig_InitIsolatedConfig(&_config);
+    _config.install_signal_handlers = 1;
 
     // Configure Python home
     const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
