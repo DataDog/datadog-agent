@@ -102,7 +102,7 @@ api_key: ENC[api_key]
 	status := v.Env().Agent.Client.Status()
 	assert.Contains(v.T(), status.Content, "API key ending with 23456")
 
-	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyy")
 
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
