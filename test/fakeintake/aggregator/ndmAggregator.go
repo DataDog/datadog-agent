@@ -72,7 +72,7 @@ type InterfaceMetadata struct {
 	MerakiStatus  string   `json:"meraki_status,omitempty"`
 }
 
-// Diagnosis contain data for a diagnosis
+// Diagnosis contains data for a diagnosis
 type Diagnosis struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
@@ -90,12 +90,12 @@ func (p *NDMPayload) name() string {
 	return fmt.Sprintf("%s:%s integration:%s", p.Namespace, p.Subnet, p.Integration)
 }
 
-// GetTags return the tags from a payload
+// GetTags returns the tags from a payload
 func (p *NDMPayload) GetTags() []string {
 	return []string{}
 }
 
-// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+// GetCollectedTime returns the time when the payload has been collected by the fakeintake server
 func (p *NDMPayload) GetCollectedTime() time.Time {
 	return p.collectedTime
 }
@@ -120,12 +120,12 @@ func ParseNDMPayload(payload api.Payload) (ndmPayloads []*NDMPayload, err error)
 	return ndmPayloads, err
 }
 
-// NDMAggregator is an Aggregator for NDM devices payloads
+// NDMAggregator is an Aggregator for NDM payloads
 type NDMAggregator struct {
 	Aggregator[*NDMPayload]
 }
 
-// NewNDMAggregator return a new NDMAggregator
+// NewNDMAggregator returns a new NDMAggregator
 func NewNDMAggregator() NDMAggregator {
 	return NDMAggregator{
 		Aggregator: newAggregator(ParseNDMPayload),
