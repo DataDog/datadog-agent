@@ -271,7 +271,7 @@ def exception_threshold_bump(ctx):
             except gitlab.exceptions.GitlabGetError as e:
                 print(
                     color_message(
-                        "[ERROR] Unable to fetchthe last artifact of the static_quality_gates job. Details :", "red"
+                        "[ERROR] Unable to fetch the last artifact of the static_quality_gates job. Details :", "red"
                     )
                 )
                 print(e.response_body)
