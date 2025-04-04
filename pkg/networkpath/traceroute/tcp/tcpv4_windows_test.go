@@ -14,13 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn"
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn"
 )
 
 func TestSendAndReceive(t *testing.T) {
@@ -86,7 +87,7 @@ func TestSendAndReceive(t *testing.T) {
 			if test.mockSendError == nil { // only expect ListenPackets call if SendRawPacket is successful
 				mockRawConn.EXPECT().ListenPackets(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockListenError)
 			}
-			actual, err := tcpv4.sendAndReceive(mockRawConn, 1, 418, 1*time.Second)
+			actual, err := tcpv4.sendAndReceive(mockRawConn, 1, 1*time.Second)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg), "error mismatch: excpected %q, got %q", test.errMsg, err.Error())

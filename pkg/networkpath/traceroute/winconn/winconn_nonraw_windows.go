@@ -1,0 +1,251 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package winconn
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	net "net"
+	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+)
+
+type SOCKADDR_INET struct {
+	Ipv4      windows.RawSockaddrInet4
+	Ipv6      windows.RawSockaddrInet4
+	si_family uint16
+}
+
+type ICMP_ERROR_INFO struct {
+	SrcAddress SOCKADDR_INET
+	Protocol   uint32
+	Type       uint8
+	Code       uint8
+}
+
+type WSAPOLLFD struct {
+	fd      windows.Handle
+	events  uint16
+	revents uint16
+}
+
+var (
+	modWS2_32   = windows.NewLazySystemDLL("ws2_32.dll")
+	procWSAPoll = modWS2_32.NewProc("WSAPoll")
+)
+
+type (
+	// RawConnWrapper is an interface that abstracts the raw socket
+	// connection for Windows
+	ConnWrapper interface {
+		SetTTL(ttl int) error
+		GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error)
+		Close()
+	}
+
+	// RawConn is a struct that encapsulates a raw socket
+	// on Windows that can be used to listen to traffic on a host
+	// or send raw packets from a host
+	Conn struct {
+		Socket windows.Handle
+	}
+)
+
+// Close closes the raw socket
+func (r *Conn) Close() {
+	if r.Socket != windows.InvalidHandle {
+		windows.Closesocket(r.Socket) // nolint: errcheck
+	}
+	r.Socket = windows.InvalidHandle
+}
+
+// NewConn creates a Winsocket with the following option set:
+// 1. TCP_FAIL_CONNECT_ON_ICMP_ERROR
+// 2. Non-blocking mode
+func NewConn() (*Conn, error) {
+	s, err := windows.Socket(windows.AF_INET, windows.SOCK_STREAM, windows.IPPROTO_IP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create socket: %w", err)
+	}
+
+	// set the socket to non-blocking mode
+	var nonBlocking uint32 = 1
+	var outLen uint32 = 0
+	err = windows.WSAIoctl(
+		s,
+		0x8004667E, // FIONBIO
+		(*byte)(unsafe.Pointer(&nonBlocking)),
+		uint32(unsafe.Sizeof(nonBlocking)),
+		nil,
+		0,
+		&outLen,
+		nil,
+		0,
+	)
+	if err != nil {
+		windows.Closesocket(s) // nolint: errcheck
+		return nil, fmt.Errorf("failed to set non-blocking mode: %w", err)
+	}
+
+	// set fail connect on ICMP error
+	err = windows.SetsockoptInt(
+		s,
+		windows.IPPROTO_TCP,
+		windows.TCP_FAIL_CONNECT_ON_ICMP_ERROR,
+		1,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set TCP_FAIL_CONNECT_ON_ICMP_ERROR: %w", err)
+	}
+
+	return &Conn{Socket: s}, nil
+}
+
+// SetTTL sets the TTL for the socket
+func (r *Conn) SetTTL(ttl int) error {
+	return windows.SetsockoptInt(
+		r.Socket,
+		windows.IPPROTO_IP,
+		windows.IP_TTL,
+		ttl,
+	)
+}
+
+// SendConnect sends a TCP SYN packet to the destination IP and port
+func (r *Conn) sendConnect(destIP net.IP, destPort uint16) error {
+	dst := destIP.To4()
+	if dst == nil {
+		return errors.New("unable to parse IP address")
+	}
+
+	sa := &windows.SockaddrInet4{
+		Port: int(destPort),
+		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
+	}
+
+	return windows.Connect(r.Socket, sa)
+
+}
+
+// getHoppAddress gets the address of the hop
+func (r *Conn) getHoppAddress() (net.IP, error) {
+	var errorInfo ICMP_ERROR_INFO
+	var errorInfoSize int32 = int32(unsafe.Sizeof(errorInfo))
+	// getsockopt for
+	err := windows.Getsockopt(
+		r.Socket,
+		windows.IPPROTO_TCP,
+		windows.TCP_ICMP_ERROR_INFO,
+		(*byte)(unsafe.Pointer(&errorInfo)),
+		&errorInfoSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hop address: %w", err)
+	}
+
+	return errorInfo.SrcAddress.Ipv4.Addr[:], nil
+}
+
+func wsaPoll(fds []WSAPOLLFD, timeout int) (int32, error) {
+	ret, _, err := procWSAPoll.Call(
+		uintptr(unsafe.Pointer(&fds[0])),
+		uintptr(len(fds)),
+		uintptr(timeout),
+	)
+	if int32(ret) > 0 {
+		// don't return an error on success, just return the number of fds that are ready
+		return int32(ret), nil
+	}
+	if ret == 0 {
+		// no fds are ready timeout
+		return 0, nil
+
+	}
+	return int32(ret), err
+}
+
+func (r *Conn) poll(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return common.CanceledError("poll canceled")
+		default:
+			// continue
+		}
+		fds := []WSAPOLLFD{
+			{
+				fd:      r.Socket,
+				events:  1, // POLLIN
+				revents: 0,
+			},
+		}
+		ret, err := wsaPoll(fds, 100)
+		if err != nil {
+			return fmt.Errorf("failed to poll: %w", err)
+		}
+		if ret > 0 {
+			// check if the socket event set
+			if fds[0].revents&0x0010 == 0 {
+				return errors.New("socket is not writable")
+			}
+			return nil
+		}
+	}
+}
+
+func (r *Conn) getSocketError() error {
+	var err error
+	var errCode int32
+	err = windows.Getsockopt(
+		r.Socket,
+		windows.SOL_SOCKET,
+		0x1007, // SO_ERROR
+		(*byte)(unsafe.Pointer(&errCode)),
+		&errCode,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get socket error: %w", err)
+	}
+	return windows.Errno(errCode)
+}
+
+// GetHop sends a TCP SYN packet to the destination IP and port
+// Waits to get ICMP response from hop and returns the IP of the hop
+// and the time it took to get the response
+func (r *Conn) GetHop(timeout time.Duration, destIP net.IP, destPort uint16) (net.IP, time.Time, error) {
+	err := r.sendConnect(destIP, destPort)
+
+	if errors.Is(err, windows.WSAEWOULDBLOCK) {
+		// wait for the socket to be ready
+		// set error to returned error from poll
+		err = r.poll(context.Background())
+		if err != nil {
+			return nil, time.Time{}, fmt.Errorf("failed to poll: %w", err)
+		}
+		// get the new socket error
+		// this will be handled from other below if statments
+		// if the error is nil, it means the connection was made
+		err = r.getSocketError()
+
+	}
+
+	if errors.Is(err, windows.WSAEHOSTUNREACH) {
+		addr, err := r.getHoppAddress()
+		if err != nil {
+			return nil, time.Time{}, fmt.Errorf("failed to get hop address: %w", err)
+		}
+		return addr, time.Now(), nil
+	} else if err != nil {
+		return nil, time.Time{}, fmt.Errorf("failed to send connect: %w", err)
+	}
+
+	return destIP, time.Now(), nil
+}

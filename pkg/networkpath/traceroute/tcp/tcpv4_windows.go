@@ -8,15 +8,12 @@ package tcp
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows"
 )
 
 // TracerouteSequential runs a traceroute sequentially where a packet is
@@ -33,17 +30,16 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
 
-	rs, err := winconn.NewRawConn()
+	s, err := winconn.NewConn()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raw socket: %w", err)
 	}
-	defer rs.Close()
+	defer s.Close()
 
 	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rs, i, seqNumber, t.Timeout)
+		hop, err := t.sendAndReceive(s, i, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -66,27 +62,15 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
-	_, buffer, _, err := t.createRawTCPSynBuffer(seqNum, ttl)
+func (t *TCPv4) sendAndReceive(s winconn.ConnWrapper, ttl int, timeout time.Duration) (*common.Hop, error) {
+	// set the TTL
+	err := s.SetTTL(ttl)
 	if err != nil {
-		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
-		return nil, err
+		return nil, fmt.Errorf("failed to set TTL: %w", err)
 	}
 
-	err = rs.SendRawPacket(t.Target, t.DestPort, buffer)
-	if err != nil {
-		log.Errorf("failed to send TCP packet: %s", err.Error())
-		return nil, err
-	}
-
-	icmpParser := icmp.NewICMPTCPParser()
-	tcpParser := newParser()
-	matcherFuncs := map[int]common.MatcherFunc{
-		windows.IPPROTO_ICMP: icmpParser.Match,
-		windows.IPPROTO_TCP:  tcpParser.MatchTCP,
-	}
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, end, err := rs.ListenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, matcherFuncs)
+	hopIP, end, err := s.GetHop(timeout, t.Target, t.DestPort)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
