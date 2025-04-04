@@ -38,8 +38,13 @@
   - export VAULT_ADDR=https://vault.us1.ddbuild.io
   - vault login -method=aws -no-print
 
+.aws_retry_config:
+  - export AWS_RETRY_MODE=standard
+  - export AWS_RETRY_MAX_ATTEMPTS=5
+
 .macos_gitlab:
   before_script:
+    - !reference [.aws_retry_config]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -56,6 +61,6 @@
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
     - pyenv rehash
-    - dda inv -e rtloader.make
-    - dda inv -e rtloader.install
-    - dda inv -e install-tools
+    - dda inv -- -e rtloader.make
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools

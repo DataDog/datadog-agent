@@ -10,7 +10,6 @@ static __attribute__((always_inline)) struct bpf_map_def *select_buffer(void *fr
     if (buffer_id == NULL) {
         return NULL;
     }
-
     return *buffer_id ? back_buffer : front_buffer;
 }
 

@@ -29,13 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfig.GPUNS}
+var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
@@ -65,7 +66,7 @@ var GPUMonitoring = module.Factory{
 			configureCgroupPermissions()
 		}
 
-		probeDeps, err := gpu.NewProbeDependencies(c, deps.Telemetry, processEventConsumer, deps.WMeta)
+		probeDeps, err := gpu.NewProbeDependencies(deps.Telemetry, processEventConsumer, deps.WMeta)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create probe dependencies: %w", err)
 		}
@@ -105,11 +106,11 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
-	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpuconfigconsts.GpuModuleName))
+	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
 	return nil
