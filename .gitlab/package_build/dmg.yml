@@ -87,12 +87,42 @@ include:
       security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
     fi
 
+.do_notarization:
+  - |
+    if [ "$SIGN" = true ]; then
+      echo Doing notarization
+      export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
+      unset LATEST_DMG
+
+      # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
+      for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
+        if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
+      done
+
+      echo "File to upload: $LATEST_DMG"
+
+      # Send package for notarization; retrieve REQUEST_UUID
+      echo "Sending notarization request."
+
+      RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+      echo "Results: $RESULT"
+      SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+      echo "Submission ID: $SUBMISSION_ID"
+      echo "Submission logs:"
+      xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+      if [ -n "$EXIT_CODE" ]; then
+        # Once we have some logs, propagate potential failures
+        exit $EXIT_CODE
+      fi
+    fi
+
 
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # parallel: 2
-  needs: []
+  needs:
+    - setup_agent_version
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
@@ -116,6 +146,12 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     - set -eo pipefail
+
+    - if [ "$SIGN" = true ]; then
+        echo "Signing enabled"
+      else
+        echo "Signing disabled"
+      fi
 
     - brew uses gettext --installed || true
 
@@ -202,43 +238,24 @@ new-agent_dmg-x64-a7:
       inv check-go-version || exit 1
 
     # TODO: Use setup version job
-    - |
-      echo Making agent version cache
+    # - |
+      # echo Making agent version cache
       # TODO: Necessary?
       # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-      export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+      # export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
 
     # +=========================+
     # +--------- BUILD ---------+
     # +=========================+
     # TODO A: Move this to this script section
     - bash .gitlab/package_build/build_script.sh
-    # # +=========================+
-    # # +----- NOTARIZATION ------+
-    # # +=========================+
-    # - |
-    #   echo Doing notarization
-    #   export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
-    #   unset LATEST_DMG
-
-    #   # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
-    #   for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
-    #     if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
-    #   done
-
-    #   echo "File to upload: $LATEST_DMG"
-
-    #   # Send package for notarization; retrieve REQUEST_UUID
-    #   echo "Sending notarization request."
-
-    #   RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-    #   echo "Results: $RESULT"
-    #   SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-    #   echo "Submission ID: $SUBMISSION_ID"
-    #   echo "Submission logs:"
-    #   xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-    #   if [ -n "$EXIT_CODE" ]; then
-    #     # Once we have some logs, propagate potential failures
-    #     exit $EXIT_CODE
-    #   fi
-    - echo Done
+    # +=========================+
+    # +----- NOTARIZATION ------+
+    # +=========================+
+    - !reference [.do_notarization]
+    - |
+      if [ "$SIGN" = true ]; then
+        echo Built signed package
+      else
+        echo Built unsigned package
+      fi

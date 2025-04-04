@@ -328,13 +328,6 @@ fi
 
 echo
 echo "--- CC ---"
-echo "=> ls /usr/local/opt/gettext"
-ls /usr/local/opt/gettext || true
-echo "=> END ls /usr/local/opt/gettext"
-# echo "Old install dir: $INSTALL_DIR"
-# echo "Old config dir: $CONFIG_DIR"
-export INSTALL_DIR="$PWD/datadog-agent-build/bin"
-export CONFIG_DIR="$PWD/datadog-agent-build/config"
 
 # Launch omnibus build
 if [ "$SIGN" = "true" ]; then
