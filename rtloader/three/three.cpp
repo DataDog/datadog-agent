@@ -53,7 +53,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
 
     // Initialize the configuration with default values
     PyConfig_InitPythonConfig(&_config);
-    _config.install_signal_handlers = 1;
+    _config.install_signal_handlers = 0;
 
     // Configure Python home
     const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
