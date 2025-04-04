@@ -44,7 +44,6 @@ type Module struct {
 	EventTypes map[string]*EventTypeMetadata
 	Mock       bool
 	Getters    []string
-	FvSetters  []string // field value setters, see SetFieldValue
 }
 
 // StructField represents a structure field for which an accessor will be generated

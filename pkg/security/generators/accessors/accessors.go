@@ -67,11 +67,10 @@ func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticche
 }
 
 // Parse extract data
-func (af *AstFiles) Parse() ([]ast.Spec, []string, []string) {
+func (af *AstFiles) Parse() ([]ast.Spec, []string) {
 	var (
-		specs     []ast.Spec
-		getters   []string
-		fvSetters []string
+		specs   []ast.Spec
+		getters []string
 	)
 
 	for _, file := range af.files {
@@ -93,12 +92,6 @@ func (af *AstFiles) Parse() ([]ast.Spec, []string, []string) {
 						getters = append(getters, strings.TrimSpace(els[1]))
 					}
 				}
-				if strings.Contains(document.Text, "genfvsetter") {
-					els := strings.Split(document.Text, ":")
-					if len(els) > 1 {
-						fvSetters = append(fvSetters, strings.TrimSpace(els[1]))
-					}
-				}
 			}
 
 			if !genaccessors {
@@ -109,7 +102,7 @@ func (af *AstFiles) Parse() ([]ast.Spec, []string, []string) {
 		}
 	}
 
-	return specs, getters, fvSetters
+	return specs, getters
 }
 
 func origTypeToBasicType(kind string) string {
@@ -764,9 +757,8 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 		module.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
 	}
 
-	specs, getters, fvSetters := astFiles.Parse()
+	specs, getters := astFiles.Parse()
 	module.Getters = getters
-	module.FvSetters = fvSetters
 
 	for _, spec := range specs {
 		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
@@ -786,7 +778,7 @@ func formatBuildTags(buildTags string) []string {
 	return formattedBuildTags
 }
 
-func newField(allFields map[string]*common.StructField, inputField *common.StructField) string {
+func newField(allFields map[string]*common.StructField, fieldName string, inputField *common.StructField) string {
 	var fieldPath, result string
 	for _, node := range strings.Split(inputField.Name, ".") {
 		if fieldPath != "" {
@@ -797,7 +789,10 @@ func newField(allFields map[string]*common.StructField, inputField *common.Struc
 
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				// process & exec context are set in the template
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") {
+					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				}
 			} else if field.IsArray && fieldPath != inputField.Name {
 				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
@@ -1116,8 +1111,8 @@ func genGetter(getters []string, getter string) bool {
 	return slices.Contains(getters, "*") || slices.Contains(getters, getter)
 }
 
-func genSetFieldValue(fieldValueSetters []string, field string) bool {
-	return slices.Contains(fieldValueSetters, field)
+func upperCase(str string) string {
+	return cases.Title(language.Und).String(str)
 }
 
 var funcMap = map[string]interface{}{
@@ -1140,7 +1135,7 @@ var funcMap = map[string]interface{}{
 	"GetSetHandler":            getSetHandler,
 	"IsReadOnly":               isReadOnly,
 	"GenGetter":                genGetter,
-	"GenSetFieldValue":         genSetFieldValue,
+	"UpperCase":                upperCase,
 }
 
 //go:embed accessors.tmpl

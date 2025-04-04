@@ -8,9 +8,11 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
 	"net"
 	"reflect"
+	"strings"
 )
 
 // to always require the math package
@@ -2488,8 +2490,477 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	}
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
+func (ev *Event) setStringArray(field string, fv *[]string, value interface{}) error {
+	switch rv := value.(type) {
+	case string:
+		*fv = append(*fv, rv)
+	case []string:
+		*fv = append(*fv, rv...)
+	default:
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	return nil
+}
+func (ev *Event) setIntArray(field string, fv *[]int, value interface{}) error {
+	switch rv := value.(type) {
+	case int:
+		*fv = append(*fv, rv)
+	case []int:
+		*fv = append(*fv, rv...)
+	default:
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	return nil
+}
+func (ev *Event) setBoolArray(field string, fv *[]bool, value interface{}) error {
+	switch rv := value.(type) {
+	case bool:
+		*fv = append(*fv, rv)
+	case []bool:
+		*fv = append(*fv, rv...)
+	default:
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	return nil
+}
+func (ev *Event) setString(field string, fv *string, value interface{}) error {
+	rv, ok := value.(string)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = rv
+	return nil
+}
+func (ev *Event) setBool(field string, fv *bool, value interface{}) error {
+	rv, ok := value.(bool)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = rv
+	return nil
+}
+func (ev *Event) setUint16(field string, fv *uint16, value interface{}) error {
+	rv, ok := value.(int)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	if rv < 0 || rv > math.MaxUint16 {
+		return &eval.ErrValueOutOfRange{Field: field}
+	}
+	*fv = uint16(rv)
+	return nil
+}
+func (ev *Event) setUint32(field string, fv *uint32, value interface{}) error {
+	rv, ok := value.(int)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = uint32(rv)
+	return nil
+}
+func (ev *Event) setUint64(field string, fv *uint64, value interface{}) error {
+	rv, ok := value.(int)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = uint64(rv)
+	return nil
+}
+func (ev *Event) setInt64(field string, fv *int64, value interface{}) error {
+	rv, ok := value.(int)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = int64(rv)
+	return nil
+}
+func (ev *Event) setInt(field string, fv *int, value interface{}) error {
+	rv, ok := value.(int)
+	if !ok {
+		return &eval.ErrValueTypeMismatch{Field: field}
+	}
+	*fv = rv
+	return nil
+}
+func (ev *Event) initProcess() {
+	if ev.BaseEvent.ProcessContext == nil {
+		ev.BaseEvent.ProcessContext = &ProcessContext{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
+	}
+	if ev.Exec.Process == nil {
+		ev.Exec.Process = &Process{}
+	}
+}
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
+	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+		ev.initProcess()
+	}
 	switch field {
+	case "change_permission.new_sd":
+		return ev.setString("change_permission.new_sd", &ev.ChangePermission.NewSd, value)
+	case "change_permission.old_sd":
+		return ev.setString("change_permission.old_sd", &ev.ChangePermission.OldSd, value)
+	case "change_permission.path":
+		return ev.setString("change_permission.path", &ev.ChangePermission.ObjectName, value)
+	case "change_permission.type":
+		return ev.setString("change_permission.type", &ev.ChangePermission.ObjectType, value)
+	case "change_permission.user_domain":
+		return ev.setString("change_permission.user_domain", &ev.ChangePermission.UserDomain, value)
+	case "change_permission.username":
+		return ev.setString("change_permission.username", &ev.ChangePermission.UserName, value)
+	case "container.created_at":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		return ev.setUint64("container.created_at", &ev.BaseEvent.ContainerContext.CreatedAt, value)
+	case "container.id":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "container.id"}
+		}
+		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "container.runtime":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		return ev.setString("container.runtime", &ev.BaseEvent.ContainerContext.Runtime, value)
+	case "container.tags":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		return ev.setStringArray("container.tags", &ev.BaseEvent.ContainerContext.Tags, value)
+	case "create.file.device_path":
+		return ev.setString("create.file.device_path", &ev.CreateNewFile.File.PathnameStr, value)
+	case "create.file.device_path.length":
+		return &eval.ErrFieldReadOnly{Field: "create.file.device_path.length"}
+	case "create.file.name":
+		return ev.setString("create.file.name", &ev.CreateNewFile.File.BasenameStr, value)
+	case "create.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "create.file.name.length"}
+	case "create.file.path":
+		return ev.setString("create.file.path", &ev.CreateNewFile.File.UserPathnameStr, value)
+	case "create.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "create.file.path.length"}
+	case "create.registry.key_name":
+		return ev.setString("create.registry.key_name", &ev.CreateRegistryKey.Registry.KeyName, value)
+	case "create.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "create.registry.key_name.length"}
+	case "create.registry.key_path":
+		return ev.setString("create.registry.key_path", &ev.CreateRegistryKey.Registry.KeyPath, value)
+	case "create.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "create.registry.key_path.length"}
+	case "create_key.registry.key_name":
+		return ev.setString("create_key.registry.key_name", &ev.CreateRegistryKey.Registry.KeyName, value)
+	case "create_key.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "create_key.registry.key_name.length"}
+	case "create_key.registry.key_path":
+		return ev.setString("create_key.registry.key_path", &ev.CreateRegistryKey.Registry.KeyPath, value)
+	case "create_key.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "create_key.registry.key_path.length"}
+	case "delete.file.device_path":
+		return ev.setString("delete.file.device_path", &ev.DeleteFile.File.PathnameStr, value)
+	case "delete.file.device_path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.device_path.length"}
+	case "delete.file.name":
+		return ev.setString("delete.file.name", &ev.DeleteFile.File.BasenameStr, value)
+	case "delete.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.name.length"}
+	case "delete.file.path":
+		return ev.setString("delete.file.path", &ev.DeleteFile.File.UserPathnameStr, value)
+	case "delete.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.path.length"}
+	case "delete.registry.key_name":
+		return ev.setString("delete.registry.key_name", &ev.DeleteRegistryKey.Registry.KeyName, value)
+	case "delete.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.registry.key_name.length"}
+	case "delete.registry.key_path":
+		return ev.setString("delete.registry.key_path", &ev.DeleteRegistryKey.Registry.KeyPath, value)
+	case "delete.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.registry.key_path.length"}
+	case "delete_key.registry.key_name":
+		return ev.setString("delete_key.registry.key_name", &ev.DeleteRegistryKey.Registry.KeyName, value)
+	case "delete_key.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_name.length"}
+	case "delete_key.registry.key_path":
+		return ev.setString("delete_key.registry.key_path", &ev.DeleteRegistryKey.Registry.KeyPath, value)
+	case "delete_key.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_path.length"}
+	case "event.hostname":
+		return ev.setString("event.hostname", &ev.BaseEvent.Hostname, value)
+	case "event.origin":
+		return ev.setString("event.origin", &ev.BaseEvent.Origin, value)
+	case "event.os":
+		return ev.setString("event.os", &ev.BaseEvent.Os, value)
+	case "event.rule.tags":
+		return ev.setStringArray("event.rule.tags", &ev.BaseEvent.RuleTags, value)
+	case "event.service":
+		return ev.setString("event.service", &ev.BaseEvent.Service, value)
+	case "event.timestamp":
+		return ev.setUint64("event.timestamp", &ev.BaseEvent.TimestampRaw, value)
+	case "exec.cmdline":
+		return ev.setString("exec.cmdline", &ev.Exec.Process.CmdLine, value)
+	case "exec.container.id":
+		return ev.setString("exec.container.id", &ev.Exec.Process.ContainerID, value)
+	case "exec.created_at":
+		return ev.setUint64("exec.created_at", &ev.Exec.Process.CreatedAt, value)
+	case "exec.envp":
+		return ev.setStringArray("exec.envp", &ev.Exec.Process.Envp, value)
+	case "exec.envs":
+		return ev.setStringArray("exec.envs", &ev.Exec.Process.Envs, value)
+	case "exec.file.name":
+		return ev.setString("exec.file.name", &ev.Exec.Process.FileEvent.BasenameStr, value)
+	case "exec.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "exec.file.name.length"}
+	case "exec.file.path":
+		return ev.setString("exec.file.path", &ev.Exec.Process.FileEvent.PathnameStr, value)
+	case "exec.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "exec.file.path.length"}
+	case "exec.pid":
+		return ev.setUint32("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
+	case "exec.ppid":
+		return ev.setUint32("exec.ppid", &ev.Exec.Process.PPid, value)
+	case "exec.user":
+		return ev.setString("exec.user", &ev.Exec.Process.User, value)
+	case "exec.user_sid":
+		return ev.setString("exec.user_sid", &ev.Exec.Process.OwnerSidString, value)
+	case "exit.cause":
+		return ev.setUint32("exit.cause", &ev.Exit.Cause, value)
+	case "exit.cmdline":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.cmdline", &ev.Exit.Process.CmdLine, value)
+	case "exit.code":
+		return ev.setUint32("exit.code", &ev.Exit.Code, value)
+	case "exit.container.id":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.container.id", &ev.Exit.Process.ContainerID, value)
+	case "exit.created_at":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setUint64("exit.created_at", &ev.Exit.Process.CreatedAt, value)
+	case "exit.envp":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringArray("exit.envp", &ev.Exit.Process.Envp, value)
+	case "exit.envs":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringArray("exit.envs", &ev.Exit.Process.Envs, value)
+	case "exit.file.name":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.file.name", &ev.Exit.Process.FileEvent.BasenameStr, value)
+	case "exit.file.name.length":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
+	case "exit.file.path":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.file.path", &ev.Exit.Process.FileEvent.PathnameStr, value)
+	case "exit.file.path.length":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
+	case "exit.pid":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setUint32("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
+	case "exit.ppid":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setUint32("exit.ppid", &ev.Exit.Process.PPid, value)
+	case "exit.user":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.user", &ev.Exit.Process.User, value)
+	case "exit.user_sid":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setString("exit.user_sid", &ev.Exit.Process.OwnerSidString, value)
+	case "open.registry.key_name":
+		return ev.setString("open.registry.key_name", &ev.OpenRegistryKey.Registry.KeyName, value)
+	case "open.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "open.registry.key_name.length"}
+	case "open.registry.key_path":
+		return ev.setString("open.registry.key_path", &ev.OpenRegistryKey.Registry.KeyPath, value)
+	case "open.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "open.registry.key_path.length"}
+	case "open_key.registry.key_name":
+		return ev.setString("open_key.registry.key_name", &ev.OpenRegistryKey.Registry.KeyName, value)
+	case "open_key.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_name.length"}
+	case "open_key.registry.key_path":
+		return ev.setString("open_key.registry.key_path", &ev.OpenRegistryKey.Registry.KeyPath, value)
+	case "open_key.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_path.length"}
+	case "process.ancestors.cmdline":
+		return ev.setString("process.ancestors.cmdline", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine, value)
+	case "process.ancestors.container.id":
+		return ev.setString("process.ancestors.container.id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID, value)
+	case "process.ancestors.created_at":
+		return ev.setUint64("process.ancestors.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt, value)
+	case "process.ancestors.envp":
+		return ev.setStringArray("process.ancestors.envp", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, value)
+	case "process.ancestors.envs":
+		return ev.setStringArray("process.ancestors.envs", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, value)
+	case "process.ancestors.file.name":
+		return ev.setString("process.ancestors.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr, value)
+	case "process.ancestors.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
+	case "process.ancestors.file.path":
+		return ev.setString("process.ancestors.file.path", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr, value)
+	case "process.ancestors.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
+	case "process.ancestors.length":
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
+	case "process.ancestors.pid":
+		return ev.setUint32("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
+	case "process.ancestors.ppid":
+		return ev.setUint32("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid, value)
+	case "process.ancestors.user":
+		return ev.setString("process.ancestors.user", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.User, value)
+	case "process.ancestors.user_sid":
+		return ev.setString("process.ancestors.user_sid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString, value)
+	case "process.cmdline":
+		return ev.setString("process.cmdline", &ev.BaseEvent.ProcessContext.Process.CmdLine, value)
+	case "process.container.id":
+		return ev.setString("process.container.id", &ev.BaseEvent.ProcessContext.Process.ContainerID, value)
+	case "process.created_at":
+		return ev.setUint64("process.created_at", &ev.BaseEvent.ProcessContext.Process.CreatedAt, value)
+	case "process.envp":
+		return ev.setStringArray("process.envp", &ev.BaseEvent.ProcessContext.Process.Envp, value)
+	case "process.envs":
+		return ev.setStringArray("process.envs", &ev.BaseEvent.ProcessContext.Process.Envs, value)
+	case "process.file.name":
+		return ev.setString("process.file.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr, value)
+	case "process.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
+	case "process.file.path":
+		return ev.setString("process.file.path", &ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr, value)
+	case "process.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
+	case "process.parent.cmdline":
+		return ev.setString("process.parent.cmdline", &ev.BaseEvent.ProcessContext.Parent.CmdLine, value)
+	case "process.parent.container.id":
+		return ev.setString("process.parent.container.id", &ev.BaseEvent.ProcessContext.Parent.ContainerID, value)
+	case "process.parent.created_at":
+		return ev.setUint64("process.parent.created_at", &ev.BaseEvent.ProcessContext.Parent.CreatedAt, value)
+	case "process.parent.envp":
+		return ev.setStringArray("process.parent.envp", &ev.BaseEvent.ProcessContext.Parent.Envp, value)
+	case "process.parent.envs":
+		return ev.setStringArray("process.parent.envs", &ev.BaseEvent.ProcessContext.Parent.Envs, value)
+	case "process.parent.file.name":
+		return ev.setString("process.parent.file.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr, value)
+	case "process.parent.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
+	case "process.parent.file.path":
+		return ev.setString("process.parent.file.path", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr, value)
+	case "process.parent.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "process.parent.file.path.length"}
+	case "process.parent.pid":
+		return ev.setUint32("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
+	case "process.parent.ppid":
+		return ev.setUint32("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PPid, value)
+	case "process.parent.user":
+		return ev.setString("process.parent.user", &ev.BaseEvent.ProcessContext.Parent.User, value)
+	case "process.parent.user_sid":
+		return ev.setString("process.parent.user_sid", &ev.BaseEvent.ProcessContext.Parent.OwnerSidString, value)
+	case "process.pid":
+		return ev.setUint32("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
+	case "process.ppid":
+		return ev.setUint32("process.ppid", &ev.BaseEvent.ProcessContext.Process.PPid, value)
+	case "process.user":
+		return ev.setString("process.user", &ev.BaseEvent.ProcessContext.Process.User, value)
+	case "process.user_sid":
+		return ev.setString("process.user_sid", &ev.BaseEvent.ProcessContext.Process.OwnerSidString, value)
+	case "rename.file.destination.device_path":
+		return ev.setString("rename.file.destination.device_path", &ev.RenameFile.New.PathnameStr, value)
+	case "rename.file.destination.device_path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.device_path.length"}
+	case "rename.file.destination.name":
+		return ev.setString("rename.file.destination.name", &ev.RenameFile.New.BasenameStr, value)
+	case "rename.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
+	case "rename.file.destination.path":
+		return ev.setString("rename.file.destination.path", &ev.RenameFile.New.UserPathnameStr, value)
+	case "rename.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
+	case "rename.file.device_path":
+		return ev.setString("rename.file.device_path", &ev.RenameFile.Old.PathnameStr, value)
+	case "rename.file.device_path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.device_path.length"}
+	case "rename.file.name":
+		return ev.setString("rename.file.name", &ev.RenameFile.Old.BasenameStr, value)
+	case "rename.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
+	case "rename.file.path":
+		return ev.setString("rename.file.path", &ev.RenameFile.Old.UserPathnameStr, value)
+	case "rename.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
+	case "set.registry.key_name":
+		return ev.setString("set.registry.key_name", &ev.SetRegistryKeyValue.Registry.KeyName, value)
+	case "set.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "set.registry.key_name.length"}
+	case "set.registry.key_path":
+		return ev.setString("set.registry.key_path", &ev.SetRegistryKeyValue.Registry.KeyPath, value)
+	case "set.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "set.registry.key_path.length"}
+	case "set.registry.value_name":
+		return ev.setString("set.registry.value_name", &ev.SetRegistryKeyValue.ValueName, value)
+	case "set.registry.value_name.length":
+		return &eval.ErrFieldReadOnly{Field: "set.registry.value_name.length"}
+	case "set.value_name":
+		return ev.setString("set.value_name", &ev.SetRegistryKeyValue.ValueName, value)
+	case "set_key_value.registry.key_name":
+		return ev.setString("set_key_value.registry.key_name", &ev.SetRegistryKeyValue.Registry.KeyName, value)
+	case "set_key_value.registry.key_name.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.key_name.length"}
+	case "set_key_value.registry.key_path":
+		return ev.setString("set_key_value.registry.key_path", &ev.SetRegistryKeyValue.Registry.KeyPath, value)
+	case "set_key_value.registry.key_path.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.key_path.length"}
+	case "set_key_value.registry.value_name":
+		return ev.setString("set_key_value.registry.value_name", &ev.SetRegistryKeyValue.ValueName, value)
+	case "set_key_value.registry.value_name.length":
+		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.value_name.length"}
+	case "set_key_value.value_name":
+		return ev.setString("set_key_value.value_name", &ev.SetRegistryKeyValue.ValueName, value)
+	case "write.file.device_path":
+		return ev.setString("write.file.device_path", &ev.WriteFile.File.PathnameStr, value)
+	case "write.file.device_path.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.device_path.length"}
+	case "write.file.name":
+		return ev.setString("write.file.name", &ev.WriteFile.File.BasenameStr, value)
+	case "write.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.name.length"}
+	case "write.file.path":
+		return ev.setString("write.file.path", &ev.WriteFile.File.UserPathnameStr, value)
+	case "write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.path.length"}
 	}
 	return &eval.ErrFieldNotFound{Field: field}
 }
