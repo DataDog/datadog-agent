@@ -1513,6 +1513,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	// disable distributed senders
+	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false, "DD_LOGS_DISABLE_DISTRIBUTED_SENDERS")
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 
