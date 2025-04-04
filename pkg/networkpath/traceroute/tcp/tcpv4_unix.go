@@ -109,6 +109,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
+		Tags:       []string{"tcp_method:syn"},
 	}, nil
 }
 
