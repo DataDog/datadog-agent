@@ -121,7 +121,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		metrics.LogsSent.Add(1)
 		metrics.TlmLogsSent.Inc()
 		metrics.BytesSent.Add(int64(payload.UnencodedSize))
-		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize))
+
+		// TCP is only used for logs data, so we always use "logs" as the source tag
+		sourceTag := "logs"
+
+		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
 		output <- payload
