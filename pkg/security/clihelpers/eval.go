@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package clihelpers holds common CLI helpers
 package clihelpers
 
 import (
@@ -41,6 +42,7 @@ type EventData struct {
 	Values map[string]interface{}
 }
 
+// EvalRuleParams are parameters to the EvalRule function
 type EvalRuleParams struct {
 	Dir             string
 	UseWindowsModel bool
@@ -48,6 +50,7 @@ type EvalRuleParams struct {
 	EventFile       string
 }
 
+// EvalRule evaluates a rule against an event
 func EvalRule(evalArgs EvalRuleParams) error {
 	policiesDir := evalArgs.Dir
 
@@ -230,12 +233,14 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
+// CheckPoliciesLocalParams are parameters to the CheckPoliciesLocal function
 type CheckPoliciesLocalParams struct {
 	Dir                      string
 	EvaluateAllPolicySources bool
 	UseWindowsModel          bool
 }
 
+// CheckPoliciesLocal checks the policies in a directory
 func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
