@@ -335,3 +335,33 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 	}
 
 }
+
+func TestSketchSeriesListMarshalWithOriginMapping(t *testing.T) {
+	sl := metrics.NewSketchesSourceTest()
+
+	// Create a sketch series with a specific source
+	ss := Makeseries(0)
+	ss.Source = metrics.MetricSourceDogstatsd
+	sl.Append(ss)
+
+	serializer := SketchSeriesList{SketchesSource: sl}
+	b, err := serializer.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pl := new(gogen.SketchPayload)
+	if err := pl.Unmarshal(b); err != nil {
+		t.Fatal(err)
+	}
+
+	require.Len(t, pl.Sketches, 1)
+	pb := pl.Sketches[0]
+
+	// Verify the metadata and origin mapping
+	require.NotNil(t, pb.Metadata)
+	require.NotNil(t, pb.Metadata.Origin)
+	assert.Equal(t, uint32(metricSourceToOriginProduct(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginProduct)
+	assert.Equal(t, uint32(metricSourceToOriginCategory(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginCategory)
+	assert.Equal(t, uint32(metricSourceToOriginService(metrics.MetricSourceDogstatsd)), pb.Metadata.Origin.OriginService)
+}
