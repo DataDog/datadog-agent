@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.23.6
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -548,6 +546,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
@@ -577,7 +577,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.3
