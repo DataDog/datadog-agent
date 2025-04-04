@@ -105,6 +105,7 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
+
     def print_one_object(obj):
         if jq:
             jq_flags = "-C" if jq_colors else ""
@@ -119,14 +120,17 @@ def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: 
     ids = [i for i in ids.split(",") if i]
     for id in ids:
         objs = get_object(repo, id)
-        if type(objs) == list:
+        if isinstance(objs, list):
             for obj in objs:
                 print_one_object(obj)
         else:
             print_one_object(objs)
 
+
 @task
-def get_latest_pipeline_id(ctx, branch_name, status=None, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+def get_latest_pipeline_id(
+    ctx, branch_name, status=None, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True
+):
     """Get the latest pipeline ID for a given branch and optionally print its details using jq.
 
     Args:
@@ -142,6 +146,7 @@ def get_latest_pipeline_id(ctx, branch_name, status=None, repo='DataDog/datadog-
         $ dda inv gitlab.get-latest-pipeline-id my-branch -j .id
         $ dda inv gitlab.get-latest-pipeline-id my-branch -j .web_url,.status,.sha
     """
+
     def get_latest_pipeline(repo, _):
         if status:
             pipelines = repo.pipelines.list(ref=branch_name, per_page=1, get_all=False, status=status)
@@ -170,6 +175,7 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
 
     print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
 
+
 @task
 def print_pipeline_jobs(ctx, pipeline_id, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """Prints the jobs of a given pipeline in JSON and potentially query them with jq.
@@ -178,12 +184,14 @@ def print_pipeline_jobs(ctx, pipeline_id, repo='DataDog/datadog-agent', jq: str 
         $ dda inv gitlab.print-pipeline-jobs 1234
         $ dda inv gitlab.print-pipeline-jobs 1234 -j 'select(.status == "failed")'
     """
+
     def get_pipeline_jobs(repo, id):
         jobs = repo.jobs.list(pipeline_id=id, per_page=100, all=True)
         print(jobs)
         return jobs
 
     print_gitlab_object(get_pipeline_jobs, ctx, pipeline_id, repo, jq, jq_colors)
+
 
 @task
 def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
@@ -201,6 +209,20 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
         return repo.jobs.get(id)
 
     print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
+
+
+@task
+def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
+    """Prints the trace (the log) of a Gitlab job.
+
+    Usage:
+        $ dda inv gitlab.print-job-trace 1234
+        $ dda inv gitlab.print-job-trace 1234 -j '.split("\n")[0:10] | join("\n")'
+    """
+
+    repo = get_gitlab_repo(repo)
+    trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
+    print(trace)
 
 
 @task
@@ -277,16 +299,6 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
             f.write(content)
 
         print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
-
-
-@task
-def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
-    """Prints the trace (the log) of a Gitlab job."""
-
-    repo = get_gitlab_repo(repo)
-    trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
-
-    print(trace)
 
 
 @task

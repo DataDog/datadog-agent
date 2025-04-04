@@ -19,3 +19,11 @@ The most useful ones are:
 
 - print-pipelines-jobs: Retrieve all the jobs associated with a given pipeline
 
+
+You should be able to explain failures in jobs, when you are asked to do so you should first check for the input, if that's only a number consider it as the job pipeline, if a complete url is given to you extract the job id by taking the number after `~/jobs`. 
+For example for https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/880492803 is 880492803
+
+Once you have the job id, just retrieve the trace with print-job-trace, and try to extract any error.
+
+
+
