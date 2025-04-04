@@ -151,9 +151,7 @@ type EBPFProbe struct {
 	discarderRateLimiter         *rate.Limiter
 
 	// kill action
-	killListMap           *lib.Map
-	supportsBPFSendSignal bool
-	processKiller         *ProcessKiller
+	processKiller *ProcessKiller
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
@@ -473,11 +471,6 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
-
-	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
-	if err != nil {
-		return err
-	}
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
@@ -2191,10 +2184,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "send_signal",
-			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
-		},
-		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
 			Value: utils.BoolTouint64(slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
@@ -2407,8 +2396,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
-
-	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
 
 	p.monitors = NewEBPFMonitors(p)
 
@@ -2794,26 +2781,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				// very last check to ensure that we kill the correct process
-				inode := ev.ProcessContext.FileEvent.Inode
-
-				procExecPath := utils.ProcExePath(pid)
-				stat, err := utils.UnixStat(procExecPath)
-				if err != nil {
-					return err
-				}
-				if stat.Ino != inode {
-					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
-				}
-
-				if p.supportsBPFSendSignal {
-					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
-					}
-				}
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 

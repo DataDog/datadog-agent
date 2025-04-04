@@ -199,6 +199,7 @@ runtime_security_config:
   hash_resolver:
     enabled: true
   enforcement:
+    enabled: true
     exclude_binaries:
       - {{ .EnforcementExcludeBinary }}
     rule_source_allowed:
