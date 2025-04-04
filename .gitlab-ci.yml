@@ -37,7 +37,8 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/trigger_release.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
 
 default:
   retry:

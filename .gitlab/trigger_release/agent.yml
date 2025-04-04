@@ -1,6 +1,6 @@
 ---
 # trigger_release stage
-# Contains jobs which trigger release pipelines in the datadog/agent-release-management repository.
+# Contains jobs related to triggering the release of the Datadog Agent.
 
 .agent_release_management_trigger:
   stage: trigger_release
