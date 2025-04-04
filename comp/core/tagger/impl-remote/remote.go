@@ -232,7 +232,11 @@ func start(remoteTagger *remoteTagger) error {
 	remoteTagger.log.Info("remote tagger initialized successfully")
 
 	// Start the tagger stream.
-	go remoteTagger.run()
+	remoteTagger.wg.Add(1)
+	go func() {
+		defer remoteTagger.wg.Done()
+		remoteTagger.run()
+	}()
 	return nil
 }
 
@@ -442,8 +446,6 @@ func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, err
 }
 
 func (t *remoteTagger) run() {
-	t.wg.Add(1)
-	defer t.wg.Done()
 	for {
 		select {
 		case <-t.telemetryTicker.C:
