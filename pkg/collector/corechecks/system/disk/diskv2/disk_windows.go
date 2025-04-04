@@ -58,16 +58,6 @@ func (m mount) RemotePath() (string, string) {
 	if normalizedType == "NFS" {
 		return normalizedType, fmt.Sprintf(`%s:%s`, m.Host, m.Share)
 	}
-	var userAndPassword string
-	if len(m.User) > 0 {
-		userAndPassword += m.User
-	}
-	if len(m.Password) > 0 {
-		userAndPassword += fmt.Sprintf(":%s", m.Password)
-	}
-	if len(userAndPassword) > 0 {
-		return normalizedType, fmt.Sprintf(`\\%s@%s\%s`, userAndPassword, m.Host, m.Share)
-	}
 	return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
 }
 
