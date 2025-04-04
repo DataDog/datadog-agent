@@ -88,7 +88,7 @@ create_mounts:
 		},
 		{
 			Name: "mount",
-			Args: []string{"-t", "SMB", `\\auser:somepassword@smbserver\space`, "s:"},
+			Args: []string{"-t", "SMB", `\\smbserver\space`, "s:"},
 		},
 		{
 			Name: "mount",
