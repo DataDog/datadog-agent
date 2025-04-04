@@ -24,7 +24,7 @@ def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"chmod 600 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
+def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | None = None, all_images: bool = False):
     kmt_os = get_kmt_os()
 
     info("[+] Installing OS-specific general requirements...")
@@ -102,7 +102,11 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     # download dependencies
     if not lite:
         info("[+] Downloading VM images")
-        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=images)
+        if not all_images and not images:
+            raise Exit(
+                "No images specified for download. Use --images parameter to specify which images to download, or --all-images to download all images."
+            )
+        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=None if all_images else images)
 
     # Copy the SSH key we use to connect
     gen_ssh_key(ctx, kmt_os.kmt_dir)

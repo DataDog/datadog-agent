@@ -67,6 +67,9 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
@@ -129,11 +132,11 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 
 	state := s.host.State()
 	s.assertUnits(state, false)
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
+	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
 
 	// is_installed avoids a re-install of datadog-agent with the install script
 	s.RunInstallScript(envForceNoInstall("datadog-agent"))
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
+	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
 
 	// install deb/rpm manually
 	s.installDebRPMAgent()
