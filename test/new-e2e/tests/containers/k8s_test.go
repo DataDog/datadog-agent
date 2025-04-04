@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
@@ -377,6 +378,25 @@ func (suite *k8sSuite) testAgentCLI() {
 
 func (suite *k8sSuite) testClusterAgentCLI() {
 	ctx := context.Background()
+
+	cm, err := suite.Env().KubernetesCluster.Client().CoreV1().ConfigMaps("datadog").Get(context.TODO(), "dda-linux-datadog-leader-election", metav1.GetOptions{})
+	suite.Require().NoError(err)
+	if err == nil {
+		suite.T().Logf("Cluster agent leader election config map: %s", cm.Name)
+		suite.T().Logf("config map: %v", cm)
+	}
+	lease, err := suite.Env().KubernetesCluster.Client().CoordinationV1().Leases("datadog").Get(context.TODO(), "dda-linux-datadog-leader-election", metav1.GetOptions{})
+	suite.Require().NoError(err)
+	if err == nil {
+		record := resourcelock.LeaseSpecToLeaderElectionRecord(&lease.Spec)
+		suite.Require().NotNilf(record, "Leader election record is nil")
+		if record != nil {
+			suite.T().Logf("lease: %v", lease)
+			suite.T().Logf("record: %v", record)
+			suite.T().Logf("Cluster agent leader election lease: %s", lease.Name)
+			suite.T().Logf("HolderIdentity: %s", record.HolderIdentity)
+		}
+	}
 
 	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
