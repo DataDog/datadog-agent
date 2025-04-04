@@ -274,12 +274,12 @@ def exception_threshold_bump(ctx):
                         "[ERROR] Unable to fetch the last artifact of the static_quality_gates job. Details :", "red"
                     )
                 )
-                print(e.response_body)
+                print(repr(e))
                 return
         ctx.run("unzip gate_archive.zip", hide=True)
-        if os.path.isfile("static_gate_report.json"):
+        if os.path.isfile(f"{extract_dir}/static_gate_report.json"):
             metric_handler = GateMetricHandler(
-                git_ref=current_branch_name, bucket_branch="dev", filename="static_gate_report.json"
+                git_ref=current_branch_name, bucket_branch="dev", filename=f"{extract_dir}/static_gate_report.json"
             )
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
@@ -292,7 +292,7 @@ def exception_threshold_bump(ctx):
 
             print(
                 color_message(
-                    f"[SUCCESS] Static Quality gate have been updated ! Total gate threshold impact : {-total_size_saved} MiB",
+                    f"[SUCCESS] Static Quality gate have been updated ! Total gate threshold impact : {byte_to_string(-total_size_saved)}",
                     "green",
                 )
             )
