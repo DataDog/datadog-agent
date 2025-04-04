@@ -126,7 +126,7 @@ func NewRunnerWithChecks(
 	runRealTime bool,
 	rtNotifierChan <-chan types.RTResponse,
 ) (*CheckRunner, error) {
-	orchestrator := oconfig.NewDefaultOrchestratorConfig()
+	orchestrator := oconfig.NewDefaultOrchestratorConfig(nil)
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
 	}
