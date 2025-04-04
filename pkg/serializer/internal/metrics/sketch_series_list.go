@@ -443,12 +443,25 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 			})
 		}
 
-		pb.Sketches = append(pb.Sketches, gogen.SketchPayload_Sketch{
+		sketch := gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
 			Tags:        ss.Tags.UnsafeToReadOnlySliceString(),
 			Dogsketches: dsl,
-		})
+		}
+
+		// Add origin mapping to metadata
+		if ss.Source != 0 {
+			sketch.Metadata = &gogen.Metadata{
+				Origin: &gogen.Origin{
+					OriginProduct:  uint32(metricSourceToOriginProduct(ss.Source)),
+					OriginCategory: uint32(metricSourceToOriginCategory(ss.Source)),
+					OriginService:  uint32(metricSourceToOriginService(ss.Source)),
+				},
+			}
+		}
+
+		pb.Sketches = append(pb.Sketches, sketch)
 	}
 	return pb.Marshal()
 }
