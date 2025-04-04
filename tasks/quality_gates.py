@@ -1,14 +1,17 @@
 import os
 import random
+import tempfile
 import traceback
 import typing
 
+import gitlab
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.libs.package.size import InfraError
@@ -160,6 +163,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
     metric_handler.send_metrics_to_datadog()
 
+    metric_handler.generate_metric_reports()
+
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
@@ -174,29 +179,29 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         raise Exit(code=1)
 
 
-def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler):
+def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, bump_size=False):
     # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
     curr_size = metric_handler.metrics[current_gate][current_key]
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     saved_amount = 0
-    if remaining_allowed_size > BUFFER_SIZE:
+    if bump_size or remaining_allowed_size > BUFFER_SIZE:
         saved_amount = remaining_allowed_size - BUFFER_SIZE
         gate_limit -= saved_amount
     return gate_limit, saved_amount
 
 
-def generate_new_quality_gate_config(file_descriptor, metric_handler):
+def generate_new_quality_gate_config(file_descriptor, metric_handler, bump_size=False):
     config_content = yaml.safe_load(file_descriptor)
     total_saved_amount = 0
     for gate in config_content.keys():
         on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(
-            gate, "current_on_wire_size", "max_on_wire_size", metric_handler
+            gate, "current_on_wire_size", "max_on_wire_size", metric_handler, bump_size
         )
         config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
         on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(
-            gate, "current_on_disk_size", "max_on_disk_size", metric_handler
+            gate, "current_on_disk_size", "max_on_disk_size", metric_handler, bump_size
         )
         config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
         total_saved_amount += wire_saved_amount + disk_saved_amount
@@ -245,3 +250,56 @@ def notify_threshold_update(pr_url):
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
     client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+
+
+@task()
+def exception_threshold_bump(ctx):
+    """
+    When a PR is exempt of static quality gates, they have to use this invoke task to adjust the quality gates thresholds accordingly to the exempted added size.
+
+    Note: This invoke task must be run on a pipeline that has finished running static quality gates
+    :param ctx:
+    :param pipeline_id: Pipeline ID of the latest commit of the exempted PR
+    :return:
+    """
+    current_branch_name = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    repo = get_gitlab_repo()
+    with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
+        with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
+            try:
+                f.write(repo.artifacts.download(ref_name=current_branch_name, job="static_quality_gates"))
+            except gitlab.exceptions.GitlabGetError as e:
+                print(
+                    color_message(
+                        "[ERROR] Unable to fetchthe last artifact of the static_quality_gates job. Details :", "red"
+                    )
+                )
+                print(e.response_body)
+                return
+        ctx.run("unzip gate_archive.zip", hide=True)
+        if os.path.isfile("static_gate_report.json"):
+            metric_handler = GateMetricHandler(
+                git_ref=current_branch_name, bucket_branch="dev", filename="static_gate_report.json"
+            )
+            with open("test/static/static_quality_gates.yml") as f:
+                file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
+
+            if total_size_saved == 0:
+                print(color_message("[WARN] No gates needs to be changed.", "orange"))
+
+            with open("test/static/static_quality_gates.yml", "w") as f:
+                f.write(yaml.dump(file_content))
+
+            print(
+                color_message(
+                    f"[SUCCESS] Static Quality gate have been updated ! Total gate threshold impact : {-total_size_saved} MiB",
+                    "green",
+                )
+            )
+        else:
+            print(
+                color_message(
+                    "[ERROR] Unable to find static_gate_report.json inside of the last artifact of the static_quality_gates job",
+                    "red",
+                )
+            )

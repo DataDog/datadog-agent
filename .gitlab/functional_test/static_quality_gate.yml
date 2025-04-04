@@ -66,4 +66,5 @@ static_quality_gates:
     when: always
     paths:
       - extract_rpm_package_report
+      - static_gate_report.json
     expire_in: 1 week
