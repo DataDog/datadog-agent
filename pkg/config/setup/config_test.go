@@ -6,8 +6,6 @@
 package setup
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"path"
@@ -28,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -1566,31 +1563,4 @@ some_other_key: "********"
 app_key: '***********************************acccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
-}
-
-func TestWarningLogged(t *testing.T) {
-	//t.Setenv("DD_CONF_NODETREEMODEL", "enable")
-	cfg := create.NewConfig("test")
-
-	data := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
-
-	path := t.TempDir()
-	configPath := filepath.Join(path, "empty_conf.yaml")
-	// Create a config file with no permissions
-	err := os.WriteFile(configPath, []byte(data), 0o000)
-	require.NoError(t, err)
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(logger, "warn")
-	require.NoError(t, err)
-	cfg.SetConfigFile(configPath)
-	warnings, _ := LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
-	require.NoError(t, warnings.Err)
-	// Check that the warning was logged
-	w.Flush()
-	assert.Contains(t, b.String(), "[WARN] Error loading config: open")
-	assert.Contains(t, b.String(), "conf.yaml: permission denied")
 }

@@ -189,7 +189,7 @@ type Reader interface {
 	GetEnvVars() []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
-	Warnings() *Warnings
+	Warnings() []error
 
 	// Object returns Reader to config (completes config.Component interface)
 	Object() Reader
