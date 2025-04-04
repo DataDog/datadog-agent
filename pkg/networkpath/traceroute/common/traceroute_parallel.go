@@ -44,8 +44,16 @@ type ProbeResponse struct {
 	IsDest bool
 }
 
+// TracerouteDriverInfo is metadata about a TracerouteDriver
+type TracerouteDriverInfo struct {
+	// whether this driver uses a separate socket to read ICMP, and implements ReceiveICMPProbe
+	UsesReceiveICMPProbe bool
+}
+
 // TracerouteDriver is an implementation of traceroute send+receive of packets
 type TracerouteDriver interface {
+	// GetDriverInfo returns metadata about this driver
+	GetDriverInfo() TracerouteDriverInfo
 	// SendProbe sends a traceroute packet with a specific TTL
 	SendProbe(ttl uint8) error
 	// ReceiveProbe polls to get a traceroute response with a timeout
@@ -90,6 +98,7 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 	if p.MinTTL < 1 {
 		return nil, fmt.Errorf("min TTL must be at least 1")
 	}
+	info := t.GetDriverInfo()
 
 	results := make([]*ProbeResponse, int(p.MaxTTL)+1)
 	resultsMu := sync.Mutex{}
@@ -172,7 +181,9 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		})
 	}
 	handleProbeFunc("ReceiveProbe", t.ReceiveProbe)
-	handleProbeFunc("ReceiveICMPProbe", t.ReceiveICMPProbe)
+	if info.UsesReceiveICMPProbe {
+		handleProbeFunc("ReceiveICMPProbe", t.ReceiveICMPProbe)
+	}
 
 	// check for an error from the goroutines
 	err := g.Wait()
