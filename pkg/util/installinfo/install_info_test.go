@@ -176,3 +176,115 @@ install_method:
 	expectedBytes, _ := json.Marshal(versionHistoryEntries{Entries: expected})
 	assert.Equal(t, string(expectedBytes), string(actualBytes))
 }
+
+func Test_useEnvVarsToSetInstallInfo(t *testing.T) {
+	// Regardless of what the install info file contains, the env vars will be used.
+	t.Setenv("DD_INSTALL_INFO_TOOL", "install_script")
+	t.Setenv("DD_INSTALL_INFO_TOOL_VERSION", "install_script")
+	t.Setenv("DD_INSTALL_INFO_INSTALLER_VERSION", "install_script-x.x.x")
+	tests := []struct {
+		name               string
+		versionHistoryFile string
+		installInfoFile    string
+		version            string
+		timestamp          time.Time
+		want               string
+	}{
+		{
+			name:               "install_info is empty",
+			versionHistoryFile: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+			installInfoFile:    "",
+			version:            "2",
+			timestamp:          time.Date(2022, 4, 12, 7, 10, 58, 1234, time.UTC),
+			// now we have the install info through env vars, so the second version is populated
+			want: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z","install_method":{"tool":"","tool_version":"","installer_version":""}},{"version":"2","timestamp":"2022-04-12T07:10:58.000001234Z","install_method":{"tool":"install_script","tool_version":"install_script","installer_version":"install_script-x.x.x"}}]}`,
+		},
+		{
+			name:               "existing version-history.json is empty",
+			versionHistoryFile: "",
+			installInfoFile: `
+---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-x.x.x
+`,
+			version:   "1",
+			timestamp: time.Date(2022, 4, 12, 7, 10, 58, 1234, time.UTC),
+			want:      `{"entries":[{"version":"1","timestamp":"2022-04-12T07:10:58.000001234Z","install_method":{"tool":"install_script","tool_version":"install_script","installer_version":"install_script-x.x.x"}}]}`,
+		},
+		{
+			name:               "version in new entry is same as the last entry",
+			versionHistoryFile: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+			installInfoFile: `
+---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-x.x.x
+`,
+			version:   "1",
+			timestamp: time.Date(2022, 4, 12, 7, 10, 58, 1234, time.UTC),
+			want:      `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+		},
+		{
+			name:               "version and timestamp of the new entry is empty",
+			versionHistoryFile: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+			installInfoFile: `
+---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-x.x.x
+`,
+			// we still need a version to be able to write a new entry
+			want: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+		},
+
+		{
+			name:               "existing version-history.json in invalid JSON",
+			versionHistoryFile: `{"entries":[{"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+			installInfoFile: `
+---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-x.x.x
+`,
+			version:   "2",
+			timestamp: time.Date(2022, 4, 12, 7, 10, 58, 1234, time.UTC),
+			want:      `{"entries":[{"version":"2","timestamp":"2022-04-12T07:10:58.000001234Z","install_method":{"tool":"install_script","tool_version":"install_script","installer_version":"install_script-x.x.x"}}]}`,
+		},
+		{
+			name:               "install_info in invalid YAML",
+			versionHistoryFile: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
+			installInfoFile: `
+---
+install_method:
+  tool: install_script tool_version: install_script
+  installer_version: install_script-x.x.x
+`,
+			version:   "2",
+			timestamp: time.Date(2022, 4, 12, 7, 10, 58, 1234, time.UTC),
+			// now we have the install info through env vars, so the second version is populated
+			want: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z","install_method":{"tool":"","tool_version":"","installer_version":""}},{"version":"2","timestamp":"2022-04-12T07:10:58.000001234Z","install_method":{"tool":"install_script","tool_version":"install_script","installer_version":"install_script-x.x.x"}}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vh, _ := os.CreateTemp("", "version-history.json")
+			vh.WriteString(tt.versionHistoryFile)
+			defer os.Remove(vh.Name())
+			versionHistoryFilePath := vh.Name()
+
+			var installInfoFilePath string
+			f, _ := os.CreateTemp("", "install_info")
+			f.WriteString(tt.installInfoFile)
+			defer os.Remove(f.Name())
+			installInfoFilePath = f.Name()
+			logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, tt.version, tt.timestamp)
+			b, _ := os.ReadFile(versionHistoryFilePath)
+			assert.Equal(t, tt.want, string(b))
+		})
+	}
+}
