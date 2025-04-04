@@ -1066,10 +1066,6 @@ func TestCache(t *testing.T) {
 }
 
 func TestMaxPortCheck(t *testing.T) {
-	_, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
 	// Start a process that will be ignored due to no ports
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1086,7 +1082,9 @@ func TestMaxPortCheck(t *testing.T) {
 	params := defaultParams()
 	params.heartbeatTime = 0
 
-	discovery := newDiscovery(mockContainerProvider, mTimeProvider)
+	mockCtrl := gomock.NewController(t)
+	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	discovery := newDiscovery(t, mTimeProvider)
 
 	for i := 0; i < maxPortCheckTries-5; i++ {
 		_, err = discovery.getServices(params)
