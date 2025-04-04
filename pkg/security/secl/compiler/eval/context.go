@@ -7,7 +7,6 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -225,33 +224,6 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 	return pos
 }
 
-// DecorateRuleExpr decorate the rule
-func (m *MatchingSubExpr) DecorateRuleExpr(expr string, before, after string) (string, error) {
-	a, b := m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
-
-	if a.Offset+a.Length > len(expr) || b.Offset+b.Length > len(expr) {
-		return expr, errors.New("expression overflow")
-	}
-
-	if b.Offset < a.Offset {
-		tmp := b
-		b = a
-		a = tmp
-	}
-
-	if a.Length == 0 {
-		return expr[:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after + expr[b.Offset+b.Length:], nil
-	}
-
-	if b.Length == 0 {
-		return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after + expr[a.Offset+a.Length:], nil
-	}
-
-	return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after +
-		expr[a.Offset+a.Length:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after +
-		expr[b.Offset+b.Length:], nil
-}
-
 // GetMatchingValuePos return all the matching value position
 func (m *MatchingSubExprs) GetMatchingValuePos(expr string) []MatchingValuePos {
 	var pos []MatchingValuePos
@@ -267,18 +239,6 @@ func (m *MatchingSubExprs) GetMatchingValuePos(expr string) []MatchingValuePos {
 	}
 
 	return pos
-}
-
-// DecorateRuleExpr decorate the rule
-func (m *MatchingSubExprs) DecorateRuleExpr(expr string, before, after string) (string, error) {
-	var err error
-	for _, mse := range *m {
-		expr, err = mse.DecorateRuleExpr(expr, before, after)
-		if err != nil {
-			return expr, err
-		}
-	}
-	return expr, nil
 }
 
 // NewContext return a new Context
