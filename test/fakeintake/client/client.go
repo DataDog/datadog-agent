@@ -841,6 +841,25 @@ func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.
 	return orchs, nil
 }
 
+// GetLastOrchestratorResourcesPayloadAPIKeys fetches fakeintake on `/api/v2/orch` endpoint and returns
+// the API key of the last received orchestrator payload
+func (c *Client) GetLastOrchestratorResourcesPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(payloads))
+	uniqueKeys := make(map[string]struct{}, len(payloads))
+	for _, payload := range payloads {
+		if _, ok := uniqueKeys[payload.APIKey]; !ok {
+			keys = append(keys, payload.APIKey)
+			uniqueKeys[payload.APIKey] = struct{}{}
+		}
+	}
+	return keys, nil
+}
+
 // GetOrchestratorManifests fetches fakeintake on `/api/v2/orchmanif` endpoint and returns
 // all received process payloads
 func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestPayload, error) {
