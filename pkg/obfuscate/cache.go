@@ -41,8 +41,10 @@ func (c *measuredCache) statsLoop() {
 	for {
 		select {
 		case <-tick.C:
-			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)     //nolint:errcheck
-			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.misses", float64(mx.Misses()), nil, 1) //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)                //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)            //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.cost_added", float64(mx.CostAdded()), nil, 1)     //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.cost_evicted", float64(mx.CostEvicted()), nil, 1) //nolint:errcheck
 		case <-c.close:
 			c.Cache.Close()
 			return
