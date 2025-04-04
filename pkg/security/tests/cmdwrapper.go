@@ -178,7 +178,7 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 	cmd := exec.Command(executable, "version")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve Docker version: %w (%s)", err, string(output))
 	}
 
 	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
