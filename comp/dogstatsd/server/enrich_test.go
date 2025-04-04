@@ -1559,3 +1559,62 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 
 	}
 }
+
+func TestGetMetricSourceFromTag(t *testing.T) {
+	tests := []struct {
+		name           string
+		currentSource  metrics.MetricSource
+		tag            string
+		expectedSource metrics.MetricSource
+	}{
+		{
+			name:           "JMX check name",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "dd.internal.jmx_check_name:test_check",
+			expectedSource: metrics.JMXCheckNameToMetricSource("test_check"),
+		},
+		{
+			name:           "AWS Lambda",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "function_arn:test-arn",
+			expectedSource: metrics.MetricSourceAwsLambda,
+		},
+		{
+			name:           "Azure Container App",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "origin:containerapp",
+			expectedSource: metrics.MetricSourceAzureContainerApp,
+		},
+		{
+			name:           "Google Cloud Run",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "origin:cloudrun",
+			expectedSource: metrics.MetricSourceGoogleCloudRun,
+		},
+		{
+			name:           "No change for regular tag",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "some:other:tag",
+			expectedSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name:           "No change for non-matching prefix",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "dd.internal.something_else:value",
+			expectedSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name:           "Preserve existing source for non-matching tag",
+			currentSource:  metrics.MetricSourceAwsLambda,
+			tag:            "some:other:tag",
+			expectedSource: metrics.MetricSourceAwsLambda,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getMetricSourceFromTag(tt.currentSource, tt.tag)
+			assert.Equal(t, tt.expectedSource, result)
+		})
+	}
+}

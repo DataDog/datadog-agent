@@ -23,6 +23,10 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
+	// Serverless
+	functionArnTagPrefix = "function_arn:"
+	containerAppTag      = "origin:containerapp"
+	cloudRunTag          = "origin:cloudrun"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -62,9 +66,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
 			continue
-		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			checkName := tag[len(jmxCheckNamePrefix):]
-			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+		} else if newSource := getMetricSourceFromTag(metricSource, tag); newSource != metricSource {
+			metricSource = newSource
 			continue
 		}
 		tags[n] = tag
@@ -74,6 +77,22 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	tags = tags[:n]
 
 	return tags, host, origin, metricSource
+}
+
+// getMetricSourceFromTag returns the metric source from a tag.
+// If the tag does not match any known metric source, the original metric source is returned.
+func getMetricSourceFromTag(metricSource metrics.MetricSource, tag string) metrics.MetricSource {
+	if strings.HasPrefix(tag, jmxCheckNamePrefix) {
+		checkName := tag[len(jmxCheckNamePrefix):]
+		metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+	} else if strings.HasPrefix(tag, functionArnTagPrefix) {
+		metricSource = metrics.MetricSourceAwsLambda
+	} else if tag == containerAppTag {
+		metricSource = metrics.MetricSourceAzureContainerApp
+	} else if tag == cloudRunTag {
+		metricSource = metrics.MetricSourceGoogleCloudRun
+	}
+	return metricSource
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
