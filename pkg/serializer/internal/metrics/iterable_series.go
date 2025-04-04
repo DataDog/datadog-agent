@@ -500,17 +500,35 @@ func (pb *PayloadsBuilder) finishPayload() error {
 // FIXME(maxime): to be removed when v2 endpoints are available
 func (series *IterableSeries) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing a Series
-	type SeriesAlias Series
+	type SeriesAlias struct {
+		*metrics.Serie
+		Metadata map[string]interface{} `json:"metadata,omitempty"`
+	}
 
-	seriesAlias := make(SeriesAlias, 0)
+	seriesAlias := make([]SeriesAlias, 0)
 	for series.MoveNext() {
 		serie := series.source.Current()
 		serie.PopulateDeviceField()
 		serie.PopulateResources()
-		seriesAlias = append(seriesAlias, serie)
+
+		serieWithMetadata := SeriesAlias{
+			Serie: serie,
+		}
+
+		if serie.Source != 0 {
+			serieWithMetadata.Metadata = map[string]interface{}{
+				"origin": map[string]interface{}{
+					"origin_product":        metricSourceToOriginProduct(serie.Source),
+					"origin_sub_product":    metricSourceToOriginCategory(serie.Source),
+					"origin_product_detail": metricSourceToOriginService(serie.Source),
+				},
+			}
+		}
+
+		seriesAlias = append(seriesAlias, serieWithMetadata)
 	}
 
-	data := map[string][]*metrics.Serie{
+	data := map[string][]SeriesAlias{
 		"series": seriesAlias,
 	}
 	reqBody := &bytes.Buffer{}
