@@ -148,8 +148,10 @@ new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # parallel: 2
-  needs:
-    - setup_agent_version
+  # needs:
+  #   - setup_agent_version
+  # TODO
+  needs: []
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
@@ -177,6 +179,29 @@ new-agent_dmg-x64-a7:
     - set -eo pipefail
 
     - brew uses gettext --installed || true
+
+    # TODO A: Remove
+    - |
+      echo <<<EOF > $CI_PROJECT_DIR/agent-version.cache
+      {
+        "6": [
+            "6.62.0",
+            "devel",
+            1425,
+            "$CI_COMMIT_SHORT_SHA",
+            "$CI_PIPELINE_ID"
+        ],
+        "7": [
+            "7.64.0",
+            "devel",
+            390,
+            "$CI_COMMIT_SHORT_SHA",
+            "$CI_PIPELINE_ID"
+        ],
+        "nightly": false,
+        "dev": true
+      }
+      EOF
 
     # TODO
     # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache /tmp/cache && cat /tmp/cache
