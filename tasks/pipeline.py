@@ -850,11 +850,11 @@ def compare_to_itself(ctx):
 
     release_json = load_release_json()
 
-    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
-        with open(file) as f:
-            content = f.read()
-        with open(file, 'w') as f:
-            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+    with open('.gitlab-ci.yml', 'w') as f:
+        content = f.read()
+        f.write(
+            content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
+        )
 
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
