@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none
 
-go 1.23.6
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.0.0-00010101000000-000000000000
