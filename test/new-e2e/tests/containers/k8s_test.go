@@ -111,7 +111,10 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
+				LabelSelector: fields.AndSelectors(
+					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+				).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
