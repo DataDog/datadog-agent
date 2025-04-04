@@ -18,7 +18,6 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
-    CORE_AGENT_LINUX_IT_CONF,
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
@@ -577,7 +576,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -585,14 +584,6 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
         return containerized_integration_tests(
             ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
         )
-    return containerized_integration_tests(
-        ctx,
-        CORE_AGENT_LINUX_IT_CONF,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
 
 
 def check_supports_python_version(check_dir, python):
