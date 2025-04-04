@@ -310,6 +310,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
 		}
 	case "dns":
+	case "dns_response":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)

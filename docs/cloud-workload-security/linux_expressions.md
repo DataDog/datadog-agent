@@ -38,6 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `connect` | Network | A connect was executed | 7.60 |
 | `dns` | Network | A DNS request was sent | 7.36 |
+| `dns_response` | Network | A DNS response was received | 7.6x |
 | `exec` | Process | A process was executed (does not trigger on fork syscalls). | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
 | `imds` | Network | An IMDS event was captured | 7.55 |
@@ -555,12 +556,12 @@ A DNS request was sent
 | Property | Definition |
 | -------- | ------------- |
 | [`dns.id`](#dns-id-doc) | [Experimental] the DNS request ID |
-| [`dns.question.class`](#dns-question-class-doc) | the class looked up by the DNS question |
-| [`dns.question.count`](#dns-question-count-doc) | the total count of questions in the DNS request |
-| [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
-| [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
+| [`dns.question.class`](#common-dnsquestion-class-doc) | the class looked up by the DNS question |
+| [`dns.question.count`](#common-dnsquestion-count-doc) | the total count of questions in the DNS request |
+| [`dns.question.length`](#common-dnsquestion-length-doc) | the total DNS request size in bytes |
+| [`dns.question.name`](#common-dnsquestion-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns.question.type`](#common-dnsquestion-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -572,6 +573,21 @@ A DNS request was sent
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+
+### Event `dns_response`
+
+A DNS response was received
+
+| Property | Definition |
+| -------- | ------------- |
+| [`dns_response.id`](#dns_response-id-doc) | [Experimental] the DNS request ID |
+| [`dns_response.question.class`](#common-dnsquestion-class-doc) | the class looked up by the DNS question |
+| [`dns_response.question.count`](#common-dnsquestion-count-doc) | the total count of questions in the DNS request |
+| [`dns_response.question.length`](#common-dnsquestion-length-doc) | the total DNS request size in bytes |
+| [`dns_response.question.name`](#common-dnsquestion-name-doc) | the queried domain name |
+| [`dns_response.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`dns_response.question.type`](#common-dnsquestion-type-doc) | a two octet code which specifies the DNS question type |
+| [`dns_response.response_code`](#dns_response-response_code-doc) | Response code of the DNS response |
 
 ### Event `exec`
 
@@ -1974,6 +1990,18 @@ Definition: Change time (ctime) of the file
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.class` {#common-dnsquestion-class-doc}
+Type: int
+
+Definition: the class looked up by the DNS question
+
+`*.class` has 2 possible prefixes:
+`dns.question` `dns_response.question`
+
+Constants: [DNS qclasses](#dns-qclasses)
+
+
+
 ### `*.comm` {#common-process-comm-doc}
 Type: string
 
@@ -1990,6 +2018,15 @@ Definition: Container ID
 
 `*.container.id` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.count` {#common-dnsquestion-count-doc}
+Type: int
+
+Definition: the total count of questions in the DNS request
+
+`*.count` has 2 possible prefixes:
+`dns.question` `dns_response.question`
 
 
 ### `*.created_at` {#common-process-created_at-doc}
@@ -2313,13 +2350,22 @@ Constants: [L4 protocols](#l4-protocols)
 
 
 
+### `*.length` {#common-dnsquestion-length-doc}
+Type: int
+
+Definition: the total DNS request size in bytes
+
+`*.length` has 2 possible prefixes:
+`dns.question` `dns_response.question`
+
+
 ### `*.length` {#common-string-length-doc}
 Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 83 possible prefixes:
-`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 84 possible prefixes:
+`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `dns_response.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.manager` {#common-cgroupcontext-manager-doc}
@@ -2359,6 +2405,15 @@ Definition: Mount ID of the file
 
 `*.mount_id` has 51 possible prefixes:
 `cgroup.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.name` {#common-dnsquestion-name-doc}
+Type: string
+
+Definition: the queried domain name
+
+`*.name` has 2 possible prefixes:
+`dns.question` `dns_response.question`
 
 
 ### `*.name` {#common-fileevent-name-doc}
@@ -2529,6 +2584,18 @@ Definition: Name of the TTY associated with the process
 
 `*.tty_name` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.type` {#common-dnsquestion-type-doc}
+Type: int
+
+Definition: a two octet code which specifies the DNS question type
+
+`*.type` has 2 possible prefixes:
+`dns.question` `dns_response.question`
+
+Constants: [DNS qtypes](#dns-qtypes)
+
 
 
 ### `*.uid` {#common-credentials-uid-doc}
@@ -2850,44 +2917,17 @@ Definition: [Experimental] the DNS request ID
 
 
 
-### `dns.question.class` {#dns-question-class-doc}
+### `dns_response.id` {#dns_response-id-doc}
 Type: int
 
-Definition: the class looked up by the DNS question
-
-
-Constants: [DNS qclasses](#dns-qclasses)
+Definition: [Experimental] the DNS request ID
 
 
 
-### `dns.question.count` {#dns-question-count-doc}
+### `dns_response.response_code` {#dns_response-response_code-doc}
 Type: int
 
-Definition: the total count of questions in the DNS request
-
-
-
-### `dns.question.length` {#dns-question-length-doc}
-Type: int
-
-Definition: the total DNS request size in bytes
-
-
-
-### `dns.question.name` {#dns-question-name-doc}
-Type: string
-
-Definition: the queried domain name
-
-
-
-### `dns.question.type` {#dns-question-type-doc}
-Type: int
-
-Definition: a two octet code which specifies the DNS question type
-
-
-Constants: [DNS qtypes](#dns-qtypes)
+Definition: Response code of the DNS response
 
 
 

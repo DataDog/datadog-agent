@@ -127,9 +127,23 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
 
 SEC("classifier/dns_response")
 int classifier_dns_response(struct __sk_buff *skb) {
-    struct packet_t *pkt = get_packet();
+// This classifier obtains the DNS packet and checks if it's a query response from header's qr field
+// Queries are rejected, responses are processed
+// Then it checks if the return code is zero (indicating success) or non-zero (indicating an error)
+// If it was a success, we only send the packet to user-space
+// If it was an error, we send the packet with the process and network contexts to user-space
+// This classifier also makes use of an LRU to check if this packet had been sent to user-space recently in
+// order to avoid duplication, which can happen especially in a container in which we're hooked to all of
+// the interfaces it creates
 
+    struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    union dns_responses_t * map_elem = reset_dns_response_event(skb, pkt);
+    if (map_elem == NULL) {
         // should never happen
         return ACT_OK;
     }
@@ -140,42 +154,57 @@ int classifier_dns_response(struct __sk_buff *skb) {
         len = DNS_RECEIVE_MAX_LENGTH;
     }
 
-    struct dns_response_event_t * evt = reset_dns_response_event();
-
-    if (evt == NULL) {
-       // should never happen
-       return ACT_OK;
-    }
-
-    if (bpf_skb_load_bytes(skb, pkt->offset, &evt->header, sizeof(evt->header)) < 0) {
-        return ACT_OK;
-    }
-
-    pkt->offset += sizeof(evt->header);
-
-    if(!evt->header.flags.as_bits_and_pieces.qr) {
-        return ACT_OK;
-    }
-
     if(len <= sizeof(struct dnshdr)) {
         return ACT_OK;
     }
 
+    struct dns_flags_as_bits_and_pieces_t flags;
+
+    if (bpf_skb_load_bytes(skb, pkt->offset + 2, &flags, sizeof(flags)) < 0) {
+        return ACT_OK;
+    }
+
+    if(!flags.qr) {
+        return ACT_OK;
+    }
+
+    uint16_t header_id;
+    bool send_full_packet = false;
+    long err;
+
+    if (flags.rcode != 0) {
+        send_full_packet = true;
+        fill_network_process_context_from_pkt(&map_elem->full_dns_response.process, pkt);
+        fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
+        err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));
+        header_id = map_elem->full_dns_response.header.id;
+    } else {
+        err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->short_dns_response.header, sizeof(struct dnshdr));
+        header_id = map_elem->short_dns_response.header.id;
+    }
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    pkt->offset += sizeof(struct dnshdr);
     int remaining_bytes = len - sizeof(struct dnshdr);
 
     if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
         return ACT_OK;
     }
 
-    long err = bpf_skb_load_bytes(skb, pkt->offset, evt->data, remaining_bytes);
+    if (send_full_packet) {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->full_dns_response.data, remaining_bytes);
+    } else {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->short_dns_response.data, remaining_bytes);
+    }
 
     if (err < 0) {
         return ACT_OK;
     }
 
     u64 current_timestamp = bpf_ktime_get_ns();
-
-    uint16_t header_id = evt->header.id;
     struct dns_responses_sent_to_userspace_lru_entry_t* lru_entry = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
 
     if (lru_entry != NULL &&  lru_entry->timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
@@ -203,7 +232,11 @@ int classifier_dns_response(struct __sk_buff *skb) {
     entry.packet_size = (u64)len;
     bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &entry, BPF_ANY);
 
-    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
+    if (send_full_packet) {
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_FULL, &map_elem->full_dns_response, offsetof(struct full_dns_response_event_t, data) + remaining_bytes);
+    } else {
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_SHORT, &map_elem->short_dns_response, offsetof(struct short_dns_response_event_t, data) + remaining_bytes);
+    }
 
     return ACT_OK;
 }
