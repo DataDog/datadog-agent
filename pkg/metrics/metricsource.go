@@ -361,6 +361,11 @@ const (
 	MetricSourceOpenTelemetryCollectorBigipReceiver
 	MetricSourceOpenTelemetryCollectorChronyReceiver
 	MetricSourceOpenTelemetryCollectorCouchdbReceiver
+
+	// Serverless
+	MetricSourceAwsLambda
+	MetricSourceAzureContainerApp
+	MetricSourceGoogleCloudRun
 )
 
 // String returns a string representation of MetricSource
