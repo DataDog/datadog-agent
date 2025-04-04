@@ -56,6 +56,16 @@ const (
 	tagSeparator             = ","
 )
 
+// IPCounter interface defines operations for tracking IP authentication attempts
+type IPCounter interface {
+	Inc(ip string)
+	Dec(ip string)
+	Get(ip string) int
+	Set(ip string, count int)
+	Len() int
+	GetAll() map[string]int
+}
+
 // SNMPListener implements SNMP discovery
 type SNMPListener struct {
 	sync.RWMutex
@@ -65,8 +75,55 @@ type SNMPListener struct {
 	config                       snmp.ListenerConfig
 	services                     map[string]*SNMPService
 	devicesFoundByFingerprint    map[string]bool
-	ipsAuthenticationCounter     map[string]int
+	ipsCounter                   IPCounter
 	pendingServicesByFingerprint map[string]*pendingService
+}
+
+type ipAuthenticationCounter struct {
+	sync.RWMutex
+	counter map[string]int
+}
+
+func newIPAuthenticationCounter() *ipAuthenticationCounter {
+	return &ipAuthenticationCounter{
+		counter: make(map[string]int),
+	}
+}
+
+func (c *ipAuthenticationCounter) Inc(ip string) {
+	c.Lock()
+	defer c.Unlock()
+	c.counter[ip]++
+}
+
+func (c *ipAuthenticationCounter) Dec(ip string) {
+	c.Lock()
+	defer c.Unlock()
+	c.counter[ip]--
+}
+
+func (c *ipAuthenticationCounter) Get(ip string) int {
+	c.RLock()
+	defer c.RUnlock()
+	return c.counter[ip]
+}
+
+func (c *ipAuthenticationCounter) Set(ip string, count int) {
+	c.Lock()
+	defer c.Unlock()
+	c.counter[ip] = count
+}
+
+func (c *ipAuthenticationCounter) Len() int {
+	c.RLock()
+	defer c.RUnlock()
+	return len(c.counter)
+}
+
+func (c *ipAuthenticationCounter) GetAll() map[string]int {
+	c.RLock()
+	defer c.RUnlock()
+	return c.counter
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -121,7 +178,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		config:                       snmpConfig,
 		devicesFoundByFingerprint:    map[string]bool{},
 		pendingServicesByFingerprint: map[string]*pendingService{},
-		ipsAuthenticationCounter:     map[string]int{},
+		ipsCounter:                   newIPAuthenticationCounter(),
 	}, nil
 }
 
@@ -215,11 +272,9 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
 
-		l.Lock()
-		l.ipsAuthenticationCounter[deviceIP]--
-		l.Unlock()
+		l.ipsCounter.Dec(deviceIP)
 
-		if l.ipsAuthenticationCounter[deviceIP] == 0 {
+		if l.ipsCounter.Get(deviceIP) == 0 {
 			l.flushPendingServices()
 		}
 
@@ -358,16 +413,16 @@ func (l *SNMPListener) initializeIPAuthenticationCounter() {
 		}
 
 		forEachIP(startingIP, ipNet, func(currentIP net.IP) bool {
-			l.ipsAuthenticationCounter[currentIP.String()] = len(config.Authentications)
+			l.ipsCounter.Set(currentIP.String(), len(config.Authentications))
 			return true
 		})
 	}
 
-	log.Debugf("Initialized authentication counter with %d IP addresses", len(l.ipsAuthenticationCounter))
+	log.Debugf("Initialized authentication counter with %d IP addresses", l.ipsCounter.Len())
 }
 
 func (l *SNMPListener) checkPreviousIPs(deviceIP string) bool {
-	for ip, count := range l.ipsAuthenticationCounter {
+	for ip, count := range l.ipsCounter.GetAll() {
 		if count > 0 && minimumIP(ip, deviceIP) == ip {
 			log.Debugf("Device %s not yet discovered", deviceIP)
 			return false
