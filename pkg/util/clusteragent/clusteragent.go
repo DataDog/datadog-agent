@@ -17,15 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -72,7 +69,7 @@ type DCAClientInterface interface {
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 
-	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+	PostLanguageMetadata(ctx context.Context, data []byte) error
 	SupportsNamespaceMetadataCollection() bool
 }
 
@@ -429,14 +426,9 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 }
 
 // PostLanguageMetadata is called by the core-agent's language detection client
-func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
-	queryBody, err := proto.Marshal(data)
-	if err != nil {
-		return err
-	}
-
+func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data []byte) error {
 	// query https://host:port/api/v1/languagedetection without expecting a response
-	_, err = c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), false, false)
+	_, err := c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(data), false, false)
 	return err
 }
 
