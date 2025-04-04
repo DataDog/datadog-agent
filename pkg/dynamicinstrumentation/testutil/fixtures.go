@@ -665,7 +665,7 @@ var structCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_and_byte": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"w": capturedValue("byte", "97"),
+				"w": capturedValue("uint8", "97"),
 				"x": {
 					Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
 					Fields: fieldMap{
