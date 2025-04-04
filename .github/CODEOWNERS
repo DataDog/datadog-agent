@@ -493,6 +493,7 @@
 /pkg/util/encoding/                     @DataDog/ebpf-platform
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
+/pkg/util/installinfo/                  @DataDog/agent-configuration
 /pkg/util/kernel/                       @DataDog/ebpf-platform
 /pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/slices/                       @DataDog/ebpf-platform
@@ -519,6 +520,8 @@
 /pkg/linters/                           @DataDog/agent-devx-loops
 /pkg/linters/components/                @DataDog/agent-runtimes
 /pkg/logs/                              @DataDog/agent-log-pipelines
+/pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
+/pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/launchers/windowsevent        @DataDog/agent-log-pipelines @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-log-pipelines @DataDog/windows-agent
 /pkg/logs/util/windowsevent             @DataDog/agent-log-pipelines @DataDog/windows-agent
