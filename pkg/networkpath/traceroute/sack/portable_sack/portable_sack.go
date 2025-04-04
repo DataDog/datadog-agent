@@ -24,7 +24,7 @@ import (
 func main() {
 	loglevel := os.Getenv("LOG_LEVEL")
 	if loglevel == "" {
-		loglevel = "debug"
+		loglevel = "warn"
 	}
 
 	err := pkglogsetup.SetupLogger(
