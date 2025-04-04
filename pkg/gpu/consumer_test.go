@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -23,6 +25,7 @@ import (
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
@@ -37,6 +40,7 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
 	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
@@ -118,8 +122,8 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
+			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMock())
 			ctx, err := getSystemContext(
-				withNvmlLib(testutil.GetBasicNvmlMock()),
 				withProcRoot(kernel.ProcFSRoot()),
 				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
 				withTelemetry(testutil.GetTelemetryMock(b)),

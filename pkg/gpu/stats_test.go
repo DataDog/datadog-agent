@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -30,6 +31,7 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()

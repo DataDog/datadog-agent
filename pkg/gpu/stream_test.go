@@ -14,10 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	kernStartTime := uint64(1)
@@ -75,6 +78,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
@@ -144,6 +148,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
@@ -177,6 +182,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
@@ -219,6 +225,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
@@ -317,6 +324,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			proc := kernel.ProcFSRoot()
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {

@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -44,8 +46,8 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	ctx, err := getSystemContext(
-		withNvmlLib(testutil.GetBasicNvmlMock()),
 		withProcRoot(kernel.ProcFSRoot()),
 		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
 		withTelemetry(telemetryMock),

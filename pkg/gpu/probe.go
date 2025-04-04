@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -86,9 +84,6 @@ type ProbeDependencies struct {
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
-	// NvmlLib is the NVML library interface
-	NvmlLib nvml.Interface
-
 	// ProcessMonitor is the process monitor interface
 	ProcessMonitor uprobes.ProcessMonitor
 
@@ -99,14 +94,8 @@ type ProbeDependencies struct {
 
 // NewProbeDependencies creates a new ProbeDependencies instance
 func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib, err := ddnvml.GetNvmlLib()
-	if err != nil {
-		return ProbeDependencies{}, fmt.Errorf("unable to get NVML library: %w", err)
-	}
-
 	return ProbeDependencies{
 		Telemetry:      telemetry,
-		NvmlLib:        nvmlLib,
 		ProcessMonitor: processMonitor,
 		WorkloadMeta:   workloadMeta,
 	}, nil
@@ -153,7 +142,6 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	sysCtx, err := getSystemContext(
-		withNvmlLib(deps.NvmlLib),
 		withProcRoot(cfg.ProcRoot),
 		withWorkloadMeta(deps.WorkloadMeta),
 		withTelemetry(deps.Telemetry),

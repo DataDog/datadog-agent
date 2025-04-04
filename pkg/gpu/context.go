@@ -10,8 +10,6 @@ package gpu
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -27,9 +25,6 @@ const nvidiaResourceName = "nvidia.com/gpu"
 type systemContext struct {
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
-
-	// nvmlLib is the NVML library used to query GPU devices
-	nvmlLib nvml.Interface
 
 	// procRoot is the root directory for process information
 	procRoot string
@@ -56,7 +51,6 @@ type systemContext struct {
 }
 
 type systemContextOptions struct {
-	nvmlLib              nvml.Interface
 	procRoot             string
 	wmeta                workloadmeta.Component
 	tm                   telemetry.Component
@@ -65,12 +59,6 @@ type systemContextOptions struct {
 }
 
 type systemContextOption func(*systemContextOptions)
-
-func withNvmlLib(nvmlLib nvml.Interface) systemContextOption {
-	return func(opts *systemContextOptions) {
-		opts.nvmlLib = nvmlLib
-	}
-}
 
 func withProcRoot(procRoot string) systemContextOption {
 	return func(opts *systemContextOptions) {
@@ -117,7 +105,6 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	opts := newSystemContextOptions(optList...)
 
 	ctx := &systemContext{
-		nvmlLib:                   opts.nvmlLib,
 		procRoot:                  opts.procRoot,
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]*ddnvml.Device),
@@ -125,7 +112,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(opts.nvmlLib)
+	ctx.deviceCache, err = ddnvml.NewDeviceCache()
 	if err != nil {
 		return nil, fmt.Errorf("error creating device cache: %w", err)
 	}

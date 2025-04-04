@@ -16,6 +16,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -23,7 +24,6 @@ import (
 
 func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
 	opts := []systemContextOption{
-		withNvmlLib(testutil.GetBasicNvmlMock()),
 		withProcRoot(kernel.ProcFSRoot()),
 		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
 		withTelemetry(testutil.GetTelemetryMock(t)),
@@ -32,8 +32,8 @@ func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *syste
 	opts = append(opts, extraOpts...) // Allow overriding the default options
 
 	sysCtx, err := getSystemContext(opts...)
-	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
+	require.NotNil(t, sysCtx)
 	return sysCtx
 }
 
@@ -136,6 +136,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 	})
 
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
