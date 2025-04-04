@@ -20,12 +20,14 @@ import (
 	"sync"
 	"time"
 
-	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -35,10 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -183,14 +187,16 @@ type discovery struct {
 
 	lastNetworkStatsUpdate time.Time
 
-	containerProvider proccontainers.ContainerProvider
-	timeProvider      timeProvider
-	network           networkCollector
+	wmeta  workloadmeta.Component
+	tagger tagger.Component
+
+	timeProvider timeProvider
+	network      networkCollector
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
 
-func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	cfg := newConfig()
 
 	var network networkCollector
@@ -216,7 +222,8 @@ func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider,
 		ignorePids:         make(pidSet),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
-		containerProvider:  containerProvider,
+		wmeta:              wmeta,
+		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
 	}
@@ -224,8 +231,7 @@ func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider,
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
-	d := newDiscoveryWithNetwork(sharedContainerProvider, realTime{}, newNetworkCollector)
+	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, realTime{}, newNetworkCollector)
 
 	return d, nil
 }
@@ -281,24 +287,14 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		netNsInfo: make(map[uint32]*namespaceInfo),
 	}
 
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
-	if err != nil {
-		log.Errorf("could not get containers: %s", err)
-	}
-
-	// Build mapping of Container ID to container object to avoid traversal of
-	// the containers slice for every services.
-	containersMap := make(map[string]*agentPayload.Container, len(containers))
-	for _, c := range containers {
-		containersMap[c.Id] = c
-	}
-
+	containers := s.getContainersMap()
+	containerTagsCache := make(map[string][]string)
 	for _, pid := range pids {
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containersMap, pidToCid)
+		s.enrichContainerData(service, containers, containerTagsCache)
 
 		services = append(services, *service)
 	}
@@ -928,26 +924,78 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 	return "", ""
 }
 
-func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
-	id, ok := pidToCid[service.PID]
+func (s *discovery) getContainersMap() map[int]*workloadmeta.Container {
+	containers := s.wmeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	containersMap := make(map[int]*workloadmeta.Container, len(containers))
+
+	metricsProvider := metrics.GetProvider(option.New(s.wmeta))
+
+	for _, container := range containers {
+		collector := metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
+		if collector == nil {
+			containersMap[int(container.PID)] = container
+			continue
+		}
+
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, containerCacheValidity)
+		if err != nil || len(pids) == 0 {
+			containersMap[int(container.PID)] = container
+			continue
+		}
+
+		for _, pid := range pids {
+			containersMap[int(pid)] = container
+		}
+	}
+	return containersMap
+}
+
+func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) (string, []string, bool) {
+	container, ok := containers[pid]
+	if !ok {
+		return "", nil, false
+	}
+
+	tags, ok := containerTagsCache[container.EntityID.ID]
+	if ok {
+		return container.EntityID.ID, tags, true
+	}
+
+	containerID := container.EntityID.ID
+	collectorTags := container.CollectorTags
+
+	// Getting the tags from the tagger. This logic is borrowed from
+	// the GetContainers helper in pkg/process/util/containers.
+	entityID := types.NewEntityID(types.ContainerID, containerID)
+	entityTags, err := s.tagger.Tag(entityID, types.HighCardinality)
+	if err != nil {
+		log.Tracef("Could not get tags for container %s: %v", containerID, err)
+		return containerID, collectorTags, false
+	}
+	tags = append(collectorTags, entityTags...)
+	containerTagsCache[containerID] = tags
+
+	return containerID, tags, true
+}
+
+func (s *discovery) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
+	containerID, containerTags, ok := s.getProcessContainerInfo(service.PID, containers, containerTagsCache)
 	if !ok {
 		return
 	}
 
-	container, ok := containers[id]
-	if !ok {
-		return
-	}
-
-	service.ContainerID = id
-	service.ContainerTags = container.Tags
+	service.ContainerID = containerID
+	service.ContainerTags = containerTags
 
 	// We checked the container tags before, no need to do it again.
 	if service.CheckedContainerData {
 		return
 	}
 
-	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
+	tagName, serviceName := getServiceNameFromContainerTags(containerTags)
 	service.ContainerServiceName = serviceName
 	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
@@ -957,7 +1005,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		serviceInfo.containerServiceName = serviceName
 		serviceInfo.containerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = id
+		serviceInfo.containerID = containerID
 	}
 }
 
@@ -1031,17 +1079,8 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	}
 
 	alivePids := make(pidSet, len(pids))
-	containers, _, pidToCid, err := s.containerProvider.GetContainers(containerCacheValidity, nil)
-	if err != nil {
-		log.Errorf("could not get containers: %s", err)
-	}
-
-	// Build mapping of Container ID to container object to avoid traversal of
-	// the containers slice for every services.
-	containersMap := make(map[string]*agentPayload.Container, len(containers))
-	for _, c := range containers {
-		containersMap[c.Id] = c
-	}
+	containers := s.getContainersMap()
+	containerTagsCache := make(map[string][]string)
 
 	now := s.timeProvider.Now()
 
@@ -1068,7 +1107,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containersMap, pidToCid)
+		s.enrichContainerData(service, containers, containerTagsCache)
 
 		if knownService {
 			service.LastHeartbeat = now.Unix()
