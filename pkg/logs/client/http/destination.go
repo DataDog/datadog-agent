@@ -304,10 +304,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string
 
-	log.Infof("METADATA FOR DESTINATIONS: ReportingEnabled=%v, TelemetryName=%v",
-		d.Metadata().ReportingEnabled,
-		d.Metadata().TelemetryName())
-
 	if strings.Contains(d.Metadata().TelemetryName(), "logs") {
 		sourceTag = "logs"
 	} else {
