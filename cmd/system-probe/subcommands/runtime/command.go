@@ -34,8 +34,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -347,15 +345,6 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	fmt.Printf("Network namespace dump: %s\n", resp.GetDumpFilename())
 	fmt.Printf("Network namespace dump graph: %s\n", resp.GetGraphFilename())
 	return nil
-}
-
-func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
-	agentVersion, err := utils.GetAgentSemverVersion()
-	if err != nil {
-		return nil, err
-	}
-
-	return rules.NewAgentVersionFilter(agentVersion)
 }
 
 func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
