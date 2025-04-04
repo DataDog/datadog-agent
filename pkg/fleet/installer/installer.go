@@ -70,6 +70,7 @@ type Installer interface {
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
 	Postinst(ctx context.Context, pkg string, caller string) error
+	Prerm(ctx context.Context, pkg string, caller string, update bool) error
 
 	Close() error
 }
@@ -691,7 +692,7 @@ func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string)
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	if caller != "deb" && caller != "rpm" && caller != "oci" {
+	if caller != "deb" && caller != "rpm" && caller != "installer" {
 		return fmt.Errorf("invalid caller: %s", caller)
 	}
 
@@ -702,6 +703,28 @@ func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string)
 			installPath = "/opt/datadog-agent"
 		}
 		return packages.PostInstallAgent(ctx, installPath, caller)
+	default:
+		return nil
+	}
+}
+
+// Prerm runs the pre-rm script for a package.
+func (i *installerImpl) Prerm(ctx context.Context, pkg string, caller string, upgrade bool) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if caller != "deb" && caller != "rpm" && caller != "installer" {
+		return fmt.Errorf("invalid caller: %s", caller)
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
+		if caller == "deb" || caller == "rpm" {
+			installPath = "/opt/datadog-agent"
+		}
+		packages.PreRemoveAgent(ctx, installPath, caller, upgrade)
+		return nil
 	default:
 		return nil
 	}

@@ -333,3 +333,14 @@ func (i *InstallerExec) Postinst(ctx context.Context, pkg string, caller string)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
+
+// Prerm runs pre remove scripts for a given package.
+func (i *InstallerExec) Prerm(ctx context.Context, pkg string, caller string, update bool) (err error) {
+	args := []string{pkg, caller}
+	if update {
+		args = append(args, "--update")
+	}
+	cmd := i.newInstallerCmd(ctx, "postinst", args...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}

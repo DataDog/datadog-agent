@@ -128,6 +128,10 @@ func (m *installerMock) Postinst(_ context.Context, _ string, _ string) error {
 	return nil
 }
 
+func (m *installerMock) Prerm(_ context.Context, _ string, _ string, _ bool) error {
+	return nil
+}
+
 func (m *installerMock) Close() error {
 	return nil
 }
