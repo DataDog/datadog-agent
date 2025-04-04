@@ -4,9 +4,6 @@ package datadog.trace.idx;
 
 option go_package="pkg/proto/pbgo/trace/idx";
 
-// TODO: setup this import
-// import "opentelemetry/proto/trace/v1/trace.proto";
-
 message AnyValue {
 	oneof value {
 		// @gotags: json:"string_value" msg:"string_value"
@@ -125,8 +122,6 @@ message Span {
     SpanKind kind = 16;
 }
 
-
-//TODO: use the import from otel here
 // SpanKind is the type of span. Can be used to specify additional relationships between spans
 // in addition to a parent/child relationship.
 enum SpanKind {

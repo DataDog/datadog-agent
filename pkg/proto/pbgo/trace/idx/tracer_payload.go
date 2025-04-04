@@ -45,7 +45,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		case 2:
-			tp.ContainerID, o, err = UnmarshalStreamingString(o, tp.Strings) //TODO: write a test checking if strings can be sent up-front
+			tp.ContainerID, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload containerID")
 				return

@@ -21,7 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// TODO: use the import from otel here
 // SpanKind is the type of span. Can be used to specify additional relationships between spans
 // in addition to a parent/child relationship.
 type SpanKind int32

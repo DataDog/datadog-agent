@@ -10,6 +10,8 @@ import (
 	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // UnmarshalSpanList unmarshals a list of InternalSpans from a byte stream, updating the strings slice with new strings
@@ -180,17 +182,11 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			span.Kind = SpanKind(kind)
 		default:
-			fmt.Printf("Unknown field number %d\n", fieldNum)
+			log.Warn("Unknown span field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
 }
-
-//TODO list:
-// - expand span tests to cover all fields
-// - add span Marshalling code
-// - Add fuzz tests that go back and forth between the two
-// - Expand
 
 // UnmarshalSpanEventList unmarshals a list of SpanEvents from a byte stream, updating the strings slice with new strings
 func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*InternalSpanEvent, o []byte, err error) {
@@ -254,7 +250,7 @@ func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err erro
 			}
 			spanEvent.Attributes = kvl
 		default:
-			fmt.Printf("Unknown span event field number %d\n", fieldNum)
+			log.Warn("Unknown span event field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
@@ -272,7 +268,7 @@ func UnmarshalKeyValueMap(bts []byte, strings *StringTable) (kvl map[uint32]*Any
 		err = msgp.WrapError(err, fmt.Sprintf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes))
 		return
 	}
-	kvl = make(map[uint32]*AnyValue, numAttributes/3) //todo: limit size of attributes
+	kvl = make(map[uint32]*AnyValue, numAttributes/3)
 	var i uint32
 	for i < numAttributes {
 		var key uint32
@@ -305,7 +301,7 @@ func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o
 		err = msgp.WrapError(err, fmt.Sprintf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes))
 		return
 	}
-	kvl = make([]*KeyValue, numAttributes/3) //todo: limit size of attributes
+	kvl = make([]*KeyValue, numAttributes/3)
 	var i uint32
 	for i < numAttributes {
 		var key uint32
@@ -409,7 +405,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		}
 		value.Value = &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: kvl}}
 	default:
-		err = msgp.WrapError(err, fmt.Sprintf("Unknown attribute value type %d", valueType))
+		log.Warn("Unknown attribute field number %d, are you running the latest agent version?\n", valueType)
 		return
 	}
 	return
@@ -548,7 +544,7 @@ func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		default:
-			fmt.Printf("Unknown span link field number %d\n", fieldNum) //todo: warn log
+			log.Warn("Unknown span link field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
