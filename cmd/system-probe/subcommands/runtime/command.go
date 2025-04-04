@@ -326,6 +326,7 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
