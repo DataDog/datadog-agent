@@ -41,7 +41,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.31.0
-	golang.org/x/time v0.9.0
+	golang.org/x/time v0.11.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/ini.v1 v1.67.0
@@ -183,6 +183,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model

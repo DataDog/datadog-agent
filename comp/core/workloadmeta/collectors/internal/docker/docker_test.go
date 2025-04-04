@@ -164,20 +164,45 @@ func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 			},
 		},
 		{
-			name: "Number of inspect layers exceeds history layers breaks our assumption and results in no layers returned",
+			name: "Number of assignable history layers exceeds inspect layers does not result in panic",
 			history: []image.HistoryResponseItem{
 				{
 					Size:      nonEmptySize,
 					CreatedBy: cmd,
 					Created:   baseTimeUnix,
 				},
+				{
+					Size:      nonEmptySize,
+					CreatedBy: cmd,
+					Created:   baseTimeUnix,
+					ID:        "abc",
+				},
 			},
 			inspect: types.ImageInspect{
 				RootFS: types.RootFS{
-					Layers: []string{layerID, layerID},
+					Layers: []string{"1"},
 				},
 			},
-			expected: []workloadmeta.ContainerImageLayer{},
+			expected: []workloadmeta.ContainerImageLayer{
+				{
+					Digest:    "",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+				{
+					Digest:    "abc",
+					SizeBytes: nonEmptySize,
+					History: &v1.History{
+						Created:    &baseTime,
+						CreatedBy:  cmd,
+						EmptyLayer: false,
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
