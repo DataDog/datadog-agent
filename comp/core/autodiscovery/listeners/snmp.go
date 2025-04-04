@@ -200,6 +200,7 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
+
 	deviceIP := job.currentIP.String()
 	entityID := job.subnet.config.Digest(deviceIP)
 
@@ -213,7 +214,10 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 
 		deviceFound = l.checkDeviceForParams(params, deviceIP)
+
+		l.Lock()
 		l.ipsAuthenticationCounter[deviceIP]--
+		l.Unlock()
 
 		if l.ipsAuthenticationCounter[deviceIP] == 0 {
 			l.flushPendingServices()
@@ -785,9 +789,6 @@ func GetSubnetVarKey(network string, cacheKey string) string {
 }
 
 func (l *SNMPListener) flushPendingServices() {
-	l.Lock()
-	defer l.Unlock()
-
 	if len(l.pendingServicesByFingerprint) == 0 {
 		return
 	}
