@@ -223,9 +223,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
 
 		fx.Supply(&traceagentcomp.Params{
-			CPUProfile:  "",
-			MemProfile:  "",
-			PIDFilePath: "",
+			CPUProfile:               "",
+			MemProfile:               "",
+			PIDFilePath:              "",
+			DisableInternalProfiling: true,
 		}),
 		traceagentfx.Module(),
 		auditorMock.AuditorMockModule(),
