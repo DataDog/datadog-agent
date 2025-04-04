@@ -4,8 +4,7 @@ import json
 import os
 import re
 import time
-from collections import Counter, defaultdict
-from enum import Enum
+from collections import Counter
 from functools import lru_cache
 
 from invoke.context import Context
@@ -30,14 +29,10 @@ from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packag
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
+from tasks.libs.types.types import PermissionCheck
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
-
-
-class PermissionCheck(Enum):
-    REPO = 'repo'
-    TEAM = 'team'
 
 
 @lru_cache(maxsize=None)
@@ -707,7 +702,8 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
 
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
-    from tasks.libs.common.slack import header_block, markdown_block
+    from tasks.libs.common.slack import format_teams, header_block, markdown_block
+    from tasks.libs.notify.permissions import list_permissions
 
     if check == PermissionCheck.TEAM:
         gh = GithubAPI()
@@ -724,87 +720,45 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
 
     all_teams = gh.find_teams(
         root,
-        # exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
-        # exclude_permissions=['pull'],
         depth=depth,
     )
-    message = f":github: {name} permissions check\n"
-    blocks = [header_block(message)]
-    # Add teams to the message and blocks
-    teams = [f" - <{team.html_url}|{team.slug}>: {permission_str(name, check, team)}\n" for team in all_teams]
-    block = f"Teams:\n{''.join(teams)}"
-    blocks.append(markdown_block(block))
-    message += block
-    # Add admins to the message and blocks
-    admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
-    block = f"Admins:\n{''.join(admins)}"
-    blocks.append(markdown_block(block))
-    message += block
+
+    # List information of teams in <name>
+    blocks = [header_block(f":github: {name} permissions check\n")]
+    blocks.extend(format_teams(name, check, all_teams))
+
+    # Add admins
+    if len(admins) > 0:
+        admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
+        block = f"Admins:\n{''.join(admins)}"
+        blocks.append(markdown_block(block))
 
     if check == PermissionCheck.TEAM:
-        non_contributing_teams = []
-        idle_contributors = defaultdict(set)
+        # For agent-all, list non contributors (team or members) to remove or look at.
         contributors = 'agent-contributors'
-        contributors_to_remove = []
-        membership = defaultdict(list)
-        active_users = gh.get_active_users(duration_days=10)
-        print(f"Checking permissions for {name}, {len(active_users)} active users")
-        for team in all_teams:
-            members = gh.get_direct_team_members(team.slug)
-            has_contributors = False
-            for member in members:
-                if member not in active_users:
-                    membership[member].append(f"<{team.html_url}|{team.name}>")
-                    if team.slug == contributors:
-                        contributors_to_remove.append(member)
-                else:
-                    has_contributors = True
-            if not has_contributors:
-                non_contributing_teams.append(f"<{team.html_url}|{team.slug}>")
+        non_contributing_teams, contributors_to_remove, membership = list_permissions(gh, name, all_teams, contributors)
 
-        # print(f"Non contributing teams: {non_contributing_teams}")
-        # print(f"Contributors to remove {contributors_to_remove}")
-        # print(f"Members to assess: {membership.keys()}")
-        if non_contributing_teams:
+        if len(non_contributing_teams) > 0:
             teams = [f" - {team}\n" for team in non_contributing_teams]
             block = f"Non contributing teams:\n{''.join(teams)}"
             blocks.append(markdown_block(block))
-            message += block
 
-        if len(contributors_to_remove):
+        if len(contributors_to_remove) > 0:
             block = f"Non contributors to remove from <https://github.com/orgs/DataDog/teams/{contributors}|{contributors}> team:\n{','.join(contributors_to_remove)}"
             blocks.append(markdown_block(block))
-            message += block
-        if idle_contributors:
+
+        if len(membership) > 0:
             block = "Non contributors to assess:\n"
             blocks.append(markdown_block(block))
-            message += block
             for member, teams in membership.items():
-                block = f" - {member} :[{', '.join(teams)}]\n"
+                block = f" - {member}: [{', '.join(teams)}]\n"
                 blocks.append(markdown_block(block))
-                message += block
     # Send message to slack
     from slack_sdk import WebClient
 
     client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    message = ''.join(b['text']['text'] for b in blocks)
     print(message)
-    print(blocks)
     MAX_BLOCKS = 50
     for idx in range(0, len(blocks), MAX_BLOCKS):
         client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
-
-
-def permission_str(name, check, team):
-    target = f"datadog/{name}" if check == PermissionCheck.REPO else "datadog/datadog-agent"
-    team_permission = team.get_repo_permission(target)
-    if team_permission is None:
-        return 'none'
-    if team_permission.admin:
-        return 'admin'
-    if team_permission.maintain:
-        return 'maintain'
-    if team_permission.push:
-        return 'write'
-    if team_permission.pull:
-        return 'read'
-    return 'triage'
