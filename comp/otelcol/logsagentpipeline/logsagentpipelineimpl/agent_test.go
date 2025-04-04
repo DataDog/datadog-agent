@@ -16,6 +16,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -42,8 +44,9 @@ type AgentTestSuite struct {
 type testDeps struct {
 	fx.In
 
-	Config configComponent.Component
-	Log    log.Component
+	Config  configComponent.Component
+	Log     log.Component
+	Auditor auditor.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -67,6 +70,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		configComponent.MockModule(),
+		auditorMock.AuditorMockModule(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 	))
@@ -74,6 +78,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	agent := &Agent{
 		log:         deps.Log,
 		config:      deps.Config,
+		auditor:     deps.Auditor,
 		endpoints:   endpoints,
 		compression: compressionfx.NewMockCompressor(),
 	}
@@ -180,6 +185,7 @@ func TestBuildEndpoints(t *testing.T) {
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		configComponent.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
+		auditorMock.AuditorMockModule(),
 	))
 
 	endpoints, err := buildEndpoints(deps.Config, deps.Log)
