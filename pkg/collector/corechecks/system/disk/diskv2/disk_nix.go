@@ -54,7 +54,7 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 		}
 		// Typically line looks like:
 		// sda1  MY_LABEL
-		device, label, ok := strings.Cut(line)
+		device, label, ok := strings.Cut(line, " ")
 		if !ok {
 			log.Debugf("skipping malformed line: '%s'", line)
 			continue
