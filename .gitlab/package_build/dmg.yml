@@ -38,12 +38,6 @@ include:
 
 # Add certificates to temporary keychain
 .setup_signing:
-  # CODESIGNING_CERT_BASE64: ${{ secrets.CODESIGNING_CERT_2025_B64 }}
-  # CODESIGNING_CERT_PASSPHRASE: ${{ secrets.CODESIGNING_CERT_2025_PASSPHRASE }}
-  # INSTALLER_CERT_BASE64: ${{ secrets.INSTALLER_CERT_2024_B64 }}
-  # INSTALLER_CERT_PASSPHRASE: ${{ secrets.INSTALLER_CERT_2024_PASSPHRASE }}
-  # KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PASSWORD }}
-  # ENABLE_SIGN: ${{ secrets.ENABLE_SIGN }}
   - |
     if [ "$SIGN" = true ]; then
       echo "Setting up signing secrets"
@@ -94,22 +88,6 @@ include:
     fi
 
 
-test-secrets:
-  stage: package_build
-  tags: ["macos:ventura-amd64", "specific:true"]
-  needs: []
-  script:
-    - !reference [.vault_login]
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-
-test-secrets-test-runners:
-  stage: package_build
-  tags: ["macos:ventura-amd64-test", "specific:true"]
-  needs: []
-  script:
-    - !reference [.vault_login]
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
@@ -122,10 +100,20 @@ new-agent_dmg-x64-a7:
       # TODO: Verify + only *.dmg + version manifest
       - omnibus_build/pkg
     when: always
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: 3
+    # TODO
+    # SIGN: true
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
-    - sudo umount /Volumes/Agent || true
+    # Destroy the keychain used to sign packages
+    - |
+      if [ "$SIGN" = true ]; then
+        security delete-keychain "build.keychain"
+      fi
+    - sudo umount /Volumes/Agent
   script:
     - set -eo pipefail
 
@@ -135,19 +123,17 @@ new-agent_dmg-x64-a7:
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
-    # Test, TODO: remove
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    - |
-      export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
-      export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
-      export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
-      export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
-      export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
+
+    # - |
+    #   export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+    #   export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
+    #   export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
+    #   export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
+    #   export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
+    #   export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
 
     # Setup
     - |
-      # export SIGN=true
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
       unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
@@ -159,8 +145,6 @@ new-agent_dmg-x64-a7:
       # export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
       export RELEASE_VERSION=$RELEASE_VERSION_7
       export RELEASE_VERSION=$RELEASE_VERSION_7
-      export AGENT_MAJOR_VERSION=7
-      export PYTHON_RUNTIMES=3
       export INSTALL_DIR="$PWD/datadog-agent-build/bin"
       export CONFIG_DIR="$PWD/datadog-agent-build/config"
       export OMNIBUS_DIR="$PWD/omnibus_build"
@@ -220,7 +204,8 @@ new-agent_dmg-x64-a7:
     # TODO: Use setup version job
     - |
       echo Making agent version cache
-      $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+      # TODO: Necessary?
+      # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
       export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
 
     # +=========================+
@@ -228,32 +213,32 @@ new-agent_dmg-x64-a7:
     # +=========================+
     # TODO A: Move this to this script section
     - bash .gitlab/package_build/build_script.sh
-    # +=========================+
-    # +----- NOTARIZATION ------+
-    # +=========================+
-    - |
-      echo Doing notarization
-      export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
-      unset LATEST_DMG
+    # # +=========================+
+    # # +----- NOTARIZATION ------+
+    # # +=========================+
+    # - |
+    #   echo Doing notarization
+    #   export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
+    #   unset LATEST_DMG
 
-      # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
-      for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
-        if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
-      done
+    #   # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
+    #   for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
+    #     if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
+    #   done
 
-      echo "File to upload: $LATEST_DMG"
+    #   echo "File to upload: $LATEST_DMG"
 
-      # Send package for notarization; retrieve REQUEST_UUID
-      echo "Sending notarization request."
+    #   # Send package for notarization; retrieve REQUEST_UUID
+    #   echo "Sending notarization request."
 
-      RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-      echo "Results: $RESULT"
-      SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
-      echo "Submission ID: $SUBMISSION_ID"
-      echo "Submission logs:"
-      xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
-      if [ -n "$EXIT_CODE" ]; then
-        # Once we have some logs, propagate potential failures
-        exit $EXIT_CODE
-      fi
+    #   RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+    #   echo "Results: $RESULT"
+    #   SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+    #   echo "Submission ID: $SUBMISSION_ID"
+    #   echo "Submission logs:"
+    #   xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+    #   if [ -n "$EXIT_CODE" ]; then
+    #     # Once we have some logs, propagate potential failures
+    #     exit $EXIT_CODE
+    #   fi
     - echo Done
