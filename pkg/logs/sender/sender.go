@@ -52,39 +52,8 @@ type Sender struct {
 // DestinationFactory used to generate client destinations on each call.
 type DestinationFactory func() *client.Destinations
 
-// NewSender is the legacy sender.
+// NewSender returns a new sender.
 func NewSender(
-	config pkgconfigmodel.Reader,
-	inputChan chan *message.Payload,
-	outputChan chan *message.Payload,
-	destinations *client.Destinations,
-	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
-	pipelineMonitor metrics.PipelineMonitor,
-) *Sender {
-	w := newWorkerLegacy(
-		config,
-		inputChan,
-		outputChan,
-		destinations,
-		bufferSize,
-		senderDoneChan,
-		flushWg,
-		pipelineMonitor,
-	)
-
-	return &Sender{
-		workers:         []*worker{w},
-		pipelineMonitor: pipelineMonitor,
-		queues:          []chan *message.Payload{inputChan},
-		flushWg:         flushWg,
-		idx:             &atomic.Uint32{},
-	}
-}
-
-// NewSenderV2 returns a new sender.
-func NewSenderV2(
 	config pkgconfigmodel.Reader,
 	auditor auditor.Auditor,
 	destinationFactory DestinationFactory,
@@ -96,7 +65,6 @@ func NewSenderV2(
 	pipelineMonitor metrics.PipelineMonitor,
 ) *Sender {
 	var workers []*worker
-
 	if queueCount <= 0 {
 		queueCount = DefaultQueuesCount
 	}
