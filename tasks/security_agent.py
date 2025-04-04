@@ -814,6 +814,7 @@ def sync_secl_win_pkg(ctx):
         ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
+        {"accessors_helpers.go", None},
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
