@@ -589,7 +589,10 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 }
 
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
-	return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
+	if a.lightTracer != nil {
+		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
+	}
+	return &installertelemetry.Span{}, a.cancelCtx
 }
 
 // start is called by FX when the application starts.
@@ -598,21 +601,23 @@ func (a *atel) start() error {
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
 
-	// Start internal telemetry trace
-	a.startupSpan, a.cancelCtx = installertelemetry.StartSpanFromContext(a.cancelCtx, "agent.startup")
-	go func() {
-		timing := time.After(1 * time.Minute)
-		select {
-		case <-a.cancelCtx.Done():
-			if a.startupSpan != nil {
-				a.startupSpan.Finish(a.cancelCtx.Err())
+	if a.lightTracer != nil {
+		// Start internal telemetry trace
+		a.startupSpan, a.cancelCtx = installertelemetry.StartSpanFromContext(a.cancelCtx, "agent.startup")
+		go func() {
+			timing := time.After(1 * time.Minute)
+			select {
+			case <-a.cancelCtx.Done():
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(a.cancelCtx.Err())
+				}
+			case <-timing:
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(nil)
+				}
 			}
-		case <-timing:
-			if a.startupSpan != nil {
-				a.startupSpan.Finish(nil)
-			}
-		}
-	}()
+		}()
+	}
 
 	// Start the runner and add the jobs.
 	a.runner.start()
@@ -636,7 +641,9 @@ func (a *atel) stop() error {
 	a.logComp.Info("Stopping agent telemetry")
 	a.cancel()
 
-	a.lightTracer.Stop()
+	if a.lightTracer != nil {
+		a.lightTracer.Stop()
+	}
 
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
