@@ -102,6 +102,14 @@ test-secrets:
     - !reference [.vault_login]
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
 
+test-secrets-test-runners:
+  stage: package_build
+  tags: ["macos:ventura-amd64-test", "specific:true"]
+  needs: []
+  script:
+    - !reference [.vault_login]
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
