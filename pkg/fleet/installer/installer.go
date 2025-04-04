@@ -28,6 +28,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/datadogagent"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -702,7 +703,7 @@ func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string)
 		if caller == "deb" || caller == "rpm" {
 			installPath = "/opt/datadog-agent"
 		}
-		return packages.PostInstallAgent(ctx, installPath, caller)
+		return datadogagent.PostInstall(ctx, installPath, caller)
 	default:
 		return nil
 	}

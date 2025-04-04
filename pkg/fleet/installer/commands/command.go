@@ -154,6 +154,12 @@ func RootCommands() []*cobra.Command {
 		statusCommand(),
 		postinstCommand(),
 		prermCommand(),
+		preStartExpCommand(),
+		postStartExpCommand(),
+		preStopExpCommand(),
+		postStopExpCommand(),
+		prePromoteExpCommand(),
+		postPromoteExpCommand(),
 	}
 }
 
@@ -497,45 +503,5 @@ func getStateCommand() *cobra.Command {
 			return nil
 		},
 	}
-	return cmd
-}
-
-func postinstCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Hidden:  true,
-		Use:     "postinst <package> <caller:deb|rpm|installer>",
-		Short:   "Run postinstall scripts for a package",
-		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("postinst")
-			if err != nil {
-				return err
-			}
-			defer i.stop(err)
-			return i.Postinst(i.ctx, args[0], args[1])
-		},
-	}
-	return cmd
-}
-
-func prermCommand() *cobra.Command {
-	var update bool
-	cmd := &cobra.Command{
-		Hidden:  true,
-		Use:     "prerm <package> <caller:deb|rpm|installer> [--update]",
-		Short:   "Run postinstall scripts for a package",
-		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("prerm")
-			if err != nil {
-				return err
-			}
-			defer i.stop(err)
-			return i.Prerm(i.ctx, args[0], args[1], update)
-		},
-	}
-	cmd.Flags().BoolVar(&update, "update", false, "Set during updates, don't set during removes")
 	return cmd
 }
