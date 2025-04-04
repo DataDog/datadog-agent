@@ -7,6 +7,7 @@
 package noneimpl
 
 import (
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -17,6 +18,11 @@ type NullAuditor struct {
 	stopChannel chan struct{}
 }
 
+// Provides contains the auditor component
+type Provides struct {
+	Comp auditor.Component
+}
+
 // NewAuditor creates a new noop auditor comoponent
 func NewAuditor() *NullAuditor {
 	nullAuditor := &NullAuditor{
@@ -25,6 +31,15 @@ func NewAuditor() *NullAuditor {
 	}
 
 	return nullAuditor
+}
+
+// NewProvides creates a new auditor component
+func NewProvides() Provides {
+	auditorImplNone := NewAuditor()
+
+	return Provides{
+		Comp: auditorImplNone,
+	}
 }
 
 // GetOffset returns an empty string
