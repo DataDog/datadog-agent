@@ -48,6 +48,11 @@ include:
       INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
       INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
+      # TODO: Verify export is necessary
+      export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
+      export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
+      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
+
       # Create temporary build keychain
       security create-keychain -p "$KEYCHAIN_PWD" "build.keychain"
 
@@ -87,7 +92,29 @@ include:
       security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
     fi
 
-.do_notarization:
+
+.macos_do_build:
+  - |
+    INVOKE_TASK="omnibus.build"
+    if ! inv --list | grep -qF "$INVOKE_TASK"; then
+        echo -e "\033[0;31magent.omnibus-build is deprecated. Please use omnibus.build!\033[0m"
+        INVOKE_TASK="agent.omnibus-build"
+    fi
+  - |
+    echo Launching omnibus build
+    if [ "$SIGN" = "true" ]; then
+        # Unlock the keychain to get access to the signing certificates
+        security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+        inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        # Lock the keychain once we're done
+        security lock-keychain "$KEYCHAIN_NAME"
+    else
+        inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+    fi
+    echo Built packages using omnibus
+
+
+.macos_do_notarization:
   - |
     if [ "$SIGN" = true ]; then
       echo Doing notarization
@@ -134,6 +161,8 @@ new-agent_dmg-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: 3
     # TODO
+    OMNIBUS_RUBY_VERSION: celian/macos-build
+    # TODO
     # SIGN: true
   before_script:
     - sudo umount /Volumes/Agent || true
@@ -147,7 +176,10 @@ new-agent_dmg-x64-a7:
   script:
     - set -eo pipefail
 
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache /tmp/cache && cat /tmp/cache
+    - brew uses gettext --installed || true
+
+    # TODO
+    # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache /tmp/cache && cat /tmp/cache
 
     - if [ "$SIGN" = true ]; then
         echo "Signing enabled"
@@ -155,20 +187,9 @@ new-agent_dmg-x64-a7:
         echo "Signing disabled"
       fi
 
-    - brew uses gettext --installed || true
-
     # TODO A: Remove
     # Adds one fix
-    - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
-
-    # - |
-    #   export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
-    #   export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-    #   export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
-    #   export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
-    #   export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
-    #   export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
 
     # Setup
     - |
@@ -188,17 +209,16 @@ new-agent_dmg-x64-a7:
       export OMNIBUS_DIR="$PWD/omnibus_build"
       unset OMNIBUS_BASE_DIR
       unset OMNIBUS_PACKAGE_DIR
+    - !reference [.setup_signing]
+    # TODO
     # - |
     #   export OMNIBUS_BASE_DIR="$PWD/omnibus_build"
     #   mkdir -p "$OMNIBUS_BASE_DIR/pkg"
-
-    # - !reference [.setup_signing]
-
+    # TODO: xcode 14.2?
+    # - xcode-select -s /Applications/Xcode_14.3.1.app
     - |
       rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
       mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-    # Omnibus TODO: Useless?
-    - |
       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
       echo Ignoring omnibus build cache
       # TODO: Omnibus cache
@@ -206,15 +226,15 @@ new-agent_dmg-x64-a7:
       # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
     # TODO: Cache go?
     - mkdir -p ~/go
-    # TODO: xcode 14.2?
-    # - xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: Cache brew deps
     # TODO: Cache _omnibus_cache_key
     # TODO: Verify runner - bash .gitlab/package_build/builder_setup.sh
-    # TODO: Add certificates to the keychain
     # TODO: Cache ruby deps
     # TODO: Cache...
     # - |
+      # export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
+      # export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
+      # export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
     #   export GOMODCACHE=~/gomodcache
     #   if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
     #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
@@ -239,22 +259,21 @@ new-agent_dmg-x64-a7:
       # TODO: Use dda
       inv check-go-version || exit 1
 
-    # TODO: Use setup version job
-    # - |
-      # echo Making agent version cache
-      # TODO: Necessary?
-      # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-      # export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+    - |
+      # Clean up previous builds
+      # TODO: Verify
+      ls /omnibus || true
+      sudo bash -c "rm -rf /var/cache/omnibus/src/* /omnibus/Gemfile.lock" || true
 
-    # +=========================+
-    # +--------- BUILD ---------+
-    # +=========================+
-    # TODO A: Move this to this script section
-    - bash .gitlab/package_build/build_script.sh
-    # +=========================+
-    # +----- NOTARIZATION ------+
-    # +=========================+
-    - !reference [.do_notarization]
+      # Set bundler install path to cached folder
+      pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
+
+      # Update the INTEGRATION_CORE_VERSION if requested
+      if [ -n "$INTEGRATIONS_CORE_REF" ]; then
+          export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
+      fi
+    - !reference [.macos_do_build]
+    - !reference [.macos_do_notarization]
     - |
       if [ "$SIGN" = true ]; then
         echo Built signed package
