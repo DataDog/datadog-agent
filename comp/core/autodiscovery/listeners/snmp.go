@@ -422,9 +422,12 @@ func (l *SNMPListener) initializeIPAuthenticationCounter() {
 }
 
 func (l *SNMPListener) checkPreviousIPs(deviceIP string) bool {
+	log.Debugf("Checking previous IPs for device %s", deviceIP)
+	log.Debugf("IPs counter: %v", l.ipsCounter.GetAll())
 	for ip, count := range l.ipsCounter.GetAll() {
+		log.Debugf("IP: %s, Count: %d", ip, count)
 		if count > 0 && minimumIP(ip, deviceIP) == ip {
-			log.Debugf("Device %s not yet discovered", deviceIP)
+			log.Debugf("Device %s not yet discovered while checking %s", ip, deviceIP)
 			return false
 		}
 	}
