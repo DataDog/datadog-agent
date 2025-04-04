@@ -9,6 +9,10 @@
     echo "To remove a Go version please run:"
     echo "gimme uninstall <version>"
 
+.macos_setup_python:
+  - |
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    python3 -m dda self dep sync -f legacy-tasks
 
 .vault_login:
   # Point the CLI to our internal vault
@@ -23,9 +27,6 @@
   before_script:
     - !reference [.aws_retry_config]
     # Set up python
-    - |
-      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-      python3 -m dda self dep sync -f legacy-tasks
     - !reference [.macos_setup_python]
     # Selecting the current Go version
     - |
