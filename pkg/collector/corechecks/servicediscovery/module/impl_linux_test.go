@@ -1084,6 +1084,7 @@ func TestMaxPortCheck(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
 	for i := 0; i < maxPortCheckTries-5; i++ {
