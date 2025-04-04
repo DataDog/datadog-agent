@@ -38,6 +38,7 @@ func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *syste
 }
 
 func TestFilterDevicesForContainer(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
