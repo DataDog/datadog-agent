@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet
 
 //nolint:revive // TODO(AML) Fix revive linter
 package tailers
@@ -17,24 +17,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 )
 
-// NOTE: once the docker launcher is removed, the inner Docker tailer can be
-// modified to suit the Tailer interface directly and to handle connection
-// failures on its own, and this wrapper will no longer be necessary.
-
-type DockerSocketTailer struct {
-	dockerutil containerTailerPkg.DockerContainerLogInterface
+type APITailer struct {
+	kubeUtil      kubelet.KubeUtilInterface
+	ContainerName string
+	PodName       string
+	PodNamespace  string
 	base
 }
 
-// NewDockerSocketTailer Creates a new docker socket tailer
-func NewDockerSocketTailer(dockerutil containerTailerPkg.DockerContainerLogInterface, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
-	return &DockerSocketTailer{
-		dockerutil: dockerutil,
+// NewAPITailer Creates a new API tailer
+func NewAPITailer(kubeutil kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *APITailer {
+	return &APITailer{
+		kubeUtil:      kubeutil,
+		ContainerName: containerName,
+		PodName:       podName,
+		PodNamespace:  podNamespace,
 		base: base{
 			ContainerID: containerID,
 			source:      source,
@@ -51,11 +54,14 @@ func NewDockerSocketTailer(dockerutil containerTailerPkg.DockerContainerLogInter
 
 // tryStartTailer tries to start the inner tailer, returning an erroredContainerID channel if
 // successful.
-func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
+func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, error) {
 	erroredContainerID := make(chan string)
-	inner := containerTailerPkg.NewDockerTailer(
-		t.dockerutil,
+	inner := containerTailerPkg.NewAPITailer(
+		t.kubeUtil,
 		t.ContainerID,
+		t.ContainerName,
+		t.PodName,
+		t.PodNamespace,
 		t.source,
 		t.pipeline,
 		erroredContainerID,
@@ -77,7 +83,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 }
 
 // Start implements Tailer#Start.
-func (t *DockerSocketTailer) Start() error {
+func (t *APITailer) Start() error {
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	t.stopped = make(chan struct{})
 	go t.run(t.tryStartTailer, t.base.stopTailer)
