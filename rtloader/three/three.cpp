@@ -61,7 +61,6 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     if (PyStatus_Exception(status)) {
         setError("Failed to set python home: " + std::string(status.err_msg));
         PyConfig_Clear(&_config);
-        return;
     }
 
     // Configure Python executable
@@ -69,14 +68,10 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
         status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set executable path: " + std::string(status.err_msg));
-            PyConfig_Clear(&_config);
-            return;
         }
         status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name: " + std::string(status.err_msg));
-            PyConfig_Clear(&_config);
-            return;
         }
     }
 }
