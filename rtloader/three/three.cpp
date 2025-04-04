@@ -48,7 +48,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
 
     status = Py_PreInitialize(&preconfig);
     if (PyStatus_Exception(status)) {
-        Py_ExitStatusException(status);
+        setError("Failed to pre-initialize Python: " + std::string(status.err_msg));
     }
 
     // Initialize the configuration with default values
@@ -67,6 +67,12 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     // Configure Python executable
     if (python_exe && strlen(python_exe) > 0) {
         status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set executable path: " + std::string(status.err_msg));
+            PyConfig_Clear(&_config);
+            return;
+        }
+        status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name: " + std::string(status.err_msg));
             PyConfig_Clear(&_config);
