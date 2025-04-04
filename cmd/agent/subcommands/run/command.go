@@ -147,7 +147,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -272,7 +271,7 @@ func run(log log.Component,
 	_ autoexit.Component,
 	settings settings.Component,
 	_ option.Option[gui.Component],
-	_ agenttelemetry.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 ) error {
 	defer func() {
@@ -338,6 +337,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		agenttelemetryComponent,
 	); err != nil {
 		return err
 	}
@@ -526,8 +526,14 @@ func startAgent(
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	agenttelemetryComponent agenttelemetry.Component,
 ) error {
 	var err error
+
+	span, _ := agenttelemetryComponent.StartStartupSpan("agent.startAgent")
+	defer func() {
+		span.Finish(err)
+	}()
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
@@ -548,20 +554,6 @@ func startAgent(
 	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-
-	// Start internal telemetry trace
-	span, ctx := installertelemetry.StartSpanFromContext(ctx, "agent.startup")
-	span.SetTag("agent_version", version.AgentVersion)
-	span.SetTag("agent_flavor", flavor.GetFlavor())
-	go func() {
-		timing := time.After(1 * time.Minute)
-		select {
-		case <-ctx.Done():
-			span.Finish(ctx.Err())
-		case <-timing:
-			span.Finish(err)
-		}
-	}()
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()

@@ -3,7 +3,7 @@
     "current_milestone": "7.66.0",
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.64.1"
+        "7": "7.64.2"
     },
     "nightly": {
         "OMNIBUS_RUBY_VERSION": "95630818722a63cb9e6f3163984f363d799633a1",

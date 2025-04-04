@@ -348,7 +348,7 @@ func installerCopy(path string) error {
 		return fmt.Errorf("failed to copy executable: %w", err)
 	}
 
-	err = destinationFile.Chmod(0750)
+	err = destinationFile.Chmod(0755)
 	if err != nil {
 		return fmt.Errorf("failed to set permissions on destination file: %w", err)
 	}

@@ -147,6 +147,8 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/create:
+    used_by_otel: true
   pkg/config/env:
     used_by_otel: true
   pkg/config/mock:

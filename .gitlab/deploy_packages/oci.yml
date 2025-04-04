@@ -17,6 +17,7 @@ include:
     - set +x
     - !reference [.retrieve_linux_go_tools_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
+    - VERSION_NO_PIPELINE="$(dda inv agent.version --url-safe | sed -E 's/\.pipeline(.*)//')-1" || exit $?
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - export PATH=$PATH:$(go env GOPATH)/bin
@@ -26,10 +27,12 @@ include:
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
     # Used for e2e tests
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION_NO_PIPELINE}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${CI_COMMIT_SHA}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} pipeline-${CI_PIPELINE_ID}
     # necessary for ddstaging until we deprecate `-dev` packaging
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${VERSION}
+    - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION_NO_PIPELINE}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} ${CI_COMMIT_SHA}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_STAGING_PACKAGE} pipeline-${CI_PIPELINE_ID}
   variables:

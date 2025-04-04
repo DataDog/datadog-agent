@@ -98,6 +98,7 @@ extensions:
     write_timeout: 0s
 processors:
   infraattributes/dd-autoconfigured:
+    allow_hostname_override: false
     cardinality: 0
     logs:
       log: []

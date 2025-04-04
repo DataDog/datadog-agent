@@ -8,12 +8,13 @@
 package setup
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // newTestConf generates and returns a new configuration
 func newTestConf() pkgconfigmodel.Config {
-	conf := newConfigChooseImpl("datadog")
+	conf := create.NewConfig("datadog")
 	InitConfig(conf)
 	conf.SetTestOnlyDynamicSchema(true)
 	conf.SetConfigFile("")

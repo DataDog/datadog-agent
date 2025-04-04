@@ -26,12 +26,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -251,33 +249,11 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func newConfigChooseImpl(name string) pkgconfigmodel.Config {
-	// Configure Datadog global configuration
-	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
-	// Possible values for DD_CONF_NODETREEMODEL:
-	// - "enable":    Use the nodetreemodel for the config, instead of viper
-	// - "tee":       Construct both viper and nodetreemodel. Write to both, only read from viper
-	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
-	//                nodetreemodel internals
-	// - other:       Use viper for the config
-	var cfg pkgconfigmodel.Config
-	if envvar == "enable" {
-		cfg = nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if envvar == "tee" {
-		viperImpl := viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeImpl := nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		cfg = teeconfig.NewTeeConfig(viperImpl, nodetreeImpl)
-	} else {
-		cfg = viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	}
-	return cfg
-}
-
 func init() {
 	osinit()
 
-	datadog = newConfigChooseImpl("datadog")
-	systemProbe = newConfigChooseImpl("system-probe")
+	datadog = create.NewConfig("datadog")
+	systemProbe = create.NewConfig("system-probe")
 
 	// Configuration defaults
 	initConfig()

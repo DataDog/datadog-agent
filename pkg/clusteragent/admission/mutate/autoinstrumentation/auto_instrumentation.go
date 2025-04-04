@@ -293,6 +293,8 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
 		// Take max(initContainer ressource)
+		maxInitContainerLimit := resource.Quantity{}
+		maxInitContainerRequest := resource.Quantity{}
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
 			if initContainerIsSidecar(c) {
@@ -301,19 +303,18 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				continue
 			}
 			if limit, ok := c.Resources.Limits[k]; ok {
-				existing := ressourceRequirement.Limits[k]
-				if limit.Cmp(existing) == 1 {
-					ressourceRequirement.Limits[k] = limit
+				if limit.Cmp(maxInitContainerLimit) == 1 {
+					maxInitContainerLimit = limit
 				}
 			}
 			if request, ok := c.Resources.Requests[k]; ok {
-				existing := ressourceRequirement.Requests[k]
-				if request.Cmp(existing) == 1 {
-					ressourceRequirement.Requests[k] = request
+				if request.Cmp(maxInitContainerRequest) == 1 {
+					maxInitContainerRequest = request
 				}
 			}
 		}
 
+		// Take sum(container resources) + sum(sidecar containers)
 		limitSum := resource.Quantity{}
 		reqSum := resource.Quantity{}
 		for i := range pod.Spec.Containers {
@@ -338,15 +339,24 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 			}
 		}
 
-		// Take max(sum(container resources) + sum(sidecar container resources))
-		existingLimit := ressourceRequirement.Limits[k]
-		if limitSum.Cmp(existingLimit) == 1 {
-			ressourceRequirement.Limits[k] = limitSum
+		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
+		if limitSum.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = limitSum
+		}
+		if reqSum.Cmp(maxInitContainerRequest) == 1 {
+			maxInitContainerRequest = reqSum
 		}
 
-		existingReq := ressourceRequirement.Requests[k]
-		if reqSum.Cmp(existingReq) == 1 {
-			ressourceRequirement.Requests[k] = reqSum
+		// Ensure that the limit is greater or equal to the request
+		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
+			maxInitContainerLimit = maxInitContainerRequest
+		}
+
+		if maxInitContainerLimit.CmpInt64(0) == 1 {
+			ressourceRequirement.Limits[k] = maxInitContainerLimit
+		}
+		if maxInitContainerRequest.CmpInt64(0) == 1 {
+			ressourceRequirement.Requests[k] = maxInitContainerRequest
 		}
 	}
 

@@ -25,7 +25,7 @@ func TestProfilingConfig(t *testing.T) {
 	cconfig.SetWithoutSource("internal_profiling.mutex_profile_fraction", 7)
 	cconfig.SetWithoutSource("internal_profiling.block_profile_rate", 10)
 	cconfig.SetWithoutSource("internal_profiling.enable_goroutine_stacktraces", true)
-	settings := profilingConfig(tconfig)
+	settings := profilingConfig(tconfig, false)
 	assert.NotNil(t, settings)
 	assert.Equal(t, settings.ProfilingURL, "https://intake.profile.datadoghq.com/v1/input")
 	assert.Equal(t, settings.Tags[0:2], []string{"k1:v1", "k2:v2"})

@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type linuxAPIKeyRefreshSuite struct {
@@ -73,4 +74,94 @@ api_key: ENC[api_key]
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	assert.NoError(v.T(), err)
 	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+}
+
+func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
+	// Define the API keys before and after refresh
+	oldEnding := "12345"
+	initialAPIKeys := map[string]string{
+		"api_key": "key1old" + oldEnding,
+		"apikey2": "key2old" + oldEnding,
+		"apikey3": "key3old" + oldEnding,
+		"apikey4": "key4old" + oldEnding,
+	}
+
+	updatedEnding := "54321"
+	updatedAPIKeys := map[string]string{
+		"api_key": "key1new" + updatedEnding,
+		"apikey2": "key2new" + updatedEnding,
+		"apikey3": "key3new" + updatedEnding,
+		"apikey4": "key4new" + updatedEnding,
+	}
+
+	// Define the agent config with additional endpoints
+	config := `secret_backend_command: /tmp/secret.py
+secret_backend_arguments:
+  - /tmp
+api_key: ENC[api_key]
+additional_endpoints:
+  "intake":
+    - ENC[apikey2]
+    - ENC[apikey3]
+  "api/v2/series":
+    - ENC[apikey4]
+`
+
+	// Create a secret client to manage secrets
+	secretClient := secrets.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
+
+	// Set initial secrets in the backend
+	for key, value := range initialAPIKeys {
+		secretClient.SetSecret(key, value)
+	}
+
+	// Deploy the agent with the initial secrets
+	v.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				secrets.WithUnixSetupScript("/tmp/secret.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+				agentparams.WithAgentConfig(config),
+			),
+		),
+	)
+
+	// Verify initial API keys in status
+	status := v.Env().Agent.Client.Status()
+
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assert.Contains(t, status.Content, "API key ending with 12345")
+		assert.Contains(t, status.Content, `intake - API Keys ending with:
+      - 12345`)
+		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
+      - 12345`)
+	}, 1*time.Minute, 10*time.Second)
+
+	// Update secrets in the backend
+	for key, value := range updatedAPIKeys {
+		secretClient.SetSecret(key, value)
+	}
+
+	// Refresh secrets in the agent
+	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+
+	require.Contains(v.T(), secretRefreshOutput, "api_key")
+	assert.Contains(v.T(), secretRefreshOutput, "Number of secrets reloaded: 4")
+	assert.Contains(v.T(), secretRefreshOutput, "Secrets handle reloaded:")
+	assert.Contains(v.T(), secretRefreshOutput, "- 'api_key':\n\tused in 'datadog.yaml' configuration in entry 'api_key'")
+	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey2':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/0'")
+	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey3':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/intake/1'")
+	assert.Contains(v.T(), secretRefreshOutput, "- 'apikey4':\n\tused in 'datadog.yaml' configuration in entry 'additional_endpoints/api/v2/series/0'")
+
+	// Verify that the new API keys appear in status
+	status = v.Env().Agent.Client.Status()
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		// Check main API key
+		assert.Contains(t, status.Content, "API key ending with 54321")
+
+		assert.Contains(t, status.Content, `intake - API Keys ending with:
+      - 54321`)
+		assert.Contains(t, status.Content, `api/v2/series - API Key ending with:
+      - 54321`)
+	}, 1*time.Minute, 10*time.Second)
 }
