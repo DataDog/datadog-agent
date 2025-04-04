@@ -127,4 +127,14 @@ const (
 	// Response: Service sampling rates (see description in v04).
 	//
 	V07 Version = "v0.7"
+
+	// V10 API - Version 1.0
+	//
+	// Request: Tracer Payload.
+	// 	Content-Type: application/msgpack
+	// 	Payload: TracerPayload (pkg/proto/datadog/trace/tracer_payload.proto)
+	//
+	// Response: Service sampling rates (see description in v04).
+	//
+	V10 Version = "v1.0"
 )
