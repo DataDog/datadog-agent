@@ -43,7 +43,7 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
 			config := configmock.New(t)
-			auditor := auditor.NewNullAuditor()
+			auditor := auditor.NewAuditor()
 			destinations := &client.Destinations{}
 			destFactory := func() *client.Destinations { return destinations }
 			bufferSize := 100
