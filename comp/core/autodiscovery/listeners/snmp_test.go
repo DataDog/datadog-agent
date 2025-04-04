@@ -107,6 +107,8 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		config:   snmpListenerConfig,
 	}
 
+	l.ipsAuthenticationCounter = map[string]int{}
+
 	l.Listen(newSvc, delSvc)
 
 	subnets := make(map[string]bool)
