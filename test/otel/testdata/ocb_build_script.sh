@@ -128,6 +128,7 @@ required_patterns=(
 	'health_check/dd-autoconfigured'
 	'pprof/dd-autoconfigured'
 	'zpages/dd-autoconfigured'
+	'infraattributes'
 )
 
 if ! "$WORK_DIR/retry.sh" curl -k https://localhost:7777 >flare-info.log 2>&1; then

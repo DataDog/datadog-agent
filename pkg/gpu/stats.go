@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +43,7 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers *streamCollection, 
 }
 
 func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry {
-	subsystem := gpuTelemetryModule + "__stats_generator"
+	subsystem := consts.GpuTelemetryModule + "__stats_generator"
 	return &statsGeneratorTelemetry{
 		aggregators: tm.NewGauge(subsystem, "aggregators", nil, "Number of active GPU stats aggregators"),
 	}
