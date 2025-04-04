@@ -8,7 +8,7 @@
 package priviledged
 
 import (
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // GetLinuxDmesg returns the dmesg output from the system probe

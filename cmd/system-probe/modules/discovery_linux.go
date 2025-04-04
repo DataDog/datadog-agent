@@ -6,9 +6,9 @@
 package modules
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	discoverymodule "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // DiscoveryModule is the discovery module factory.

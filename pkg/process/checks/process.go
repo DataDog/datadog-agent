@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

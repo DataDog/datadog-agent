@@ -10,10 +10,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func restartModuleHandler(w http.ResponseWriter, r *http.Request, deps module.FactoryDependencies) {

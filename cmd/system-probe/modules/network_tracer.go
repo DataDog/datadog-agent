@@ -21,9 +21,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -36,6 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

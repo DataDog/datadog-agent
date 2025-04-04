@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build !linux
 
 package module
 
 import (
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Factory encapsulates the initialization of a Module
@@ -16,6 +16,4 @@ type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
 	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
-	NeedsEBPF        func() bool
-	OptionalEBPF     bool
 }

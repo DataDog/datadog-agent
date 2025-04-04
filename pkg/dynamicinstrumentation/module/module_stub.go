@@ -11,8 +11,8 @@
 package module
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 //nolint:revive // TODO(DEBUG) Fix revive linter

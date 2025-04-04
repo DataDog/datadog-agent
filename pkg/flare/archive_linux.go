@@ -10,11 +10,11 @@ package flare
 import (
 	"path/filepath"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {

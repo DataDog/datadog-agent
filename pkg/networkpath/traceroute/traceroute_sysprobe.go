@@ -10,8 +10,8 @@ package traceroute
 import (
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 

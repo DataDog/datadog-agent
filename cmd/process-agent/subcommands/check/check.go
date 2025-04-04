@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

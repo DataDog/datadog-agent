@@ -11,8 +11,8 @@ package modules
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 )

@@ -16,8 +16,8 @@ import (
 	"regexp"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"

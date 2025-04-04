@@ -11,11 +11,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	dimod "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into

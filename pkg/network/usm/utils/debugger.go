@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"sync"
 
-	otherutils "github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	otherutils "github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
 // Attacher is the interface that represents a PID attacher/detacher.

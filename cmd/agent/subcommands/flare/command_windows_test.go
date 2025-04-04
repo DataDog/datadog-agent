@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sysprobeserver "github.com/DataDog/datadog-agent/cmd/system-probe/api/server"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	sysprobeserver "github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
 const (

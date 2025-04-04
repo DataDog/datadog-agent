@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_linux_mock.go

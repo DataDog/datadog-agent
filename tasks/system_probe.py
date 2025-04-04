@@ -56,7 +56,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
     "./pkg/gpu/...",
-    "./cmd/system-probe/config/...",
+    "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)

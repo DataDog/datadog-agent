@@ -17,15 +17,12 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-
-	//nolint:revive // TODO(PROC) Fix revive linter
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -103,7 +100,7 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Since(start)}
+	args := []interface{}{string(config.ProcessModule), count, statsCount, time.Since(start)}
 	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -123,7 +120,7 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
-	log.Tracef("/%s/stats: %d stats, %d bytes", string(sysconfig.ProcessModule), len(stats), len(buf))
+	log.Tracef("/%s/stats: %d stats, %d bytes", string(config.ProcessModule), len(stats), len(buf))
 }
 
 func getPids(r *http.Request) ([]int32, error) {

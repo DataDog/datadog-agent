@@ -17,12 +17,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
