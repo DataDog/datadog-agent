@@ -39,7 +39,6 @@ CORE_AGENT_LINUX_IT_CONF = IntegrationTestsConfig(
     go_build_tags=get_default_build_tags(build="test"),
     tests=[
         IntegrationTest(prefix="./test/integration/config_providers/..."),
-        IntegrationTest(prefix="./test/integration/listeners/..."),
     ],
     is_windows_supported=False,
 )

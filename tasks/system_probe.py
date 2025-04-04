@@ -84,7 +84,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
@@ -120,7 +119,6 @@ def ninja_define_ebpf_compiler(
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
-    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -133,22 +131,22 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command=f"{compiler} -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
-    strip = "&& llvm-strip -g $out" if strip_object_files else ""
+    strip = "&& /opt/datadog-agent/embedded/bin/llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compiler: str = "clang"):
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
-        command=f"{compiler} -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -509,6 +507,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
+                "pkg/network/ebpf/c/protocols/kafka/defs.h",
             ],
             "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
@@ -548,6 +547,8 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/gpu/ebpf/c/types.h",
             ],
         }
+        # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
+        # It is only generating cgo type definitions and changes are reviewed, so risk is low
         nw.rule(
             name="godefs",
             pool="cgo_pool",
@@ -595,7 +596,6 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
-    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -626,10 +626,8 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(
-                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
-            )
-            ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
@@ -659,22 +657,30 @@ def build_libpcap(ctx):
     lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
     ctx.run(f"rm -rf {lib_dir}")
     with ctx.cd(dist_dir):
+        # TODO check the checksum of the download before using
         ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
-        config_opts = [
-            f"--prefix={embedded_path}",
-            "--disable-shared",
-            "--disable-largefile",
-            "--disable-instrument-functions",
-            "--disable-remote",
-            "--disable-usb",
-            "--disable-netmap",
-            "--disable-bluetooth",
-            "--disable-dbus",
-            "--disable-rdma",
-        ]
-        ctx.run(f"./configure {' '.join(config_opts)}")
-        ctx.run("make install")
+        env = {}
+        # TODO cross-compile?
+        if os.getenv('DD_CC'):
+            env['CC'] = os.getenv('DD_CC')
+        if os.getenv('DD_CXX'):
+            env['CXX'] = os.getenv('DD_CXX')
+        with environ(env):
+            config_opts = [
+                f"--prefix={embedded_path}",
+                "--disable-shared",
+                "--disable-largefile",
+                "--disable-instrument-functions",
+                "--disable-remote",
+                "--disable-usb",
+                "--disable-netmap",
+                "--disable-bluetooth",
+                "--disable-dbus",
+                "--disable-rdma",
+            ]
+            ctx.run(f"./configure {' '.join(config_opts)}")
+            ctx.run("make install")
     ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
@@ -714,7 +720,6 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    ebpf_compiler='clang',
     static=False,
     fips_mode=False,
 ):
@@ -730,7 +735,6 @@ def build(
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
             bundle_ebpf=bundle_ebpf,
-            ebpf_compiler=ebpf_compiler,
         )
 
     build_sysprobe_binary(
@@ -1377,7 +1381,6 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
@@ -1390,7 +1393,6 @@ def run_ninja(
         strip_object_files,
         kernel_release,
         with_unit_test,
-        ebpf_compiler=ebpf_compiler,
     )
     explain_opt = "-d explain" if explain else ""
     if task:
@@ -1426,6 +1428,7 @@ def setup_runtime_clang(
     runtime_binaries = {
         "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
         "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
+        "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
     }
 
     for binary, meta in runtime_binaries.items():
@@ -1458,28 +1461,11 @@ def setup_runtime_clang(
             continue
 
         # download correct version from dd-agent-omnibus S3 bucket
-        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}{clang_build_version}"
+        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}.{clang_build_version}"
         binary_path = target_dir / binary
         print(f"'{binary}' downloading...")
         ctx.run(f"{sudo} wget -nv {binary_url} -O {binary_path}")
         ctx.run(f"{sudo} chmod 0755 {binary_path}")
-
-
-def verify_system_clang_version(ctx):
-    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
-        return
-
-    clang_res = ctx.run("clang --version", warn=True)
-    clang_version_str = ""
-    if clang_res.ok:
-        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
-        version_index = clang_version_parts.index("version")
-        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
-
-    if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
-        raise Exit(
-            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
-        )
 
 
 @task
@@ -1525,21 +1511,13 @@ def build_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
-        verify_system_clang_version(ctx)
-        # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
-
-        if strip_object_files:
-            print("checking for llvm-strip...")
-            ctx.run("which llvm-strip")
-
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
@@ -1553,7 +1531,6 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
-        ebpf_compiler=ebpf_compiler,
     )
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
@@ -1601,7 +1578,6 @@ def build_cws_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1611,7 +1587,6 @@ def build_cws_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
-        ebpf_compiler=ebpf_compiler,
     )
 
 

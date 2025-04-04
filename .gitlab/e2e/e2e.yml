@@ -504,6 +504,7 @@ new-e2e-installer-script:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
+    - deploy_agent_oci
     - qa_installer_script_linux
   variables:
     TARGETS: ./tests/installer/script
@@ -867,7 +868,7 @@ generate-fips-e2e-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
-    # - !reference [.on_deploy_nightly_repo_branch] # TODO: Should be kept manual until all the FIPS tests are passing
+    - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
     - compute_gitlab_ci_config
@@ -900,7 +901,7 @@ trigger-fips-e2e:
   needs: [generate-fips-e2e-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
-    # - !reference [.on_deploy_nightly_repo_branch] # TODO: Should be kept manual until all the FIPS tests are passing
+    - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID

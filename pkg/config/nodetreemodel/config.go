@@ -489,18 +489,15 @@ func (c *ntmConfig) isReady() bool {
 func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
 	envWarnings := []string{}
-	for _, e := range os.Environ() {
-		pair := strings.SplitN(e, "=", 2)
-		if len(pair) != 2 {
-			continue
-		}
-		envkey := pair[0]
-		envval := pair[1]
 
-		if configKeyList, found := c.configEnvVars[envkey]; found {
-			for _, configKey := range configKeyList {
-				if err := c.insertNodeFromString(root, configKey, envval); err != nil {
+	for configKey, listEnvVars := range c.configEnvVars {
+		for _, envVar := range listEnvVars {
+			if value, ok := os.LookupEnv(envVar); ok {
+				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+				} else {
+					// Stop looping since we set the config key with the value of the highest precedence env var
+					break
 				}
 			}
 		}
@@ -694,7 +691,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[envvar] = append(c.configEnvVars[envvar], key)
+		c.configEnvVars[key] = append(c.configEnvVars[key], envvar)
 	}
 
 	c.addToSchema(key, model.SourceEnvVar)
@@ -908,8 +905,8 @@ func (c *ntmConfig) Object() model.Reader {
 	return c
 }
 
-// NewConfig returns a new Config object.
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+// NewNodeTreeConfig returns a new Config object.
+func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
