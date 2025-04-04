@@ -464,9 +464,7 @@ class GithubAPI:
         """
         Get the members of a team.
         """
-        assert self._organization
-        org = self._github.get_organization(self._organization)
-        team = org.get_team_by_slug(team_slug)
+        team = self.get_team(team_slug)
         return team.get_members()
 
     def get_team(self, team_slug: str):
@@ -474,7 +472,8 @@ class GithubAPI:
         Get the team object.
         """
         assert self._organization
-        return self._organization.get_team_by_slug(team_slug)
+        org = self._github.get_organization(self._organization)
+        return org.get_team_by_slug(team_slug)
 
     def search_issues(self, query: str):
         """

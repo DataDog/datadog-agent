@@ -707,88 +707,104 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
 
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.slack import header_block, markdown_block
 
     if check == PermissionCheck.TEAM:
         gh = GithubAPI()
         root = gh.get_team(name)
         depth = None
+        admins = root.get_members(role='maintainer')
     else:
         gh = GithubAPI(f"datadog/{name}")
         root = gh._repository
         depth = 1
+        admins = [
+            c for c in root.get_collaborators(affiliation='direct') if root.get_collaborator_permission(c) == 'admin'
+        ]
 
     all_teams = gh.find_teams(
         root,
         # exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
-        exclude_permissions=['pull'],
+        # exclude_permissions=['pull'],
         depth=depth,
     )
-    print(f"Found {len(all_teams)} teams")
-    idle_teams = []
-    idle_contributors = defaultdict(set)
-    active_users = gh.get_active_users(duration_days=90)
-    print(f"Checking permissions for {name}, {len(active_users)} active users")
-    for team in all_teams:
-        members = gh.get_direct_team_members(team.slug)
-        has_contributors = False
-        for member in members:
-            if member not in active_users:
-                idle_contributors[team.name].add(member)
-            else:
-                has_contributors = True
-        if not has_contributors:
-            idle_teams.append((team.name, team.html_url))
+    message = f":github: {name} permissions check\n"
+    blocks = [header_block(message)]
+    # Add teams to the message and blocks
+    teams = [f" - <{team.html_url}|{team.slug}>: {permission_str(name, check, team)}\n" for team in all_teams]
+    block = f"Teams:\n{''.join(teams)}"
+    blocks.append(markdown_block(block))
+    message += block
+    # Add admins to the message and blocks
+    admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
+    block = f"Admins:\n{''.join(admins)}"
+    blocks.append(markdown_block(block))
+    message += block
 
-    print(f"Idle teams: {idle_teams}, idle contributors {idle_contributors}")
-    if idle_teams or idle_contributors:
-        from slack_sdk import WebClient
+    if check == PermissionCheck.TEAM:
+        non_contributing_teams = []
+        idle_contributors = defaultdict(set)
+        contributors = 'agent-contributors'
+        contributors_to_remove = []
+        membership = defaultdict(list)
+        active_users = gh.get_active_users(duration_days=10)
+        print(f"Checking permissions for {name}, {len(active_users)} active users")
+        for team in all_teams:
+            members = gh.get_direct_team_members(team.slug)
+            has_contributors = False
+            for member in members:
+                if member not in active_users:
+                    membership[member].append(f"<{team.html_url}|{team.name}>")
+                    if team.slug == contributors:
+                        contributors_to_remove.append(member)
+                else:
+                    has_contributors = True
+            if not has_contributors:
+                non_contributing_teams.append(f"<{team.html_url}|{team.slug}>")
 
-        client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
-        header = f":github: {name} permissions check\n"
-        blocks = [
-            {
-                "type": "header",
-                "text": {"type": "plain_text", "text": header},
-            },
-        ]
-        message = header
-        if idle_teams:
-            teams = [f" - <{team[1]}|{team[0]}>\n" for team in idle_teams]
-            message += f"Teams:\n{''.join(teams)}"
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"Teams with no contributors:\n{''.join(teams)}"},
-                }
-            )
+        # print(f"Non contributing teams: {non_contributing_teams}")
+        # print(f"Contributors to remove {contributors_to_remove}")
+        # print(f"Members to assess: {membership.keys()}")
+        if non_contributing_teams:
+            teams = [f" - {team}\n" for team in non_contributing_teams]
+            block = f"Non contributing teams:\n{''.join(teams)}"
+            blocks.append(markdown_block(block))
+            message += block
+
+        if len(contributors_to_remove):
+            block = f"Non contributors to remove from <https://github.com/orgs/DataDog/teams/{contributors}|{contributors}> team:\n{','.join(contributors_to_remove)}"
+            blocks.append(markdown_block(block))
+            message += block
         if idle_contributors:
-            message += f"Contributors: {idle_contributors}\n"
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": "Users with no contribution:\n"},
-                }
-            )
-            for team, members in idle_contributors.items():
-                blocks.append(
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f" - <https://github.com/orgs/DataDog/teams/{team}|{team}>: {', '.join(members)}",
-                        },
-                    }
-                )
-        blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"Please check the `{name}` <https://github.com/DataDog/{name}/settings/access|settings>.",
-                },
-            }
-        )
-        MAX_BLOCKS = 50
-        for idx in range(0, len(blocks), MAX_BLOCKS):
-            client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
-        print("Message sent to slack")
+            block = "Non contributors to assess:\n"
+            blocks.append(markdown_block(block))
+            message += block
+            for member, teams in membership.items():
+                block = f" - {member} :[{', '.join(teams)}]\n"
+                blocks.append(markdown_block(block))
+                message += block
+    # Send message to slack
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    print(message)
+    print(blocks)
+    MAX_BLOCKS = 50
+    for idx in range(0, len(blocks), MAX_BLOCKS):
+        client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+
+
+def permission_str(name, check, team):
+    target = f"datadog/{name}" if check == PermissionCheck.REPO else "datadog/datadog-agent"
+    team_permission = team.get_repo_permission(target)
+    if team_permission is None:
+        return 'none'
+    if team_permission.admin:
+        return 'admin'
+    if team_permission.maintain:
+        return 'maintain'
+    if team_permission.push:
+        return 'write'
+    if team_permission.pull:
+        return 'read'
+    return 'triage'
