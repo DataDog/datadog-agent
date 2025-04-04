@@ -91,6 +91,12 @@ func (s *sackDriver) Close() {
 	s.icmpConn.Close()
 }
 
+func (s *sackDriver) GetDriverInfo() common.TracerouteDriverInfo {
+	return common.TracerouteDriverInfo{
+		UsesReceiveICMPProbe: true,
+	}
+}
+
 func (s *sackDriver) SendProbe(ttl uint8) error {
 	if !s.IsHandshakeFinished() {
 		return fmt.Errorf("sackDriver hasn't finished ReadHandshake()")
