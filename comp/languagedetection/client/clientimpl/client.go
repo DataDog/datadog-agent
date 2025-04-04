@@ -300,6 +300,12 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	process := processEvent.Entity.(*workloadmeta.Process)
 
+	var lang = "nil"
+	if process.Language != nil {
+		lang = string(process.Language.Name)
+	}
+	c.logger.Debugf("received process set event for pid %q with cid %q and languages %v", process.ID, process.ContainerID, lang)
+
 	if process.ContainerID == "" {
 		c.logger.Debugf("no container id detected for process %s", process.ID)
 		return

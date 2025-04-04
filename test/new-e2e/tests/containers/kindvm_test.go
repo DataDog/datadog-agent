@@ -28,7 +28,7 @@ clusterAgent:
     envDict:
         DD_LOG_LEVEL: TRACE
 datadog:
-    logLevel: DEBUG
+    logLevel: TRACE
 `
 
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
