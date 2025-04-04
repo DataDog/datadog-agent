@@ -2,6 +2,8 @@
 
 retry_count=0
 max_retries=10
+# TODO A
+max_retries=1
 parameter_name="$1"
 parameter_field="$2"
 
@@ -19,9 +21,11 @@ while [[ $retry_count -lt $max_retries ]]; do
     fi
     error=$(<errorFile)
     if [ -n "$result" ]; then
+        echo "OK $parameter_name $parameter_field" >&2
         echo "$result"
         exit 0
     fi
+    echo "ERROR: $error" >&2
     if [[ "$error" =~ "Unable to locate credentials" ]]; then
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
         >&2 echo "Permanent error: unable to locate credentials, not retrying"

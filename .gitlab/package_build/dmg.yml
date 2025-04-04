@@ -112,20 +112,21 @@ new-agent_dmg-x64-a7:
   after_script:
     - sudo umount /Volumes/Agent || true
   script:
-    - set -euo pipefail
+    - set -eo pipefail
 
     - brew uses gettext --installed || true
-
-    # - !reference [.setup_signing]
 
     # TODO A: Remove
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
-    - NCPU="$(sysctl -n hw.ncpu)"
     - |
       export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
       export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
+      export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
+      export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
+      export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
+      export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
 
     # Setup
     - |
@@ -151,8 +152,12 @@ new-agent_dmg-x64-a7:
     # - |
     #   export OMNIBUS_BASE_DIR="$PWD/omnibus_build"
     #   mkdir -p "$OMNIBUS_BASE_DIR/pkg"
-    - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
-    - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
+
+    # - !reference [.setup_signing]
+
+    - |
+      rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
+      mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # Omnibus TODO: Useless?
     - |
       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
@@ -206,5 +211,32 @@ new-agent_dmg-x64-a7:
     # +=========================+
     # TODO A: Move this to this script section
     - bash .gitlab/package_build/build_script.sh
-    # TODO: Other things...
+    # +=========================+
+    # +----- NOTARIZATION ------+
+    # +=========================+
+    - |
+      echo Doing notarization
+      export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
+      unset LATEST_DMG
+
+      # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
+      for file in "$GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg"/*.dmg; do
+        if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
+      done
+
+      echo "File to upload: $LATEST_DMG"
+
+      # Send package for notarization; retrieve REQUEST_UUID
+      echo "Sending notarization request."
+
+      RESULT=$(xcrun notarytool submit --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
+      echo "Results: $RESULT"
+      SUBMISSION_ID=$(echo "$RESULT" | awk '$1 == "id:"{print $2; exit}')
+      echo "Submission ID: $SUBMISSION_ID"
+      echo "Submission logs:"
+      xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+      if [ -n "$EXIT_CODE" ]; then
+        # Once we have some logs, propagate potential failures
+        exit $EXIT_CODE
+      fi
     - echo Done
