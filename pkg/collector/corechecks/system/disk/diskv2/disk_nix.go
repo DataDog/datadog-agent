@@ -59,6 +59,10 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 			log.Debugf("skipping malformed line: '%s'", line)
 			continue
 		}
+		if len(label) == 0 {
+			log.Debugf("skipping empty label: '%s'", line)
+			continue
+		}
 		device = "/dev/" + device
 		c.deviceLabels[device] = label
 	}
