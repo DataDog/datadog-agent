@@ -141,6 +141,15 @@ func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) ma
 			// For slice types, use convertSlice helper which already exists
 			if uint(capture.Kind) == uint(reflect.Slice) {
 				args[argName] = convertSlice(capture, definition)
+			} else if uint(capture.Kind) == uint(reflect.Array) {
+				//FIXME: this should be optimized to avoid O(n^2) assignment for every event
+				t := convertArgs(definition.ParameterPieces, capture.Fields)
+				ts := []ditypes.CapturedValue{}
+				for i := range t {
+					ts = append(ts, *t[i])
+				}
+				cv.Elements = ts
+				args[argName] = cv
 			} else {
 				// For struct types, recursively process fields
 				cv.Fields = convertArgs(definition.ParameterPieces, capture.Fields)
