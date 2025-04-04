@@ -8,6 +8,7 @@ package eval
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -1489,6 +1490,43 @@ func TestArithmeticOperation(t *testing.T) {
 	}
 }
 
+func decorateRuleExpr(m *MatchingSubExpr, expr string, before, after string) (string, error) {
+	a, b := m.ValueA.getPosWithinRuleExpr(expr, m.Offset), m.ValueB.getPosWithinRuleExpr(expr, m.Offset)
+
+	if a.Offset+a.Length > len(expr) || b.Offset+b.Length > len(expr) {
+		return expr, errors.New("expression overflow")
+	}
+
+	if b.Offset < a.Offset {
+		tmp := b
+		b = a
+		a = tmp
+	}
+
+	if a.Length == 0 {
+		return expr[:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after + expr[b.Offset+b.Length:], nil
+	}
+
+	if b.Length == 0 {
+		return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after + expr[a.Offset+a.Length:], nil
+	}
+
+	return expr[0:a.Offset] + before + expr[a.Offset:a.Offset+a.Length] + after +
+		expr[a.Offset+a.Length:b.Offset] + before + expr[b.Offset:b.Offset+b.Length] + after +
+		expr[b.Offset+b.Length:], nil
+}
+
+func decorateRuleExprs(m *MatchingSubExprs, expr string, before, after string) (string, error) {
+	var err error
+	for _, mse := range *m {
+		expr, err = decorateRuleExpr(&mse, expr, before, after)
+		if err != nil {
+			return expr, err
+		}
+	}
+	return expr, nil
+}
+
 func TestMatchingSubExprs(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
@@ -1568,7 +1606,7 @@ func TestMatchingSubExprs(t *testing.T) {
 
 			subExprs := ctx.GetMatchingSubExprs()
 
-			decorated, err := subExprs.DecorateRuleExpr(test.Expr, "<b>", "</b>")
+			decorated, err := decorateRuleExprs(&subExprs, test.Expr, "<b>", "</b>")
 			if test.Expected != decorated {
 				t.Errorf("rule decoration error : %s vs %s => %v : %v", test.Expected, decorated, res, err)
 			}
