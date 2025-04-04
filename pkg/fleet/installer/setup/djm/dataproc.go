@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	dataprocInjectorVersion   = "0.35.0-1"
-	dataprocJavaTracerVersion = "1.47.0-1"
+	dataprocInjectorVersion   = "0.36.0-1"
+	dataprocJavaTracerVersion = "1.48.0-1"
 	dataprocAgentVersion      = "7.63.3-1"
 )
 
