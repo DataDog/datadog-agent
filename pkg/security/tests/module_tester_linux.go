@@ -104,6 +104,9 @@ event_monitoring_config:
     - {{.}}
   {{end}}
 
+  span_tracking:
+    enabled: true
+
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
