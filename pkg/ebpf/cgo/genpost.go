@@ -46,6 +46,7 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	int8variableNames := []string{
 		"Buf",
 		"Cgroup",
+		"Prev_cgroup_name",
 		"Cgroup_name",
 		"LocalAddr",
 		"LocalAddress",

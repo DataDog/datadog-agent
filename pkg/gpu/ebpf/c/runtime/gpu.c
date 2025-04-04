@@ -20,7 +20,7 @@
 
 #include "types.h"
 
-BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
+BPF_RINGBUF_MAP(cuda_events, 0);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
