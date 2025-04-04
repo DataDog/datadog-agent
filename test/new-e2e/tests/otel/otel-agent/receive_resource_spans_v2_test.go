@@ -21,7 +21,7 @@ type otelAgentSpanReceiverV2TestSuite struct {
 }
 
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
@@ -32,7 +32,7 @@ agents:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'false'
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &otelAgentSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }

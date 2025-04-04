@@ -27,12 +27,12 @@ type iaTestSuite struct {
 var iaConfig string
 
 func TestOTelAgentIA(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
