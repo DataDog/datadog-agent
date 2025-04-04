@@ -22,10 +22,11 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
-func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
+func setupMetricClient(t *testing.T) (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
 	reader := metric.NewManualReader()
 	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
-	metricClient := metricsclient.InitializeMetricClient(meterProvider, metricsclient.ExporterSourceTag)
+	metricClient, err := metricsclient.InitializeMetricClient(meterProvider, metricsclient.ExporterSourceTag)
+	require.NoError(t, err)
 	timingReporter := timing.New(metricClient)
 	return reader, metricClient, timingReporter
 }
@@ -36,7 +37,7 @@ func TestTraceAgentConfig(t *testing.T) {
 	require.True(t, cfg.ReceiverEnabled)
 
 	out := make(chan *pb.StatsPayload)
-	_, metricClient, timingReporter := setupMetricClient()
+	_, metricClient, timingReporter := setupMetricClient(t)
 	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
 	require.False(t, cfg.ReceiverEnabled)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
@@ -65,7 +66,7 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
-	_, metricClient, timingReporter := setupMetricClient()
+	_, metricClient, timingReporter := setupMetricClient(t)
 	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
