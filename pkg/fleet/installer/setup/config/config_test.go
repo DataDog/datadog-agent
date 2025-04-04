@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package common
+package config
 
 import (
 	"os"
@@ -21,7 +21,7 @@ func TestEmptyConfig(t *testing.T) {
 	config := Config{}
 	config.DatadogYAML.APIKey = "1234567890" // Required field
 
-	err := writeConfigs(config, tempDir)
+	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
@@ -56,7 +56,7 @@ env: "old_env"
 	config.DatadogYAML.Hostname = "new_hostname"
 	config.DatadogYAML.LogsEnabled = true
 
-	err = writeConfigs(config, tempDir)
+	err = WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
@@ -88,7 +88,7 @@ func TestInjectTracerConfig(t *testing.T) {
 		},
 	}
 
-	err := writeConfigs(config, tempDir)
+	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check inject/tracer.yaml
@@ -135,7 +135,7 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 		},
 	}
 
-	err := writeConfigs(config, tempDir)
+	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check spark.d/kebabricks.yaml
@@ -165,4 +165,32 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 			},
 		},
 	}, spark)
+}
+
+func TestApplicationMonitoring(t *testing.T) {
+	tempDir := t.TempDir()
+	config := Config{
+		ApplicationMonitoringYAML: &ApplicationMonitoringConfig{
+			Default: APMConfigurationDefault{
+				TraceDebug:             BoolToPtr(true),
+				DataJobsEnabled:        BoolToPtr(true),
+				IntegrationsEnabled:    BoolToPtr(false),
+				DataJobsCommandPattern: "I am a string",
+			},
+		},
+	}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	// Check application_monitoring.yaml
+	configPath := filepath.Join(tempDir, "application_monitoring.yaml")
+	assert.FileExists(t, configPath)
+	configYAML, err := os.ReadFile(configPath)
+	assert.NoError(t, err)
+	cfgres := ApplicationMonitoringConfig{}
+	err = yaml.Unmarshal(configYAML, &cfgres)
+	assert.NoError(t, err)
+
+	assert.Equal(t, *config.ApplicationMonitoringYAML, cfgres)
 }
