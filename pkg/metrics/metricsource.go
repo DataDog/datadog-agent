@@ -365,6 +365,7 @@ const (
 	// Serverless
 	MetricSourceAwsLambda
 	MetricSourceAzureContainerApp
+	MetricSourceAzureAppService
 	MetricSourceGoogleCloudRun
 )
 

@@ -1586,6 +1586,12 @@ func TestGetMetricSourceFromTag(t *testing.T) {
 			expectedSource: metrics.MetricSourceAzureContainerApp,
 		},
 		{
+			name:           "Azure App Service",
+			currentSource:  metrics.MetricSourceDogstatsd,
+			tag:            "origin:appservice",
+			expectedSource: metrics.MetricSourceAzureAppService,
+		},
+		{
 			name:           "Google Cloud Run",
 			currentSource:  metrics.MetricSourceDogstatsd,
 			tag:            "origin:cloudrun",

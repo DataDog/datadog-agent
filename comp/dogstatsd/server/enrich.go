@@ -25,6 +25,7 @@ var (
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 	// Serverless
 	functionArnTagPrefix = "function_arn:"
+	appServiceTag        = "origin:appservice"
 	containerAppTag      = "origin:containerapp"
 	cloudRunTag          = "origin:cloudrun"
 )
@@ -87,6 +88,8 @@ func getMetricSourceFromTag(metricSource metrics.MetricSource, tag string) metri
 		metricSource = metrics.JMXCheckNameToMetricSource(checkName)
 	} else if strings.HasPrefix(tag, functionArnTagPrefix) {
 		metricSource = metrics.MetricSourceAwsLambda
+	} else if tag == appServiceTag {
+		metricSource = metrics.MetricSourceAzureAppService
 	} else if tag == containerAppTag {
 		metricSource = metrics.MetricSourceAzureContainerApp
 	} else if tag == cloudRunTag {
