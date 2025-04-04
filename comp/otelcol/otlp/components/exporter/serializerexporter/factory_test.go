@@ -34,8 +34,9 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 	return enrichedTags
 }
 
+// newFactory creates a factory for test-only
 func newFactory() exp.Factory {
-	return NewFactoryForOSSExporter(component.MustNewType("datadog"), nil)
+	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
 }
 
 func TestNewFactory(t *testing.T) {
