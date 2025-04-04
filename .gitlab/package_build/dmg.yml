@@ -182,7 +182,7 @@ new-agent_dmg-x64-a7:
 
     # TODO A: Remove
     - |
-      cat <<<EOF > $CI_PROJECT_DIR/agent-version.cache
+      cat <<EOF > $CI_PROJECT_DIR/agent-version.cache
       {
         "6": [
             "6.62.0",
