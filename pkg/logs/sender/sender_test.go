@@ -52,7 +52,7 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 			pipelineMonitor := metrics.NewNoopPipelineMonitor("test")
 
 			// Create sender
-			sender := NewSenderV2(
+			sender := NewSender(
 				config,
 				auditor,
 				destFactory,

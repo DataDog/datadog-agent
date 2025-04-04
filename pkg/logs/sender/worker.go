@@ -47,33 +47,6 @@ type worker struct {
 	utilization     metrics.UtilizationMonitor
 }
 
-func newWorkerLegacy(
-	config pkgconfigmodel.Reader,
-	inputChan chan *message.Payload,
-	outputChan chan *message.Payload,
-	destinations *client.Destinations,
-	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
-	pipelineMonitor metrics.PipelineMonitor,
-) *worker {
-	return &worker{
-		outputChan:     outputChan,
-		config:         config,
-		inputChan:      inputChan,
-		destinations:   destinations,
-		bufferSize:     bufferSize,
-		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
-		done:           make(chan struct{}),
-		finished:       make(chan struct{}),
-
-		// Telemetry
-		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
-	}
-}
-
 func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
@@ -103,9 +76,7 @@ func newWorker(
 
 // Start starts the worker.
 func (s *worker) start() {
-	if s.auditor != nil {
-		s.outputChan = s.auditor.Channel()
-	}
+	s.outputChan = s.auditor.Channel()
 
 	go s.run()
 }
