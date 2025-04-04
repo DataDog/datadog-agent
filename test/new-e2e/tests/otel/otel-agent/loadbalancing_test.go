@@ -33,11 +33,25 @@ datadog:
     containerCollectUsingFiles: false
 `)
 	t.Parallel()
-	e2e.Run(t, &loadBalancingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(loadBalancingConfig)))))
+	e2e.Run(t, &loadBalancingTestSuite{},
+		e2e.WithSkipDeleteOnFailure(), // DEBUG: Skip delete on failure to keep the cluster alive for investigation
+		e2e.WithProvisioner(
+			awskubernetes.KindProvisioner(
+				awskubernetes.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(loadBalancingConfig),
+				),
+			),
+		),
+	)
 }
 
 func (s *loadBalancingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, "calendar-rest-go-1")
 	utils.TestCalendarApp(s, false, "calendar-rest-go-2")
 	utils.TestCalendarApp(s, false, "calendar-rest-go-3")
