@@ -147,6 +147,8 @@ new-agent_dmg-x64-a7:
   script:
     - set -eo pipefail
 
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache /tmp/cache && cat cache
+
     - if [ "$SIGN" = true ]; then
         echo "Signing enabled"
       else
