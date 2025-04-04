@@ -32,9 +32,6 @@ const encryptionContextKey = "LambdaFunctionName"
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
-// lambdaRegionEnvVar is the environment variable that holds which region the Lambda is currently in.
-const lambdaRegionEnvVar = "AWS_REGION"
-
 // one of those env variable must be set
 const apiKeyEnvVar = "DD_API_KEY"
 const apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"

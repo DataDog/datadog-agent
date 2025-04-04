@@ -14,8 +14,6 @@ import (
 
 	"github.com/prometheus/procfs"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -32,9 +30,6 @@ const nvidiaResourceName = "nvidia.com/gpu"
 type systemContext struct {
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
-
-	// nvmlLib is the NVML library used to query GPU devices
-	nvmlLib nvml.Interface
 
 	// cudaSymbols maps each executable file path to its Fatbin file data
 	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
@@ -109,11 +104,10 @@ func (e *symbolsEntry) updateLastUsedTime() {
 	e.lastUsedTime = time.Now()
 }
 
-func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
+func getSystemContext(procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
-		nvmlLib:                   nvmlLib,
 		procRoot:                  procRoot,
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]*ddnvml.Device),
@@ -123,7 +117,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(nvmlLib)
+	ctx.deviceCache, err = ddnvml.NewDeviceCache()
 	if err != nil {
 		return nil, fmt.Errorf("error creating device cache: %w", err)
 	}
