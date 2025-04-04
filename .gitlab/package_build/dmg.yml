@@ -120,6 +120,8 @@ new-agent_dmg-x64-a7:
     # Adds one fix
     - export OMNIBUS_RUBY_VERSION=celian/macos-build
     - !reference [.vault_login]
+    # Test, TODO: remove
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - |
       export NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_NOTARIZATION password) || exit $?; export NOTARIZATION_PWD
       export TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
