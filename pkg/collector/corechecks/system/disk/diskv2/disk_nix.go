@@ -54,13 +54,12 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 		}
 		// Typically line looks like:
 		// sda1  MY_LABEL
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		device, label, ok := strings.Cut(line)
+		if !ok {
 			log.Debugf("skipping malformed line: '%s'", line)
 			continue
 		}
-		device := "/dev/" + fields[0]
-		label := fields[1]
+		device = "/dev/" + device
 		c.deviceLabels[device] = label
 	}
 	return nil
