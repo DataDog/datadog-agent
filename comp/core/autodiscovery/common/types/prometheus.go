@@ -138,15 +138,65 @@ type ShareLabelsConfig struct {
 
 // ADConfig contains the autodiscovery configuration data for a PrometheusCheck
 type ADConfig struct {
-	KubeAnnotations    *InclExcl      `mapstructure:"kubernetes_annotations,omitempty" yaml:"kubernetes_annotations,omitempty" json:"kubernetes_annotations,omitempty"`
-	KubeContainerNames []string       `mapstructure:"kubernetes_container_names,omitempty" yaml:"kubernetes_container_names,omitempty" json:"kubernetes_container_names,omitempty"`
-	ContainersRe       *regexp.Regexp `mapstructure:",omitempty" yaml:",omitempty"`
+	KubeAnnotations    *InclExcl         `mapstructure:"kubernetes_annotations,omitempty" yaml:"kubernetes_annotations,omitempty" json:"kubernetes_annotations,omitempty"`
+	AnnotationsRe      *AnnotationsRegex `mapstructure:",omitempty" yaml:",omitempty"`
+	KubeContainerNames []string          `mapstructure:"kubernetes_container_names,omitempty" yaml:"kubernetes_container_names,omitempty" json:"kubernetes_container_names,omitempty"`
+	ContainersRe       *regexp.Regexp    `mapstructure:",omitempty" yaml:",omitempty"`
+}
+
+// AnnotationsRegex contains the set of compiled regex instances for including/excluding annotations
+type AnnotationsRegex struct {
+	Incl map[string]*regexp.Regexp
+	Excl map[string]*regexp.Regexp
+}
+
+func (ar *AnnotationsRegex) init(config *InclExcl) error {
+	if config == nil {
+		return nil
+	}
+	incl := make(map[string]*regexp.Regexp)
+	excl := make(map[string]*regexp.Regexp)
+	for anno, value := range config.InclRe {
+		re, err := regexp.Compile(value)
+		if err != nil {
+			return err
+		}
+		incl[anno] = re
+	}
+	for anno, value := range config.ExclRe {
+		re, err := regexp.Compile(value)
+		if err != nil {
+			return err
+		}
+		excl[anno] = re
+	}
+	ar.Incl = incl
+	ar.Excl = excl
+	return nil
+}
+
+func (ar *AnnotationsRegex) IsIncluded(key, value string) bool {
+	re, okay := ar.Incl[key]
+	if okay {
+		return re.MatchString(value)
+	}
+	return false
+}
+
+func (ar *AnnotationsRegex) IsExcluded(key, value string) bool {
+	re, okay := ar.Excl[key]
+	if okay {
+		return re.MatchString(value)
+	}
+	return false
 }
 
 // InclExcl contains the include/exclude data structure
 type InclExcl struct {
-	Incl map[string]string `mapstructure:"include" yaml:"include,omitempty" json:"include,omitempty"`
-	Excl map[string]string `mapstructure:"exclude" yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	Incl   map[string]string `mapstructure:"include" yaml:"include,omitempty" json:"include,omitempty"`
+	InclRe map[string]string `mapstructure:"include_regexp" yaml:"include_regexp,omitempty" json:"include_regexp,omitempty"`
+	Excl   map[string]string `mapstructure:"exclude" yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	ExclRe map[string]string `mapstructure:"exclude_regexp" yaml:"exclude_regexp,omitempty" json:"exclude_regexp,omitempty"`
 }
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
@@ -207,6 +257,7 @@ func (pc *PrometheusCheck) initAD() error {
 	}
 
 	pc.AD.defaultAD()
+	pc.AD.AnnotationsRe.init(pc.AD.KubeAnnotations)
 	return pc.AD.setContainersRegex()
 }
 
@@ -214,6 +265,13 @@ func (pc *PrometheusCheck) initAD() error {
 func (pc *PrometheusCheck) IsExcluded(annotations map[string]string, namespacedName string) bool {
 	for k, v := range pc.AD.KubeAnnotations.Excl {
 		if annotations[k] == v {
+			log.Debugf("'%s' matched the exclusion annotation '%s=%s' ignoring it", namespacedName, k, v)
+			return true
+		}
+	}
+	// Now check via regexp
+	for k, v := range annotations {
+		if pc.AD.AnnotationsRe.IsExcluded(k, v) {
 			log.Debugf("'%s' matched the exclusion annotation '%s=%s' ignoring it", namespacedName, k, v)
 			return true
 		}
@@ -232,8 +290,14 @@ func (pc *PrometheusCheck) IsIncluded(annotations map[string]string) bool {
 		if pc.AD.KubeAnnotations.Excl[k] == v {
 			return false
 		}
+		if pc.AD.AnnotationsRe.IsExcluded(k, v) {
+			return false
+		}
 
 		if pc.AD.KubeAnnotations.Incl[k] == v {
+			included = true
+		}
+		if pc.AD.AnnotationsRe.IsIncluded(k, v) {
 			included = true
 		}
 	}
@@ -280,6 +344,9 @@ func (ad *ADConfig) defaultAD() {
 	if ad.KubeAnnotations.Incl == nil {
 		ad.KubeAnnotations.Incl = map[string]string{PrometheusScrapeAnnotation: "true"}
 	}
+	if ad.AnnotationsRe == nil {
+		ad.AnnotationsRe = &AnnotationsRegex{}
+	}
 }
 
 // setContainersRegex precompiles the regex to match the container names for autodiscovery
@@ -322,6 +389,7 @@ var DefaultPrometheusCheck = &PrometheusCheck{
 			Excl: map[string]string{PrometheusScrapeAnnotation: "false"},
 			Incl: map[string]string{PrometheusScrapeAnnotation: "true"},
 		},
+		AnnotationsRe:      &AnnotationsRegex{},
 		KubeContainerNames: []string{},
 	},
 }
