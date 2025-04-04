@@ -25,6 +25,7 @@ type MockDriver struct {
 
 	sentTTLs map[uint8]struct{}
 
+	info               TracerouteDriverInfo
 	sendHandler        func(ttl uint8) error
 	receiveHandler     func() (*ProbeResponse, error)
 	icmpReceiveHandler func() (*ProbeResponse, error)
@@ -34,10 +35,15 @@ func initMockDriver(t *testing.T, params TracerouteParallelParams) *MockDriver {
 	return &MockDriver{
 		t:              t,
 		params:         params,
+		info:           TracerouteDriverInfo{UsesReceiveICMPProbe: true},
 		sentTTLs:       make(map[uint8]struct{}),
 		sendHandler:    nil,
 		receiveHandler: nil,
 	}
+}
+
+func (m *MockDriver) GetDriverInfo() TracerouteDriverInfo {
+	return m.info
 }
 
 func (m *MockDriver) SendProbe(ttl uint8) error {
@@ -580,4 +586,18 @@ func TestParallelTracerouteDestOverwrite(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expectedResults, results)
 	require.Len(t, results, mockDestTTL)
+}
+
+func TestParallelTracerouteDisableICMP(t *testing.T) {
+	// this test checks that TracerouteParallel doesn't call ReceiveICMPProbe when it's disabled
+	m := initMockDriver(t, testParams)
+	m.info.UsesReceiveICMPProbe = false
+
+	m.icmpReceiveHandler = func() (*ProbeResponse, error) {
+		t.Fatal("should not have called ReceiveICMPProbe")
+		return nil, fmt.Errorf("should not have called ReceiveICMPProbe")
+	}
+
+	_, err := TracerouteParallel(context.Background(), m, testParams)
+	require.NoError(t, err)
 }
