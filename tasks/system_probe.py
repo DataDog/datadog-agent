@@ -115,7 +115,6 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
 
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
-    strip_object_files=False,
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
@@ -134,10 +133,13 @@ def ninja_define_ebpf_compiler(
         command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
-    strip = "&& /opt/datadog-agent/embedded/bin/llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip}",
+        command="/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in",
+    )
+    nw.rule(
+        name="strip",
+        command="/opt/datadog-agent/embedded/bin/llvm-strip -g -o $out $in",
     )
 
 
@@ -159,7 +161,7 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     )
 
 
-def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None):
+def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None, strip_object_files=False):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
@@ -169,14 +171,26 @@ def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None):
         rule="ebpfclang",
         variables=variables,
     )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
+    if strip_object_files:
+        nw.build(
+            inputs=[f"{out_base}.bc"],
+            outputs=[f"{out_base}.o.prestrip"],
+            rule="llc",
+        )
+        nw.build(
+            inputs=[f"{out_base}.o.prestrip"],
+            outputs=[f"{out_base}.o"],
+            rule="strip",
+        )
+    else:
+        nw.build(
+            inputs=[f"{out_base}.bc"],
+            outputs=[f"{out_base}.o"],
+            rule="llc",
+        )
 
 
-def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
+def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None, strip_object_files=False):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
@@ -186,15 +200,32 @@ def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
         rule="ebpfcoreclang",
         variables=variables,
     )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
+    if strip_object_files:
+        nw.build(
+            inputs=[f"{out_base}.bc"],
+            outputs=[f"{out_base}.o.prestrip"],
+            rule="llc",
+        )
+        nw.build(
+            inputs=[f"{out_base}.o.prestrip"],
+            outputs=[f"{out_base}.o"],
+            rule="strip",
+        )
+    else:
+        nw.build(
+            inputs=[f"{out_base}.bc"],
+            outputs=[f"{out_base}.o"],
+            rule="llc",
+        )
 
 
 def ninja_security_ebpf_programs(
-    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
+    nw: NinjaWriter,
+    build_dir: Path,
+    debug: bool,
+    kernel_release: str | None,
+    arch: Arch | None = None,
+    strip_object_files=False,
 ):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
@@ -220,6 +251,7 @@ def ninja_security_ebpf_programs(
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
             "kheaders": kheaders,
         },
+        strip_object_files=strip_object_files,
     )
     outfiles.append(outfile)
 
@@ -234,6 +266,7 @@ def ninja_security_ebpf_programs(
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
             "kheaders": kheaders,
         },
+        strip_object_files=strip_object_files,
     )
     outfiles.append(syscall_wrapper_outfile)
 
@@ -248,6 +281,7 @@ def ninja_security_ebpf_programs(
             "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
             "kheaders": kheaders,
         },
+        strip_object_files=strip_object_files,
     )
     outfiles.append(syscall_wrapper_outfile)
 
@@ -261,24 +295,25 @@ def ninja_security_ebpf_programs(
             "flags": security_flags,
             "kheaders": kheaders,
         },
+        strip_object_files=strip_object_files,
     )
     outfiles.append(offset_guesser_outfile)
 
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
-def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
+def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags, strip_object_files):
+    ninja_ebpf_program(nw, infile, outfile, {"flags": flags}, strip_object_files)
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}, strip_object_files)
 
 
-def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags, strip_object_files):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags}, strip_object_files)
     root, ext = os.path.splitext(outfile)
 
 
-def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
+def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir, strip_object_files):
     src_dir = os.path.join("pkg", "ebpf", "c")
 
     telemetry_co_re_programs = [
@@ -290,16 +325,16 @@ def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
         outfile = os.path.join(co_re_build_dir, f"{prog}.c")
 
         co_re_flags = [f"-I{src_dir}"]
-        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags), strip_object_files)
 
 
-def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags, strip_object_files):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags}, strip_object_files)
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}, strip_object_files)
 
 
-def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
+def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir, strip_object_files):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
@@ -325,7 +360,7 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
+        ninja_network_ebpf_program(nw, infile, outfile, network_flags, strip_object_files)
 
     for prog_path in network_co_re_programs:
         prog = os.path.basename(prog_path)
@@ -334,10 +369,10 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
 
         infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags, strip_object_files)
 
 
-def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
+def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir, strip_object_files):
     ebpf_bpf_dir = os.path.join("pkg", "ebpf")
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
@@ -348,11 +383,11 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_ebpf_co_re_program(
-            nw, infile, outfile, {"flags": test_flags}
+            nw, infile, outfile, {"flags": test_flags}, strip_object_files
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
-def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str, strip_object_files):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
     gpu_c_dir = gpu_headers_dir / "runtime"
     gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
@@ -361,12 +396,14 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     for prog in gpu_programs:
         infile = os.path.join(gpu_c_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags}, strip_object_files)
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"}, strip_object_files
+        )
 
 
-def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir, strip_object_files):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
     container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
@@ -374,14 +411,18 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags}, strip_object_files)
         root, ext = os.path.splitext(outfile)
         ninja_ebpf_co_re_program(
-            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+            nw,
+            infile,
+            f"{root}-debug{ext}",
+            {"flags": container_integrations_co_re_flags + " -DDEBUG=1"},
+            strip_object_files,
         )
 
 
-def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir, strip_object_files):
     dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
     flags = f"-I{dir} -Ipkg/network/ebpf/c"
     programs = ["discovery-net"]
@@ -389,9 +430,9 @@ def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     for prog in programs:
         infile = os.path.join(dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags}, strip_object_files)
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}, strip_object_files)
 
 
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
@@ -626,16 +667,18 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_ebpf_compiler(nw, kernel_release, with_unit_test, arch=arch)
             ninja_define_co_re_compiler(nw, arch=arch)
-            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
+            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir, strip_object_files=strip_object_files)
+            ninja_test_ebpf_programs(nw, co_re_build_dir, strip_object_files=strip_object_files)
+            ninja_security_ebpf_programs(
+                nw, build_dir, debug, kernel_release, arch=arch, strip_object_files=strip_object_files
+            )
+            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir, strip_object_files=strip_object_files)
             ninja_runtime_compilation_files(nw, gobin)
-            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
+            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir, strip_object_files=strip_object_files)
+            ninja_gpu_ebpf_programs(nw, co_re_build_dir, strip_object_files=strip_object_files)
+            ninja_discovery_ebpf_programs(nw, co_re_build_dir, strip_object_files=strip_object_files)
 
         ninja_cgo_type_files(nw)
 
