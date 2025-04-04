@@ -63,6 +63,10 @@ BINARIES: dict[str, dict] = {
     },
     "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "cws-instrumentation": {
+        "entrypoint": "cmd/cws-instrumentation",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "trace-agent": {
         "entrypoint": "cmd/trace-agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],

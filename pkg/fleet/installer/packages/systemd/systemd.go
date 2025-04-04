@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -171,4 +172,28 @@ func IsRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// ListOnDiskAgentUnits lists the systemd units on disk
+func ListOnDiskAgentUnits(experiment bool) ([]string, error) {
+	files, err := os.ReadDir(UnitsPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading systemd units directory: %w", err)
+	}
+
+	var units []string
+	for _, file := range files {
+		unit := file.Name()
+		if file.IsDir() || !strings.HasSuffix(unit, ".service") || !strings.HasPrefix(unit, "datadog-agent") {
+			continue
+		}
+		if experiment && strings.HasSuffix(unit, "-exp.service") {
+			units = append(units, unit)
+		}
+		if !experiment && !strings.HasSuffix(unit, "-exp.service") {
+			units = append(units, unit)
+		}
+	}
+
+	return units, nil
 }

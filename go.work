@@ -1,6 +1,4 @@
-go 1.23.5
-
-toolchain go1.23.6
+go 1.23.7
 
 // Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
 // This was causing errors with AWS Network Firewall
@@ -77,6 +75,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/create
 	pkg/config/env
 	pkg/config/mock
 	pkg/config/model

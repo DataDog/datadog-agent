@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -69,7 +70,7 @@ func TestGetIPCAddress(t *testing.T) {
 }
 
 func getConfig() model.Config {
-	cfg := newConfigChooseImpl("test")
+	cfg := create.NewConfig("test")
 	cfg.BindEnv("ipc_address")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
 	return cfg
