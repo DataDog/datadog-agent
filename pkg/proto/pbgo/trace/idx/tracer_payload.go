@@ -8,6 +8,7 @@ package idx
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -105,7 +106,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		default:
-			fmt.Printf("Unknown tracer payload field number %d\n", fieldNum) //todo: warn log
+			log.Warnf("Unknown tracer payload field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
