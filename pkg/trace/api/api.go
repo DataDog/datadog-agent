@@ -440,6 +440,7 @@ const (
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
+	tagProcessTags    = "_dd.tags.process"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -657,6 +658,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagContainersTags] = ctags
 	}
+	ptags := getProcessTagsFromHeader(req.Header)
+	if ptags != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagProcessTags] = ptags
+	}
 
 	payload := &Payload{
 		Source:                 ts,
@@ -664,6 +672,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
 	}
 	r.out <- payload
 }
@@ -698,6 +707,10 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		}
 	}
 	return dropped
+}
+
+func getProcessTagsFromHeader(h http.Header) string {
+	return h.Get(header.ProcessTags)
 }
 
 // handleServices handle a request with a list of several services
