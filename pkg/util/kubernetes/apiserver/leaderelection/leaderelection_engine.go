@@ -10,7 +10,6 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 
 	coordv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
@@ -217,7 +216,11 @@ func (le *LeaderEngine) reportLeaderMetric(isLeader bool) {
 	le.leaderMetric.Delete(metrics.JoinLeaderValue, "false")
 	le.leaderMetric.Delete(metrics.JoinLeaderValue, "true")
 
-	le.leaderMetric.Set(1.0, metrics.JoinLeaderValue, strconv.FormatBool(isLeader))
+	if isLeader {
+		le.leaderMetric.Set(1.0, metrics.JoinLeaderValue, "true")
+	} else {
+		le.leaderMetric.Set(0, metrics.JoinLeaderValue, "false")
+	}
 }
 
 // notify sends a notification to subscribers when the leadership state of the current
