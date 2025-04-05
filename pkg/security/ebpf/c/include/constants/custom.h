@@ -74,7 +74,6 @@ enum TC_RAWPACKET_KEYS {
 
 #define DNS_MAX_LENGTH 256
 #define DNS_RECEIVE_MAX_LENGTH 512
-#define DNS_EVENT_KEY 0
 
 #define EGRESS 1
 #define INGRESS 2
