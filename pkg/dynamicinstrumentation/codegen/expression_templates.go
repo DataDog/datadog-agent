@@ -117,3 +117,14 @@ var setParameterIndexText = `
 bpf_printk("Setting param index %d to %d", {{.Arg1}}, context.output_offset);
 event->base.param_indicies[{{.Arg1}}] = context.output_offset;
 `
+
+var compilerErrorText = `
+!@#$%^
+`
+
+var verifierErrorText = `
+for (int i=0; i==0;) {
+    i++;
+    i--;
+}
+`
