@@ -180,7 +180,7 @@ var file_datadog_api_v1_api_proto_rawDesc = string([]byte{
 	0x2e, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x48, 0x6f, 0x73, 0x74, 0x54, 0x61,
 	0x67, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x1a, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x14, 0x12, 0x12,
 	0x2f, 0x76, 0x31, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x68, 0x6f, 0x73, 0x74, 0x5f, 0x74, 0x61,
-	0x67, 0x73, 0x32, 0xe6, 0x01, 0x0a, 0x0b, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
+	0x67, 0x73, 0x32, 0xcb, 0x02, 0x0a, 0x0b, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x41, 0x67, 0x65,
 	0x6e, 0x74, 0x12, 0x6f, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x44,
 	0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x12, 0x2c, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67,
 	0x2e, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x47, 0x65, 0x74,
@@ -194,9 +194,15 @@ var file_datadog_api_v1_api_proto_rawDesc = string([]byte{
 	0x61, 0x72, 0x65, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
 	0x2a, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65,
 	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x46, 0x6c, 0x61, 0x72, 0x65, 0x46, 0x69,
-	0x6c, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x15, 0x5a, 0x13, 0x70,
-	0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62, 0x67, 0x6f, 0x2f, 0x63, 0x6f,
-	0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6c, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x63, 0x0a, 0x0c, 0x47,
+	0x65, 0x74, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x12, 0x28, 0x2e, 0x64, 0x61,
+	0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x29, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e,
+	0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x47, 0x65, 0x74, 0x54,
+	0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x42, 0x15, 0x5a, 0x13, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62,
+	0x67, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 })
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
@@ -213,20 +219,22 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*HostTagRequest)(nil),                            // 10: datadog.model.v1.HostTagRequest
 	(*GetStatusDetailsRequest)(nil),                   // 11: datadog.remoteagent.GetStatusDetailsRequest
 	(*GetFlareFilesRequest)(nil),                      // 12: datadog.remoteagent.GetFlareFilesRequest
-	(*HostnameReply)(nil),                             // 13: datadog.model.v1.HostnameReply
-	(*StreamTagsResponse)(nil),                        // 14: datadog.model.v1.StreamTagsResponse
-	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 15: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	(*FetchEntityResponse)(nil),                       // 16: datadog.model.v1.FetchEntityResponse
-	(*CaptureTriggerResponse)(nil),                    // 17: datadog.model.v1.CaptureTriggerResponse
-	(*TaggerStateResponse)(nil),                       // 18: datadog.model.v1.TaggerStateResponse
-	(*ClientGetConfigsResponse)(nil),                  // 19: datadog.config.ClientGetConfigsResponse
-	(*GetStateConfigResponse)(nil),                    // 20: datadog.config.GetStateConfigResponse
-	(*WorkloadmetaStreamResponse)(nil),                // 21: datadog.workloadmeta.WorkloadmetaStreamResponse
-	(*RegisterRemoteAgentResponse)(nil),               // 22: datadog.remoteagent.RegisterRemoteAgentResponse
-	(*AutodiscoveryStreamResponse)(nil),               // 23: datadog.autodiscovery.AutodiscoveryStreamResponse
-	(*HostTagReply)(nil),                              // 24: datadog.model.v1.HostTagReply
-	(*GetStatusDetailsResponse)(nil),                  // 25: datadog.remoteagent.GetStatusDetailsResponse
-	(*GetFlareFilesResponse)(nil),                     // 26: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryRequest)(nil),                       // 13: datadog.remoteagent.GetTelemetryRequest
+	(*HostnameReply)(nil),                             // 14: datadog.model.v1.HostnameReply
+	(*StreamTagsResponse)(nil),                        // 15: datadog.model.v1.StreamTagsResponse
+	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 16: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	(*FetchEntityResponse)(nil),                       // 17: datadog.model.v1.FetchEntityResponse
+	(*CaptureTriggerResponse)(nil),                    // 18: datadog.model.v1.CaptureTriggerResponse
+	(*TaggerStateResponse)(nil),                       // 19: datadog.model.v1.TaggerStateResponse
+	(*ClientGetConfigsResponse)(nil),                  // 20: datadog.config.ClientGetConfigsResponse
+	(*GetStateConfigResponse)(nil),                    // 21: datadog.config.GetStateConfigResponse
+	(*WorkloadmetaStreamResponse)(nil),                // 22: datadog.workloadmeta.WorkloadmetaStreamResponse
+	(*RegisterRemoteAgentResponse)(nil),               // 23: datadog.remoteagent.RegisterRemoteAgentResponse
+	(*AutodiscoveryStreamResponse)(nil),               // 24: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*HostTagReply)(nil),                              // 25: datadog.model.v1.HostTagReply
+	(*GetStatusDetailsResponse)(nil),                  // 26: datadog.remoteagent.GetStatusDetailsResponse
+	(*GetFlareFilesResponse)(nil),                     // 27: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryResponse)(nil),                      // 28: datadog.remoteagent.GetTelemetryResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	0,  // 0: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
@@ -245,24 +253,26 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	10, // 13: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
 	11, // 14: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
 	12, // 15: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
-	13, // 16: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	14, // 17: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	15, // 18: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	16, // 19: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	17, // 20: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	18, // 21: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	19, // 22: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	20, // 23: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	19, // 24: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	20, // 25: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	21, // 26: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	22, // 27: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
-	23, // 28: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	24, // 29: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
-	25, // 30: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
-	26, // 31: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
-	16, // [16:32] is the sub-list for method output_type
-	0,  // [0:16] is the sub-list for method input_type
+	13, // 16: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
+	14, // 17: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	15, // 18: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	16, // 19: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	17, // 20: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	18, // 21: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	19, // 22: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	20, // 23: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	21, // 24: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	20, // 25: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	21, // 26: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	22, // 27: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	23, // 28: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
+	24, // 29: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	25, // 30: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
+	26, // 31: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
+	27, // 32: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
+	28, // 33: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
+	17, // [17:34] is the sub-list for method output_type
+	0,  // [0:17] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -1136,6 +1146,8 @@ type RemoteAgentClient interface {
 	GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
+	// Gets the telemetry data of a remote agent.
+	GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error)
 }
 
 type remoteAgentClient struct {
@@ -1164,12 +1176,23 @@ func (c *remoteAgentClient) GetFlareFiles(ctx context.Context, in *GetFlareFiles
 	return out, nil
 }
 
+func (c *remoteAgentClient) GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error) {
+	out := new(GetTelemetryResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.RemoteAgent/GetTelemetry", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RemoteAgentServer is the server API for RemoteAgent service.
 type RemoteAgentServer interface {
 	// Gets the status details of a remote agent.
 	GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
+	// Gets the telemetry data of a remote agent.
+	GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error)
 }
 
 // UnimplementedRemoteAgentServer can be embedded to have forward compatible implementations.
@@ -1181,6 +1204,9 @@ func (*UnimplementedRemoteAgentServer) GetStatusDetails(context.Context, *GetSta
 }
 func (*UnimplementedRemoteAgentServer) GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFlareFiles not implemented")
+}
+func (*UnimplementedRemoteAgentServer) GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTelemetry not implemented")
 }
 
 func RegisterRemoteAgentServer(s *grpc.Server, srv RemoteAgentServer) {
@@ -1223,6 +1249,24 @@ func _RemoteAgent_GetFlareFiles_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RemoteAgent_GetTelemetry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTelemetryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RemoteAgentServer).GetTelemetry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.RemoteAgent/GetTelemetry",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RemoteAgentServer).GetTelemetry(ctx, req.(*GetTelemetryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "datadog.api.v1.RemoteAgent",
 	HandlerType: (*RemoteAgentServer)(nil),
@@ -1234,6 +1278,10 @@ var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFlareFiles",
 			Handler:    _RemoteAgent_GetFlareFiles_Handler,
+		},
+		{
+			MethodName: "GetTelemetry",
+			Handler:    _RemoteAgent_GetTelemetry_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
