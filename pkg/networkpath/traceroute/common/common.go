@@ -10,6 +10,7 @@ package common
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -83,4 +84,10 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	}
 
 	return localUDPAddr, conn, nil
+}
+
+// UnmappedAddrFromSlice is the same as netip.AddrFromSlice but it also gets rid of mapped ipv6 addresses.
+func UnmappedAddrFromSlice(slice []byte) (netip.Addr, bool) {
+	addr, ok := netip.AddrFromSlice(slice)
+	return addr.Unmap(), ok
 }
