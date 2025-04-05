@@ -1,0 +1,7 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    exclude_containers:
+      names:
+        - istio-proxy

@@ -38,7 +38,7 @@ func TestInjectorLibRequirements(t *testing.T) {
 	require.Equal(t, 1, len(opts.initContainerMutators))
 
 	container := corev1.Container{}
-	err := opts.initContainerMutators[0].mutateContainer(&container)
+	err := opts.initContainerMutators[0].mutateContainer(&container, false)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.SecurityContext{

@@ -84,30 +84,17 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
-	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
-	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
-		var mappings []string
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.enabled_namespaces" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
-	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
-	config.ParseEnvAsStringSlice("apm_config.instrumentation.disabled_namespaces", func(in string) []string {
-		var mappings []string
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.disabled_namespaces" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
-	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
-	config.ParseEnvAsMapStringInterface("apm_config.instrumentation.lib_versions", func(in string) map[string]interface{} {
-		var mappings map[string]interface{}
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.lib_versions" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	bindEnvAndParseJSONStringSlice(config,
+		"apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
+	bindEnvAndParseJSONStringSlice(config,
+		"apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
+	bindEnvAndParseJSONStringSlice(config,
+		"apm_config.instrumentation.exclude_containers.names", []string{
+			"istio-proxy",
+		}, "DD_APM_INSTRUMENTATION_EXCLUDE_CONTAINERS_NAMES")
+	bindEnvAndParseJSONMapStringInterface(config,
+		"apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+
 	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
 	//                  will remain undocumented for the duration of the beta.
 	//                  We intend to only switch back to v1 if beta customers have issues
@@ -153,8 +140,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
 	config.BindEnv("apm_config.instrumentation.targets", "DD_APM_INSTRUMENTATION_TARGETS")
-	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
-		var mappings []interface{}
+	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []any {
+		var mappings []any
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
 			log.Errorf(`"apm_config.instrumentation.targets" can not be parsed: %v`, err)
 		}
@@ -242,6 +229,28 @@ func setupAPM(config pkgconfigmodel.Setup) {
 			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
 		}
 		return out
+	})
+}
+
+func bindEnvAndParseJSONStringSlice(config pkgconfigmodel.Setup, key string, val []string, env string) {
+	config.BindEnvAndSetDefault(key, val, env)
+	config.ParseEnvAsStringSlice(key, func(in string) []string {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return out
+	})
+}
+
+func bindEnvAndParseJSONMapStringInterface(config pkgconfigmodel.Setup, key string, val any, env string) {
+	config.BindEnvAndSetDefault(key, val, env)
+	config.ParseEnvAsMapStringInterface(key, func(in string) map[string]any {
+		var mappings map[string]any
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return mappings
 	})
 }
 

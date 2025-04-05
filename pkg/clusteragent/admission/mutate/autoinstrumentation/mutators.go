@@ -13,26 +13,27 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // containerMutator describes something that can mutate a container.
 type containerMutator interface {
-	mutateContainer(*corev1.Container) error
+	mutateContainer(c *corev1.Container, init bool) error
 }
 
 // containerMutatorFunc is a containerMutator as a function.
-type containerMutatorFunc func(*corev1.Container) error
+type containerMutatorFunc func(c *corev1.Container, init bool) error
 
 // mutateContainer implements containerMutator for containerMutatorFunc.
-func (f containerMutatorFunc) mutateContainer(c *corev1.Container) error {
-	return f(c)
+func (f containerMutatorFunc) mutateContainer(c *corev1.Container, init bool) error {
+	return f(c, init)
 }
 
 type containerMutators []containerMutator
 
-func (mutators containerMutators) mutateContainer(c *corev1.Container) error {
+func (mutators containerMutators) mutateContainer(c *corev1.Container, init bool) error {
 	for _, m := range mutators {
-		if err := m.mutateContainer(c); err != nil {
+		if err := m.mutateContainer(c, init); err != nil {
 			return err
 		}
 	}
@@ -53,6 +54,24 @@ func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
 	return f(pod)
 }
 
+func mutatePodContainers(pod *corev1.Pod, mutator containerMutator) error {
+	for idx, c := range pod.Spec.InitContainers {
+		if err := mutator.mutateContainer(&c, true); err != nil {
+			return err
+		}
+		pod.Spec.InitContainers[idx] = c
+	}
+
+	for idx, c := range pod.Spec.Containers {
+		if err := mutator.mutateContainer(&c, false); err != nil {
+			return err
+		}
+		pod.Spec.Containers[idx] = c
+	}
+
+	return nil
+}
+
 // initContainer is a podMutator which adds the container to a pod as an
 // init container. It will only add the container one time based on the
 // container name.
@@ -70,7 +89,7 @@ var _ podMutator = (*initContainer)(nil)
 func (i initContainer) mutatePod(pod *corev1.Pod) error {
 	container := i.Container
 
-	if err := i.Mutators.mutateContainer(&container); err != nil {
+	if err := i.Mutators.mutateContainer(&container, true); err != nil {
 		return err
 	}
 
@@ -127,7 +146,7 @@ type volumeMount struct {
 var _ containerMutator = (*volumeMount)(nil)
 
 // mutateContainer implements containerMutator for volumeMount.
-func (v volumeMount) mutateContainer(c *corev1.Container) error {
+func (v volumeMount) mutateContainer(c *corev1.Container, _ bool) error {
 	mnt := v.VolumeMount
 	for idx, vol := range c.VolumeMounts {
 		if vol.Name == mnt.Name && vol.MountPath == mnt.MountPath {
@@ -160,48 +179,74 @@ func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {
 	return append(toList, item)
 }
 
-type configKeyEnvVarMutator struct {
-	envKey string
-	envVal string
+type containerPredicate func(c *corev1.Container, init bool) bool
+
+func filteredContainerMutator(filter containerPredicate, m containerMutator) containerMutator {
+	return containerMutatorFunc(func(c *corev1.Container, init bool) error {
+		if filter != nil && !filter(c, init) {
+			return nil
+		}
+		return m.mutateContainer(c, init)
+	})
 }
 
-func newConfigEnvVarFromBoolMutator(key string, val *bool) configKeyEnvVarMutator {
-	m := configKeyEnvVarMutator{
-		envKey: key,
-	}
-
-	if val == nil {
-		m.envVal = strconv.FormatBool(false)
-	} else {
-		m.envVal = strconv.FormatBool(*val)
-	}
-
-	return m
+type containerEnvVarMutator struct {
+	corev1.EnvVar
+	Prepend   bool
+	Overwrite bool
 }
 
-func newConfigEnvVarFromStringlMutator(key string, val *string) configKeyEnvVarMutator {
-	m := configKeyEnvVarMutator{
-		envKey: key,
+func (e containerEnvVarMutator) mutateContainer(c *corev1.Container, _ bool) error {
+	for idx, env := range c.Env {
+		if env.Name == e.Name {
+			if !e.Overwrite {
+				log.Debug("Ignoring container '%s': env var '%s' already exists", c.Name, env.Name)
+				return nil
+			}
+
+			log.Debugf("Overwriting container '%s' env var '%s'", c.Name, e.Name)
+			c.Env[idx] = e.EnvVar
+			return nil
+		}
 	}
 
-	if val != nil {
-		m.envVal = *val
-	}
-
-	return m
-}
-
-func (c configKeyEnvVarMutator) mutatePod(pod *corev1.Pod) error {
-	_ = common.InjectEnv(pod, corev1.EnvVar{Name: c.envKey, Value: c.envVal})
-
+	c.Env = appendOrPrepend(e.EnvVar, c.Env, e.Prepend)
 	return nil
+}
+
+func envVarFromPointer[T any](name string, pointer *T, format func(T) string) corev1.EnvVar {
+	var val T
+	if pointer != nil {
+		val = *pointer
+	}
+
+	return corev1.EnvVar{
+		Name:  name,
+		Value: format(val),
+	}
+}
+
+func envVarFromBoolPointer(name string, pointer *bool) corev1.EnvVar {
+	return envVarFromPointer(name, pointer, boolEnvValue)
+}
+
+func envVarFromStringPointer(name string, pointer *string) corev1.EnvVar {
+	return envVarFromPointer(name, pointer, stringEnvValue)
+}
+
+func boolEnvValue(in bool) string {
+	return strconv.FormatBool(in)
+}
+
+func stringEnvValue(in string) string {
+	return in
 }
 
 type containerSecurityContext struct {
 	*corev1.SecurityContext
 }
 
-func (r containerSecurityContext) mutateContainer(c *corev1.Container) error {
+func (r containerSecurityContext) mutateContainer(c *corev1.Container, _ bool) error {
 	c.SecurityContext = r.SecurityContext
 	return nil
 }
@@ -210,7 +255,7 @@ type containerResourceRequirements struct {
 	corev1.ResourceRequirements
 }
 
-func (r containerResourceRequirements) mutateContainer(c *corev1.Container) error {
+func (r containerResourceRequirements) mutateContainer(c *corev1.Container, _ bool) error {
 	c.Resources = r.ResourceRequirements
 	return nil
 }
