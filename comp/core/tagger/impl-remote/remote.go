@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -98,6 +99,8 @@ type remoteTagger struct {
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
+
+	wg sync.WaitGroup
 }
 
 // Options contains the options needed to configure the remote tagger.
@@ -229,12 +232,19 @@ func start(remoteTagger *remoteTagger) error {
 	remoteTagger.log.Info("remote tagger initialized successfully")
 
 	// Start the tagger stream.
-	go remoteTagger.run()
+	remoteTagger.wg.Add(1)
+	go func() {
+		defer remoteTagger.wg.Done()
+		remoteTagger.run()
+	}()
 	return nil
 }
 
 func stop(remoteTagger *remoteTagger) error {
 	remoteTagger.cancel()
+
+	// Wait for the run goroutine to finish before closing the connection
+	remoteTagger.wg.Wait()
 
 	onStopErr := remoteTagger.conn.Close()
 	if onStopErr != nil {
@@ -442,6 +452,10 @@ func (t *remoteTagger) run() {
 			t.store.collectTelemetry()
 			continue
 		case <-t.ctx.Done():
+			// Ensure we cancel the stream context when the main context is canceled
+			if t.streamCancel != nil {
+				t.streamCancel()
+			}
 			return
 		default:
 		}
@@ -559,6 +573,11 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 		// Check the auth token
 		if t.token == "" {
 			return errors.New("RemoteTagger initialization failed: auth token is unset")
+		}
+
+		// Cancel any existing stream context before creating a new one
+		if t.streamCancel != nil {
+			t.streamCancel()
 		}
 
 		t.streamCtx, t.streamCancel = context.WithCancel(
