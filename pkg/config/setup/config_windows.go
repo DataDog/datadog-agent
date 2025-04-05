@@ -39,6 +39,8 @@ var (
 	defaultStatsdSocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	// DefaultRegistryFilename is the default registry filename
+	DefaultRegistryFilename = "registry.json"
 )
 
 func osinit() {
