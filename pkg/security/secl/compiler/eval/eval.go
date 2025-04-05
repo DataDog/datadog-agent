@@ -88,7 +88,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	accessor, err := state.model.GetEvaluator(field, regID)
+	evaluator, err := state.model.GetEvaluator(field, regID, obj.Pos.Offset)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -115,7 +115,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	return accessor, obj.Pos, nil
+	return evaluator, obj.Pos, nil
 }
 
 func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
@@ -187,6 +187,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		evaluator := &CIDRValuesEvaluator{
 			Value:     values,
 			ValueType: IPNetValueType,
+			Offset:    array.Pos.Offset,
 		}
 		return evaluator, array.Pos, nil
 	} else if len(array.CIDRMembers) != 0 {
@@ -206,6 +207,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		evaluator := &CIDRValuesEvaluator{
 			Value:     values,
 			ValueType: IPNetValueType,
+			Offset:    array.Pos.Offset,
 		}
 		return evaluator, array.Pos, nil
 	}
@@ -1237,7 +1239,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
 		case obj.Number != nil:
 			return &IntEvaluator{
-				Value: *obj.Number,
+				Value:  *obj.Number,
+				Offset: obj.Pos.Offset,
 			}, obj.Pos, nil
 		case obj.Variable != nil:
 			varname, ok := isVariableName(*obj.Variable)
@@ -1249,6 +1252,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
+				Offset:     obj.Pos.Offset,
 				isDuration: true,
 			}, obj.Pos, nil
 		case obj.String != nil:
@@ -1262,17 +1266,20 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return &StringEvaluator{
 				Value:     str,
 				ValueType: ScalarValueType,
+				Offset:    obj.Pos.Offset,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.IP != nil:
@@ -1284,6 +1291,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			evaluator := &CIDREvaluator{
 				Value:     *ipnet,
 				ValueType: IPNetValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.CIDR != nil:
@@ -1295,6 +1303,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			evaluator := &CIDREvaluator{
 				Value:     *ipnet,
 				ValueType: IPNetValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:

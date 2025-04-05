@@ -28,6 +28,7 @@ type StringValues struct {
 	scalars        []string
 	stringMatchers []StringMatcher
 
+	// keep all the raw field data
 	fieldValues []FieldValue
 }
 
@@ -98,29 +99,32 @@ func (s *StringValues) AppendScalarValue(value string) {
 }
 
 // Matches returns whether the value matches the string values
-func (s *StringValues) Matches(value string) bool {
-	if slices.Contains(s.scalars, value) {
-		return true
+func (s *StringValues) Matches(value string) (bool, string) {
+	for _, v := range s.scalars {
+		if value == v {
+			return true, v
+		}
 	}
-	for _, pm := range s.stringMatchers {
-		if pm.Matches(value) {
-			return true
+	for _, sm := range s.stringMatchers {
+		if sm.Matches(value) {
+			return true, sm.String()
 		}
 	}
 
-	return false
+	return false, ""
 }
 
 // StringMatcher defines a pattern matcher
 type StringMatcher interface {
 	Matches(value string) bool
+	String() string
 }
 
 // RegexpStringMatcher defines a regular expression pattern matcher
 type RegexpStringMatcher struct {
+	pattern          string
 	stringOptionsOpt []string
-
-	re *regexp.Regexp
+	re               *regexp.Regexp
 }
 
 var stringBigOrRe = regexp.MustCompile(`^(?:\.\*)?\(([a-zA-Z_|]+)\)(?:\.\*)?$`)
@@ -129,8 +133,8 @@ var stringBigOrRe = regexp.MustCompile(`^(?:\.\*)?\(([a-zA-Z_|]+)\)(?:\.\*)?$`)
 func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) error {
 	if !caseInsensitive {
 		if groups := stringBigOrRe.FindStringSubmatch(pattern); groups != nil {
+			r.pattern = pattern
 			r.stringOptionsOpt = strings.Split(groups[1], "|")
-			r.re = nil
 			return nil
 		}
 	}
@@ -143,10 +147,17 @@ func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 	if err != nil {
 		return err
 	}
+
+	r.pattern = pattern
 	r.stringOptionsOpt = nil
 	r.re = re
 
 	return nil
+}
+
+// String implements the stringer interface
+func (r *RegexpStringMatcher) String() string {
+	return r.pattern
 }
 
 // Matches returns whether the value matches
@@ -183,6 +194,11 @@ func (g *GlobStringMatcher) Compile(pattern string, caseInsensitive bool, normal
 	return nil
 }
 
+// String implements the stringer interface
+func (g *GlobStringMatcher) String() string {
+	return g.glob.pattern
+}
+
 // Matches returns whether the value matches
 func (g *GlobStringMatcher) Matches(value string) bool {
 	return g.glob.Matches(value)
@@ -216,6 +232,11 @@ func (p *PatternStringMatcher) Matches(value string) bool {
 	return PatternMatchesWithSegments(p.pattern, value, p.caseInsensitive)
 }
 
+// String implements the stringer interface
+func (p *PatternStringMatcher) String() string {
+	return p.pattern.pattern
+}
+
 // ScalarStringMatcher defines a scalar matcher
 type ScalarStringMatcher struct {
 	value           string
@@ -227,6 +248,11 @@ func (s *ScalarStringMatcher) Compile(pattern string, caseInsensitive bool) erro
 	s.value = pattern
 	s.caseInsensitive = caseInsensitive
 	return nil
+}
+
+// String implements the stringer interface
+func (s *ScalarStringMatcher) String() string {
+	return s.value
 }
 
 // Matches returns whether the value matches
