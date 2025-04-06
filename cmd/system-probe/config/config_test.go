@@ -113,3 +113,29 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 }
+
+func TestNetworkPath(t *testing.T) {
+	mock.NewSystemProbe(t)
+
+	for i, tc := range []struct {
+		traceroute, connectionsMonitoring bool
+		usmEvents                         bool
+		enabled                           bool
+	}{
+		{traceroute: false, connectionsMonitoring: false, enabled: false},
+		{traceroute: true, connectionsMonitoring: false, enabled: true},
+		{traceroute: true, connectionsMonitoring: true, enabled: true},
+		{traceroute: false, connectionsMonitoring: true, enabled: true},
+	} {
+		t.Run(fmt.Sprintf("index_%d", i), func(t *testing.T) {
+			t.Logf("%+v\n", tc)
+			t.Setenv("DD_TRACEROUTE_ENABLED", strconv.FormatBool(tc.traceroute))
+			t.Setenv("DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED", strconv.FormatBool(tc.connectionsMonitoring))
+
+			cfg, err := New("/doesnotexist", "")
+			t.Logf("%+v\n", cfg)
+			require.NoError(t, err)
+			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(TracerouteModule))
+		})
+	}
+}
