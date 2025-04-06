@@ -297,7 +297,7 @@ type sqlConfig struct {
 
 	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
 	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
-	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize", and "legacy"
 	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
 
 	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.

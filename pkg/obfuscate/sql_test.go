@@ -85,7 +85,7 @@ func TestDollarQuotedFunc(t *testing.T) {
 	})
 
 	t.Run("AS", func(t *testing.T) {
-		oq, err := NewObfuscator(Config{SQL: SQLConfig{KeepSQLAlias: true, DollarQuotedFunc: true}}).ObfuscateSQLString(
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{ObfuscationMode: Legacy, KeepSQLAlias: true, DollarQuotedFunc: true}}).ObfuscateSQLString(
 			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
 		)
 		assert.NoError(t, err)
@@ -111,7 +111,8 @@ func TestSingleDollarIdentifier(t *testing.T) {
 
 	t.Run("", func(t *testing.T) {
 		oq, err := NewObfuscator(Config{SQL: SQLConfig{
-			DBMS: DBMSSQLServer,
+			ObfuscationMode: Legacy,
+			DBMS:            DBMSSQLServer,
 		}}).ObfuscateSQLString(q)
 		assert.NoError(t, err)
 		assert.Equal(t, "MERGE INTO Employees USING EmployeeUpdates ON ( target.EmployeeID = source.EmployeeID ) WHEN MATCHED THEN UPDATE SET target.Name = source.Name WHEN NOT MATCHED BY TARGET THEN INSERT ( EmployeeID, Name ) VALUES ( source.EmployeeID, source.Name ) WHEN NOT MATCHED BY SOURCE THEN DELETE OUTPUT $action, inserted.*, deleted.*", oq.Query)
@@ -374,6 +375,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 		},
 	} {
 		t.Run("", func(_ *testing.T) {
+			tt.cfg.ObfuscationMode = Legacy
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -431,7 +433,11 @@ func TestSQLUTF8(t *testing.T) {
 		},
 	} {
 		t.Run("", func(_ *testing.T) {
-			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
 		})
@@ -497,7 +503,10 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
+				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
+					ObfuscationMode: Legacy,
+					ReplaceDigits:   true,
+				})
 				assert.NoError(err)
 				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -562,7 +571,11 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(Config{
+					SQL: SQLConfig{
+						ObfuscationMode: Legacy,
+					},
+				}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -728,8 +741,9 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{
 					SQL: SQLConfig{
-						TableNames:    true,
-						ReplaceDigits: true,
+						ObfuscationMode: Legacy,
+						TableNames:      true,
+						ReplaceDigits:   true,
 					},
 				}).ObfuscateSQLString(tt.query)
 				require.NoError(t, err)
@@ -737,8 +751,9 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				assert.Equal(tt.obfuscated, oq.Query)
 
 				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
-					TableNames:    true,
-					ReplaceDigits: true,
+					ObfuscationMode: Legacy,
+					TableNames:      true,
+					ReplaceDigits:   true,
 				})
 				require.NoError(t, err)
 				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
@@ -1214,7 +1229,11 @@ LIMIT 1
 			expected: `USING - SELECT`,
 		},
 	}
-	o := NewObfuscator(Config{})
+	o := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	})
 	for _, c := range cases {
 		t.Run(c.query, func(t *testing.T) {
 			oq, err := o.ObfuscateSQLString(c.query)
@@ -1617,7 +1636,11 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
+		oq, err := NewObfuscator(Config{
+			SQL: SQLConfig{
+				ObfuscationMode: Legacy,
+			},
+		}).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
 		assert.Equal(tc.expected, oq.Query)
 	}
@@ -1630,7 +1653,11 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(Config{}).ObfuscateSQLString(input)
+	_, err := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	}).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
@@ -1715,7 +1742,11 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
+			_, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			}).ObfuscateSQLString(tc.query)
 			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
@@ -1767,7 +1798,11 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewObfuscator(Config{})
+			o := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode: Legacy,
+				},
+			})
 			o.setSQLLiteralEscapes(c.initial)
 			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
@@ -1978,7 +2013,11 @@ func TestCassQuantizer(t *testing.T) {
 		},
 	}
 
-	o := NewObfuscator(Config{})
+	o := NewObfuscator(Config{
+		SQL: SQLConfig{
+			ObfuscationMode: Legacy,
+		},
+	})
 	for _, testCase := range queryToExpected {
 		oq, err := o.ObfuscateSQLString(testCase.in)
 		assert.NoError(err)
@@ -2756,6 +2795,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
+					ObfuscationMode:  Legacy,
 					ReplaceDigits:    tt.replaceDigits,
 					DollarQuotedFunc: tt.dollarQuotedFunc,
 					KeepSQLAlias:     tt.keepSQLAlias,
@@ -2967,4 +3007,45 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	assert.NotEqual(t, oq3.Query, oq.Query)
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 
+}
+
+func TestObfuscationMode(t *testing.T) {
+	in := `select "c"."t" from table t`
+	normalized := "select c.t from table t"
+
+	tests := []struct {
+		mode ObfuscationMode
+		out  string
+	}{
+		{
+			mode: Legacy,
+			out:  "select c . t from table t",
+		},
+		{
+			mode: "",
+			out:  normalized,
+		},
+		{
+			mode: ObfuscateOnly,
+			out:  in,
+		},
+		{
+			mode: NormalizeOnly,
+			out:  normalized,
+		},
+		{
+			mode: ObfuscateAndNormalize,
+			out:  normalized,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.mode), func(t *testing.T) {
+			obfuscator := NewObfuscator(Config{
+				SQL: SQLConfig{},
+			})
+			out, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode})
+			require.NoError(t, err)
+			assert.Equal(t, out.Query, tt.out)
+		})
+	}
 }
