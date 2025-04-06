@@ -28,7 +28,6 @@ func cleanProtocolMapByProtocol(t *testing.T, tr *tracer.Tracer, protocol protoc
 
 // cleanProtocolMapBySelector cleans up the protocol map for a given selector
 func cleanProtocolMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(tuple netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool) {
-	// Clean up the protocol map for a given port
 	protocolMap, err := tr.GetMap(probes.ConnectionProtocolMap)
 	require.NoError(t, err)
 
