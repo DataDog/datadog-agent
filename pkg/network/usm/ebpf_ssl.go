@@ -853,14 +853,15 @@ func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 	}
 }
 
-var sslPidKeyMaps = []string{
-	"ssl_read_args",
-	"ssl_read_ex_args",
-	"ssl_write_args",
-	"ssl_write_ex_args",
-	"ssl_ctx_by_pid_tgid",
-	"bio_new_socket_args",
-}
+var (
+	sslPidKeyMaps = []string{
+		"ssl_read_args",
+		"ssl_read_ex_args",
+		"ssl_write_args",
+		"ssl_write_ex_args",
+		"bio_new_socket_args",
+	}
+)
 
 // cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
@@ -869,6 +870,10 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 		if err != nil {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
+	}
+
+	if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
 }
 
@@ -893,6 +898,36 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	}
 	for _, k := range keysToDelete {
 		_ = emap.Delete(unsafe.Pointer(&k))
+	}
+
+	return nil
+}
+
+func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]struct{}) error {
+	sslCtxByPIDTGIDMapObj, _, err := manager.GetMap(sslCtxByPIDTGIDMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
+	}
+
+	sslSockByCtxMapObj, _, err := manager.GetMap(sslSockByCtxMap)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
+	}
+
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, sslCtxByPIDTGIDMapObj.ValueSize())
+	iter := sslCtxByPIDTGIDMapObj.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&value))
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&k))
 	}
 
 	return nil
