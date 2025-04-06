@@ -6,11 +6,8 @@
 package http
 
 import (
-	"errors"
-
 	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
@@ -126,20 +123,24 @@ type RequestStat struct {
 	DynamicTags []string
 }
 
-func (r *RequestStat) initSketch() error {
-	latencies := protocols.SketchesPool.Get()
-	if latencies == nil {
-		return errors.New("error recording http transaction latency: could not create new ddsketch")
+// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
+// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
+// will be between 99 and 101
+const relativeAccuracy = 0.01
+
+func (r *RequestStat) initSketch() (err error) {
+	r.Latencies, err = ddsketch.NewDefaultDDSketch(relativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
-	r.Latencies = latencies
-	return nil
+	return
 }
 
 func (r *RequestStat) close() {
-	if r.Latencies != nil {
-		r.Latencies.Clear()
-		protocols.SketchesPool.Put(r.Latencies)
-	}
+	//if r.Latencies != nil {
+	//	r.Latencies.Clear()
+	//	protocols.SketchesPool.Put(r.Latencies)
+	//}
 }
 
 // RequestStats stores HTTP request statistics.
@@ -255,9 +256,9 @@ func (r *RequestStats) HalfAllCounts() {
 
 // Close releases internal stats resources.
 func (r *RequestStats) Close() {
-	for _, stats := range r.Data {
-		if stats != nil {
-			stats.close()
-		}
-	}
+	//for _, stats := range r.Data {
+	//	if stats != nil {
+	//		stats.close()
+	//	}
+	//}
 }

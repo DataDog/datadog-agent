@@ -443,13 +443,9 @@ func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.HTTP2,
-			Stats: stats,
-		}, func() {
-			for _, elem := range stats {
-				elem.Close()
-			}
-		}
+		Type:  protocols.HTTP2,
+		Stats: stats,
+	}, nil
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.

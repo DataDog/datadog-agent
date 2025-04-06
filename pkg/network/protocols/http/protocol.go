@@ -249,13 +249,9 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-			Type:  protocols.HTTP,
-			Stats: stats,
-		}, func() {
-			for _, elem := range stats {
-				elem.Close()
-			}
-		}
+		Type:  protocols.HTTP,
+		Stats: stats,
+	}, nil
 }
 
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
