@@ -136,13 +136,6 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
-func (r *RequestStat) close() {
-	//if r.Latencies != nil {
-	//	r.Latencies.Clear()
-	//	protocols.SketchesPool.Put(r.Latencies)
-	//}
-}
-
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	Data map[uint16]*RequestStat
