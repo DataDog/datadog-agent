@@ -297,7 +297,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent status` should be empty")
-		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
+		if suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
 			var blob interface{}
 			err := json.Unmarshal([]byte(stdout), &blob)
 			suite.NoError(err)
@@ -404,7 +404,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
-		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
+		if suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
 			var blob interface{}
 			err := json.Unmarshal([]byte(stdout), &blob)
 			suite.NoError(err)
