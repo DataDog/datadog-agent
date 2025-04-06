@@ -6,18 +6,20 @@ go 1.23.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
+	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/spf13/cast v1.7.1
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -34,6 +36,7 @@ require (
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -102,6 +105,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model

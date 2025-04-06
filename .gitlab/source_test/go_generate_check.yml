@@ -1,7 +1,7 @@
 ---
 # check that go generate has been run in the pkg/security directory
 security_go_generate_check:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: source_test
   needs: [ "go_deps", "go_tools_deps" ]

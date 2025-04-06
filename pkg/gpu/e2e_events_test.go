@@ -14,10 +14,12 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -44,7 +46,12 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), telemetryMock)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx, err := getSystemContext(
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(telemetryMock),
+	)
 	require.NoError(t, err)
 
 	handlers := newStreamCollection(ctx, telemetryMock)
@@ -56,7 +63,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
 	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-	ctx.visibleDevicesCache[executingPID] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[executingPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	injectEventsToConsumer(t, consumer, events, 0)
 
