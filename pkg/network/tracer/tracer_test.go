@@ -453,7 +453,7 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv4 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, tr, "127.0.0.1:8081")
+			testUDPSendAndReceive(t, tr, "udp", "127.0.0.1:8081")
 		})
 	})
 	t.Run("v6", func(t *testing.T) {
@@ -461,15 +461,16 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv6 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, tr, "[::1]:8081")
+			testUDPSendAndReceive(t, tr, "udp6", "[::1]:8081")
 		})
 	})
 }
 
-func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
+func testUDPSendAndReceive(t *testing.T, tr *Tracer, ntwk, addr string) {
 	tr.removeClient(clientID)
 
 	server := &UDPServer{
+		network: ntwk,
 		address: addr,
 		onMessage: func(_ []byte, _ int) []byte {
 			return genPayload(serverMessageSize)
@@ -483,7 +484,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	initTracerState(t, tr)
 
 	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -531,6 +532,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
+		network: "udp",
 		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
@@ -541,7 +543,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 	t.Cleanup(server.Shutdown)
 
 	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -552,7 +554,8 @@ func (s *TracerSuite) TestUDPDisabled() {
 		t.Fatal(err)
 	}
 
-	c.Read(make([]byte, serverMessageSize))
+	_, err = c.Read(make([]byte, serverMessageSize))
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, cleanup := getConnections(t, tr)
@@ -570,10 +573,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	tr := setupTracer(t, config)
 
 	// Connect to local DNS
-	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -598,10 +598,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to local DNS
-	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:53")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -637,10 +634,7 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to 127.0.0.1:80
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:80")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -676,10 +670,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	tr := setupTracer(t, cfg)
 
 	// Connect to 127.0.0.1:80
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
-	assert.NoError(t, err)
-
-	cn, err := net.DialUDP("udp", nil, addr)
+	cn, err := dialUDP("udp", "127.0.0.1:80")
 	assert.NoError(t, err)
 	defer cn.Close()
 
@@ -802,12 +793,15 @@ func benchEchoUDP(size int) func(b *testing.B) {
 	}
 
 	return func(b *testing.B) {
-		server := &UDPServer{onMessage: echoOnMessage}
+		server := &UDPServer{
+			network:   "udp",
+			onMessage: echoOnMessage,
+		}
 		err := server.Run(size)
 		require.NoError(b, err)
 		defer server.Shutdown()
 
-		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -927,18 +921,22 @@ type UDPServer struct {
 }
 
 func (s *UDPServer) Run(payloadSize int) error {
-	networkType := "udp"
-	if s.network != "" {
-		networkType = s.network
+	if s.network == "" {
+		return fmt.Errorf("must set network for UDPServer.Run()")
 	}
 	var err error
 	var ln net.PacketConn
 	if s.lc != nil {
-		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), s.network, s.address)
 	} else {
-		ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(s.network, s.address)
 	}
 	if err != nil {
+		return err
+	}
+	err = ln.SetDeadline(time.Now().Add(time.Minute))
+	if err != nil {
+		ln.Close()
 		return err
 	}
 
@@ -971,11 +969,31 @@ func (s *UDPServer) Run(payloadSize int) error {
 	return nil
 }
 
+func (s *UDPServer) Dial() (net.Conn, error) {
+	return dialUDP(s.network, s.address)
+}
+
 func (s *UDPServer) Shutdown() {
 	if s.ln != nil {
 		_ = s.ln.Close()
 		s.ln = nil
 	}
+}
+
+func dialUDP(network, address string) (net.Conn, error) {
+	if network == "" {
+		return nil, fmt.Errorf("must set network to dialUDP")
+	}
+	conn, err := net.DialTimeout(network, address, 50*time.Millisecond)
+	if err != nil {
+		return nil, err
+	}
+	err = testutil.SetTestDeadline(conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 var letterBytes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -1123,7 +1141,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := testutil.DialTCP("tcp", server.Address())
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
@@ -1208,6 +1226,8 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	conn, err := net.ListenUDP("udp4", nil)
 	require.NoError(t, err)
 	defer conn.Close()
+	err = testutil.SetTestDeadline(conn)
+	require.NoError(t, err)
 	message := []byte("payload")
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
@@ -1236,7 +1256,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
-	conn, err := net.DialUDP("udp6", nil, remoteAddr)
+	conn, err := dialUDP("udp6", remoteAddr.String())
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")

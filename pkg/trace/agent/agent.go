@@ -199,10 +199,7 @@ func (a *Agent) Run() {
 	// enough to keep the agent busy.
 	// Having more processor threads would not speed
 	// up processing, but just expand memory.
-	workers := runtime.GOMAXPROCS(0)
-	if workers < 1 {
-		workers = 1
-	}
+	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
 	for i := 0; i < workers; i++ {
@@ -316,7 +313,7 @@ func (a *Agent) Process(p *api.Payload) {
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats)
 
 	p.TracerPayload.Env = traceutil.NormalizeTagValue(p.TracerPayload.Env)
 
@@ -343,8 +340,8 @@ func (a *Agent) Process(p *api.Payload) {
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
 		setChunkAttributes(chunk, root)
-		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
+		if allowed, denyingRule := a.Blacklister.Allows(root); !allowed {
+			log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
 			ts.TracesFiltered.Inc()
 			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
@@ -505,10 +502,7 @@ func (a *Agent) discardSpans(p *api.Payload) {
 }
 
 func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) *pb.ClientStatsPayload {
-	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
-		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
-		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
+	if a.conf.HasFeature("disable_cid_stats") {
 		in.ContainerID = ""
 		in.Tags = nil
 	} else {

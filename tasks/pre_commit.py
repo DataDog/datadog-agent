@@ -53,7 +53,7 @@ def check_set_x(ctx):
         if path.endswith(".sh")
         or path.endswith("Dockerfile")
         or path.endswith(".yml")
-        or (path.endswith(".yaml") and not path.startswith(".pre-commit-config"))
+        or (path.endswith(".yaml") and ".pre-commit-config" not in path)
     ]
 
     errors = []

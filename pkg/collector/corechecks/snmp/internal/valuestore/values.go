@@ -8,6 +8,7 @@ package valuestore
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,9 +52,7 @@ func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, 
 		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
 	}
 	retValues := make(map[string]ResultValue, len(values))
-	for index, value := range values {
-		retValues[index] = value
-	}
+	maps.Copy(retValues, values)
 
 	return retValues, nil
 }

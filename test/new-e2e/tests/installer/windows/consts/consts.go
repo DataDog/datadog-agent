@@ -20,7 +20,7 @@ const (
 	// InstallerPackage is the name of the Datadog Installer package
 	InstallerPackage string = "datadog-installer"
 	// Path is the path where the Datadog Installer is installed on disk
-	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	Path string = "C:\\Program Files\\Datadog\\Datadog Agent\\bin"
 	// BinaryName is the name of the Datadog Installer binary on disk
 	BinaryName string = "datadog-installer.exe"
 	// ServiceName the installer service name
@@ -28,12 +28,15 @@ const (
 	// ConfigPath is the location of the Datadog Installer's configuration on disk
 	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
-	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
+	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Agent`
 	// NamedPipe is the name of the named pipe used by the Datadog Installer
 	NamedPipe string = `\\.\pipe\dd_installer`
 
 	// baseConfigPath is the base path for the Installer configuration
-	baseConfigPath = "C:/ProgramData/Datadog Installer"
+	baseConfigPath = "C:/ProgramData/Datadog/Installer"
+
+	// PipelineOCIRegistry is the OCI registry that pipelines submit packages to
+	PipelineOCIRegistry = "installtesting.datad0g.com"
 )
 
 var (
@@ -51,10 +54,10 @@ var (
 
 // GetExperimentDirFor is the path to the experiment symbolic link on disk
 func GetExperimentDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\experiment", packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\experiment", baseConfigPath, packageName)
 }
 
 // GetStableDirFor is the path to the stable symbolic link on disk
 func GetStableDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\stable", packageName)
+	return fmt.Sprintf("%s\\packages\\%s\\stable", baseConfigPath, packageName)
 }

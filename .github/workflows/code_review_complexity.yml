@@ -10,9 +10,6 @@ on:
   pull_request_review_comment:
     types: [created, deleted]
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 permissions: {}
 jobs:
   codereview-complexity:
@@ -38,4 +35,5 @@ jobs:
       - name: Check code review complexity
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: dda inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

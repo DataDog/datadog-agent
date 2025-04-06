@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -21,6 +21,7 @@ import (
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -46,8 +47,11 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Avoid waiting for the initial sync to finish in tests, we don't need it
 	cfg.InitialProcessSync = false
 
+	// Enable fatbin parsing in tests so we can validate it runs
+	cfg.EnableFatbinParsing = true
+
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	deps := ProbeDependencies{
-		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
 		Telemetry:      testutil.GetTelemetryMock(t),
@@ -79,9 +83,9 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
 		handlerStream, handlerGlobal = nil, nil // Ensure we see both handlers in the same iteration
-		for key, h := range probe.consumer.streamHandlers {
-			if key.pid == uint32(cmd.Process.Pid) {
-				if key.stream == 0 {
+		for h := range probe.streamHandlers.allStreams() {
+			if h.metadata.pid == uint32(cmd.Process.Pid) {
+				if h.metadata.streamID == 0 {
 					handlerGlobal = h
 				} else {
 					handlerStream = h
@@ -89,7 +93,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return len(probe.consumer.streamHandlers) == 2 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
+		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check that we're receiving the events we expect
@@ -150,8 +154,8 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	//TODO: change this check to  count telemetry counter of the consumer (once added).
 	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return len(probe.consumer.streamHandlers) == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
+		return probe.streamHandlers.streamCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -185,8 +189,8 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	//TODO: change this check to  count telemetry counter of the consumer (once added).
 	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return len(probe.consumer.streamHandlers) == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
+		return probe.streamHandlers.streamCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -207,9 +211,9 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	// Check that the stream handlers have the correct container ID assigned
-	for key, handler := range probe.consumer.streamHandlers {
-		if key.pid == uint32(pid) {
-			require.Equal(t, cid, handler.containerID)
+	for handler := range probe.streamHandlers.allStreams() {
+		if handler.metadata.pid == uint32(pid) {
+			require.Equal(t, cid, handler.metadata.containerID)
 		}
 	}
 

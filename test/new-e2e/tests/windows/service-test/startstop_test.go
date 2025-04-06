@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -78,6 +79,8 @@ type agentServiceCommandSuite struct {
 
 func (s *agentServiceCommandSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
@@ -114,6 +117,8 @@ type powerShellServiceCommandSuite struct {
 
 func (s *powerShellServiceCommandSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
 		cmd := `Start-Service -Name datadogagent`
@@ -283,6 +288,8 @@ type agentServiceDisabledTraceAgentSuite struct {
 
 func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
@@ -432,6 +439,11 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 
 func (s *baseStartStopSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	// TODO(WINA-1320): mark this crash as flaky while we investigate it
+	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
 	// Enable crash dumps
 	s.dumpFolder = `C:\dumps`
