@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/clock"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
@@ -53,7 +54,7 @@ func TestProcessScaleUp(t *testing.T) {
 	assert.Len(t, queryResult.Results, 1)
 
 	// test
-	recommender := NewRecommender(pw, store)
+	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
@@ -111,7 +112,7 @@ func TestProcessScaleDown(t *testing.T) {
 	assert.Len(t, queryResult.Results, 3)
 
 	// test
-	recommender := NewRecommender(pw, store)
+	recommender := NewRecommender(clock.RealClock{}, pw, store)
 	recommender.process(ctx)
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)

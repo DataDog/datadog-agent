@@ -43,10 +43,10 @@ type utilizationResult struct {
 	recommendationTimestamp time.Time
 }
 
-func newReplicaCalculator(podWatcher workload.PodWatcher) replicaCalculator {
+func newReplicaCalculator(clock clock.Clock, podWatcher workload.PodWatcher) replicaCalculator {
 	return replicaCalculator{
 		podWatcher: podWatcher,
-		clock:      clock.RealClock{},
+		clock:      clock,
 	}
 }
 
