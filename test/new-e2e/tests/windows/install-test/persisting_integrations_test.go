@@ -178,7 +178,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	s.checkIntegrationNotInstalled(vm, "datadog-ping==1.0.2")
 
 	// check that the pip package is still installed
-	s.checkPipPackageInstalled(vm, "grpcio")
+	s.checkPipPackageNotInstalled(vm, "grpcio")
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
