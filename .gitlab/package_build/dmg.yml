@@ -55,7 +55,9 @@ include:
   - !reference [.macos_python_home_venv]
   - |
     # Install dda in the home venv
-    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    # TODO A: Merge with main
+    # python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0"
     python3 -m dda self dep sync -f legacy-tasks
     which dda
 
