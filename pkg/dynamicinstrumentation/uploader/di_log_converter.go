@@ -105,70 +105,77 @@ func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
 	}
 }
 
-func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
+func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
-	for idx, def := range defs {
-		argName := def.Name
+	definitionCounter := 0
+	missingCounter := 0
+	// Definitions can be longer than captures, as params/fields marked as DoNotCapture are not included at all in the
+	// the event buffer. As a result, we need to have logic to skip over the missing captures, and push the definitions
+	// to the returned map, including the NotCaptureReason.
+	// We keep track of the number of definitions read, and the number of missing captures to do so.
+	for i := range captures {
+	top:
+		definition := definitions[definitionCounter]
+		if definition.Kind != uint(captures[i].Kind) {
+			// definition is not present in captures, put it in the map and move on
+			args[definition.Name] = &ditypes.CapturedValue{
+				Type:              definition.Type,
+				NotCapturedReason: definition.NotCaptureReason.String(),
+			}
+			definitionCounter++
+			missingCounter++
+			goto top
+		}
+
+		capture := captures[i]
+		argName := definition.Name
 		if argName == "" {
-			argName = fmt.Sprintf("arg_%d", idx)
+			argName = fmt.Sprintf("arg_%d", i)
 		}
-
-		var capture *ditypes.Param
-		if idx < len(captures) {
-			capture = captures[idx]
-		}
-
-		if capture == nil {
-			// No capture for this def, check for not capture reason
-			args[argName] = &ditypes.CapturedValue{
-				Type: def.Type,
-			}
-			if def.DoNotCapture && def.NotCaptureReason != 0 {
-				args[argName].NotCapturedReason = def.NotCaptureReason.String()
-			}
-			continue
-		}
-
 		cv := &ditypes.CapturedValue{
-			Type: def.Type,
+			Type: definition.Type,
 		}
-
 		if capture.ValueStr != "" || capture.Type == "string" {
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
 
 		// Handle nested fields if both def and capture have them
-		if capture.Fields != nil && def.ParameterPieces != nil {
+		if capture.Fields != nil && definition.ParameterPieces != nil {
 			// For slice types, use convertSlice helper which already exists
 			if uint(capture.Kind) == uint(reflect.Slice) {
-				args[argName] = convertSlice(capture, def)
+				args[argName] = convertSlice(capture, definition)
+			} else if uint(capture.Kind) == uint(reflect.Array) {
+				//FIXME: this should be optimized to avoid O(n^2) assignment for every event
+				t := convertArgs(definition.ParameterPieces, capture.Fields)
+				ts := []ditypes.CapturedValue{}
+				for i := range t {
+					ts = append(ts, *t[i])
+				}
+				cv.Elements = ts
+				args[argName] = cv
 			} else {
 				// For struct types, recursively process fields
-				cv.Fields = convertArgs(def.ParameterPieces, capture.Fields)
+				cv.Fields = convertArgs(definition.ParameterPieces, capture.Fields)
 				args[argName] = cv
 			}
 		} else {
 			// No nested fields or already handled above
 			args[argName] = cv
 		}
+		definitionCounter++
 	}
 
-	// Handle extra captures not in defs
-	for idx, capture := range captures {
-		if idx >= len(defs) && capture != nil {
-			argName := fmt.Sprintf("arg_%d", idx)
-			cv := &ditypes.CapturedValue{
-				Type: capture.Type,
-			}
-			if capture.ValueStr != "" || capture.Type == "string" {
-				valueCopy := capture.ValueStr
-				cv.Value = &valueCopy
-			}
-			// Don't recursively process fields for captures not in defs
-			args[argName] = cv
+	definitionsCaptureDifference := len(definitions) - len(captures) - missingCounter
+	remainingDefinitions := definitions[len(definitions)-definitionsCaptureDifference:]
+
+	for i := range remainingDefinitions {
+		args[remainingDefinitions[i].Name] = &ditypes.CapturedValue{
+			Type:              remainingDefinitions[i].Type,
+			NotCapturedReason: remainingDefinitions[i].NotCaptureReason.String(),
 		}
 	}
+
 	return args
 }
 
