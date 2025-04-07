@@ -104,6 +104,18 @@ func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, proces
 	}
 }
 
+func testStatsHaveProcessTags(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	for _, p := range stats {
+		assert.NotEmpty(c, p.StatsPayload.Stats)
+		for _, s := range p.StatsPayload.Stats {
+			assert.Equal(c, processTags, s.ProcessTags)
+		}
+	}
+}
+
 func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()

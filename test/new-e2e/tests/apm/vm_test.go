@@ -322,6 +322,12 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
