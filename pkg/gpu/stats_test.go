@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.UtilizationMetrics {
@@ -31,9 +31,8 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
@@ -97,6 +96,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
@@ -199,6 +199,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
