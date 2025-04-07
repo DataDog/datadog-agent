@@ -6,6 +6,8 @@
 package installer
 
 import (
+	"fmt"
+
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -26,7 +28,15 @@ type AgentVersionManager struct {
 func NewAgentVersionManager(versionStr, packageVersionStr string, ociPackage TestPackageConfig, msiPackage *windowsagent.Package) (*AgentVersionManager, error) {
 	version, err := agentVersion.New(versionStr, "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse version %s: %w", versionStr, err)
+	}
+	// sanity check format of packageVersionStr
+	// NOTE: we don't use the struct result, GetNumberAndPre() does not work on
+	//       url-safe package strings because its regex expects a `+` character,
+	//       which is not present in the url-safe package version string.
+	_, err = agentVersion.New(packageVersionStr, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse package version %s: %w", packageVersionStr, err)
 	}
 	return &AgentVersionManager{
 		version:        version,

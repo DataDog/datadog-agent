@@ -497,6 +497,8 @@ func NewPackage(opts ...PackageOption) (*Package, error) {
 }
 
 // WithChannel sets the channel for the Package
+//
+// Example: beta, stable
 func WithChannel(channel string) PackageOption {
 	return func(p *Package) error {
 		p.Channel = channel
@@ -505,6 +507,10 @@ func WithChannel(channel string) PackageOption {
 }
 
 // WithVersion sets the version for the Package
+//
+// If using installers_v2.json, the version must match the version key in the json file
+//
+// Example: 7.65.0-1, 7.65.0-rc.1-1
 func WithVersion(version string) PackageOption {
 	return func(p *Package) error {
 		p.Version = version
@@ -513,6 +519,12 @@ func WithVersion(version string) PackageOption {
 }
 
 // WithArch sets the architecture for the Package
+//
+// Default is x86_64
+//
+// If using installers_v2.json, the arch must match the arch key in the json file
+//
+// Example: x86_64
 func WithArch(arch string) PackageOption {
 	return func(p *Package) error {
 		p.Arch = arch
@@ -521,6 +533,10 @@ func WithArch(arch string) PackageOption {
 }
 
 // WithFlavor sets the flavor for the Package
+//
+// # Default is empty, which is the base flavor
+//
+// Example: base, fips
 func WithFlavor(flavor string) PackageOption {
 	return func(p *Package) error {
 		p.Flavor = flavor
@@ -529,6 +545,10 @@ func WithFlavor(flavor string) PackageOption {
 }
 
 // WithProduct sets the product for the Package
+//
+// If using installers_v2.json, the product must match the product key in the json file
+//
+// Example: datadog-agent, datadog-fips-agent
 func WithProduct(product string) PackageOption {
 	return func(p *Package) error {
 		p.Product = product
@@ -536,7 +556,7 @@ func WithProduct(product string) PackageOption {
 	}
 }
 
-// WithURL sets the URL for the Package
+// WithURL sets the URL for the MSI Package
 func WithURL(url string) PackageOption {
 	return func(p *Package) error {
 		p.URL = url

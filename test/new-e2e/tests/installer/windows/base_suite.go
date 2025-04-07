@@ -115,8 +115,6 @@ func (s *BaseSuite) SetupSuite() {
 	// Get previous version OCI package
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
-		// TODO: update to last stable when there is one
-		WithPipeline("59404687"),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
