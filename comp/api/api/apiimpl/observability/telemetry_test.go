@@ -7,6 +7,7 @@ package observability
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,9 @@ import (
 
 func TestTelemetryMiddleware(t *testing.T) {
 	at := authtokenmock.New(t)
+	// Parse the certificate from the server TLS config
+	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
+	require.NoError(t, err)
 
 	testCases := []struct {
 		method    string
@@ -43,7 +47,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			duration: time.Millisecond,
 			tlsConfig: &tls.Config{
 				InsecureSkipVerify: true,
-			}, // The client is not providing a certificate, so it is not MTLS
+			}, // The client is not providing a certificate, so it is not mTLS
 			auth: "token",
 		},
 		{
@@ -51,7 +55,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			path:      "/test/2",
 			code:      http.StatusInternalServerError,
 			duration:  time.Millisecond,
-			tlsConfig: at.GetTLSClientConfig(), // The client is providing same certificate as the server, so it is MTLS
+			tlsConfig: at.GetTLSClientConfig(), // The client is providing same certificate as the server, so it is mTLS
 			auth:      "mTLS",
 		},
 		{
@@ -69,7 +73,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 					Certificates:       []tls.Certificate{server.TLS.Certificates[0]},
 				}
 				return cfg
-			}(), // The client is providing a certificate different from the server, so it is not MTLS
+			}(), // The client is providing a certificate different from the server, so it is not mTLS
 			auth: "token",
 		},
 	}
@@ -80,7 +84,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tmf, err := newTelemetryMiddlewareFactory(telemetry, clock, at.GetTLSServerConfig())
+			tmf, err := newTelemetryMiddlewareFactory(telemetry, clock, cert)
 			require.NoError(t, err)
 			telemetryHandler := tmf.Middleware(serverName)
 
@@ -133,7 +137,10 @@ func TestTelemetryMiddleware(t *testing.T) {
 func TestTelemetryMiddlewareDuration(t *testing.T) {
 	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tmf, err := NewTelemetryMiddlewareFactory(telemetry, at.GetTLSServerConfig())
+	// Parse the certificate from the server TLS config
+	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
+	require.NoError(t, err)
+	tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
 	require.NoError(t, err)
 	telemetryHandler := tmf.Middleware("test")
 
@@ -156,7 +163,10 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 func TestTelemetryMiddlewareTwice(t *testing.T) {
 	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tmf, err := NewTelemetryMiddlewareFactory(telemetry, at.GetTLSServerConfig())
+	// Parse the certificate from the server TLS config
+	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
+	require.NoError(t, err)
+	tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
 	require.NoError(t, err)
 
 	// test that we can create multiple middleware instances
