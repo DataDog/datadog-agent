@@ -7,10 +7,11 @@ package util
 
 import (
 	"fmt"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 const (
@@ -48,11 +49,7 @@ func NewNamespacedOwnerReference(apiVersion string, kind string, name string, na
 // GetNamespacedBaseOwnerReference creates a new namespaced owner reference object representing the base owner of the pod
 // In case the first owner's kind is replicaset, it returns an owner reference to the parent deployment
 // of the replicaset
-func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) NamespacedOwnerReference {
-	ownerref := podDetails.Ownerref
-	kind := ownerref.Kind
-	name := ownerref.Name
-
+func GetNamespacedBaseOwnerReference(kind, name, namespace string) NamespacedOwnerReference {
 	// This should be included in the KubeOwnerInfo by the client.
 	// For now, it is hard-coded, and we support apps/v1 strictly
 	apiVersion := "apps/v1"
@@ -65,7 +62,7 @@ func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) Namesp
 		APIVersion: apiVersion,
 		Kind:       kind,
 		Name:       name,
-		Namespace:  podDetails.Namespace,
+		Namespace:  namespace,
 	}
 }
 
