@@ -272,6 +272,11 @@ char *run_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->runCheck(AS_TYPE(RtLoaderPyObject, check));
 }
 
+int set_instance(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *instance_str)
+{
+    return AS_TYPE(RtLoader, rtloader)->setInstance(AS_TYPE(RtLoaderPyObject, check), instance_str) ? 1 : 0;
+}
+
 void cancel_check(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     AS_TYPE(RtLoader, rtloader)->cancelCheck(AS_TYPE(RtLoaderPyObject, check));

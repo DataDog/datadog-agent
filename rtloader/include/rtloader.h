@@ -118,6 +118,14 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual setInstance member.
+    /*!
+      \param check The python object pointer to the check we wish to set the instance for.
+      \param instance_str A C-string containing the instance config for the check instance.
+      \return A boolean indicating the success or not of the operation.
+    */
+    virtual bool setInstance(RtLoaderPyObject *check, const char *instance_str) = 0;
+
     //! Pure virtual cancelCheck member.
     /*!
       \param check The python object pointer to the check we wish to cancel.

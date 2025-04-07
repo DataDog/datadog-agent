@@ -63,6 +63,7 @@ public:
                   RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    bool setInstance(RtLoaderPyObject *check, const char *instance_str);
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);
