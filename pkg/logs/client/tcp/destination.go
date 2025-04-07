@@ -127,7 +127,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
+		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag)
 		output <- payload
 
 		if d.connManager.ShouldReset(d.connCreationTime) {
