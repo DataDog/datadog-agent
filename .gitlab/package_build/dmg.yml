@@ -62,7 +62,7 @@ include:
     which dda
 
 # Add certificates to temporary keychain
-.setup_signing:
+.macos_setup_signing:
   - |
     if [ "$SIGN" = true ]; then
       echo "Setting up signing secrets"
@@ -118,6 +118,32 @@ include:
       # Note: we silence the output of this command because it contains metadata about the certificates.
       security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
     fi
+
+
+.macos_setup_cache:
+  - |
+    $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+    export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+    # TODO: _omnibus_cache_key_files is not necessary
+    # Copy files used for the Omnibus ruby deps cache key
+    # This is to work around a limitation of GitHub Actions' `hashFiles()` function which requires
+    # files to be inside the workspace.
+    mkdir -p _omnibus_cache_key_files
+    cp ./{release.json,omnibus/Gemfile} ./_omnibus_cache_key_files
+    # TODO: Cache _omnibus_cache_key_files
+    echo Release JSON
+    cat release.json
+    echo Omnibus Gemfile
+    cat omnibus/Gemfile
+  # Setup artifactory cache
+  - |
+    export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
+    export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
+    # TODO: In home?
+    export GOMODCACHE=gomodcache
+    if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
+    if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
+    mkdir -p $GOMODCACHE
 
 
 .macos_do_build:
@@ -192,7 +218,17 @@ new-agent_dmg-x64-a7:
     PYTHON_RUNTIMES: 3
     # TODO
     OMNIBUS_RUBY_VERSION: celian/macos-build
-    SIGN: true
+    # TODO
+    # SIGN: true
+    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
+    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    USE_CACHING_PROXY_RUBY: true
+    USE_CACHING_PROXY_PYTHON: true
+    ARTIFACTORY_URL: datadog.jfrog.io
+    ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+    ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
@@ -220,48 +256,23 @@ new-agent_dmg-x64-a7:
 
     # Setup
     - |
-      # TODO A: Omnibus cache
-      unset INTEGRATION_WHEELS_CACHE_BUCKET || true
-      unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
-      unset S3_OMNIBUS_CACHE_BUCKET || true
-      unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
-      # export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
-      # export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
-      # export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
-      # export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
-      export RELEASE_VERSION=$RELEASE_VERSION_7
       export RELEASE_VERSION=$RELEASE_VERSION_7
       export INSTALL_DIR="$PWD/datadog-agent-build/bin"
       export CONFIG_DIR="$PWD/datadog-agent-build/config"
       export OMNIBUS_DIR="$PWD/omnibus_build"
       unset OMNIBUS_BASE_DIR
       unset OMNIBUS_PACKAGE_DIR
-    - !reference [.setup_signing]
+    - !reference [.macos_setup_signing]
     # TODO: xcode 14.2?
     # - xcode-select -s /Applications/Xcode_14.3.1.app
+    # Setup cache
+    - !reference [.macos_setup_cache]
+    - mkdir -p ~/go
+
     - |
       rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
       mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
-      echo Ignoring omnibus build cache
-      # TODO: Omnibus cache
-      # rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
-      # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
-    # TODO: Cache go?
-    - mkdir -p ~/go
-    # TODO: Cache brew deps
-    # TODO: Cache _omnibus_cache_key
-    # TODO: Verify runner - bash .gitlab/package_build/builder_setup.sh
-    # TODO: Cache ruby deps
-    # TODO: Cache...
-    # - |
-      # export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
-      # export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
-      # export ARTIFACTORY_URL=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY hostname) || exit $?; export ARTIFACTORY_URL
-    #   export GOMODCACHE=~/gomodcache
-    #   if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
-    #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
-    #   mkdir -p $GOMODCACHE
 
     - |
       echo Setting up Go
