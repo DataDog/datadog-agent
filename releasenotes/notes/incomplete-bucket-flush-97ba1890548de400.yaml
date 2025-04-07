@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Added new dogstatsd configuration option "dogstatsd_flush_incomplete_buckets". 
-    When enabled, dogstatsd will flush all received metrics during shutdown irregardless
-    of which time-interval based bucket they belong to.  
+    Added new DogStatsD configuration option "dogstatsd_flush_incomplete_buckets". 
+    When enabled, DogStatsD will flush all received metrics during shutdown, regardless
+    of which time-interval based bucket they belong to.
