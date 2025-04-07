@@ -436,6 +436,57 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Log(stdout)
 		}
 	})
+	suite.Run("cluster-agent leaderelection", func() {
+		suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	})
+}
+
+func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) {
+	ctx := context.Background()
+
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		// find cluster agent pod, it could be either leader or follower
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
+			Limit:         1,
+		})
+		assert.NoError(c, err)
+		assert.Len(c, pods.Items, 1, "Expected at least one running cluster agent pod")
+		stdout, stderr, err := suite.podExec("datadog", pods.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		assert.NoError(c, err)
+		assert.Empty(c, stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		var blob interface{}
+		err = json.Unmarshal([]byte(stdout), &blob)
+		assert.NoError(c, err, "Failed to unmarshal JSON output of `datadog-cluster-agent status --json`")
+
+		// Check if the "leaderelection" field exists
+		assert.NotNil(c, blob, "Failed to unmarshal JSON output of `datadog-cluster-agent status --json`")
+		blobMap, ok := blob.(map[string]interface{})
+		assert.Truef(c, ok, "Failed to assert blob as map[string]interface{}")
+
+		var leaderPodName string
+		// Check if the "leaderName" field exists
+		assert.Contains(c, blobMap, "leaderelection", "Field `leaderelection` not found in the JSON output")
+		assert.Contains(c, blobMap["leaderelection"], "leaderName", "Field `leaderelection.leaderName` not found in the JSON output")
+		leaderPodName, ok = (blobMap["leaderelection"].(map[string]interface{}))["leaderName"].(string)
+		assert.Truef(c, ok, "Failed to assert `leaderelection.leaderName` as string")
+		assert.NotEmpty(c, leaderPodName, "Field `leaderelection.leaderName` is empty in the JSON output")
+		suite.T().Logf("Cluster agent pods have a leader name: %s", leaderPodName)
+		leaderPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").Get(ctx, leaderPodName, metav1.GetOptions{})
+		assert.NoError(c, err)
+		assert.NotNilf(c, leaderPod, "Leader pod: %s not found", leaderPodName)
+
+		// restart the leader pod
+		if restartLeader {
+			// TODO: not enabled for now because it will cause other tests to fail
+			suite.T().Logf("Restarting leader pod: %s", leaderPodName)
+			err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").Delete(ctx, leaderPodName, metav1.DeleteOptions{})
+			assert.NoError(c, err)
+		}
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	}, 2*time.Minute, 10*time.Second, "Cluster agent leader election failed")
 }
 
 func (suite *k8sSuite) TestNginx() {
