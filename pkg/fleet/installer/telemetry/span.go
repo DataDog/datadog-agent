@@ -51,7 +51,9 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 		s.SetTopLevel()
 	}
 
-	globalTracer.registerSpan(s)
+	if globalTracer != nil {
+		globalTracer.registerSpan(s)
+	}
 	return s
 }
 

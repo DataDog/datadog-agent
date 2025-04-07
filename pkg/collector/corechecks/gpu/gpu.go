@@ -13,11 +13,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -31,6 +28,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -52,7 +51,6 @@ type Check struct {
 	sysProbeClient *http.Client            // sysProbeClient is used to communicate with system probe
 	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
 	collectors     []nvidia.Collector      // collectors for NVML metrics
-	nvmlLib        nvml.Interface          // NVML library interface
 	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
 	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
 	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
@@ -107,31 +105,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	return nil
 }
 
-func (c *Check) ensureInitNVML() error {
-	if c.nvmlLib != nil {
-		return nil
-	}
-
-	nvmlLib, err := ddnvml.GetNvmlLib()
-	if err != nil {
-		return fmt.Errorf("failed to get NVML library: %w", err)
-	}
-
-	c.nvmlLib = nvmlLib
-	return nil
-}
-
 func (c *Check) ensureInitDeviceCache() error {
 	if c.deviceCache != nil {
 		return nil
 	}
 
-	if err := c.ensureInitNVML(); err != nil {
-		return err
-	}
-
 	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCacheWithOptions(c.nvmlLib)
+	c.deviceCache, err = ddnvml.NewDeviceCache()
 	if err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
@@ -153,7 +133,7 @@ func (c *Check) ensureInitCollectors() error {
 		return err
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, DeviceCache: c.deviceCache})
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -165,8 +145,8 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if c.nvmlLib != nil {
-		_ = c.nvmlLib.Shutdown()
+	if lib, err := ddnvml.GetNvmlLib(); err == nil {
+		_ = lib.Shutdown()
 	}
 
 	c.CheckBase.Cancel()
@@ -403,10 +383,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 
 func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
 	// Collect global metrics such as device count
-	devCount, ret := c.nvmlLib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
+	devCount := c.deviceCache.Count()
 
 	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
 

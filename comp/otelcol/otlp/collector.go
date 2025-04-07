@@ -128,7 +128,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
 	if tagger != nil {
-		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger))
+		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger, hostname.Get))
 	}
 	processors, err := otelcol.MakeFactoryMap[processor.Factory](processorFactories...)
 	if err != nil {
