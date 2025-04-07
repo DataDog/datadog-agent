@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy && functionaltests
+//go:build !kubelet && docker
 
-// Package trivy holds the scan components
-package trivy
+package tailerfactory
 
 import (
-	// used to read RPM database
-	// mattn/go-sqlite3 is currently not fully supported by our functional tests setup
-	_ "modernc.org/sqlite"
+	"errors"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {
+	return nil, errors.New("API tailing is unavailable")
+}
