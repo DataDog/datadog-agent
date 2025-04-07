@@ -724,6 +724,47 @@ func TestDisabledContainerTags(t *testing.T) {
 	assert.Nil(stats.Stats[0].Tags)
 }
 
+func TestWithProcessTags(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	ptags := "binary_name:bin33,grpc_server:my_server"
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	conf := config.New()
+	conf.Hostname = "host"
+	conf.DefaultEnv = "env"
+	conf.BucketInterval = time.Duration(testBucketInterval)
+	c := NewTestConcentratorWithCfg(now, conf)
+	c.addNow(testTrace, infraTags{processTagsHash: 27, processTags: ptags})
+
+	stats := c.flushNow(time.Now().Unix(), true)
+	assert.Len(stats.GetStats(), 1)
+	assert.Equal(stats.Stats[0].ProcessTags, ptags)
+}
+
+func TestDisabledProcessTags(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	ptags := "binary_name:bin33,grpc_server:my_server"
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	conf := config.New()
+	conf.Hostname = "host"
+	conf.DefaultEnv = "env"
+	conf.Features["disable_process_stats"] = struct{}{}
+	conf.BucketInterval = time.Duration(testBucketInterval)
+	c := NewTestConcentratorWithCfg(now, conf)
+	c.addNow(testTrace, infraTags{processTagsHash: 27, processTags: ptags})
+
+	stats := c.flushNow(time.Now().Unix(), true)
+	assert.Len(stats.GetStats(), 1)
+	assert.Equal("", stats.Stats[0].ProcessTags)
+}
+
 func TestPeerTags(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
