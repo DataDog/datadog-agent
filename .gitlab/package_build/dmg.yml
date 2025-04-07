@@ -180,11 +180,11 @@ new-agent_dmg-x64-a7:
 
     - brew uses gettext --installed || true
 
-
     # TODO
     # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache /tmp/cache && cat /tmp/cache
 
-    - if [ "$SIGN" = true ]; then
+    - |
+      if [ "$SIGN" = true ]; then
         echo "Signing enabled"
       else
         echo "Signing disabled"
