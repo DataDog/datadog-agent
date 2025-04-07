@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
+const stackCreationDelay = 1 * time.Minute
+
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
 
 type installerScriptTestsWithSkippedFlavors struct {
@@ -80,6 +82,7 @@ func TestScripts(t *testing.T) {
 		flavor.Architecture = e2eos.ARM64Arch
 		flavors = append(flavors, flavor)
 	}
+	iteration := 0
 	for _, f := range flavors {
 		for _, test := range scriptTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
@@ -91,6 +94,9 @@ func TestScripts(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 
+				// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
+				time.Sleep(time.Duration(iteration) * stackCreationDelay)
+
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -101,6 +107,8 @@ func TestScripts(t *testing.T) {
 					e2e.WithStackName(suite.Name()),
 				)
 			})
+
+			iteration++
 		}
 	}
 }
