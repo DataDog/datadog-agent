@@ -23,6 +23,7 @@ typedef struct {
     redis_command_t command;
     __u8 tags;
     bool truncated;
+    bool is_error;
 } redis_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.

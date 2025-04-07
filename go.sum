@@ -151,6 +151,14 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/agent-payload/v5 v5.0.145-0.20250224072858-40bed25b10b6 h1:/tpFglYWfOqe9yHvUbZvMppui0zjsIk1O400ryNBTJ8=
 github.com/DataDog/agent-payload/v5 v5.0.145-0.20250224072858-40bed25b10b6/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407120451-60bc2f13d9d7 h1:aGCj0LeOtYm5/JPdqWHpjiPMdxZzb5lIVQuoeNzN+y4=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407120451-60bc2f13d9d7/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407121003-8890e8bb278d h1:CyrOtt5anriSFMkL+cfzZxGhJc0J1hPK67eLVSz8Rtg=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407121003-8890e8bb278d/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407122745-7a94202a220e h1:qxHybTjR50pDOo6VBzGvpfi6mOOnARcCgd0Uid0Fa4Q=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407122745-7a94202a220e/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407142337-6308826e0018 h1:kSoZjOSQN2ks6tTueA361z/67jcMFxDox75EbuwmX4U=
+github.com/DataDog/agent-payload/v5 v5.0.145-0.20250407142337-6308826e0018/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/appsec-internal-go v1.10.0 h1:RlY1FXYeaDCHs5fbhcs5x/MxZYUwg53LOy+iSj0iHsU=
 github.com/DataDog/appsec-internal-go v1.10.0/go.mod h1:9eYpAdKZF4Pz49qOmNL+OSVFHjhkZrBdBBjmAwBeN5c=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=

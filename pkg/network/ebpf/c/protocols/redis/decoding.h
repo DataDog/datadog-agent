@@ -166,19 +166,16 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
     if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, sizeof(first_byte)) < 0) {
         return;
     }
-    if (transaction->command == REDIS_GET) {
-        if (first_byte != RESP_BULK_PREFIX) {
-            goto cleanup;
-        }
-        transaction->response_last_seen = bpf_ktime_get_ns();
-        goto enqueue;
-    } else{
-        if (first_byte != RESP_SIMPLE_STRING_PREFIX) {
-            goto cleanup;
-        }
-        transaction->response_last_seen = bpf_ktime_get_ns();
-        goto enqueue;
+    if (first_byte == RESP_ERROR_PREFIX) {
+        transaction->is_error = true;
     }
+    if (transaction->command == REDIS_GET && first_byte != RESP_BULK_PREFIX) {
+        goto cleanup;
+    } else if (first_byte != RESP_SIMPLE_STRING_PREFIX) {
+        goto cleanup;
+    }
+    transaction->response_last_seen = bpf_ktime_get_ns();
+    goto enqueue;
 
 enqueue:
     redis_batch_enqueue_wrapper(tup, transaction);

@@ -8,6 +8,7 @@
 #define MAX_KEY_LEN 128
 #define RESP_ARRAY_PREFIX '*'
 #define RESP_BULK_PREFIX '$'
+#define RESP_ERROR_PREFIX '-'
 #define RESP_TERMINATOR_1 '\r'
 #define RESP_TERMINATOR_2 '\n'
 #define METHOD_LEN 3

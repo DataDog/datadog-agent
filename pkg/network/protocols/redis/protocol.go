@@ -149,13 +149,15 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
-	stats := p.statskeeper.GetAndResetAllStats()
+	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
 			Type:  protocols.Redis,
-			Stats: stats,
+			Stats: keysToStats,
 		}, func() {
-			for _, stat := range stats {
-				stat.close()
+			for _, stats := range keysToStats {
+				for _, stat := range stats.ErrorsToStats {
+					stat.close()
+				}
 			}
 		}
 }

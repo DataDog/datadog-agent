@@ -11,12 +11,11 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StatsKeeper is a struct to hold the records for the redis protocol
 type StatsKeeper struct {
-	stats      map[Key]*RequestStat
+	stats      map[Key]*RequestStats
 	statsMutex sync.RWMutex
 	maxEntries int
 }
@@ -48,31 +47,15 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 		if len(s.stats) >= s.maxEntries {
 			return
 		}
-		requestStats = new(RequestStat)
+		requestStats = NewRequestStats()
 		s.stats[key] = requestStats
 	}
-	requestStats.StaticTags = uint64(event.Tx.Tags)
-	requestStats.Count++
-	if requestStats.Count == 1 {
-		requestStats.FirstLatencySample = event.RequestLatency()
-		return
-	}
-	if requestStats.Latencies == nil {
-		if err := requestStats.initSketch(); err != nil {
-			log.Warnf("could not add request latency to ddsketch: %v", err)
-			return
-		}
-		if err := requestStats.Latencies.Add(requestStats.FirstLatencySample); err != nil {
-			return
-		}
-	}
-	if err := requestStats.Latencies.Add(event.RequestLatency()); err != nil {
-		log.Debugf("could not add request latency to ddsketch: %v", err)
-	}
+	count := 1 // We process one event at a time
+	requestStats.AddRequest(event.Tx.Is_error, count, uint64(event.Tx.Tags), event.RequestLatency())
 }
 
 // GetAndResetAllStats returns all the records and resets the statskeeper
-func (s *StatsKeeper) GetAndResetAllStats() map[Key]*RequestStat {
+func (s *StatsKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	s.statsMutex.RLock()
 	defer s.statsMutex.RUnlock()
 
@@ -82,5 +65,5 @@ func (s *StatsKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 }
 
 func (s *StatsKeeper) resetNoLock() {
-	s.stats = make(map[Key]*RequestStat)
+	s.stats = make(map[Key]*RequestStats)
 }

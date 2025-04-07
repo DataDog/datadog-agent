@@ -24,25 +24,37 @@ type key struct {
 	Server address
 }
 
-// RequestSummary represents a (debug-friendly) aggregated view of requests
-type RequestSummary struct {
-	key
-	Command            string
-	KeyName            string
-	Truncated          bool
+type Stats struct {
 	Count              int
 	FirstLatencySample float64
 	LatencyP50         float64
 }
 
-// Redis returns a debug-friendly representation of map[postgres.Key]postgres.RequestStats
-func Redis(stats map[redis.Key]*redis.RequestStat) []RequestSummary {
-	all := make([]RequestSummary, 0, len(stats))
+// RequestSummary represents a (debug-friendly) aggregated view of requests
+type RequestSummary struct {
+	key
+	Command      string
+	KeyName      string
+	Truncated    bool
+	ErrorToStats map[bool]Stats
+}
+
+// Redis returns a debug-friendly representation of map[redis.Key]redis.RequestStats
+func Redis(stats map[redis.Key]*redis.RequestStats) []RequestSummary {
+	var requestCount int
+	for k := range stats {
+		requestCount += len(stats[k].ErrorsToStats)
+	}
+	all := make([]RequestSummary, 0, requestCount)
+
 	for k := range stats {
 		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
 		serverAddr := formatIP(k.DstIPLow, k.DstIPHigh)
 
-		all = append(all, RequestSummary{
+		requestSummary := RequestSummary{
+			Truncated: k.Truncated,
+			KeyName:   k.KeyName,
+			Command:   k.Command.String(),
 			key: key{
 				Client: address{
 					IP:   clientAddr.String(),
@@ -53,13 +65,17 @@ func Redis(stats map[redis.Key]*redis.RequestStat) []RequestSummary {
 					Port: k.DstPort,
 				},
 			},
-			Command:            k.Command.String(),
-			KeyName:            k.KeyName,
-			Truncated:          k.Truncated,
-			Count:              stats[k].Count,
-			FirstLatencySample: stats[k].FirstLatencySample,
-			LatencyP50:         protocols.GetSketchQuantile(stats[k].Latencies, 0.5),
-		})
+			ErrorToStats: make(map[bool]Stats, len(stats[k].ErrorsToStats)),
+		}
+
+		for err, stat := range stats[k].ErrorsToStats {
+			requestSummary.ErrorToStats[err] = Stats{
+				Count:              stat.Count,
+				FirstLatencySample: stat.FirstLatencySample,
+				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
+			}
+		}
+		all = append(all, requestSummary)
 	}
 
 	return all
