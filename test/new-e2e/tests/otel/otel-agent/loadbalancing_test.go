@@ -26,12 +26,12 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &loadBalancingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(loadBalancingConfig)))))
 }
