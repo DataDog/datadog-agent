@@ -121,7 +121,7 @@ include:
 .macos_do_build:
   - |
     INVOKE_TASK="omnibus.build"
-    if ! inv --list | grep -qF "$INVOKE_TASK"; then
+    if ! dda inv -- --list | grep -qF "$INVOKE_TASK"; then
         echo -e "\033[0;31magent.omnibus-build is deprecated. Please use omnibus.build!\033[0m"
         INVOKE_TASK="agent.omnibus-build"
     fi
@@ -130,11 +130,11 @@ include:
     if [ "$SIGN" = "true" ]; then
         # Unlock the keychain to get access to the signing certificates
         security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-        inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
         # Lock the keychain once we're done
         security lock-keychain "$KEYCHAIN_NAME"
     else
-        inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     fi
     echo Built packages using omnibus
 
@@ -204,8 +204,6 @@ new-agent_dmg-x64-a7:
     - set -eo pipefail
 
     - !reference [.macos_setup_python]
-    - dda inv -- --list
-    - exit
 
     - brew uses gettext --installed || true
 
@@ -273,13 +271,14 @@ new-agent_dmg-x64-a7:
     #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
     #   mkdir -p $GOMODCACHE
 
-    -  |
-      echo Setting up python venv
-      python3 -m venv .venv
-      source .venv/bin/activate
-      python3 -m pip install -r requirements.txt -r tasks/requirements.txt
-      echo Python version
-      python3 --version
+    # TODO A: Remove
+    # -  |
+    #   echo Setting up python venv
+    #   python3 -m venv .venv
+    #   source .venv/bin/activate
+    #   python3 -m pip install -r requirements.txt -r tasks/requirements.txt
+    #   echo Python version
+    #   python3 --version
 
     - |
       echo Setting up Go
