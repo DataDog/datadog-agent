@@ -9,7 +9,7 @@ const (
 	ClassificationMaxSupportedProduceRequestApiVersion = 0xb
 	ClassificationMinSupportedProduceRequestApiVersion = 0x1
 	DecodingMaxSupportedProduceRequestApiVersion       = 0xa
-	ClassificationMaxSupportedFetchRequestApiVersion   = 0x11
+	ClassificationMaxSupportedFetchRequestApiVersion   = 0xc
 	ClassificationMinSupportedFetchRequestApiVersion   = 0x0
 	DecodingMaxSupportedFetchRequestApiVersion         = 0xc
 )
