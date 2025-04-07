@@ -354,7 +354,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
-	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
+	seclog.Debugf("Prepare event message for rule `%s`", rule.ID)
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention

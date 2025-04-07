@@ -163,7 +163,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func (wp *WindowsProbe) parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
+func (wp *WindowsProbe) _parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	ca := &createArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -192,36 +192,12 @@ func (wp *WindowsProbe) parseCreateArgs(e *etw.DDEventRecord) (*createArgs, erro
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	// invalidate the path resolver entry
+	// invalidate the path resolver entry and other cache entries
+	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 	wp.filePathResolver.Remove(ca.fileObject)
 	wp.createArgsCache.Remove(ca.irp)
 
-	// not amazing to double compute the basename.
-	basename := filepath.Base(ca.fileName)
-
-	if !wp.approveFimBasename(basename) {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.createFileApproverRejects++
-		return nil, errDiscardedPath
-	}
-
-	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.fileCreateSkippedDiscardedPaths++
-		return nil, errDiscardedPath
-	}
-
 	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
-	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
-		wp.stats.fileCreateSkippedDiscardedPaths++
-		return nil, errDiscardedPath
-	}
-
-	if _, ok := wp.discardedBasenames.Get(basename); ok {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.fileCreateSkippedDiscardedBasenames++
-		return nil, errDiscardedPath
-	}
 
 	// lru is thread safe, has its own locking
 	fc := fileCache{
@@ -232,15 +208,11 @@ func (wp *WindowsProbe) parseCreateArgs(e *etw.DDEventRecord) (*createArgs, erro
 		wp.stats.fileNameCacheEvictions++
 	}
 
-	// if we get here, we have a new file handle. Remove it from the discarder cache in case
-	// we missed the close notification
-	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
-
 	return ca, nil
 }
 
-func (wp *WindowsProbe) parseKfCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
-	ca, err := wp.parseCreateArgs(e)
+func (wp *WindowsProbe) parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
+	ca, err := wp._parseCreateArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -248,21 +220,13 @@ func (wp *WindowsProbe) parseKfCreateArgs(e *etw.DDEventRecord) (*createArgs, er
 	// add it the createArgs cache so that it can be remove later from the operationEnd handling
 	wp.createArgsCache.Add(ca.irp, ca.fileObject)
 
-	if strings.Contains(ca.fileName, "toto") {
-		fmt.Printf("CreateArgs => Obj: %d\n", ca.fileObject)
-	}
-
 	return ca, nil
 }
 
-func (wp *WindowsProbe) parseKfCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := wp.parseKfCreateArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp._parseCreateArgs(e)
 	if err != nil {
 		return nil, err
-	}
-
-	if strings.Contains(ca.fileName, "toto") {
-		fmt.Printf("CreateNewArgs => Obj: %d\n", ca.fileObject)
 	}
 	return (*createNewFileArgs)(ca), nil
 }
@@ -328,7 +292,7 @@ type rename29Args setInformationArgs
 type fsctlArgs setInformationArgs
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
+func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -384,8 +348,8 @@ func (sia *setInformationArgs) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfSetDeleteArgs(e *etw.DDEventRecord) (*setDeleteArgs, error) {
-	sda, err := wp.parseKfInformationArgs(e)
+func (wp *WindowsProbe) parseSetDeleteArgs(e *etw.DDEventRecord) (*setDeleteArgs, error) {
+	sda, err := wp.parseInformationArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -398,8 +362,8 @@ func (sda *setDeleteArgs) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfRenameArgs(e *etw.DDEventRecord) (*renameArgs, error) {
-	ra, err := wp.parseKfInformationArgs(e)
+func (wp *WindowsProbe) parseRenameArgs(e *etw.DDEventRecord) (*renameArgs, error) {
+	ra, err := wp.parseInformationArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -412,8 +376,8 @@ func (ra *renameArgs) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfRename29Args(e *etw.DDEventRecord) (*rename29Args, error) {
-	ra, err := wp.parseKfInformationArgs(e)
+func (wp *WindowsProbe) parseRename29Args(e *etw.DDEventRecord) (*rename29Args, error) {
+	ra, err := wp.parseInformationArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -426,8 +390,8 @@ func (ra *rename29Args) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfFsctlArgs(e *etw.DDEventRecord) (*fsctlArgs, error) {
-	fa, err := wp.parseKfInformationArgs(e)
+func (wp *WindowsProbe) parseFsctlArgs(e *etw.DDEventRecord) (*fsctlArgs, error) {
+	fa, err := wp.parseInformationArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -489,7 +453,7 @@ type operationEndArgs struct {
 	status           uint32
 }
 
-func (wp *WindowsProbe) parseKfCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
+func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -520,7 +484,7 @@ func (wp *WindowsProbe) parseKfCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, 
 	return ca, nil
 }
 
-func (wp *WindowsProbe) parseKfOperationEndArgs(e *etw.DDEventRecord) (*operationEndArgs, error) {
+func (wp *WindowsProbe) parseOperationEndArgs(e *etw.DDEventRecord) (*operationEndArgs, error) {
 	oe := &operationEndArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -534,8 +498,8 @@ func (wp *WindowsProbe) parseKfOperationEndArgs(e *etw.DDEventRecord) (*operatio
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
-	ca, err := wp.parseKfCleanupArgs(e)
+func (wp *WindowsProbe) parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -543,8 +507,8 @@ func (wp *WindowsProbe) parseKfCloseArgs(e *etw.DDEventRecord) (*closeArgs, erro
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
-	ca, err := wp.parseKfCleanupArgs(e)
+func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +557,7 @@ type readArgs struct {
 }
 type writeArgs readArgs
 
-func (wp *WindowsProbe) parseKfReadWriteArgs(e *etw.DDEventRecord) (*readArgs, error) {
+func (wp *WindowsProbe) parseReadWriteArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	ra := &readArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -650,8 +614,8 @@ func (ra *readArgs) String() string {
 	return ra.string("READ")
 }
 
-func (wp *WindowsProbe) parseKfWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
-	wa, err := wp.parseKfReadWriteArgs(e)
+func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
+	wa, err := wp.parseReadWriteArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -706,7 +670,7 @@ type renamePath deletePathArgs
 // nolint: unused
 type setLinkPath deletePathArgs
 
-func (wp *WindowsProbe) parseKfDeletePathArgs(e *etw.DDEventRecord) (*deletePathArgs, error) {
+func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathArgs, error) {
 	dpa := &deletePathArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -760,8 +724,8 @@ func (dpa *deletePathArgs) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfRenamePathArgs(e *etw.DDEventRecord) (*renamePath, error) {
-	rpa, err := wp.parseKfDeletePathArgs(e)
+func (wp *WindowsProbe) parseRenamePathArgs(e *etw.DDEventRecord) (*renamePath, error) {
+	rpa, err := wp.parseDeletePathArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -774,8 +738,8 @@ func (rpa *renamePath) String() string {
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseKfSetLinkPathArgs(e *etw.DDEventRecord) (*setLinkPath, error) {
-	sla, err := wp.parseKfDeletePathArgs(e)
+func (wp *WindowsProbe) parseSetLinkPathArgs(e *etw.DDEventRecord) (*setLinkPath, error) {
+	sla, err := wp.parseDeletePathArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -796,7 +760,7 @@ type nameCreateArgs struct {
 
 type nameDeleteArgs nameCreateArgs
 
-func (wp *WindowsProbe) parseKfNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
+func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
 	ca := &nameCreateArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -837,8 +801,8 @@ func (nd *nameDeleteArgs) String() string {
 	return (*nameCreateArgs)(nd).string("NAME_DELETE")
 }
 
-func (wp *WindowsProbe) parseKfNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteArgs, error) {
-	ca, err := wp.parseKfNameCreateArgs(e)
+func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteArgs, error) {
+	ca, err := wp.parseNameCreateArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -871,6 +835,36 @@ func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) string {
 		return devicefilename
 	}
 	return userPath
+}
+
+func (wp *WindowsProbe) isPathAccepted(fileObject fileObjectPointer, fileName string, userFileName string) bool {
+	// not amazing to double compute the basename.
+	basename := filepath.Base(fileName)
+
+	if !wp.approveFimBasename(basename) {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.createFileApproverRejects++
+		return false
+	}
+
+	if _, ok := wp.discardedPaths.Get(fileName); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return false
+	}
+
+	if _, ok := wp.discardedUserPaths.Get(userFileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return false
+	}
+
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.fileCreateSkippedDiscardedBasenames++
+		return false
+	}
+
+	return true
 }
 
 func (wp *WindowsProbe) initializeVolumeMap() error {
@@ -937,7 +931,7 @@ func (wp *WindowsProbe) parseNlCreateArgs(e *etw.DDEventRecord) (*createArgs, er
 
 // nolint: unused
 func (wp *WindowsProbe) parseNlNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
-	return wp.parseKfNameCreateArgs(e)
+	return wp.parseNameCreateArgs(e)
 }
 
 // nolint: unused

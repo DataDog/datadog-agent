@@ -345,17 +345,16 @@ func (p *WindowsProbe) reconfigureProvider() error {
 			idCleanup,
 			idClose,
 			idOperationEnd,
+			idSetDelete,
+			idDeletePath,
+			idRename,
+			idRenamePath,
+			idRename29,
 		}
 
 		// reconfigureProvider should be called with the enabledEventTypesLock held for reading
 		if p.enabledEventTypes[model.WriteFileEventType.String()] {
 			fileIDs = append(fileIDs, idWrite)
-		}
-		if p.enabledEventTypes[model.FileRenameEventType.String()] {
-			fileIDs = append(fileIDs, idRename, idRenamePath, idRename29)
-		}
-		if p.enabledEventTypes[model.DeleteFileEventType.String()] {
-			fileIDs = append(fileIDs, idSetDelete, idDeletePath)
 		}
 		if p.enabledEventTypes[model.ChangePermissionEventType.String()] {
 			fileIDs = append(fileIDs, idObjectPermsChange)
@@ -578,7 +577,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 
 			switch e.EventHeader.EventDescriptor.ID {
 			case idNameCreate:
-				if ca, err := p.parseKfNameCreateArgs(e); err == nil {
+				if ca, err := p.parseNameCreateArgs(e); err == nil {
 					log.Tracef("Received idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -589,12 +588,13 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO: rework test and remove these events
 					ecb(ca, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idNameDelete:
-				if ca, err := p.parseKfNameDeleteArgs(e); err == nil {
+				if ca, err := p.parseNameDeleteArgs(e); err == nil {
 					log.Tracef("Received idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -605,12 +605,13 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO: rework test and remove these events
 					ecb(ca, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idOperationEnd:
-				if oe, err := p.parseKfOperationEndArgs(e); err == nil {
+				if oe, err := p.parseOperationEndArgs(e); err == nil {
 					if oe.status != 0 {
 						if fo, exists := p.createArgsCache.Get(oe.irp); exists {
 							p.discardedFileHandles.Remove(fo)
@@ -622,7 +623,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					log.Tracef("Unable to parse idOperationEnd event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idCreate: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-create
-				if ca, err := p.parseKfCreateArgs(e); err == nil {
+				if ca, err := p.parseCreateArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -633,12 +634,14 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(ca, e.EventHeader.ProcessID)
+					if p.isPathAccepted(ca.fileObject, ca.fileName, ca.userFileName) {
+						ecb(ca, e.EventHeader.ProcessID)
+					}
 				} else {
 					log.Tracef("Unable to parse idCreate event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idCreateNewFile:
-				if ca, err := p.parseKfCreateNewFileArgs(e); err == nil {
+				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
 					log.Tracef("Received idCreateNewFile event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -649,12 +652,14 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(ca, e.EventHeader.ProcessID)
+					if p.isPathAccepted(ca.fileObject, ca.fileName, ca.userFileName) {
+						ecb(ca, e.EventHeader.ProcessID)
+					}
 				} else {
 					log.Tracef("Unable to parse idCreateFile event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idCleanup: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-cleanup
-				if ca, err := p.parseKfCleanupArgs(e); err == nil {
+				if ca, err := p.parseCleanupArgs(e); err == nil {
 					log.Tracef("Received idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -665,12 +670,13 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO rework unit test to avoid forwarding close events
 					ecb(ca, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idClose: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-close
-				if ca, err := p.parseKfCloseArgs(e); err == nil {
+				if ca, err := p.parseCloseArgs(e); err == nil {
 					log.Tracef("Received idClose event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					if strings.Contains(ca.fileName, "inetpub") {
@@ -681,6 +687,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO rework unit test to avoid forwarding close events
 					ecb(ca, e.EventHeader.ProcessID)
 
 					// lru is thread safe, has its own locking
@@ -692,19 +699,20 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					log.Tracef("Unable to parse idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idFlush:
-				if fa, err := p.parseKfFlushArgs(e); err == nil {
+				if fa, err := p.parseFlushArgs(e); err == nil {
 					log.Tracef("Received idFlush event %d %s", e.EventHeader.EventDescriptor.ID, fa)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO rework unit test to avoid forwarding close events
 					ecb(fa, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idFlush event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idWrite:
-				if wa, err := p.parseKfWriteArgs(e); err == nil {
+				if wa, err := p.parseWriteArgs(e); err == nil {
 					log.Tracef("Received idWrite event %d %s", e.EventHeader.EventDescriptor.ID, wa)
 
 					if strings.Contains(wa.fileName, "inetpub") {
@@ -715,24 +723,27 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(wa, e.EventHeader.ProcessID)
+					if p.isPathAccepted(wa.fileObject, wa.fileName, wa.userFileName) {
+						ecb(wa, e.EventHeader.ProcessID)
+					}
 				} else if err != errReadNoPath && err != errDiscardedPath {
 					log.Tracef("Unable to parse idWrite event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idSetInformation:
-				if si, err := p.parseKfInformationArgs(e); err == nil {
+				if si, err := p.parseInformationArgs(e); err == nil {
 					log.Tracef("Received idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, si)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO rework unit test to avoid forwarding close events
 					ecb(si, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idSetDelete:
-				if sd, err := p.parseKfSetDeleteArgs(e); err == nil {
+				if sd, err := p.parseSetDeleteArgs(e); err == nil {
 					log.Tracef("Received idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, sd)
 
 					if strings.Contains(sd.fileName, "inetpub") {
@@ -743,12 +754,18 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(sd, e.EventHeader.ProcessID)
+					if p.isPathAccepted(sd.fileObject, sd.fileName, sd.userFileName) {
+						ecb(sd, e.EventHeader.ProcessID)
+					}
+
+					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(sd.fileObject)
+					p.filePathResolver.Remove(sd.fileObject)
 				} else {
 					log.Tracef("Unable to parse idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idDeletePath:
-				if dp, err := p.parseKfDeletePathArgs(e); err == nil {
+				if dp, err := p.parseDeletePathArgs(e); err == nil {
 					log.Tracef("Received idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, dp)
 
 					if strings.Contains(dp.filePath, "inetpub") {
@@ -759,12 +776,18 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(dp, e.EventHeader.ProcessID)
+					if p.isPathAccepted(dp.fileObject, dp.filePath, dp.userFilePath) {
+						ecb(dp, e.EventHeader.ProcessID)
+					}
+
+					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(dp.fileObject)
+					p.filePathResolver.Remove(dp.fileObject)
 				} else {
 					log.Tracef("Unable to parse idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRename:
-				if rn, err := p.parseKfRenameArgs(e); err == nil {
+				if rn, err := p.parseRenameArgs(e); err == nil {
 					log.Tracef("Received idRename event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					if strings.Contains(rn.fileName, "inetpub") {
@@ -775,12 +798,14 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// no filter as no notification will be generated for this event and
+					// we need them to collect all the element of the rename event
 					ecb(rn, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idRename event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRenamePath:
-				if rn, err := p.parseKfRenamePathArgs(e); err == nil {
+				if rn, err := p.parseRenamePathArgs(e); err == nil {
 					log.Tracef("Received idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					if strings.Contains(rn.filePath, "inetpub") {
@@ -791,24 +816,31 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
-					ecb(rn, e.EventHeader.ProcessID)
+					if p.isPathAccepted(rn.fileObject, rn.filePath, rn.userFilePath) || p.isPathAccepted(rn.fileObject, rn.oldPath, rn.oldUserPath) {
+						ecb(rn, e.EventHeader.ProcessID)
+					}
+
+					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(rn.fileObject)
+					p.filePathResolver.Remove(rn.fileObject)
 				} else {
 					log.Tracef("Unable to parse idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idFSCTL:
-				if fs, err := p.parseKfFsctlArgs(e); err == nil {
+				if fs, err := p.parseFsctlArgs(e); err == nil {
 					log.Tracef("Received idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, fs)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// TODO rework unit test to avoid forwarding close events
 					ecb(fs, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, err)
 				}
 			case idRename29:
-				if rn, err := p.parseKfRename29Args(e); err == nil {
+				if rn, err := p.parseRename29Args(e); err == nil {
 					log.Tracef("Received idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					if strings.Contains(rn.fileName, "inetpub") {
@@ -819,6 +851,8 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					p.stats.fpnLock.Unlock()
 
+					// no filter as no notification will be generated for this event and
+					// we need them to collect all the element of the rename event
 					ecb(rn, e.EventHeader.ProcessID)
 				} else {
 					log.Tracef("Unable to parse idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, err)
@@ -924,9 +958,9 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 	return err
 }
 
-func (p *WindowsProbe) filterArgsType(arg interface{}) bool {
+func (p *WindowsProbe) preNotifChan(arg interface{}) bool {
 	switch arg := arg.(type) {
-	case *closeArgs, *cleanupArgs, *createArgs, *fsctlArgs:
+	case *closeArgs, *cleanupArgs, *createArgs, *fsctlArgs, *deletePathArgs:
 		return false
 	case *renameArgs:
 		fc := fileCache{
@@ -976,7 +1010,7 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.tracingWg.Done()
 			err := p.startFrimTracing(func(n interface{}, pid uint32) {
-				if !p.filterArgsType(n) {
+				if !p.preNotifChan(n) {
 					return
 				}
 
@@ -989,7 +1023,7 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.tracingWg.Done()
 			err := p.startTracingNTLogger(func(n interface{}, pid uint32) {
-				if !p.filterArgsType(n) {
+				if !p.preNotifChan(n) {
 					return
 				}
 
