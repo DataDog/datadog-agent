@@ -954,3 +954,10 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		globalVariables:  eval.NewVariables(),
 	}
 }
+
+// NewFakeRuleSet returns a fake and empty ruleset
+func NewFakeRuleSet(rule *Rule) *RuleSet {
+	rs := NewRuleSet(nil, nil, &Opts{}, &eval.Opts{})
+	rs.rules[rule.Rule.ID] = rule
+	return rs
+}

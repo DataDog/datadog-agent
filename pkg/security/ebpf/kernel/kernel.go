@@ -482,11 +482,6 @@ func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
 	return k.commonFentryCheck(symbol)
 }
 
-// SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
-func (k *Version) SupportBPFSendSignal() bool {
-	return k.Code != 0 && k.Code >= Kernel5_3
-}
-
 // SupportCORE returns is CORE is supported
 func (k *Version) SupportCORE() bool {
 	_, err := btf.LoadKernelSpec()
