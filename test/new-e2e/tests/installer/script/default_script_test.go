@@ -42,6 +42,10 @@ func (s *installScriptDefaultSuite) RunInstallScript(url string, params ...strin
 func (s *installScriptDefaultSuite) TestInstall() {
 	defer s.Purge()
 
+	if s.os.Flavor == e2eos.Suse15.Flavor && s.os.Architecture == e2eos.AMD64Arch {
+		s.T().Skip("Skipping test due to \"JIT doesn't support bpf-to-bpf calls\" in the system probe")
+	}
+
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
