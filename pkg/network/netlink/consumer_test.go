@@ -47,8 +47,6 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 
 	go func() {
 		defer close(exited)
-		for range ev { //nolint:revive // TODO
-		}
 	}()
 
 	isRecvLoopRunning := c.recvLoopRunning.Load

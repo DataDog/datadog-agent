@@ -7,6 +7,7 @@ package profile
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"time"
 )
 
 // Provider is an interface that provides profiles by name
@@ -15,13 +16,16 @@ type Provider interface {
 	HasProfile(profileName string) bool
 	// GetProfile returns the profile with this name, or nil if there isn't one.
 	GetProfile(profileName string) *ProfileConfig
-	// GetProfileNameForSysObjectID returns the best matching profile for this sysObjectID, or nil if there isn't one.
-	GetProfileNameForSysObjectID(sysObjectID string) (string, error)
+	// GetProfileForSysObjectID returns the best matching profile for this sysObjectID, or nil if there isn't one.
+	GetProfileForSysObjectID(sysObjectID string) (*ProfileConfig, error)
+	// LastUpdated returns when this Provider last changed
+	LastUpdated() time.Time
 }
 
 // staticProvider is a static implementation of Provider
 type staticProvider struct {
-	configMap ProfileConfigMap
+	configMap   ProfileConfigMap
+	lastUpdated time.Time
 }
 
 func (s *staticProvider) GetProfile(name string) *ProfileConfig {
@@ -36,19 +40,45 @@ func (s *staticProvider) HasProfile(profileName string) bool {
 	return ok
 }
 
-func (s *staticProvider) GetProfileNameForSysObjectID(sysObjectID string) (string, error) {
+func (s *staticProvider) GetProfileForSysObjectID(sysObjectID string) (*ProfileConfig, error) {
 	return getProfileForSysObjectID(s.configMap, sysObjectID)
+}
+
+func (s *staticProvider) LastUpdated() time.Time {
+	return s.lastUpdated
 }
 
 // StaticProvider makes a provider that serves the static data from this config map.
 func StaticProvider(profiles ProfileConfigMap) Provider {
 	return &staticProvider{
-		configMap: profiles,
+		configMap:   profiles,
+		lastUpdated: time.Now(),
 	}
 }
 
 // ProfileConfigMap is a set of ProfileConfig instances each identified by name.
 type ProfileConfigMap map[string]ProfileConfig
+
+// withNames assigns the key names to Definition.Name for every profile. This is for testing.
+func (pcm ProfileConfigMap) withNames() ProfileConfigMap {
+	for name, profile := range pcm {
+		if profile.Definition.Name == "" {
+			def := profile.Definition
+			def.Name = name
+			pcm[name] = ProfileConfig{
+				DefinitionFile: profile.DefinitionFile,
+				Definition:     def,
+				IsUserProfile:  profile.IsUserProfile,
+			}
+		}
+	}
+	return pcm
+}
+
+// Clone duplicates a ProfileConfigMap
+func (pcm ProfileConfigMap) Clone() ProfileConfigMap {
+	return profiledefinition.CloneMap(pcm)
+}
 
 // ProfileConfig represents a profile configuration.
 type ProfileConfig struct {
@@ -56,4 +86,13 @@ type ProfileConfig struct {
 	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
 	IsUserProfile bool `yaml:"-"`
+}
+
+// Clone duplicates a ProfileConfig
+func (p ProfileConfig) Clone() ProfileConfig {
+	return ProfileConfig{
+		DefinitionFile: p.DefinitionFile,
+		Definition:     *p.Definition.Clone(),
+		IsUserProfile:  p.IsUserProfile,
+	}
 }

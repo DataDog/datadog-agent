@@ -83,10 +83,7 @@ func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, er
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	containerFilters, err := newContainerFilters()
-	if err != nil {
-		return nil, err
-	}
+	containerFilters := newContainerFilters()
 
 	return &KubeEndpointsListener{
 		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),

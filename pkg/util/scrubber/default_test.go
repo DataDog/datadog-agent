@@ -108,6 +108,12 @@ func TestConfigRCAppKey(t *testing.T) {
 
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
+		`proxy: random_url_key: http://user:password@host:port`,
+		`proxy: random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key http://user:password@host:port`,
+		`random_url_key http://user:********@host:port`)
+	assertClean(t,
 		`random_url_key: http://user:password@host:port`,
 		`random_url_key: http://user:********@host:port`)
 	assertClean(t,
@@ -351,8 +357,14 @@ func TestSNMPConfig(t *testing.T) {
 		`authKey: password`,
 		`authKey: "********"`)
 	assertClean(t,
+		`authkey: password`,
+		`authkey: "********"`)
+	assertClean(t,
 		`privKey: password`,
 		`privKey: "********"`)
+	assertClean(t,
+		`privkey: password`,
+		`privkey: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
 		`community_string: "********"`)

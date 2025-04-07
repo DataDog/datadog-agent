@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -834,5 +835,5 @@ func TestSendFailoverReasonMetric(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), metricscompression.MockModule(), logscompression.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

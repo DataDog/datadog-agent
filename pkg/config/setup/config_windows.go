@@ -37,6 +37,8 @@ var (
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func osinit() {
@@ -48,6 +50,7 @@ func osinit() {
 		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
 	}
 
 	// Process Agent

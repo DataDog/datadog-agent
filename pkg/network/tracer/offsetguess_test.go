@@ -9,7 +9,6 @@ package tracer
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"slices"
 	"testing"
@@ -29,7 +28,6 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -138,7 +136,7 @@ func TestOffsetGuess(t *testing.T) {
 
 func testOffsetGuess(t *testing.T) {
 	cfg := testConfig()
-	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
+	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg))
 	require.NoError(t, err)
 	defer buf.Close()
 
@@ -158,17 +156,8 @@ func testOffsetGuess(t *testing.T) {
 	}
 
 	opts := manager.Options{
-		// Extend RLIMIT_MEMLOCK (8) size
-		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
-		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
-		// using bpf(2) with BPF_MAP_CREATE.
-		//
-		// We are setting the limit to infinity until we have a better handle on the true requirements.
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
+		RemoveRlimit: true,
+		MapEditors:   make(map[string]*ebpf.Map),
 	}
 
 	require.NoError(t, mgr.InitWithOptions(buf, opts))
@@ -310,7 +299,7 @@ func testOffsetGuess(t *testing.T) {
 			}
 
 			var offset uint64
-			var name offsetT = o //nolint:revive // TODO
+			var name = o
 			require.NoError(t, mp.Lookup(&name, &offset))
 			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 			t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -80,6 +81,8 @@ type localProfile struct {
 	baseProfile
 }
 
+var _ Profile = localProfile{}
+
 // NamePrefix returns a prefix to name objects based on local username
 func (p localProfile) NamePrefix() string {
 	// Stack names may only contain alphanumeric characters, hyphens, underscores, or periods.
@@ -117,4 +120,26 @@ func (p localProfile) NamePrefix() string {
 // AllowDevMode returns if DevMode is allowed
 func (p localProfile) AllowDevMode() bool {
 	return true
+}
+
+// CreateOutputSubDir creates an output directory inside the runner root directory for tests to store output files and artifacts.
+func (p localProfile) CreateOutputSubDir(subdirectory string) (string, error) {
+	outputDir, err := p.baseProfile.CreateOutputSubDir(subdirectory)
+	if err != nil {
+		return "", err
+	}
+	// Create a symlink to the latest run for user convenience
+	latestLink := filepath.Join(filepath.Dir(outputDir), "latest")
+	// Remove the symlink if it already exists
+	if _, err := os.Lstat(latestLink); err == nil {
+		err = os.Remove(latestLink)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = os.Symlink(outputDir, latestLink)
+	if err != nil {
+		return "", err
+	}
+	return outputDir, nil
 }

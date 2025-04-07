@@ -22,15 +22,31 @@ func isEBPFRequired(factories []Factory) bool {
 	return false
 }
 
+func isEBPFOptional(factories []Factory) bool {
+	for _, f := range factories {
+		if f.OptionalEBPF {
+			return true
+		}
+	}
+	return false
+}
+
 func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
-	if isEBPFRequired(moduleFactories) {
-		return ebpf.Setup(ebpf.NewConfig())
+	needed := isEBPFRequired(moduleFactories)
+	if needed || isEBPFOptional(moduleFactories) {
+		err := ebpf.Setup(ebpf.NewConfig())
+		if err != nil && !needed {
+			log.Warnf("ignoring eBPF setup error: %v", err)
+			return nil
+		}
+
+		return err
 	}
 	return nil
 }
 
 func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
-	if isEBPFRequired(moduleFactories) {
+	if isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories) {
 		ebpf.FlushBTF()
 	}
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {

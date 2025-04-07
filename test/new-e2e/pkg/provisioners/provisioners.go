@@ -11,7 +11,7 @@ import (
 	"io"
 )
 
-// Diagnosable defines the interface for a diagnosable provider.
+// Diagnosable defines the interface for a diagnosable provisioner.
 type Diagnosable interface {
 	Diagnose(ctx context.Context, stackName string) (string, error)
 }

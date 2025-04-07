@@ -76,7 +76,7 @@ typedef enum {
 // Each `protocol_t` entry is implicitly associated to a single
 // `protocol_layer_t` value (see notes above).
 //
-//In order to determine which `protocol_layer_t` a `protocol_t` belongs to,
+// In order to determine which `protocol_layer_t` a `protocol_t` belongs to,
 // users can call `get_protocol_layer`
 typedef enum {
     LAYER_UNKNOWN,
@@ -103,13 +103,13 @@ typedef struct {
 // `protocol_stack_t` is embedded in the `conn_stats_t` type, which is used
 // across the whole NPM kernel code. If we added the 64-bit timestamp field
 // directly to `protocol_stack_t`, we would go from 4 bytes to 12 bytes, which
-// bloats the eBPF stack size of some NPM probes.  Using the wrapper type
+// bloats the eBPF stack size of some NPM probes. Using the wrapper type
 // prevents that, because we pretty much only store the wrapper type in the
 // connection_protocol map, but elsewhere in the code we're still using
 // protocol_stack_t, so this is change is "transparent" to most of the code.
 typedef struct {
-    protocol_stack_t stack;
     __u64 updated;
+    protocol_stack_t stack;
 } protocol_stack_wrapper_t;
 
 typedef enum {
@@ -125,6 +125,11 @@ typedef enum {
     // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
+
+typedef enum {
+    CLASSIFICATION_TLS_CLIENT_PROG,
+    CLASSIFICATION_TLS_SERVER_PROG,
+} classification_tls_prog_t;
 
 typedef enum {
     DISPATCHER_KAFKA_PROG = 0,

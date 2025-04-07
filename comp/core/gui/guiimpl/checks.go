@@ -134,7 +134,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Compo
 		err := ch.Run()
 		warnings := ch.GetWarnings()
 		sStats, _ := ch.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats)
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)

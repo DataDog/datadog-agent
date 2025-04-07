@@ -8,6 +8,7 @@ package workloadmetaimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -60,12 +61,19 @@ func (w *workloadmeta) start(ctx context.Context) {
 	}()
 
 	go func() {
+		if err := w.startCandidatesWithRetry(ctx); err != nil {
+			w.log.Errorf("error starting collectors: %s", err)
+		}
+	}()
+
+	go func() {
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
 		w.pull(ctx)
+		w.updateCollectorStatus(wmdef.CollectorsInitialized)
 
 		for {
 			select {
@@ -88,12 +96,6 @@ func (w *workloadmeta) start(ctx context.Context) {
 
 				return
 			}
-		}
-	}()
-
-	go func() {
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
-			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
 
@@ -178,7 +180,7 @@ func (w *workloadmeta) Unsubscribe(ch chan wmdef.EventBundle) {
 
 	for i, sub := range w.subscribers {
 		if sub.ch == ch {
-			w.subscribers = append(w.subscribers[:i], w.subscribers[i+1:]...)
+			w.subscribers = slices.Delete(w.subscribers, i, i+1)
 			telemetry.Subscribers.Dec()
 			close(ch)
 			return
@@ -401,6 +403,28 @@ func (w *workloadmeta) ListKubernetesMetadata(filterFunc wmdef.EntityFilterFunc[
 	return metadata
 }
 
+// GetGPU implements Store#GetGPU.
+func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
+	entity, err := w.getEntityByKind(wmdef.KindGPU, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.GPU), nil
+}
+
+// ListGPUs implements Store#ListGPUs.
+func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
+	entities := w.listEntitiesByKind(wmdef.KindGPU)
+
+	gpuList := make([]*wmdef.GPU, 0, len(entities))
+	for i := range entities {
+		gpuList = append(gpuList, entities[i].(*wmdef.GPU))
+	}
+
+	return gpuList
+}
+
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
@@ -478,6 +502,13 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 	}
 
 	w.Notify(events)
+}
+
+// IsInitialized: If startCandidates is run at least once, return true.
+func (w *workloadmeta) IsInitialized() bool {
+	w.collectorMut.RLock()
+	defer w.collectorMut.RUnlock()
+	return w.collectorsInitialized == wmdef.CollectorsInitialized
 }
 
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
@@ -562,8 +593,21 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-
+	if w.collectorsInitialized == wmdef.CollectorsNotStarted {
+		w.collectorsInitialized = wmdef.CollectorsStarting
+	}
 	return len(w.candidates) == 0
+}
+
+func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
+	w.collectorMut.Lock()
+	defer w.collectorMut.Unlock()
+	if w.collectorsInitialized == wmdef.CollectorsInitialized {
+		return // already initialized
+	} else if status == wmdef.CollectorsInitialized && w.collectorsInitialized == wmdef.CollectorsNotStarted {
+		return // no collectors to initialize yet
+	}
+	w.collectorsInitialized = status
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {

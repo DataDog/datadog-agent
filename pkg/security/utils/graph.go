@@ -27,16 +27,30 @@ type Node struct {
 
 // Edge describes an edge of a dot edge
 type Edge struct {
-	From  GraphID
-	To    GraphID
-	Color string
+	From         GraphID
+	To           GraphID
+	Color        string
+	HasArrowHead bool
+	Label        string
+	IsTable      bool
+}
+
+// SubGraph describes a dot subgraph
+type SubGraph struct {
+	Name      string
+	Title     string
+	TitleSize int
+	Color     string
+	Nodes     map[GraphID]*Node
+	Edges     []*Edge
 }
 
 // Graph describes a dot graph
 type Graph struct {
-	Title string
-	Nodes map[GraphID]*Node
-	Edges []*Edge
+	Title     string
+	Nodes     map[GraphID]*Node
+	Edges     []*Edge
+	SubGraphs []*SubGraph
 }
 
 // EncodeDOT encodes an activity dump in the DOT format

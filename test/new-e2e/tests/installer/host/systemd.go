@@ -39,7 +39,7 @@ func (h *Host) LastJournaldTimestamp() JournaldTimestamp {
 func (h *Host) AssertUnitProperty(unit, property, value string) {
 	res, err := h.remote.Execute(fmt.Sprintf("sudo systemctl show -p %s %s", property, unit))
 	require.NoError(h.t, err)
-	require.Equal(h.t, fmt.Sprintf("%s=%s\n", property, value), res)
+	require.Equal(h.t, fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute(fmt.Sprintf("sudo systemctl cat %s", unit)))
 }
 
 func popIfMatches(searchedEvents []SystemdEvent, log journaldLog) []SystemdEvent {
@@ -58,7 +58,7 @@ func eventMatches(log journaldLog, event SystemdEvent) bool {
 	if log.Unit != event.Unit {
 		return false
 	}
-	match, _ := regexp.MatchString(event.Pattern, log.Message)
+	match, _ := regexp.MatchString("(?i)"+event.Pattern, log.Message)
 	return match
 }
 
@@ -113,6 +113,18 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		h.t.Logf("Blocked on validating: %v", lastSearchedEvents)
 		h.t.Logf("Expected events: %v", events.Events)
 		h.t.Logf("Actual events: %v", logs)
+
+		// Display all journalctl logs from units in the events
+		units := map[string]struct{}{}
+		for _, events := range events.Events {
+			for _, event := range events {
+				units[event.Unit] = struct{}{}
+			}
+		}
+
+		for unit := range units {
+			h.t.Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
+		}
 	}
 }
 

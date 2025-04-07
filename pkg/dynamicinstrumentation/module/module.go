@@ -24,7 +24,7 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation system probe module
-func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
+func NewModule(_ *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
 		RateLimitPerProbePerSecond: 1.0,
 		OfflineOptions: di.OfflineOptions{
@@ -32,9 +32,19 @@ func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
 			ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
 			SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
 			DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
-		}})
+		},
+	})
 	if err != nil {
-		return nil, err
+		// FIXME: Logging the error instead of returning it is a temporary fix to avoid
+		// having the system-probe get caught in a restart loop when either the environment lacks
+		// the bpf feature requirements or the system-probe is not run with needeed permissions.
+		// The DI module can be mistakenly turned on as it shares the same environment variable
+		// as all DI runtimes, leading to problematic behavior.
+		//
+		// This means that legitimate errors will be logged, but not cause the module to restart
+		// as it should.
+		log.Errorf("Failed to start dynamic instrumentation: %v", err)
+		return &Module{}, nil
 	}
 	return &Module{godi}, nil
 }
@@ -65,7 +75,7 @@ func (m *Module) GetStats() map[string]interface{} {
 // Register creates a health check endpoint for the dynamic instrumentation module
 func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
-		func(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO
+		func(w http.ResponseWriter, _ *http.Request) {
 			stats := []string{}
 			utils.WriteAsJSON(w, stats)
 		}))

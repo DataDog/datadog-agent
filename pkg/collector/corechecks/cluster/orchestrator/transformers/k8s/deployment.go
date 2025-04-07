@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
@@ -18,7 +19,7 @@ import (
 
 // ExtractDeployment returns the protobuf model corresponding to a Kubernetes
 // Deployment resource.
-func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
+func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *model.Deployment {
 	deploy := model.Deployment{
 		Metadata: extractMetadata(&d.ObjectMeta),
 	}
@@ -56,7 +57,10 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	}
 
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
+	deploy.Tags = append(deploy.Tags, transformers.RetrieveMetadataTags(d.ObjectMeta.Labels, d.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &deploy
 }

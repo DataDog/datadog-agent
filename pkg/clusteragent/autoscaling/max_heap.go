@@ -166,3 +166,8 @@ func (h *HashHeap) Exists(key string) bool {
 	_, ok := h.Keys[key]
 	return ok
 }
+
+// MaxSize returns the size limit on the hash heap
+func (h *HashHeap) MaxSize() int {
+	return h.maxSize
+}

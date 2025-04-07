@@ -20,14 +20,8 @@ func TestIsEnabled(t *testing.T) {
 	assert.True(t, IsEnabled(cfg))
 }
 
-func TestGetGroup(t *testing.T) {
+func TestGetConfigID(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("ha_agent.group", "my-group")
-	assert.Equal(t, "my-group", GetGroup(cfg))
-}
-
-func TestGetHaAgentTags(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("ha_agent.group", "my-group")
-	assert.Equal(t, []string{"agent_group:my-group"}, GetHaAgentTags(cfg))
+	cfg.SetWithoutSource("config_id", "my-config-id")
+	assert.Equal(t, "my-config-id", GetConfigID(cfg))
 }

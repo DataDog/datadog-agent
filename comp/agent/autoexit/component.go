@@ -6,7 +6,7 @@
 // Package autoexit lets setup automatic shutdown mechanism if necessary
 package autoexit
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

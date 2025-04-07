@@ -87,7 +87,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
 
 HOOK_EXIT("vm_mmap_pgoff")
 int rethook_vm_mmap_pgoff(ctx_t *ctx) {
-    u64 ret = CTX_PARMRET(ctx, 6);
+    u64 ret = CTX_PARMRET(ctx);
     return sys_mmap_ret(ctx, (int)ret, ret);
 }
 

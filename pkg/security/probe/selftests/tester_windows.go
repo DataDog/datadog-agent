@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -38,7 +38,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 
 	keyPath := "Software\\Datadog\\Datadog Agent"
 
-	dirLongPath, err := utils.GetLongPathName(dir)
+	dirLongPath, err := pathutils.GetLongPathName(dir)
 	if err != nil {
 		return nil, err
 	}

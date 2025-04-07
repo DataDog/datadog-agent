@@ -12,13 +12,14 @@ import (
 	"errors"
 	"math/rand"
 	"os"
-	"time"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
 	waf "github.com/DataDog/go-libddwaf/v3"
+	wafErrors "github.com/DataDog/go-libddwaf/v3/errors"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/limiter"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
@@ -137,7 +138,9 @@ func (a *AppSec) Close() error {
 
 // Monitor runs the security event rules and return the events as a slice
 // The monitored addresses are all persistent addresses
-func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
+//
+// This function always returns nil when an error occurs.
+func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)
 	if err != nil {
@@ -156,7 +159,7 @@ func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 
 	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses})
 	if err != nil {
-		if err == waf.ErrTimeout {
+		if err == wafErrors.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", a.cfg.WafTimeout)
 		} else {
 			log.Errorf("appsec: unexpected waf execution error: %v", err)
@@ -164,15 +167,20 @@ func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 		}
 	}
 
-	dt, _ := ctx.TotalRuntime()
+	stats := ctx.Stats()
 	if res.HasEvents() {
-		log.Debugf("appsec: security events found in %s: %v", time.Duration(dt), res.Events)
+		log.Debugf("appsec: security events found in %s: %v", stats.Timers["waf.duration_ext"], res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
 		return nil
 	}
-	return &res
+
+	return &httpsec.MonitorResult{
+		Result:      res,
+		Diagnostics: a.handle.Diagnostics(),
+		Stats:       stats,
+	}
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`

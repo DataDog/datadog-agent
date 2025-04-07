@@ -20,6 +20,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
+	"maps"
 	"unsafe"
 
 	"github.com/pierrec/lz4/v4"
@@ -45,6 +47,12 @@ type Fatbin struct {
 
 	// kernelNames is a map of kernel names to make easy lookup for HasKernelWithName
 	kernelNames map[string]struct{}
+
+	// CompressedPayloads is the number of compressed payloads found in the fatbin
+	CompressedPayloads int
+
+	// UncompressedPayloads is the number of uncompressed payloads found in the fatbin
+	UncompressedPayloads int
 }
 
 // NewFatbin creates a new Fatbin instance
@@ -62,6 +70,16 @@ func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 		return nil
 	}
 	return fb.kernels[key]
+}
+
+// GetKernels returns an iterator over the kernels in the fatbin
+func (fb *Fatbin) GetKernels() iter.Seq[*CubinKernel] {
+	return maps.Values(fb.kernels)
+}
+
+// NumKernels returns the number of kernels in the fatbin
+func (fb *Fatbin) NumKernels() int {
+	return len(fb.kernels)
 }
 
 // HasKernelWithName returns true if the fatbin has a kernel with the given name
@@ -128,14 +146,14 @@ func (fbd *fatbinData) validate() error {
 }
 
 // ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
-func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
+func ParseFatbinFromELFFilePath(path string, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
 	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s: %w", path, err)
 	}
 	defer elfFile.Close()
 
-	return ParseFatbinFromELFFile(elfFile)
+	return ParseFatbinFromELFFile(elfFile, acceptedSmVersions)
 }
 
 func getBufferOffset(buf io.Seeker) int64 {
@@ -144,7 +162,7 @@ func getBufferOffset(buf io.Seeker) int64 {
 }
 
 // ParseFatbinFromELFFile parses the fatbin sections of the given ELF file and returns the information found in it
-func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
+func ParseFatbinFromELFFile(elfFile *safeelf.File, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
 	fatbin := NewFatbin()
 
 	for _, sect := range elfFile.Sections {
@@ -188,7 +206,7 @@ func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
 			for currOffset := getBufferOffset(buffer); uint64(currOffset-readStart) < fbHeader.FatSize; currOffset = getBufferOffset(buffer) {
-				if err := parseFatbinData(buffer, fatbin); err != nil {
+				if err := parseFatbinData(buffer, fatbin, acceptedSmVersions); err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -202,7 +220,7 @@ func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
 	return fatbin, nil
 }
 
-func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
+func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin, acceptedSmVersions map[uint32]struct{}) error {
 	// Each data section starts with a data header, read it
 	var fbData fatbinData
 	err := binary.Read(buffer, binary.LittleEndian, &fbData)
@@ -229,11 +247,13 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 		}
 	}
 
-	if fbData.dataKind() != fatbinDataKindSm {
-		// We only support SM data for now, skip this one
+	_, smVersionAccepted := acceptedSmVersions[fbData.SmVersion]
+
+	// Skip if the data is not for a SM version we care about, or if it's not a format we can handle (PTX)
+	if fbData.dataKind() != fatbinDataKindSm || !smVersionAccepted {
 		_, err := buffer.Seek(int64(fbData.PaddedPayloadSize), io.SeekCurrent)
 		if err != nil {
-			return fmt.Errorf("failed to skip PTX fatbin data: %w", err)
+			return fmt.Errorf("failed to skip fatbin data: %w", err)
 		}
 
 		return nil // Skip this data section
@@ -244,6 +264,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// have once uncompressed. If it's zero, the payload is not compressed.
 	var payload []byte
 	if fbData.UncompressedPayloadSize != 0 {
+		fatbin.CompressedPayloads++
 		compressedPayload := make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, compressedPayload)
 		if err != nil {
@@ -259,6 +280,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 			return fmt.Errorf("failed to decompress fatbin payload: %w", err)
 		}
 	} else {
+		fatbin.UncompressedPayloads++
 		payload = make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, payload)
 		if err != nil {

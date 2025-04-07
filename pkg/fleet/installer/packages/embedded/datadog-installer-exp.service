@@ -10,6 +10,7 @@ Type=oneshot
 PIDFile=/opt/datadog-packages/run/installer-exp.pid
 ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer run -p /opt/datadog-packages/run/installer-exp.pid
 ExecStart=/bin/false
+ExecStop=/usr/bin/tail --pid $MAINPID -f /dev/null
 ExecStop=/bin/false
 
 [Install]

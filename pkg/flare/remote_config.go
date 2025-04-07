@@ -23,9 +23,10 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
@@ -52,7 +53,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), apiutil.GetTLSClientConfig)
 	if err != nil {
 		return err
 	}
@@ -107,7 +108,7 @@ func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
 
 	// Copies the db so it avoids bbolt from being locked
 	// Also avoid concurrent modifications
-	err = util.CopyFileAll(srcPath, tempPath)
+	err = filesystem.CopyFileAll(srcPath, tempPath)
 	// Delete the db at the end to avoid having target files content
 	defer os.Remove(tempPath)
 	if err != nil {

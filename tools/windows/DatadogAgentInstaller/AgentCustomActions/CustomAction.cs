@@ -54,6 +54,13 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult SetupInstaller(Session session)
+        {
+            return Datadog.CustomActions.SetupInstallerCustomAction.SetupInstaller(session);
+        }
+
+
+        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
@@ -87,6 +94,24 @@ namespace Datadog.AgentCustomActions
         public static ActionResult PrepareDecompressPythonDistributions(Session session)
         {
             return Datadog.CustomActions.PythonDistributionCustomAction.PrepareDecompressPythonDistributions(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPostInstPythonScript(Session session)
+        {
+            return Datadog.CustomActions.PythonDistributionCustomAction.RunPostInstPythonScript(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPreRemovePythonScriptRollback(Session session)
+        {
+            return Datadog.CustomActions.PythonDistributionCustomAction.RunPreRemovePythonScriptRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPreRemovePythonScript(Session session)
+        {
+            return Datadog.CustomActions.PythonDistributionCustomAction.RunPreRemovePythonScript(session);
         }
 
         [CustomAction]
@@ -183,6 +208,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult WriteInstallInfo(Session session)
         {
             return Datadog.CustomActions.InstallInfoCustomActions.WriteInstallInfo(session);
+        }
+
+        [CustomAction]
+        public static ActionResult InstallOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.InstallPackages(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RollbackOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
         }
     }
 }

@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -26,6 +27,18 @@ func writeConfigs(config Config, configDir string) error {
 	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
+	}
+	if config.SecurityAgentYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "security-agent.yaml"), config.SecurityAgentYAML, 0640, true)
+		if err != nil {
+			return fmt.Errorf("could not write security-agent.yaml: %w", err)
+		}
+	}
+	if config.SystemProbeYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "system-probe.yaml"), config.SystemProbeYAML, 0640, true)
+		if err != nil {
+			return fmt.Errorf("could not write system-probe.yaml: %w", err)
+		}
 	}
 	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
 	if err != nil {
@@ -92,6 +105,10 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 type Config struct {
 	// DatadogYAML is the content of the datadog.yaml file
 	DatadogYAML DatadogConfig
+	// SecurityAgentYAML is the content of the security-agent.yaml file
+	SecurityAgentYAML *SecurityAgentConfig
+	// SystemProbeYAML is the content of the system-probe.yaml file
+	SystemProbeYAML *SystemProbeConfig
 	// InjectTracerYAML is the content of the inject/tracer.yaml file
 	InjectTracerYAML InjectTracerConfig
 	// IntegrationConfigs is the content of the integration configuration files under conf.d/
@@ -106,10 +123,14 @@ type DatadogConfig struct {
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
+	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
 	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
-	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
+	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
+	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
+	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
+	DDURL                string                     `yaml:"dd_url,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -129,19 +150,33 @@ type DatadogConfigProcessConfig struct {
 	ExpvarPort int `yaml:"expvar_port,omitempty"`
 }
 
+// DatadogConfigInstaller represents the configuration for the installer
+type DatadogConfigInstaller struct {
+	Registry DatadogConfigInstallerRegistry `yaml:"registry,omitempty"`
+}
+
+// DatadogConfigInstallerRegistry represents the configuration for the installer registry
+type DatadogConfigInstallerRegistry struct {
+	URL  string `yaml:"url,omitempty"`
+	Auth string `yaml:"auth,omitempty"`
+}
+
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config"`
+	InitConfig any                     `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
 
 // IntegrationConfigLogs represents the configuration for the logs of an integration
 type IntegrationConfigLogs struct {
-	Type    string `yaml:"type,omitempty"`
-	Path    string `yaml:"path,omitempty"`
-	Service string `yaml:"service,omitempty"`
-	Source  string `yaml:"source,omitempty"`
+	Type                   string              `yaml:"type,omitempty"`
+	Path                   string              `yaml:"path,omitempty"`
+	Service                string              `yaml:"service,omitempty"`
+	Source                 string              `yaml:"source,omitempty"`
+	Tags                   string              `yaml:"tags,omitempty"`
+	AutoMultiLineDetection bool                `yaml:"auto_multi_line_detection,omitempty"`
+	LogProcessingRules     []LogProcessingRule `yaml:"log_processing_rules,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
@@ -150,6 +185,12 @@ type IntegrationConfigInstanceSpark struct {
 	SparkClusterMode string `yaml:"spark_cluster_mode"`
 	ClusterName      string `yaml:"cluster_name"`
 	StreamingMetrics bool   `yaml:"streaming_metrics"`
+}
+
+// IntegrationConfigInstanceYarn represents the configuration for the Yarn integration
+type IntegrationConfigInstanceYarn struct {
+	ResourceManagerURI string `yaml:"resourcemanager_uri"`
+	ClusterName        string `yaml:"cluster_name"`
 }
 
 // InjectTracerConfig represents the configuration to write in /etc/datadog-agent/inject/tracer.yaml
@@ -163,6 +204,34 @@ type InjectTracerConfig struct {
 type InjectTracerConfigEnvVar struct {
 	Key   string `yaml:"key"`
 	Value string `yaml:"value"`
+}
+
+// SystemProbeConfig represents the configuration to write in /etc/datadog-agent/system-probe.yaml
+type SystemProbeConfig struct {
+	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
+}
+
+// RuntimeSecurityConfig represents the configuration for the runtime security
+type RuntimeSecurityConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// SecurityAgentConfig represents the configuration to write in /etc/datadog-agent/security-agent.yaml
+type SecurityAgentConfig struct {
+	ComplianceConfig      SecurityAgentComplianceConfig `yaml:"compliance_config,omitempty"`
+	RuntimeSecurityConfig RuntimeSecurityConfig         `yaml:"runtime_security_config,omitempty"`
+}
+
+// SecurityAgentComplianceConfig represents the configuration for the compliance
+type SecurityAgentComplianceConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// LogProcessingRule represents the configuration for a log processing rule
+type LogProcessingRule struct {
+	Type    string `yaml:"type"`
+	Name    string `yaml:"name"`
+	Pattern string `yaml:"pattern"`
 }
 
 // mergeConfig merges the current config with the setup config.
@@ -193,9 +262,7 @@ func mergeConfig(base interface{}, override interface{}) (interface{}, error) {
 
 func mergeMap(base, override map[string]interface{}) (map[string]interface{}, error) {
 	merged := make(map[string]interface{})
-	for k, v := range base {
-		merged[k] = v
-	}
+	maps.Copy(merged, base)
 	for k := range override {
 		v, err := mergeConfig(base[k], override[k])
 		if err != nil {

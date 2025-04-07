@@ -6,12 +6,10 @@
 // Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 package inventoryhost
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface {
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
 }

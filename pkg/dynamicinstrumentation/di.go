@@ -10,7 +10,6 @@
 package dynamicinstrumentation
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -51,14 +50,16 @@ func newGoDIStats() GoDIStats {
 	}
 }
 
-type OfflineOptions struct { //nolint:revive // TODO
+// OfflineOptions configures the Offline options for the running Dynamic Instrumentation process
+type OfflineOptions struct {
 	Offline          bool
 	ProbesFilePath   string
 	SnapshotOutput   string
 	DiagnosticOutput string
 }
 
-type ReaderWriterOptions struct { //nolint:revive // TODO
+// ReaderWriterOptions configures the ReaderWriter options for the running Dynamic Instrumentation process
+type ReaderWriterOptions struct {
 	CustomReaderWriters bool
 	SnapshotWriter      io.Writer
 	DiagnosticWriter    io.Writer
@@ -80,9 +81,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	if err != nil {
 		return nil, err
 	}
-	stopFunctions := []func(){
-		diagnostics.StopGlobalDiagnostics,
-	}
+	stopFunctions := []func(){}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
 		cm, err := diconfig.NewReaderConfigManager()
 		if err != nil {
@@ -153,28 +152,6 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	}
 
 	return goDI, nil
-}
-
-func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) { //nolint:unused // TODO
-	if event == nil {
-		return
-	}
-	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
-	diLog := uploader.NewDILog(procInfo, event)
-
-	var bs []byte
-	var err error
-
-	if diLog != nil {
-		bs, err = json.MarshalIndent(diLog, "", " ")
-	} else {
-		bs, err = json.MarshalIndent(event, "", " ")
-	}
-
-	if err != nil {
-		log.Info(err)
-	}
-	log.Debug(string(bs))
 }
 
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {

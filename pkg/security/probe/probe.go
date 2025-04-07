@@ -37,12 +37,12 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
 	SendStats() error
 	Snapshot() error
+	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
@@ -56,7 +56,6 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
-	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
 
@@ -135,11 +134,6 @@ func newProbe(config *config.Config, opts Opts) *Probe {
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 	return p.PlatformProbe.Init()
-}
-
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
 }
 
 // Start plays the snapshot data and then start the event stream
@@ -227,6 +221,11 @@ func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	return p.PlatformProbe.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
+	p.PlatformProbe.Walk(cb)
 }
 
 // OnNewDiscarder is called when a new discarder is found
@@ -323,18 +322,12 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+func logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -344,10 +337,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalCustomEvent(event)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
@@ -422,6 +412,16 @@ func (p *Probe) IsNetworkEnabled() bool {
 // IsNetworkRawPacketEnabled returns whether network raw packet is enabled
 func (p *Probe) IsNetworkRawPacketEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

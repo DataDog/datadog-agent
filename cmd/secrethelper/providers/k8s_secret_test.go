@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,7 +75,15 @@ func TestReadKubernetesSecret(t *testing.T) {
 			}
 			kubeClient := fake.NewSimpleClientset(kubeObjects...)
 
-			resolvedSecret := ReadKubernetesSecret(kubeClient, test.secretPath)
+			secretGetter := func(namespace, name string) (map[string][]byte, error) {
+				secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+				if err != nil {
+					return nil, err
+				}
+				return secret.Data, nil
+			}
+
+			resolvedSecret := ReadKubernetesSecret(secretGetter, test.secretPath)
 
 			if test.expectedError != "" {
 				assert.Equal(t, test.expectedError, resolvedSecret.ErrorMsg)

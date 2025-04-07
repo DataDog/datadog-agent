@@ -119,12 +119,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
+		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 
-		// https://github.com/DataDog/datadog-agent/pull/15959
-		LastUpdated: parseVersion("7.45.0"),
+		// https://github.com/DataDog/datadog-agent/pull/32503
+		LastUpdated: parseVersion("7.62.0"),
 	}
+
 	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
@@ -150,11 +151,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	tokenReplacer.LastUpdated = defaultVersion
 	snmpReplacer := matchYAMLKey(
-		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
-	snmpReplacer.LastUpdated = parseVersion("7.53.0") // https://github.com/DataDog/datadog-agent/pull/23515
+	snmpReplacer.LastUpdated = parseVersion("7.64.0") // https://github.com/DataDog/datadog-agent/pull/33742
 	snmpMultilineReplacer := matchYAMLKeyWithListValue(
 		"(community_strings)",
 		"community_strings",

@@ -29,7 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -251,13 +252,13 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			// Emit the event
 			start := time.Now()
 			mockSender.On("Event", mock.AnythingOfType("event.Event")).Return().Once()
+			validated, err := kubernetesAuditWebhook.emitEvent(&tt.request, "", nil)
 			// Force flush to serializer to ensure the event is emitted and received.
 			demultiplexerMock.ForceFlushToSerializer(start, true)
-			validated, err := kubernetesAuditWebhook.emitEvent(&tt.request, "", nil)
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertCalled(t, "Event", tt.expectedEvent)
+				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}
@@ -267,5 +268,5 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 
 // createDemultiplexer creates a demultiplexer for testing
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), logscompression.MockModule(), metricscompression.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

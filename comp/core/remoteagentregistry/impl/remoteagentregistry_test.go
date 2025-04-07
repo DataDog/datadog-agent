@@ -148,7 +148,7 @@ func TestFlareProvider(t *testing.T) {
 	fb := helpers.NewFlareBuilderMock(t, false)
 	fb.AssertNoFileExists("test-agent/test_file.yaml")
 
-	err = flareProvider.FlareFiller.Callback(fb.Fb)
+	err = flareProvider.FlareFiller.Callback(fb)
 	require.NoError(t, err)
 	fb.AssertFileExists("test-agent/test_file.yaml")
 	fb.AssertFileContent("test_content", "test-agent/test_file.yaml")
@@ -233,6 +233,7 @@ type testRemoteAgentServer struct {
 	StatusMain  map[string]string
 	StatusNamed map[string]map[string]string
 	FlareFiles  map[string][]byte
+	pbgo.UnimplementedRemoteAgentServer
 }
 
 func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {

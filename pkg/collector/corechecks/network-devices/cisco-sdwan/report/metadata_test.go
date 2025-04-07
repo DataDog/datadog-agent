@@ -79,6 +79,7 @@ func TestSendMetadata(t *testing.T) {
 	event := []byte(`
 {
   "namespace": "my-ns",
+  "integration": "cisco-sdwan",
   "devices": [
     {
       "id": "my-ns:10.0.0.1",

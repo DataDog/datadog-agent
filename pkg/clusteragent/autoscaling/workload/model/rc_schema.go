@@ -9,7 +9,9 @@ package model
 
 import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+
+	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqv1alpha2 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // ReccomendationError is an error encountered while computing a recommendation on Datadog side
@@ -35,5 +37,16 @@ type AutoscalingSettings struct {
 	Name string `json:"name"`
 
 	// Spec is the full spec of the PodAutoscaler
-	Spec *datadoghq.DatadogPodAutoscalerSpec `json:"spec"`
+	// WARNING: Legacy field, to be removed
+	Spec *datadoghqv1alpha1.DatadogPodAutoscalerSpec `json:"spec,omitempty"`
+
+	// Specs contains one version of the PodAutoscaler spec
+	// Has priority over the legacy field Spec
+	Specs *AutoscalingSpecs `json:"specs,omitempty"`
+}
+
+// AutoscalingSpecs contains the different versions of the PodAutoscaler spec
+type AutoscalingSpecs struct {
+	V1Alpha1 *datadoghqv1alpha1.DatadogPodAutoscalerSpec `json:"v1alpha1,omitempty"`
+	V1Alpha2 *datadoghqv1alpha2.DatadogPodAutoscalerSpec `json:"v1alpha2,omitempty"`
 }

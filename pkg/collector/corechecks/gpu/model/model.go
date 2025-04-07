@@ -9,14 +9,22 @@ package model
 
 // MemoryMetrics contains the memory stats for a given memory type
 type MemoryMetrics struct {
+	// CurrentBytes is the amount of memory that is allocated when the stats are generated.
 	CurrentBytes uint64 `json:"current_bytes"`
-	MaxBytes     uint64 `json:"max_bytes"`
+
+	// MaxBytes is the maximum amount of memory that has been allocated in the interval.
+	// While it's not reported to the backend, we leave it as it's useful for debugging
+	// and unit testing.
+	MaxBytes uint64 `json:"max_bytes"`
 }
 
 // UtilizationMetrics contains the GPU stats for a given device and process
 type UtilizationMetrics struct {
-	UtilizationPercentage float64       `json:"utilization_percentage"`
-	Memory                MemoryMetrics `json:"memory"`
+	// UsedCores stores the average number of GPU cores used by this process in the interval
+	UsedCores float64 `json:"used_cores"`
+
+	// Memory stores the memory stats for the process during the interval
+	Memory MemoryMetrics `json:"memory"`
 }
 
 // StatsKey is the key used to identify a GPUStats object

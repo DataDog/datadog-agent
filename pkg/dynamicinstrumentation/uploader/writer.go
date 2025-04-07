@@ -20,19 +20,22 @@ import (
 	"github.com/kr/pretty"
 )
 
-type WriterSerializer[T any] struct { //nolint:revive // TODO
+// WriterSerializer is an interface to serialize output guarded by a mutex
+type WriterSerializer[T any] struct {
 	output io.Writer
 	mu     sync.Mutex
 }
 
-func NewWriterLogSerializer(writer io.Writer) (*WriterSerializer[ditypes.SnapshotUpload], error) { //nolint:revive // TODO
+// NewWriterLogSerializer creates a new WriterSerializer for snapshot uploads
+func NewWriterLogSerializer(writer io.Writer) (*WriterSerializer[ditypes.SnapshotUpload], error) {
 	if writer == nil {
 		return nil, errors.New("nil writer for creating log serializer")
 	}
 	return NewWriterSerializer[ditypes.SnapshotUpload](writer)
 }
 
-func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.Writer) (*WriterSerializer[ditypes.DiagnosticUpload], error) { //nolint:revive // TODO
+// NewWriterDiagnosticSerializer creates a new WriterSerializer for diagnostics uploads
+func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.Writer) (*WriterSerializer[ditypes.DiagnosticUpload], error) {
 	if writer == nil {
 		return nil, errors.New("nil writer for creating diagnostic serializer")
 	}
@@ -51,7 +54,8 @@ func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.
 	return ds, nil
 }
 
-func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) { //nolint:revive // TODO
+// NewWriterSerializer creates a new WriterLogSerializer for generic types
+func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) {
 	if writer == nil {
 		return nil, errors.New("nil writer for creating serializer")
 	}
@@ -60,14 +64,15 @@ func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) 
 	}, nil
 }
 
-func (s *WriterSerializer[T]) Enqueue(item *T) error { //nolint:revive // TODO
+// Enqueue writes an item to the output
+func (s *WriterSerializer[T]) Enqueue(item *T) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bs, err := json.Marshal(item)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal item %v", item)
 	}
-
+	bs = append(bs, '\n')
 	_, err = s.output.Write(bs)
 	if err != nil {
 		return err

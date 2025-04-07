@@ -46,8 +46,8 @@ const (
 	udpSendSkb              = "kprobe__udp_send_skb"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
-	__skbFreeDatagramLocked = "__skb_free_datagram_locked" //nolint:revive // TODO
-	skbConsumeUdp           = "skb_consume_udp"            //nolint:revive // TODO
+	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
+	skbConsumeUDP           = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
@@ -112,7 +112,7 @@ var programs = map[string]struct{}{
 	udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
-	skbConsumeUdp:             {},
+	skbConsumeUDP:             {},
 	tcpRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
@@ -138,7 +138,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
-		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
@@ -153,30 +152,40 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// if err == nil && len(missing) == 0 {
 		// 	enableProgram(enabled, sockFDLookupRet)
 		// }
+
+		if c.CustomBatchingEnabled {
+			enableProgram(enabled, tcpCloseReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
-		enableProgram(enabled, udpDestroySockReturn)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
+
+		if c.CustomBatchingEnabled {
+			enableProgram(enabled, udpDestroySockReturn)
+		}
 	}
 
 	if c.CollectUDPv6Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
-		enableProgram(enabled, udpv6DestroySockReturn)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, udpv6RecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
+
+		if c.CustomBatchingEnabled {
+			enableProgram(enabled, udpv6DestroySockReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {
@@ -194,7 +203,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}
 	if _, miss := missing["skb_consume_udp"]; !miss {
-		enableProgram(enabled, skbConsumeUdp)
+		enableProgram(enabled, skbConsumeUDP)
 	} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
 		enableProgram(enabled, __skbFreeDatagramLocked)
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {

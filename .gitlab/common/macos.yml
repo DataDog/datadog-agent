@@ -38,8 +38,13 @@
   - export VAULT_ADDR=https://vault.us1.ddbuild.io
   - vault login -method=aws -no-print
 
+.aws_retry_config:
+  - export AWS_RETRY_MODE=standard
+  - export AWS_RETRY_MAX_ATTEMPTS=5
+
 .macos_gitlab:
   before_script:
+    - !reference [.aws_retry_config]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -53,8 +58,9 @@
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt --break-system-packages
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
     - pyenv rehash
-    - inv -e rtloader.make
-    - inv -e rtloader.install
-    - inv -e install-tools
+    - dda inv -- -e rtloader.make
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools

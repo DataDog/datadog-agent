@@ -29,9 +29,6 @@ type Config struct {
 	DebugPort        int
 	HealthPort       int
 	TelemetryEnabled bool
-
-	StatsdHost string
-	StatsdPort int
 }
 
 // ModuleIsEnabled returns a bool indicating if the given module name is enabled.

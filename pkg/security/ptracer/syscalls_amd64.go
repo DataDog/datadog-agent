@@ -74,8 +74,13 @@ const (
 	IoctlNr          = unix.SYS_IOCTL             // IoctlNr defines the syscall ID for amd64
 	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for amd64
 	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for amd64
-	PipeNr           = unix.SYS_PIPE              // PipeNr defines the syscall ID for arm64
-	Pipe2Nr          = unix.SYS_PIPE2             // Pipe2Nr defines the syscall ID for arm64
+	PipeNr           = unix.SYS_PIPE              // PipeNr defines the syscall ID for amd64
+	Pipe2Nr          = unix.SYS_PIPE2             // Pipe2Nr defines the syscall ID for amd64
+	ConnectNr        = unix.SYS_CONNECT           // ConnectNr defines the syscall ID for amd64
+	Accept4Nr        = unix.SYS_ACCEPT4           // Accept4Nr defines the syscall ID for arm64
+	AcceptNr         = unix.SYS_ACCEPT            // AcceptNr defines the syscall ID for amd64
+	BindNr           = unix.SYS_BIND              // BindNr defines the syscall ID for amd64
+	SocketNr         = unix.SYS_SOCKET            // SocketNr defines the syscall ID for amd64
 )
 
 // https://github.com/torvalds/linux/blob/v5.0/arch/x86/entry/entry_64.S#L126

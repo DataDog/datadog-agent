@@ -12,10 +12,7 @@ from tasks.release import _get_release_json_value
 
 
 def _get_omnibus_commits(field):
-    if 'RELEASE_VERSION' in os.environ:
-        release_version = os.environ['RELEASE_VERSION']
-    else:
-        release_version = os.environ['RELEASE_VERSION_7']
+    release_version = os.environ['RELEASE_VERSION']
     return _get_release_json_value(f'{release_version}::{field}')
 
 
@@ -73,10 +70,12 @@ def _get_environment_for_cache() -> dict:
             'STATS_',
             'SMP_',
             'SSH_',
+            'TAGGER_',
             'TARGET_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
+            'VALIDATE_',
             'XPC_',
             'WINDOWS_',
         ]
@@ -138,6 +137,8 @@ def _get_environment_for_cache() -> dict:
             "MESSAGE",
             "NEW_CLUSTER",
             "NEW_CLUSTER_PR_SLACK_WORKFLOW_WEBHOOK",
+            "NOTIFICATIONS_SLACK_CHANNEL",
+            "NOTIFIER_IMAGE",
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
@@ -155,11 +156,9 @@ def _get_environment_for_cache() -> dict:
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
-            "TESTING_CLEANUP",
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
-            "USE_S3_CACHING",
             "USER",
             "USERDOMAIN",
             "USERNAME",
@@ -210,12 +209,11 @@ def omnibus_compute_cache_key(ctx):
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
-    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    # Omnibus ruby & software versions can be forced through the environment
+    # so we need to read it from there first, and fallback to release.json
+    omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
     print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
-    print(f'Omnibus software commit: {omnibus_software_commit}')
     h.update(str.encode(omnibus_ruby_commit))
-    h.update(str.encode(omnibus_software_commit))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')

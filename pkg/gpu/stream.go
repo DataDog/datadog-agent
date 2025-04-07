@@ -3,17 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
 import (
-	"fmt"
+	"errors"
 	"math"
-	"path"
-	"strconv"
-
-	"github.com/prometheus/procfs"
+	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -21,38 +18,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// noSmVersion is used when the SM version is not available
+const noSmVersion uint32 = 0
+
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	pid            uint32
+	metadata       streamMetadata
 	kernelLaunches []enrichedKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*kernelSpan
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
-	containerID    string
 }
 
-// enrichedKernelLaunch is a kernel launch event with the kernel data attached.
-// We need to do it this way as we shouldn't modify the
-// gpuebpf.CudaKernelLaunch, as it's a shared definition with the C probes
-type enrichedKernelLaunch struct {
-	gpuebpf.CudaKernelLaunch
-	kernel *cuda.CubinKernel
-}
+// streamMetadata contains metadata about a CUDA stream
+type streamMetadata struct {
+	// pid is the PID of the process that is running this stream
+	pid uint32
 
-// streamKey is a unique identifier for a CUDA stream
-type streamKey struct {
-	pid         uint32
-	stream      uint64
-	gpuUUID     string
+	// streamID is the ID of the CUDA stream
+	streamID uint64
+
+	// gpuUUID is the UUID of the GPU this stream is running on
+	gpuUUID string
+
+	// containerID is the container ID of the process that is running this stream. Might be empty if the container ID is not available
+	// or if the process is not running inside a container
 	containerID string
+
+	// smVersion is the SM version of the GPU this stream is running on, for kernel data attaching
+	smVersion uint32
 }
 
 // streamData contains kernel spans and allocations for a stream
 type streamData struct {
-	key         streamKey //nolint:unused // TODO
 	spans       []*kernelSpan
 	allocations []*memoryAllocation
 }
@@ -113,74 +114,60 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, containerID string, sysCtx *systemContext) *StreamHandler {
+// enrichedKernelLaunch is a structure that wraps a kernel launch event with the code to get
+// the kernel data from the kernel cache, in the background
+type enrichedKernelLaunch struct {
+	gpuebpf.CudaKernelLaunch
+	kernel *cuda.CubinKernel
+	err    error
+	stream *StreamHandler
+}
+
+var errFatbinParsingDisabled = errors.New("fatbin parsing is disabled")
+
+// getKernelData attempts to get the kernel data from the kernel cache.
+// If the kernel is not processed yet, it will return errKernelNotProcessedYet, retry later in that case.
+// If fatbin parsing is disabled, it will return errFatbinParsingDisabled.
+func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
+	if e.stream.sysCtx.cudaKernelCache == nil || e.stream.metadata.smVersion == noSmVersion {
+		// Fatbin parsing is disabled, so we don't need to get the kernel data.
+		// Same is true if we haven't been able to detect the SM version for this stream
+		return nil, errFatbinParsingDisabled
+	}
+
+	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, cuda.ErrKernelNotProcessedYet)) {
+		return e.kernel, e.err
+	}
+
+	e.kernel, e.err = e.stream.sysCtx.cudaKernelCache.Get(int(e.stream.metadata.pid), e.Kernel_addr, e.stream.metadata.smVersion)
+	return e.kernel, e.err
+}
+
+func newStreamHandler(metadata streamMetadata, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
-		pid:            pid,
 		sysCtx:         sysCtx,
-		containerID:    containerID,
+		metadata:       metadata,
 	}
 }
+
+var logLimitErrorAttach = log.NewLogLimit(10, 10*time.Minute)
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	enrichedLaunch := &enrichedKernelLaunch{
 		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
+		stream:           sh,
 	}
 
-	err := sh.tryAttachKernelData(enrichedLaunch)
-	if err != nil {
-		log.Warnf("Error attaching kernel data: %v", err)
-	}
-
-	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
-}
-
-func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
-	for _, m := range procMaps {
-		if addr >= m.StartAddr && addr < m.EndAddr {
-			return m
+	// Trigger the background kernel data loading, we don't care about the result here
+	_, err := enrichedLaunch.getKernelData()
+	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
+		if logLimitErrorAttach.ShouldLog() {
+			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 		}
 	}
 
-	return nil
-}
-
-func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil {
-		return nil // No system context, kernel data attaching is disabled
-	}
-
-	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.pid))
-	if err != nil {
-		return fmt.Errorf("error reading process memory maps: %w", err)
-	}
-
-	entry := findEntryInMaps(maps, uintptr(event.Kernel_addr))
-	if entry == nil {
-		return fmt.Errorf("could not find entry for kernel address 0x%x", event.Kernel_addr)
-	}
-
-	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
-
-	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.pid)), "root", entry.Pathname)
-	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
-	if err != nil {
-		return fmt.Errorf("error getting file data: %w", err)
-	}
-
-	symbol, ok := fileData.SymbolTable[offsetInFile]
-	if !ok {
-		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
-	}
-
-	kern := fileData.Fatbin.GetKernel(symbol, uint32(sh.sysCtx.deviceSmVersions[0]))
-	if kern == nil {
-		return fmt.Errorf("could not find kernel for symbol %s", symbol)
-	}
-
-	event.kernel = kern
-
-	return nil
+	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
 }
 
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
@@ -253,10 +240,15 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgThreadCount += uint64(blockSize) * uint64(blockCount)
 		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
-		if launch.kernel != nil {
-			span.avgMemoryUsage[constantMemAlloc] += uint64(launch.kernel.ConstantMem)
-			span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.kernel.SharedMem)
-			span.avgMemoryUsage[kernelMemAlloc] += uint64(launch.kernel.KernelSize)
+		kernel, err := launch.getKernelData()
+		if err != nil {
+			if !errors.Is(err, errFatbinParsingDisabled) && logLimitErrorAttach.ShouldLog() {
+				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
+			}
+		} else if kernel != nil {
+			span.avgMemoryUsage[constantMemAlloc] += uint64(kernel.ConstantMem)
+			span.avgMemoryUsage[sharedMemAlloc] += uint64(kernel.SharedMem)
+			span.avgMemoryUsage[kernelMemAlloc] += uint64(kernel.KernelSize)
 		}
 
 		span.numKernels++
@@ -363,7 +355,7 @@ func (sh *StreamHandler) markEnd() error {
 		sh.allocations = append(sh.allocations, &data)
 	}
 
-	sh.sysCtx.removeProcess(int(sh.pid))
+	sh.sysCtx.removeProcess(int(sh.metadata.pid))
 
 	return nil
 }

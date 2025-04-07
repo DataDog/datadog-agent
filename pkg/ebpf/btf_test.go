@@ -17,8 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 )
 
 func TestEmbeddedBTFMatch(t *testing.T) {
@@ -64,7 +62,7 @@ func TestBTFTelemetry(t *testing.T) {
 	ret, result, err := loader.Get()
 	require.NoError(t, err)
 	require.NotNil(t, ret)
-	require.NotEqual(t, ebpftelemetry.COREResult(ebpftelemetry.BtfNotFound), result)
+	require.NotEqual(t, COREResult(BtfNotFound), result)
 }
 
 func curDir() (string, error) {

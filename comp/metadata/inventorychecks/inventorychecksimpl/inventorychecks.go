@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"sync"
@@ -35,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -86,8 +87,8 @@ type inventorychecksImpl struct {
 
 	log      log.Component
 	conf     config.Component
-	coll     optional.Option[collector.Component]
-	sources  optional.Option[*sources.LogSources]
+	coll     option.Option[collector.Component]
+	sources  option.Option[*sources.LogSources]
 	hostname string
 }
 
@@ -97,8 +98,8 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Coll       optional.Option[collector.Component]
-	LogAgent   optional.Option[logagent.Component]
+	Coll       option.Option[collector.Component]
+	LogAgent   option.Option[logagent.Component]
 }
 
 type provides struct {
@@ -116,7 +117,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		conf:     deps.Config,
 		log:      deps.Log,
 		coll:     deps.Coll,
-		sources:  optional.NewNoneOption[*sources.LogSources](),
+		sources:  option.None[*sources.LogSources](),
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
@@ -184,9 +185,7 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 
 	res := map[string]interface{}{}
 	if instance, found := ic.data[instanceID]; found {
-		for name, value := range instance.metadata {
-			res[name] = value
-		}
+		maps.Copy(res, instance.metadata)
 	}
 	return res
 }
@@ -211,9 +210,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				cm := check.GetMetadata(c, withConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
-					for key, val := range checkData.metadata {
-						cm[key] = val
-					}
+					maps.Copy(cm, checkData.metadata)
 				}
 
 				checkName := c.String()

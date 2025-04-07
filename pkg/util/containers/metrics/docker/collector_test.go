@@ -25,7 +25,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -94,7 +94,7 @@ func TestGetContainerIDForPID(t *testing.T) {
 
 	collector := dockerCollector{
 		pidCache:      provider.NewCache(pidCacheGCInterval),
-		metadataStore: optional.NewOption[workloadmeta.Component](mockStore),
+		metadataStore: option.New[workloadmeta.Component](mockStore),
 	}
 
 	mockStore.Set(&workloadmeta.Container{

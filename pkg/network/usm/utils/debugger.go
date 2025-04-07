@@ -45,6 +45,7 @@ type BlockedProcess struct {
 type PathIdentifierWithSamplePath struct {
 	PathIdentifier
 	SamplePath string
+	Reason     string
 }
 
 // GetTracedProgramsEndpoint returns a callback for the given module name, that
@@ -213,11 +214,12 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(moduleName, programType st
 
 		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
 		for _, pathIdentifier := range registry.blocklistByID.Keys() {
-			samplePath, ok := registry.blocklistByID.Get(pathIdentifier)
+			entry, ok := registry.blocklistByID.Get(pathIdentifier)
 			if ok {
 				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
 					PathIdentifier: pathIdentifier,
-					SamplePath:     samplePath})
+					SamplePath:     entry.Path,
+					Reason:         entry.Reason})
 			}
 		}
 

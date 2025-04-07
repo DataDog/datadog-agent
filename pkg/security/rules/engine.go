@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -65,12 +67,14 @@ type RuleEngine struct {
 	rulesetListeners []rules.RuleSetListener
 	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
+	wg               sync.WaitGroup
 }
 
 // APIServer defines the API server
 type APIServer interface {
 	ApplyRuleIDs([]rules.RuleID)
 	ApplyPolicyStates([]*monitor.PolicyState)
+	GetSECLVariables() map[string]*api.SECLVariableState
 }
 
 // NewRuleEngine returns a new rule engine
@@ -109,7 +113,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 }
 
 // Start the rule engine
-func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
+func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {
 		e.policyMonitor.Start(ctx)
@@ -132,7 +136,11 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(e.probe.Config, e.probe.Origin())
+	rfmCfg := filtermodel.RuleFilterEventConfig{
+		COREEnabled: e.probe.Config.Probe.EnableCORE,
+		Origin:      e.probe.Origin(),
+	}
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -150,9 +158,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		return fmt.Errorf("failed to load policies: %w", err)
 	}
 
-	wg.Add(1)
+	e.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer e.wg.Done()
 
 		for range reloadChan {
 			if err := e.ReloadPolicies(); err != nil {
@@ -161,9 +169,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		}
 	}()
 
-	wg.Add(1)
+	e.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer e.wg.Done()
 
 		for range e.policyLoader.NewPolicyReady() {
 			if err := e.ReloadPolicies(); err != nil {
@@ -176,9 +184,52 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		provider.Start()
 	}
 
-	wg.Add(1)
+	e.startSendHeartbeatEvents(ctx)
+
+	return nil
+}
+
+func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
+	// Sending an heartbeat event every minute
+	e.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer e.wg.Done()
+
+		// 5 heartbeats with a period of 1 min, after that we move the period to 10 min
+		// if the policies change we go back to 5 beats every 1 min
+
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
+		defer heartbeatTicker.Stop()
+
+		heartBeatCounter := 5
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-e.policyLoader.NewPolicyReady():
+				heartBeatCounter = 5
+				heartbeatTicker.Reset(1 * time.Minute)
+				// we report a heartbeat anyway
+				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+			case <-heartbeatTicker.C:
+				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+				if heartBeatCounter > 0 {
+					heartBeatCounter--
+					if heartBeatCounter == 0 {
+						heartbeatTicker.Reset(10 * time.Minute)
+					}
+				}
+			}
+		}
+	}()
+}
+
+// StartRunningMetrics starts sending the running metrics
+func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
 
 		heartbeatTicker := time.NewTicker(15 * time.Second)
 		defer heartbeatTicker.Stop()
@@ -231,41 +282,6 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			}
 		}
 	}()
-
-	// Sending an heartbeat event every minute
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		// 5 heartbeats with a period of 1 min, after that we move the period to 10 min
-		// if the policies change we go back to 5 beats every 1 min
-
-		heartbeatTicker := time.NewTicker(1 * time.Minute)
-		defer heartbeatTicker.Stop()
-
-		heartBeatCounter := 5
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-e.policyLoader.NewPolicyReady():
-				heartBeatCounter = 5
-				heartbeatTicker.Reset(1 * time.Minute)
-				// we report a heartbeat anyway
-				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
-			case <-heartbeatTicker.C:
-				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
-				if heartBeatCounter > 0 {
-					heartBeatCounter--
-					if heartBeatCounter == 0 {
-						heartbeatTicker.Reset(10 * time.Minute)
-					}
-				}
-			}
-		}
-	}()
-	return nil
 }
 
 // ReloadPolicies reloads the policies
@@ -359,6 +375,51 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
 	e.apiServer.ApplyRuleIDs(ruleIDs)
 	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
+	var seclVariables = make(map[string]*api.SECLVariableState)
+	for name, value := range rs.GetVariables() {
+		if strings.HasPrefix(name, "process.") {
+			scopedVariable := value.(eval.ScopedVariable)
+			if !scopedVariable.IsMutable() {
+				continue
+			}
+
+			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				event := e.probe.PlatformProbe.NewEvent()
+				event.ProcessCacheEntry = entry
+				ctx := eval.NewContext(event)
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
+				value, found := scopedVariable.GetValue(ctx)
+				if !found {
+					return
+				}
+
+				scopedValue := fmt.Sprintf("%+v", value)
+				seclVariables[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: scopedValue,
+				}
+			})
+		} else if strings.Contains(name, ".") { // other scopes
+			continue
+		} else { // global variables
+			value, found := value.(eval.Variable).GetValue()
+			if !found {
+				continue
+			}
+			scopedValue := fmt.Sprintf("%+v", value)
+			seclVariables[name] = &api.SECLVariableState{
+				Name:  name,
+				Value: scopedValue,
+			}
+		}
+	}
+	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -466,6 +527,8 @@ func (e *RuleEngine) Stop() {
 	if e.policyLoader != nil {
 		e.policyLoader.Close()
 	}
+
+	e.wg.Wait()
 }
 
 func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
@@ -487,6 +550,8 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 				switch eventType {
 				case model.RawPacketEventType.String():
 					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				case model.NetworkFlowMonitorEventType.String():
+					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
 				default:
 					enabled[eventType] = true
 				}

@@ -23,9 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -469,7 +470,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -577,7 +578,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -692,11 +693,11 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.input_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 35*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 10*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1074,7 +1075,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	c := create.NewConfig("test")
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1093,7 +1094,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	SystemProbe := create.NewConfig("datadog")
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1201,6 +1202,10 @@ func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
+	// it for non-linux OSes. By adding it here the test passes on all OSes.
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1230,6 +1235,8 @@ process_config:
     - fifth
     https://url2.eu:
     - modified
+  run_in_core_agent:
+    enabled: false
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1253,6 +1260,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1282,7 +1290,10 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-var testSimpleConf = []byte(`secret_backend_command: some command
+var testSimpleConf = []byte(`process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -1293,6 +1304,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1303,7 +1315,10 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
-	expectedYaml := `secret_backend_arguments:
+	expectedYaml := `process_config:
+  run_in_core_agent:
+    enabled: false
+secret_backend_arguments:
 - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
@@ -1405,6 +1420,7 @@ additional_endpoints:
 `)
 	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1419,6 +1435,9 @@ additional_endpoints:
   "0": apple
   "1": banana
   "2": cherry
+process_config:
+  run_in_core_agent:
+    enabled: false
 use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
@@ -1434,7 +1453,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 
 	initCommonWithServerless(conf)
 
@@ -1450,7 +1469,7 @@ func TestServerlessConfigInit(t *testing.T) {
 
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := create.NewConfig("datadog")
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
@@ -1471,6 +1490,39 @@ func TestDisableCoreAgent(t *testing.T) {
 	assert.False(t, conf.GetBool("enable_payloads.sketches"))
 }
 
+func TestAPMObfuscationDefaultValue(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := create.NewConfig("datadog")
+
+	InitConfig(conf)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.opensearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.mongodb.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_query_string"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_paths_with_digits"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.redis.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.memcached.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.memcached.keep_command"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.credit_cards.luhn"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.credit_cards.keep_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.cache.enabled"))
+	assert.Equal(t, int64(5000000), conf.GetInt64("apm_config.obfuscation.cache.max_size"))
+}
+
 func TestAgentConfigInit(t *testing.T) {
 	conf := newTestConf()
 
@@ -1483,7 +1535,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := create.NewConfig("test")
 
 	data := `scrubber.additional_keys:
 - yet_another_key
@@ -1496,7 +1548,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

@@ -18,7 +18,7 @@ import (
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/procfilestats"
 )
 
 // Builder is used to build the status.
@@ -214,7 +214,7 @@ func (b *Builder) getMetricsStatus() map[string]string {
 
 func (b *Builder) getProcessFileStats() map[string]uint64 {
 	stats := make(map[string]uint64)
-	fs, err := util.GetProcessFileStats()
+	fs, err := procfilestats.GetProcessFileStats()
 	if err != nil {
 		return stats
 	}

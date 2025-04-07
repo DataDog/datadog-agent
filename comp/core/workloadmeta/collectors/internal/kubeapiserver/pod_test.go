@@ -35,6 +35,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 			{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
+					Containers: ([]workloadmeta.OrchestratorContainer{}),
 					EntityID: workloadmeta.EntityID{
 						ID:   string(objectMeta.UID),
 						Kind: workloadmeta.KindKubernetesPod,

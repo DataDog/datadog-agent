@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageInstallerSuite struct {
@@ -41,7 +42,6 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/opt/datadog-packages/run/locks", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/tmp", 0755, "dd-agent", "dd-agent")
@@ -51,13 +51,30 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
-	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsEnabled("datadog-installer.service")
+	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
+	state.AssertUnitsDead("datadog-installer-exp.service")
+	var installerUnitState string
+	assert.Eventually(s.T(), func() bool {
+		state := s.host.State()
+		unit, ok := state.Units["datadog-installer.service"]
+		if !ok {
+			installerUnitState = "not found"
+			return false
+		}
+		if unit.SubState != host.Dead {
+			installerUnitState = string(unit.SubState)
+			return false
+		}
+		return true
+	}, 60*time.Second, 1*time.Second, "datadog-installer.service should be dead but is %s", installerUnitState)
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-installer.service")
+	s.host.WaitForUnitActive(s.T(), "datadog-installer.service")
 
 	state := s.host.State()
 	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")

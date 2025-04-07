@@ -73,7 +73,7 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver()
+	cgroupsResolver, err := cgroup.NewResolver(nil)
 	if err != nil {
 		return nil, err
 	}

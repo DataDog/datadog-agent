@@ -71,6 +71,8 @@ const (
 	Process EntityIDPrefix = "process"
 	// InternalID is the prefix `internal`
 	InternalID EntityIDPrefix = "internal"
+	// GPU is the prefix `gpu`
+	GPU EntityIDPrefix = "gpu"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -85,6 +87,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		KubernetesPodUID:       {},
 		Process:                {},
 		InternalID:             {},
+		GPU:                    {},
 	}
 }
 

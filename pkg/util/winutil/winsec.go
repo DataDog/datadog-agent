@@ -21,6 +21,7 @@ var (
 	procGetAclInformation    = advapi32.NewProc("GetAclInformation")
 	procGetNamedSecurityInfo = advapi32.NewProc("GetNamedSecurityInfoW")
 	procGetAce               = advapi32.NewProc("GetAce")
+	procCheckTokenMembership = advapi32.NewProc("CheckTokenMembership")
 	//revive:enable:var-naming
 )
 
@@ -131,5 +132,25 @@ func GetAce(acl *ACL, index uint32, ace **ACCESS_ALLOWED_ACE) error {
 	if int(ret) != 0 {
 		return windows.GetLastError()
 	}
+	return nil
+}
+
+// CheckTokenMembership calls Windows 'CheckTokenMembership' function to determine
+// whether a specified security identifier (SID) is enabled in the access token
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership
+//
+//revive:disable-next-line:var-naming Name is intended to match the Windows API name
+func CheckTokenMembership(token windows.Token, sid *windows.SID, isMember *bool) error {
+	var isMemberInt int32
+	ret, _, _ := procCheckTokenMembership.Call(
+		uintptr(token),
+		uintptr(unsafe.Pointer(sid)),
+		uintptr(unsafe.Pointer(&isMemberInt)),
+	)
+	if int(ret) == 0 {
+		return windows.GetLastError()
+	}
+	*isMember = isMemberInt != 0
 	return nil
 }

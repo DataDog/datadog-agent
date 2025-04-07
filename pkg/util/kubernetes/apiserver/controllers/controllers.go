@@ -27,7 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
@@ -73,7 +73,7 @@ type ControllerContext struct {
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
 	WorkloadMeta           workloadmeta.Component
-	DatadogClient          optional.Option[datadogclient.Component]
+	DatadogClient          option.Option[datadogclient.Component]
 	StopCh                 chan struct{}
 }
 

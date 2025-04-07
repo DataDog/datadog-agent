@@ -117,7 +117,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
 	// This allows for the process check to run in the core agent but is for linux only
-	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
 
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
@@ -172,7 +172,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
 	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
-	config.SetKnown("process_config.intervals.connections")
+	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
@@ -224,7 +224,7 @@ func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {
 	if config.IsSet("process_config.enabled") {
-		log.Info("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
+		log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))

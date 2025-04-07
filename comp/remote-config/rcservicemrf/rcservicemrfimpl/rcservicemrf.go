@@ -22,7 +22,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
@@ -47,8 +47,8 @@ type dependencies struct {
 }
 
 // newMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
-func newMrfRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservicemrf.Component] {
-	none := optional.NewNoneOption[rcservicemrf.Component]()
+func newMrfRemoteConfigServiceOptional(deps dependencies) option.Option[rcservicemrf.Component] {
+	none := option.None[rcservicemrf.Component]()
 	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
 		return none
 	}
@@ -59,7 +59,7 @@ func newMrfRemoteConfigServiceOptional(deps dependencies) optional.Option[rcserv
 		return none
 	}
 
-	return optional.NewOption[rcservicemrf.Component](mrfConfigService)
+	return option.New[rcservicemrf.Component](mrfConfigService)
 }
 
 // newMrfRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC

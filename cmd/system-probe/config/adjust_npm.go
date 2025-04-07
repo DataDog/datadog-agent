@@ -26,6 +26,10 @@ const (
 func adjustNetwork(cfg model.Config) {
 	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
 
+	deprecateInt(cfg, spNS("closed_connection_flush_threshold"), netNS("closed_connection_flush_threshold"))
+	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
+	applyDefault(cfg, netNS("closed_channel_size"), 500)
+
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {

@@ -20,12 +20,6 @@ type RuleBucket struct {
 
 // AddRule adds a rule to the bucket
 func (rb *RuleBucket) AddRule(rule *Rule) error {
-	for _, r := range rb.rules {
-		if r.Def.ID == rule.Def.ID {
-			return &ErrRuleLoad{Rule: rule.PolicyRule, Err: ErrDefinitionIDConflict}
-		}
-	}
-
 	for _, field := range rule.GetEvaluator().GetFields() {
 		index := sort.SearchStrings(rb.fields, field)
 		if index < len(rb.fields) && rb.fields[index] == field {

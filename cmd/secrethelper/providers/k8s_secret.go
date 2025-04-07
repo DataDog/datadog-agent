@@ -6,18 +6,17 @@
 package providers
 
 import (
-	"context"
 	"fmt"
 	"strings"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 )
 
+// KubeSecretGetter is a function that fetches a secret from k8s
+type KubeSecretGetter func(string, string) (map[string][]byte, error)
+
 // ReadKubernetesSecret reads a secrets store in k8s
-func ReadKubernetesSecret(kubeClient kubernetes.Interface, path string) secrets.SecretVal {
+func ReadKubernetesSecret(readSecretFromKubeClient KubeSecretGetter, path string) secrets.SecretVal {
 	splitName := strings.Split(path, "/")
 
 	if len(splitName) != 3 {
@@ -26,12 +25,12 @@ func ReadKubernetesSecret(kubeClient kubernetes.Interface, path string) secrets.
 
 	namespace, name, key := splitName[0], splitName[1], splitName[2]
 
-	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	secret, err := readSecretFromKubeClient(namespace, name)
 	if err != nil {
 		return secrets.SecretVal{ErrorMsg: err.Error()}
 	}
 
-	value, ok := secret.Data[key]
+	value, ok := secret[key]
 	if !ok {
 		return secrets.SecretVal{ErrorMsg: fmt.Sprintf("key %s not found in secret %s/%s", key, namespace, name)}
 	}

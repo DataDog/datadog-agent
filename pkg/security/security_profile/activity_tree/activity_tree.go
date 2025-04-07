@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
@@ -155,11 +156,12 @@ func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
 type ActivityTree struct {
 	Stats *Stats
 
-	treeType          string
+	treeType  string
+	validator Owner
+
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -186,6 +188,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
+}
+
+// SetType changes the type and owner of the ActivityTree
+func (at *ActivityTree) SetType(treeType string, validator Owner) {
+	at.treeType = treeType
+	at.validator = validator
 }
 
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
@@ -402,6 +410,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+	case model.NetworkFlowMonitorEventType:
+		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -893,7 +903,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 				at.visitFileNode(file, func(fileNode *FileNode) {
 					path, ok := modifiedPaths[fileNode.File.PathnameStr]
 					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = utils.CheckForPatterns(fileNode.File.PathnameStr)
+						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
 						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
 					if len(path) > 0 {
@@ -905,7 +915,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 
 		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
 		if !ok {
-			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = utils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = pathutils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
 			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
 		}
 

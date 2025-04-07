@@ -16,10 +16,8 @@ import (
 )
 
 func TestReplacer(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("traces", func(_ *testing.T) {
-		for _, tt := range []struct {
+	t.Run("traces", func(tt *testing.T) {
+		for _, testCase := range []struct {
 			rules     [][3]string
 			got, want map[string]string
 		}{
@@ -63,28 +61,28 @@ func TestReplacer(t *testing.T) {
 				},
 			},
 		} {
-			rules := parseRulesFromString(tt.rules)
+			rules := parseRulesFromString(testCase.rules)
 			tr := NewReplacer(rules)
-			root := replaceFilterTestSpan(tt.got)
-			childSpan := replaceFilterTestSpan(tt.got)
+			root := replaceFilterTestSpan(testCase.got)
+			childSpan := replaceFilterTestSpan(testCase.got)
 			trace := pb.Trace{root, childSpan}
 			tr.Replace(trace)
-			for k, v := range tt.want {
+			for k, v := range testCase.want {
 				switch k {
 				case "resource.name":
 					// test that the filter applies to all spans, not only the root
-					assert.Equal(v, root.Resource)
-					assert.Equal(v, childSpan.Resource)
+					assert.Equal(tt, v, root.Resource)
+					assert.Equal(tt, v, childSpan.Resource)
 				default:
-					assert.Equal(v, root.Meta[k])
-					assert.Equal(v, childSpan.Meta[k])
+					assert.Equal(tt, v, root.Meta[k])
+					assert.Equal(tt, v, childSpan.Meta[k])
 				}
 			}
 		}
 	})
 
-	t.Run("stats", func(_ *testing.T) {
-		for _, tt := range []struct {
+	t.Run("stats", func(tt *testing.T) {
+		for _, testCase := range []struct {
 			rules     [][3]string
 			got, want *pb.ClientGroupedStats
 		}{
@@ -117,9 +115,111 @@ func TestReplacer(t *testing.T) {
 				},
 			},
 		} {
-			tr := NewReplacer(parseRulesFromString(tt.rules))
-			tr.ReplaceStatsGroup(tt.got)
-			assert.Equal(tt.got, tt.want)
+			tr := NewReplacer(parseRulesFromString(testCase.rules))
+			tr.ReplaceStatsGroup(testCase.got)
+			assert.Equal(tt, testCase.got, testCase.want)
+		}
+	})
+	t.Run("span events", func(tt *testing.T) {
+		for _, testCase := range []struct {
+			rules     [][3]string
+			got, want map[string]*pb.AttributeAnyValue
+		}{
+			{
+				rules: [][3]string{
+					{"http.url", "(token/)([^/]*)", "${1}?"},
+					{"http.url", "guid", "[REDACTED]"},
+					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
+					{"a", "b", "c"},
+					{"some.num", "1", "one!"},
+					{"some.dbl", "42.1", "42.5"},
+					{"is.potato", "true", "false"},
+					{"my.nums", "42", "100"},
+				},
+				got: map[string]*pb.AttributeAnyValue{
+					"http.url": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "some/guid/token/abcdef/abc",
+					},
+					"custom.tag": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "/foo/bar/foo",
+					},
+					"some.num": {
+						Type:     pb.AttributeAnyValue_INT_VALUE,
+						IntValue: 1,
+					},
+					"some.dbl": {
+						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+						DoubleValue: 42.1,
+					},
+					"is.potato": {
+						Type:      pb.AttributeAnyValue_BOOL_VALUE,
+						BoolValue: true,
+					},
+					"my.nums": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 123,
+								},
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 42,
+								},
+							},
+						},
+					},
+				},
+				want: map[string]*pb.AttributeAnyValue{
+					"http.url": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "some/[REDACTED]/token/?/abc",
+					},
+					"custom.tag": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "/foo/bar/extra",
+					},
+					"some.num": {
+						Type:        pb.AttributeAnyValue_STRING_VALUE,
+						StringValue: "one!",
+					},
+					"some.dbl": {
+						Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+						DoubleValue: 42.5,
+					},
+					"is.potato": {
+						Type:      pb.AttributeAnyValue_BOOL_VALUE,
+						BoolValue: false,
+					},
+					"my.nums": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 123,
+								},
+								{
+									Type:     pb.AttributeArrayValue_INT_VALUE,
+									IntValue: 100,
+								},
+							},
+						},
+					},
+				},
+			},
+		} {
+			rules := parseRulesFromString(testCase.rules)
+			tr := NewReplacer(rules)
+			root := replaceFilterTestSpanEvent(testCase.got)
+			trace := pb.Trace{root}
+			tr.Replace(trace)
+			for k, v := range testCase.want {
+				assert.Equal(tt, v, root.SpanEvents[0].Attributes[k])
+			}
 		}
 	})
 }
@@ -150,6 +250,18 @@ func replaceFilterTestSpan(tags map[string]string) *pb.Span {
 			span.Meta[k] = v
 		}
 	}
+	return span
+}
+
+// replaceFilterTestSpan creates a span with a span event with the provided attributes
+func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb.Span {
+	span := &pb.Span{SpanEvents: []*pb.SpanEvent{
+		{
+			TimeUnixNano: 0,
+			Name:         "foo",
+			Attributes:   attributes,
+		},
+	}}
 	return span
 }
 

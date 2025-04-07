@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type VMFakeintakeSuite struct {
@@ -171,12 +171,17 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
-
 func (s *VMFakeintakeSuite) TestStatsForService() {
+	// Test both normal stats computes by agent, and client stats from tracer
+	s.testStatsForService(false)
+	s.testStatsForService(true)
+}
+
+func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
 	addSpanTags := "peer.hostname:foo,span.kind:producer"
 	expectPeerTag := "peer.hostname:foo"
 
@@ -187,14 +192,24 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
+		transport:             s.transport,
+		addSpanTags:           addSpanTags,
+		enableClientSideStats: enableClientSideStats,
+	})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 		s.logJournal(false)
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
@@ -419,7 +434,7 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 
 	s.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewSecretClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(s.T(), s.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	extraconfig := fmt.Sprintf(`
@@ -441,7 +456,7 @@ agent_ipc:
 		vmProvisionerOpts(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+				secretsutils.WithUnixSetupScript(secretResolverPath, true),
 				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 			),
 		)...),

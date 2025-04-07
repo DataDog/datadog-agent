@@ -74,7 +74,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	services := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/services")
+	services := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 	t.Log("system-probe services", services)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -156,15 +156,18 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
-// assertRunningCheck asserts that the given process agent check is running
-func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
-	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
-
+func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check string) {
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
 	require.NoError(t, err, "failed to unmarshal agent status")
 
 	assert.Contains(t, status.RunnerStats.Checks, check)
+}
+
+// assertRunningCheck asserts that the given process agent check is running
+func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
+	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
+	assertCollectorStatusFromJSON(t, statusOutput, check)
 }
 
 func (s *linuxTestSuite) provisionServer() {

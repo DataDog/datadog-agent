@@ -18,7 +18,7 @@ int hook_audit_set_loginuid(ctx_t *ctx) {
 
 HOOK_EXIT("audit_set_loginuid")
 int rethook_audit_set_loginuid(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 1);
+    int retval = CTX_PARMRET(ctx);
     if (retval < 0) {
         return 0;
     }

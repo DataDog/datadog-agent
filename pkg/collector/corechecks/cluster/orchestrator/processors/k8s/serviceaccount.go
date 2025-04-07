@@ -33,6 +33,16 @@ func (h *ServiceAccountHandlers) AfterMarshalling(ctx processors.ProcessorContex
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *ServiceAccountHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.ServiceAccount)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *ServiceAccountHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -58,7 +68,7 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx processors.ProcessorContex
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.ServiceAccount)
-	return k8sTransformers.ExtractServiceAccount(r)
+	return k8sTransformers.ExtractServiceAccount(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

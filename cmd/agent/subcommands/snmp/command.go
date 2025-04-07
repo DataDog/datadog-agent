@@ -9,10 +9,6 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"net"
-	"os"
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -27,14 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"net"
+	"os"
+	"strconv"
 )
 
 const (
@@ -98,10 +98,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				eventplatformreceiverimpl.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -162,10 +163,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				compressionfx.Module(),
 				nooptagger.Module(),
 				snmpscanfx.Module(),
 				haagentfx.Module(),
+				metricscompression.Module(),
+				logscompression.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -225,21 +227,8 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
-	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
-	}
-	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
-	if instance.IPAddress != "" {
-		instance.IPAddress = deviceIP
-		return &instance, nil
-	}
-	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
-}
-
 func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
-	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
+	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
 	}
@@ -279,7 +268,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -296,23 +285,16 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
-	// Establish connection
-	snmp, err := snmpparse.NewSNMP(connParams, logger)
-	if err != nil {
-		// newSNMP only returns config errors, so any problem is a usage error
-		return configErr{err}
-	}
-	if err := snmp.Connect(); err != nil {
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
-	}
-
 	namespace := conf.GetString("network_devices.namespace")
-
-	err = snmpScanner.RunDeviceScan(snmp, namespace, connParams.IPAddress)
+	deviceID := namespace + ":" + connParams.IPAddress
+	// Start the scan
+	fmt.Printf("Launching scan for device: %s\n", deviceID)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, metadata.ManualScan)
 	if err != nil {
-		return fmt.Errorf("unable to perform device scan: %v", err)
+		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
 	}
-	return nil
+	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
+	return err
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.

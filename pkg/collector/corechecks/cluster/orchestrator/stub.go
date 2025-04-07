@@ -13,7 +13,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -22,6 +22,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory(workloadmeta.Component, configcomp.Component, tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewNoneOption[func() check.Check]()
+func Factory(workloadmeta.Component, configcomp.Component, tagger.Component) option.Option[func() check.Check] {
+	return option.None[func() check.Check]()
 }

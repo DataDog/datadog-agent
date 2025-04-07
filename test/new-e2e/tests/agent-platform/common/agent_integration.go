@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
+	flake.Mark(t)
 	requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
 	ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)

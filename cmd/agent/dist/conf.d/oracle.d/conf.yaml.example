@@ -6,6 +6,12 @@ init_config:
   ## Active session sampling interval in seconds
   # min_collection_interval: <interval_in_seconds>
 
+  ## @param propagate_agent_tags - boolean - optional - default: false
+  ## Set to `true` to propagate the tags from `datadog.yaml` and the agent host tags to the check.
+  ## When set to `true`, the tags from the agent host are added to the check's tags for all instances.
+  #
+  # propagate_agent_tags: false
+
   ## @param global_custom_queries - list of mappings - optional
   ## See `custom_queries` defined below.
   ##
@@ -113,6 +119,13 @@ instances:
     ## Set to `true` to enable Database Monitoring.
     #
     # dbm: false
+
+    ## @param propagate_agent_tags - boolean - optional - default: false
+    ## Set to `true` to propagate the tags from `datadog.yaml` and the agent host tags to the check.
+    ## When set to `true`, the tags from the agent host are added to the check's tags for all instances.
+    ## This option takes precedence over the `propagate_agent_tags` option in `init_config`.
+    #
+    # propagate_agent_tags: false
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.

@@ -17,4 +17,5 @@ type Factory struct {
 	ConfigNamespaces []string
 	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
 	NeedsEBPF        func() bool
+	OptionalEBPF     bool
 }

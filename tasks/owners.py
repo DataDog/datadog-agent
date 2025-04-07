@@ -1,8 +1,9 @@
 from collections import defaultdict
 
 from invoke import task
+from invoke.exceptions import Exit
 
-from tasks.libs.owners.parsing import read_owners, search_owners
+from tasks.libs.owners.parsing import list_owners, read_owners, search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 
@@ -14,6 +15,27 @@ def find_jobowners(_, job, owners_file=".gitlab/JOBOWNERS"):
 @task
 def find_codeowners(_, path, owners_file=".github/CODEOWNERS"):
     print(", ".join(search_owners(path, owners_file)))
+
+
+@task
+def list_files(ctx, team, owners_file=".github/CODEOWNERS"):
+    """
+    List all files owned by a particular team.
+    """
+
+    valid_owners = list(list_owners(owners_file))
+
+    if team not in valid_owners:
+        raise Exit(f"unexpected owner '{team}'")
+
+    code_owners = read_owners(owners_file)
+    result = ctx.run('git ls-files', hide=True)
+    files = result.stdout.splitlines()
+
+    for file_name in files:
+        normalized_owners = [owner[1].casefold().replace("@datadog/", "") for owner in code_owners.of(file_name)]
+        if team in normalized_owners:
+            print(file_name)
 
 
 def make_partition(names: list[str], owners_file: str, get_channels: bool = False) -> dict[str, set[str]]:

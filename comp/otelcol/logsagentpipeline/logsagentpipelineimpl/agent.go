@@ -16,6 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
 	"go.uber.org/fx"
@@ -41,17 +42,19 @@ const (
 type Dependencies struct {
 	fx.In
 
-	Lc       fx.Lifecycle
-	Log      log.Component
-	Config   configComponent.Component
-	Hostname hostnameinterface.Component
+	Lc          fx.Lifecycle
+	Log         log.Component
+	Config      configComponent.Component
+	Hostname    hostnameinterface.Component
+	Compression compression.Component
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log      log.Component
-	config   pkgconfigmodel.Reader
-	hostname hostnameinterface.Component
+	log         log.Component
+	config      pkgconfigmodel.Reader
+	hostname    hostnameinterface.Component
+	compression compression.Component
 
 	endpoints        *config.Endpoints
 	auditor          auditor.Auditor
@@ -61,12 +64,12 @@ type Agent struct {
 }
 
 // NewLogsAgentComponent returns a new instance of Agent as a Component
-func NewLogsAgentComponent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
+func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Component] {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
-		return optional.NewNoneOption[logsagentpipeline.Component]()
+		return option.None[logsagentpipeline.Component]()
 	}
-	return optional.NewOption[logsagentpipeline.Component](logsAgent)
+	return option.New[logsagentpipeline.Component](logsAgent)
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
@@ -77,9 +80,10 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		}
 
 		logsAgent := &Agent{
-			log:      deps.Log,
-			config:   deps.Config,
-			hostname: deps.Hostname,
+			log:         deps.Log,
+			config:      deps.Config,
+			hostname:    deps.Hostname,
+			compression: deps.Compression,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -210,7 +214,7 @@ func (a *Agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

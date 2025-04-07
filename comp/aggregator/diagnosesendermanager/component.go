@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 // This component must not be used with demultiplexer.Component

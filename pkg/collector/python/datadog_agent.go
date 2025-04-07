@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +95,7 @@ func TracemallocEnabled() C.bool {
 //
 //export Headers
 func Headers(yamlPayload **C.char) {
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 
 	data, err := yaml.Marshal(h)
 	if err != nil {
@@ -245,6 +244,7 @@ var (
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file
 	// will only ever be called by one goroutine at a time
 	obfuscator       *obfuscate.Obfuscator
+	obfuscaterConfig obfuscate.Config // For testing purposes
 	obfuscatorLoader sync.Once
 )
 
@@ -253,21 +253,23 @@ var (
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
-		var cfg obfuscate.Config
-		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &cfg); err != nil {
+		if err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "apm_config.obfuscation", &obfuscaterConfig); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
-			cfg = obfuscate.Config{}
+			obfuscaterConfig = obfuscate.Config{}
 		}
-		if !cfg.SQLExecPlan.Enabled {
-			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
+		if !obfuscaterConfig.SQLExecPlan.Enabled {
+			obfuscaterConfig.SQLExecPlan = defaultSQLPlanObfuscateSettings
 		}
-		if !cfg.SQLExecPlanNormalize.Enabled {
-			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		if !obfuscaterConfig.SQLExecPlanNormalize.Enabled {
+			obfuscaterConfig.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
 		}
-		if !cfg.Mongo.Enabled {
-			cfg.Mongo = defaultMongoObfuscateSettings
+		if len(obfuscaterConfig.Mongo.KeepValues) == 0 {
+			obfuscaterConfig.Mongo.KeepValues = defaultMongoObfuscateSettings.KeepValues
 		}
-		obfuscator = obfuscate.NewObfuscator(cfg)
+		if len(obfuscaterConfig.Mongo.ObfuscateSQLValues) == 0 {
+			obfuscaterConfig.Mongo.ObfuscateSQLValues = defaultMongoObfuscateSettings.ObfuscateSQLValues
+		}
+		obfuscator = obfuscate.NewObfuscator(obfuscaterConfig)
 	})
 	return obfuscator
 }
@@ -733,5 +735,15 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
+}
+
+// httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
+func httpHeaders() map[string]string {
+	av, _ := version.Agent()
+	return map[string]string{
+		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
+		"Content-Type": "application/x-www-form-urlencoded",
+		"Accept":       "text/html, */*",
 	}
 }

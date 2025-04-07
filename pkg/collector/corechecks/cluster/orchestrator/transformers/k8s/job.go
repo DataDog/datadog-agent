@@ -9,14 +9,14 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	batchv1 "k8s.io/api/batch/v1"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	batchv1 "k8s.io/api/batch/v1"
 )
 
 // ExtractJob returns the protobuf model corresponding to a Kubernetes Job
 // resource.
-func ExtractJob(j *batchv1.Job) *model.Job {
+func ExtractJob(ctx processors.ProcessorContext, j *batchv1.Job) *model.Job {
 	job := model.Job{
 		Metadata: extractMetadata(&j.ObjectMeta),
 		Spec:     &model.JobSpec{},
@@ -61,7 +61,10 @@ func ExtractJob(j *batchv1.Job) *model.Job {
 	}
 
 	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	job.Tags = append(job.Tags, transformers.RetrieveUnifiedServiceTags(j.ObjectMeta.Labels)...)
+	job.Tags = append(job.Tags, transformers.RetrieveMetadataTags(j.ObjectMeta.Labels, j.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &job
 }

@@ -162,7 +162,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_unlinkat")
 int rethook_do_unlinkat(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 2);
+    int retval = CTX_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from functools import lru_cache
 
 from invoke.context import Context
@@ -17,6 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_failed_jobs_logs,
     print_workflow_conclusion,
     trigger_macos_workflow,
+    trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
@@ -26,6 +28,7 @@ from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.releasing.version import current_version
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -69,7 +72,7 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=None,
-    release_version="nightly-a7",
+    release_version="nightly",
     major_version="7",
     destination=".",
     version_cache=None,
@@ -108,6 +111,72 @@ def trigger_macos(
         raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+
+
+def _update_windows_runner_version(new_version=None, repo="buildenv"):
+    if new_version is None:
+        raise Exit(message="workflow needs the 'new_version' field value to be not None")
+    args_per_repo = {
+        "buildenv": {
+            "workflow_name": "runner-bump.yml",
+            "github_action_ref": "master",
+        },
+        "ci-platform-machine-images": {
+            "workflow_name": "windows-runner-agent-bump.yml",
+            "github_action_ref": "main",
+        },
+    }
+
+    run = trigger_windows_bump_workflow(
+        repo=repo,
+        workflow_name=args_per_repo[repo]["workflow_name"],
+        github_action_ref=args_per_repo[repo]["github_action_ref"],
+        new_version=new_version,
+    )
+    # We are only waiting 0.5min between each status check because buildenv
+    # or ci-platform-machine-images are much faster than macOS builds
+    full_repo = f"DataDog/{repo}"
+    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
+
+    if workflow_conclusion != "success":
+        if workflow_conclusion == "failure":
+            print_failed_jobs_logs(run)
+        return workflow_conclusion
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
+
+    with open("PR_URL_ARTIFACT") as f:
+        PR_URL = f.read().strip()
+
+    if not PR_URL:
+        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
+
+    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
+
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
+    client.chat_postMessage(channel="ci-infra-support", text=message)
+    return workflow_conclusion
+
+
+@task
+def update_windows_runner_version(
+    ctx,
+    new_version=None,
+):
+    """
+    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
+    """
+    if new_version is None:
+        new_version = str(current_version(ctx, "7"))
+
+    for repo in ["buildenv", "ci-platform-machine-images"]:
+        conclusion = _update_windows_runner_version(new_version, repo)
+        if conclusion != "success":
+            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task
@@ -291,7 +360,7 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
-    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
 
@@ -334,6 +403,7 @@ def pr_commenter(
     delete: bool = False,
     force_delete: bool = False,
     echo: bool = False,
+    fail_on_pr_missing: bool = False,
 ):
     """
     Will comment or update current comment posted on the PR with the new data.
@@ -343,6 +413,7 @@ def pr_commenter(
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
+    - fail_on_pr_missing: If True, will raise an error if the PR is not found. Only a warning is printed otherwise.
 
     Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
     """
@@ -359,6 +430,9 @@ def pr_commenter(
     if pr_id is None:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
+        if len(prs) == 0 and not fail_on_pr_missing:
+            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+            return
         assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
         pr = prs[0]
     else:
@@ -549,7 +623,7 @@ def add_required_checks(_, branch: str, check: str, force: bool = False):
         - A fine-grained token needs the "Administration" repository permissions (write).
 
     Use it like this:
-    inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    dda inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
@@ -586,3 +660,118 @@ def check_qa_labels(_, labels: str):
     if len(qa_labels) > 1:
         raise Exit(f"More than one QA label set.\n{docs}", code=1)
     print("QA label set correctly")
+
+
+@task
+def print_pr_state(_, id):
+    """Print the PR merge state if the PR is stuck within the merge queue."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    query = """
+query {
+  repository (owner: "DataDog", name: "datadog-agent") {
+    pullRequest(number: ID) {
+      reviewDecision
+      state
+      statusCheckRollup {
+        state
+      }
+      mergeable
+      mergeStateStatus
+      locked
+    }
+  }
+}
+""".replace("ID", id)  # Use replace to avoid formatting issues with curly braces
+
+    gh = GithubAPI()
+    res = gh.graphql(query)
+
+    print(json.dumps(res, indent=2))
+
+
+@task
+def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
+    """
+    Check the permissions on a given repository
+    - list members without any contribution in the last 6 months
+    - list teams with not any contributors
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI(f"datadog/{repo}")
+    all_teams = gh.find_all_teams(
+        gh._repository,
+        exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
+        exclude_permissions=['pull'],
+    )
+    print(f"Found {len(all_teams)} teams")
+    idle_teams = []
+    idle_contributors = defaultdict(set)
+    active_users = gh.get_active_users(duration_days=90)
+    print(f"Checking permissions for {repo}, {len(active_users)} active users")
+    for team in all_teams:
+        members = gh.get_direct_team_members(team.slug)
+        has_contributors = False
+        for member in members:
+            if member not in active_users:
+                idle_contributors[team.name].add(member)
+            else:
+                has_contributors = True
+        if not has_contributors:
+            idle_teams.append((team.name, team.html_url))
+
+    print(f"Idle teams: {idle_teams}, idle contributors {idle_contributors}")
+    if idle_teams or idle_contributors:
+        from slack_sdk import WebClient
+
+        client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+        header = f":github: {repo} permissions check\n"
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": header},
+            },
+        ]
+        message = header
+        if idle_teams:
+            teams = [f" - <{team[1]}|{team[0]}>\n" for team in idle_teams]
+            message += f"Teams:\n{''.join(teams)}"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Teams with no contributors:\n{''.join(teams)}"},
+                }
+            )
+        if idle_contributors:
+            message += f"Contributors: {idle_contributors}\n"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "Users with no contribution:\n"},
+                }
+            )
+            for team, members in idle_contributors.items():
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f" - <https://github.com/orgs/DataDog/teams/{team}|{team}>: {', '.join(members)}",
+                        },
+                    }
+                )
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Please check the `{repo}` <https://github.com/DataDog/{repo}/settings/access|settings>.",
+                },
+            }
+        )
+        MAX_BLOCKS = 50
+        for idx in range(0, len(blocks), MAX_BLOCKS):
+            client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+        print("Message sent to slack")

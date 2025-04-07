@@ -16,12 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -56,15 +57,16 @@ func TestStatusOutPut(t *testing.T) {
 		}},
 	}
 
-	mockTagger := taggerMock.SetupFakeTagger(t)
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		compressionmock.MockModule(),
 		defaultforwarder.MockModule(),
 		haagentmock.Module(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
+		logscompression.MockModule(),
+		metricscompression.MockModule(),
 		fx.Provide(func() tagger.Component {
 			return mockTagger
 		}),

@@ -18,13 +18,14 @@ TEST_ENV = {
 
 
 @task(default=True)
-def run(ctx, tests: str = '', buffer: bool = True, verbosity: int = 1, debug: bool = True):
+def run(ctx, tests: str = '', buffer: bool = True, verbosity: int = 1, debug: bool = True, directory: str = '.'):
     """
     Run the unit tests on the invoke tasks
 
     - buffer: Buffer stdout / stderr from tests, useful to avoid interleaving output from tests
     - verbosity: Level of verbosity
     - debug: If True, will propagate errors to the debugger
+    - directory: Directory where the tests are located
     """
 
     tests = [test for test in tests.split(',') if test]
@@ -37,7 +38,7 @@ def run(ctx, tests: str = '', buffer: bool = True, verbosity: int = 1, debug: bo
             print(color_message('Running tests from module', Color.BLUE), color_message(f'{test}_tests', Color.BOLD))
 
             pattern = '*_tests.py' if len(tests) == 0 else test + '_tests.py'
-            if not run_unit_tests(ctx, pattern, buffer, verbosity, debug):
+            if not run_unit_tests(ctx, pattern, buffer, verbosity, debug, directory):
                 error = True
 
         # Throw error if more than one module fails
@@ -48,11 +49,11 @@ def run(ctx, tests: str = '', buffer: bool = True, verbosity: int = 1, debug: bo
                 raise Exit(code=1)
     else:
         pattern = '*_tests.py'
-        if not run_unit_tests(ctx, pattern, buffer, verbosity, debug):
+        if not run_unit_tests(ctx, pattern, buffer, verbosity, debug, directory):
             raise Exit(code=1)
 
 
-def run_unit_tests(_, pattern, buffer, verbosity, debug):
+def run_unit_tests(_, pattern, buffer, verbosity, debug, directory):
     import unittest
 
     old_environ = os.environ.copy()
@@ -64,7 +65,7 @@ def run_unit_tests(_, pattern, buffer, verbosity, debug):
                 os.environ[key] = value
 
         loader = unittest.TestLoader()
-        suite = loader.discover('.', pattern=pattern)
+        suite = loader.discover(directory, pattern=pattern)
         if debug and 'TASKS_DEBUG' in os.environ:
             suite.debug()
 

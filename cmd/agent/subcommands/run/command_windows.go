@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -75,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	// runtime init routines
 )
@@ -106,7 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent optional.Option[logsAgent.Component],
+			logsAgent option.Option[logsAgent.Component],
 			processAgent processAgent.Component,
 			_ runner.Component,
 			sharedSerializer serializer.MetricSerializer,
@@ -116,9 +117,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
 			_ inventoryotel.Component,
+			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
-			logsReceiver optional.Option[integrations.Component],
+			logsReceiver option.Option[integrations.Component],
 			_ netflowServer.Component,
 			_ trapserver.Component,
 			agentAPI internalAPI.Component,
@@ -130,8 +132,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
-			_ optional.Option[gui.Component],
-			_ agenttelemetry.Component,
+			_ option.Option[gui.Component],
+			agenttelemetryComponent agenttelemetry.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -160,6 +162,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
+				agenttelemetryComponent,
 			)
 			if err != nil {
 				return err

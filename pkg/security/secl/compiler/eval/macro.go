@@ -95,11 +95,7 @@ func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) err
 }
 
 func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
-	macros := make(map[MacroID]*MacroEvaluator)
-	for _, macro := range opts.MacroStore.List() {
-		macros[macro.ID] = macro.evaluator
-	}
-	state := NewState(model, field, macros)
+	state := NewState(model, field, opts.MacroStore)
 
 	var eval interface{}
 	var err error

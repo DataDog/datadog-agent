@@ -13,13 +13,17 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const discoveryNS = "discovery"
 
 type discoveryConfig struct {
+	ebpf.Config
 	cpuUsageUpdateDelay time.Duration
+	networkStatsEnabled bool
+	networkStatsPeriod  time.Duration
 	ignoreComms         map[string]struct{}
 	ignoreServices      map[string]struct{}
 }
@@ -29,7 +33,10 @@ func newConfig() *discoveryConfig {
 	sysconfig.Adjust(cfg)
 
 	conf := &discoveryConfig{
+		Config:              *ebpf.NewConfig(),
 		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
+		networkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
+		networkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
 	}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))

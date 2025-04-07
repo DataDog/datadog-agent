@@ -16,8 +16,10 @@ jobs:
     name: Update golang.org/x/... dependencies
     runs-on: ubuntu-latest
     permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
+    environment:
+      name: main
     steps:
-      - uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
@@ -27,14 +29,16 @@ jobs:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
           token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version-file: ".go-version"
-      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           cache: "pip"
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Update every golang.org/x/... package
         run: |
           go get -u golang.org/x/arch golang.org/x/crypto \
@@ -43,11 +47,12 @@ jobs:
                     golang.org/x/sys golang.org/x/term \
                     golang.org/x/text golang.org/x/time \
                     golang.org/x/xerrors golang.org/x/tools \
-                    golang.org/x/exp
+                    golang.org/x/exp golang.org/x/oauth2
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
-          inv -e tidy tidy
-      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+          dda inv -- -e tidy
+          dda inv -- -e tidy
+      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: autocommit
         with:
           commit_message: "chore(deps): update all golang.org/x/... dependencies"
@@ -59,7 +64,7 @@ jobs:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_TITLE: "[automated] Update golang.org/x/... dependencies"
-          PR_LABELS: "team/agent-shared-components,qa/done,changelog/no-changelog"
+          PR_LABELS: "team/agent-runtimes,qa/done,changelog/no-changelog,ask-review"
           GITHUB_REF: ${{ github.ref }}
         run: |
           # Generate the PR description
@@ -79,4 +84,5 @@ jobs:
           --base "$GITHUB_REF" \
           --title "$PR_TITLE" \
           --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS"
+          --label "$PR_LABELS" \
+          --reviewer "DataDog/agent-runtimes"

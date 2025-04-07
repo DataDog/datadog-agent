@@ -10,6 +10,11 @@ package sample
 func test_single_string(x string) {}
 
 //nolint:all
+//go:noinline
+func test_three_strings(x, y, z string) {}
+
+//nolint:all
 func ExecuteStringFuncs() {
 	test_single_string("abc")
+	test_three_strings("abc", "def", "ghi")
 }

@@ -11,6 +11,7 @@ package verifier
 
 import (
 	"fmt"
+	"hash/fnv"
 	"log"
 	"os"
 	"path/filepath"
@@ -22,11 +23,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
 )
 
 var (
@@ -90,6 +92,9 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 			return fmt.Errorf("failed to get host kernel version: %w", err)
 		}
 
+		// initialize `ebpfErrorsTelemetry`
+		ebpftelemetry.NewEBPFErrorsCollector()
+
 		log.Printf("Loading asset %s\n", file)
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
@@ -103,22 +108,42 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 			}
 		}
 
-		// replace telemetry patch points with nops
-		// r1 = r1
-		newIns := asm.Mov.Reg(asm.R1, asm.R1)
-		for _, p := range collectionSpec.Programs {
-			ins := p.Instructions
+		activateBPFTelemetry, err := ebpftelemetry.EBPFTelemetrySupported()
+		if err != nil {
+			return err
+		}
 
-			// patch telemetry helper calls
-			const ebpfTelemetryPatchCall = -1
-			iter := ins.Iterate()
-			for iter.Next() {
-				ins := iter.Ins
-				if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
-					continue
+		if activateBPFTelemetry {
+			// update lengths for the ebpf telemetry maps
+			for name, mapSpec := range collectionSpec.Maps {
+				if name == ebpftelemetry.MapErrTelemetryMapName {
+					mapSpec.MaxEntries = uint32(len(collectionSpec.Maps))
 				}
-				*ins = newIns.WithMetadata(ins.Metadata)
+				if name == ebpftelemetry.HelperErrTelemetryMapName {
+					mapSpec.MaxEntries = uint32(len(collectionSpec.Programs))
+				}
 			}
+		}
+
+		// patch the map telemetry keys
+		h := fnv.New64a()
+		mn := names.NewModuleName("verifier-stats")
+		for _, mapSpec := range collectionSpec.Maps {
+			mapName := names.NewMapNameFromMapSpec(mapSpec)
+			for _, p := range collectionSpec.Programs {
+				if err := ebpftelemetry.PatchConstant(
+					ebpftelemetry.MapTelemetryKeyName(mapName),
+					p,
+					ebpftelemetry.MapTelemetryErrorKey(h, mapName, mn),
+				); err != nil {
+					return err
+				}
+			}
+		}
+
+		// patch helper error telemetry
+		if err := ebpftelemetry.PatchEBPFTelemetry(collectionSpec.Programs, activateBPFTelemetry, mn); err != nil {
+			return err
 		}
 
 		progOpts := ebpf.ProgramOptions{
@@ -162,7 +187,6 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 					continue
 				}
 			}
-			log.Printf("Loading program %s\n", progSpec.Name)
 
 			prog := reflect.New(
 				reflect.StructOf([]reflect.StructField{

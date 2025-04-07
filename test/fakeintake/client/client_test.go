@@ -56,6 +56,9 @@ var apiV1Metadata []byte
 //go:embed fixtures/api_v2_ndmflow_response
 var apiV2NDMFlow []byte
 
+//go:embed fixtures/api_v2_netpath_response
+var apiV2Netpath []byte
+
 //go:embed fixtures/api_v2_telemetry_response
 var apiV2Teleemtry []byte
 
@@ -567,6 +570,18 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, ndmflows[0].TCPFlags)
 		assert.Equal(t, "172.199.15.1", ndmflows[0].NextHop.IP)
 		assert.Empty(t, ndmflows[0].AdditionalFields)
+	})
+
+	t.Run("getNetpathEvents", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2Netpath)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getNetpathEvents()
+		require.NoError(t, err)
+		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu:443 TCP"))
 	})
 
 	t.Run("getServiceDiscoveries", func(t *testing.T) {

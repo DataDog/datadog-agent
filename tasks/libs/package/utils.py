@@ -148,13 +148,23 @@ def get_ancestor(ctx, package_sizes, on_main):
     """
     ancestor = get_common_ancestor(ctx, "HEAD")
     if not on_main and ancestor not in package_sizes:
-        return min(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
+        return max(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
 
 
-def display_message(ctx, ancestor, rows, decision):
+def display_message(ctx, ancestor, rows, reduction_rows, decision):
     is_open = '' if "Passed" in decision else ' open'
+    size_wins = f"""<details open>
+<summary> Size reduction summary </summary>
+
+|package|diff|status|size|ancestor|threshold|
+|--|--|--|--|--|--|
+{reduction_rows}
+</details>
+"""
     message = f"""Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) `{ancestor}`
+{size_wins if reduction_rows else ''}
+
 <details{is_open}>
   <summary> Diff per package </summary>
 
@@ -165,5 +175,7 @@ def display_message(ctx, ancestor, rows, decision):
 
 ## Decision
 {decision}
+
+{"Currently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
 """
     pr_commenter(ctx, title="Uncompressed package size comparison", body=message)

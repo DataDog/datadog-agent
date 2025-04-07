@@ -15,8 +15,10 @@ package http2
 import "C"
 
 const (
-	maxHTTP2Path     = C.HTTP2_MAX_PATH_LEN
-	http2PathBuckets = C.HTTP2_TELEMETRY_PATH_BUCKETS
+	maxHTTP2Path        = C.HTTP2_MAX_PATH_LEN
+	PathBucketsCount    = C.HTTP2_TELEMETRY_PATH_BUCKETS
+	MaxTelemetryPathLen = C.HTTP2_TELEMETRY_MAX_PATH_LEN
+	PathBucketSize      = C.HTTP2_TELEMETRY_PATH_BUCKETS_SIZE
 	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
 	HTTP2TerminatedBatchSize = C.HTTP2_TERMINATED_BATCH_SIZE
 	// The upper limit for the size of the raw status code.
@@ -36,7 +38,7 @@ type http2Path C.path_t
 type HTTP2Stream C.http2_stream_t
 type EbpfTx C.http2_event_t
 type HTTP2Telemetry C.http2_telemetry_t
-type HTTP2RemainderEntry C.frame_header_remainder_t
+type HTTP2IncompleteFrameEntry C.incomplete_frame_t
 
 type StaticTableEnumValue = C.static_table_value_t
 

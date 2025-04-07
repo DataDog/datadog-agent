@@ -13,7 +13,7 @@ import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -39,7 +39,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 		IP: "127.0.0.1",
 	}
 
-	taggerComponent := mock.SetupFakeTagger(t)
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string
@@ -225,7 +225,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
-	taggerComponent := mock.SetupFakeTagger(t)
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string

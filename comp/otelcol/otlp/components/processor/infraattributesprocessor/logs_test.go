@@ -82,7 +82,8 @@ var (
 						"k8s.namespace.name":  "namespace",
 						"k8s.deployment.name": "deployment",
 					},
-				}}),
+				},
+			}),
 			outResourceAttributes: []map[string]any{
 				{
 					"global":       "tag",
@@ -127,12 +128,13 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
-			gc := newTestGenerateIDClient().generateID
 
-			factory := NewFactory(tc, gc)
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
 			flp, err := factory.CreateLogs(
 				context.Background(),
-				processortest.NewNopSettings(),
+				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)

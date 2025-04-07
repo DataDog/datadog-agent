@@ -19,4 +19,5 @@ var DiscoveryModule = module.Factory{
 	NeedsEBPF: func() bool {
 		return false
 	},
+	OptionalEBPF: true,
 }

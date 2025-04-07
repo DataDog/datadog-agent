@@ -27,6 +27,7 @@ const (
 	RemoteConfig       = "remote-config"
 	SNMP               = "snmp"
 	Zookeeper          = "zookeeper"
+	GPU                = "gpu"
 )
 
 // Internal Autodiscovery names for the config providers

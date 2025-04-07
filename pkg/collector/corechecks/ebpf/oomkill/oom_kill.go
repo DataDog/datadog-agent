@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -50,8 +50,8 @@ type OOMKillCheck struct {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return newCheck(tagger)
 	})
 }
@@ -111,7 +111,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
 		if !entityID.Empty() {
-			tags, err = m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
+			tags, err = m.tagger.Tag(entityID, types.ChecksConfigCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}

@@ -1,0 +1,8 @@
+init_config:
+    min_collection_interval: 10
+instances:
+  - hostname: 198.51.100.2
+    protocol: TCP
+    port: 443
+  - hostname: 198.51.100.2
+    protocol: UDP

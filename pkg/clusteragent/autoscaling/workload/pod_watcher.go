@@ -31,15 +31,16 @@ type NamespacedPodOwner struct {
 	Name string
 }
 
-// podWatcher indexes pods by their owner
-type podWatcher interface {
-	// Start starts the PodWatcher.
+// PodWatcher indexes pods by their owner
+type PodWatcher interface {
+	// Run starts the PodWatcher.
 	Run(ctx context.Context)
 	// GetPodsForOwner returns the pods for the given owner.
 	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
 }
 
-type podWatcherImpl struct {
+// PodWatcherImpl is the implementation of the autoscaling PodWatcher
+type PodWatcherImpl struct {
 	mutex sync.RWMutex
 
 	wlm             workloadmeta.Component
@@ -48,9 +49,9 @@ type podWatcherImpl struct {
 	podsPerPodOwner map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
 }
 
-// newPodWatcher creates a new PodWatcher
-func newPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *podWatcherImpl {
-	return &podWatcherImpl{
+// NewPodWatcher creates a new PodWatcher
+func NewPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *PodWatcherImpl {
+	return &PodWatcherImpl{
 		wlm:             wlm,
 		patcher:         patcher,
 		podsPerPodOwner: make(map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
@@ -58,7 +59,7 @@ func newPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *podWatcherIm
 }
 
 // GetPodsForOwner returns the pods for the given owner.
-func (pw *podWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.KubernetesPod {
+func (pw *PodWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.KubernetesPod {
 	pw.mutex.RLock()
 	defer pw.mutex.RUnlock()
 	pods, ok := pw.podsPerPodOwner[owner]
@@ -72,8 +73,8 @@ func (pw *podWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadm
 	return res
 }
 
-// Start subscribes to workloadmeta events and indexes pods by their owner.
-func (pw *podWatcherImpl) Run(ctx context.Context) {
+// Run subscribes to workloadmeta events and indexes pods by their owner.
+func (pw *PodWatcherImpl) Run(ctx context.Context) {
 	log.Debug("Starting PodWatcher")
 
 	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
@@ -101,13 +102,14 @@ func (pw *podWatcherImpl) Run(ctx context.Context) {
 				return
 			}
 			for _, event := range eventBundle.Events {
-				pw.handleEvent(event)
+				pw.HandleEvent(event)
 			}
 		}
 	}
 }
 
-func (pw *podWatcherImpl) handleEvent(event workloadmeta.Event) {
+// HandleEvent handles a workloadmeta event and updates the podwatcher state
+func (pw *PodWatcherImpl) HandleEvent(event workloadmeta.Event) {
 	pw.mutex.Lock()
 	defer pw.mutex.Unlock()
 	pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
@@ -129,7 +131,7 @@ func (pw *podWatcherImpl) handleEvent(event workloadmeta.Event) {
 	}
 }
 
-func (pw *podWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
+func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	log.Debugf("Adding pod %s to owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
@@ -148,7 +150,7 @@ func (pw *podWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 	}
 }
 
-func (pw *podWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
+func (pw *PodWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	if podOwner.Name == "" {
 		log.Debugf("Ignoring pod %s without owner name", pod.Name)
@@ -164,7 +166,7 @@ func (pw *podWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	}
 }
 
-func (pw *podWatcherImpl) runPatcher(ctx context.Context) {
+func (pw *PodWatcherImpl) runPatcher(ctx context.Context) {
 	for {
 		pod, more := <-pw.patcherChan
 		if !more {

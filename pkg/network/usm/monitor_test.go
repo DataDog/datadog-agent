@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -30,14 +31,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,7 +63,7 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	failingStartupMock := func(_ *manager.Manager) error {
+	failingStartupMock := func() error {
 		return fmt.Errorf("mock error")
 	}
 
@@ -83,7 +83,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			cfg := utils.NewUSMEmptyConfig()
 			cfg.EnableHTTPMonitoring = true
 
-			monitor, err := NewMonitor(cfg, nil)
+			monitor, err := NewMonitor(cfg, nil, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -102,11 +102,7 @@ func TestHTTP(t *testing.T) {
 	if kv < usmconfig.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
 	}
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
 }
@@ -121,7 +117,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	})
 	t.Cleanup(srvDoneFn)
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
 	require.NoError(t, err)
@@ -153,7 +149,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -228,7 +224,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+			monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
@@ -285,9 +281,10 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := utils.NewUSMEmptyConfig()
+			cfg.EnableHTTPMonitoring = true
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -351,7 +348,7 @@ func (s *HTTPTestSuite) TestSanity() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+					monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
 					t.Cleanup(srvDoneFn)
@@ -377,7 +374,7 @@ func (s *HTTPTestSuite) TestSanity() {
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -412,7 +409,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitorWithCfg(t, utils.NewUSMEmptyConfig())
+	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -483,7 +480,7 @@ func TestEmptyConfig(t *testing.T) {
 
 	// The monitor should not start, and not return an error when no protocols
 	// are enabled.
-	monitor, err := NewMonitor(cfg, nil)
+	monitor, err := NewMonitor(cfg, nil, nil)
 	require.Nil(t, monitor)
 	require.NoError(t, err)
 }
@@ -639,21 +636,10 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
+func getHTTPCfg() *networkConfig.Config {
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-
-	monitor, err := NewMonitor(cfg, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-		libtelemetry.Clear()
-	})
-
-	// at this stage the test can be legitimately skipped due to missing BTF information
-	// in the context of CO-RE
-	require.NoError(t, monitor.Start())
-	return monitor
+	return cfg
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
@@ -663,53 +649,162 @@ func skipIfNotSupported(t *testing.T, err error) {
 	}
 }
 
-var (
-	mapTypesToZero = map[ebpf.MapType]struct{}{
-		ebpf.PerCPUArray: {},
-		ebpf.Array:       {},
-		ebpf.PerCPUHash:  {},
-	}
-)
-
 func cleanProtocolMaps(t *testing.T, protocolName string, manager *manager.Manager) {
-	// Getting all maps loaded into the manager
 	maps, err := manager.GetMaps()
 	if err != nil {
 		t.Logf("failed to get maps: %v", err)
 		return
 	}
-	for mapName, mapInstance := range maps {
-		// We only want to clean postgres maps
-		if !strings.Contains(mapName, protocolName) {
+	cleanMaps(t, protocolName, maps)
+}
+
+func cleanMaps(t *testing.T, protocolName string, maps map[string]*ebpf.Map) {
+	for name, m := range maps {
+		if !strings.Contains(name, protocolName) || strings.Contains(name, fmt.Sprintf("%s_batch", protocolName)) {
 			continue
 		}
-		// Special case for batches, as the values is never "empty", but contain the CPU number.
-		if strings.HasSuffix(mapName, fmt.Sprintf("%s_batches", protocolName)) {
-			continue
-		}
-		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
+		cleanMapEntries(t, m)
+	}
+}
 
-		key := make([]byte, mapInstance.KeySize())
-		value := make([]byte, mapInstance.ValueSize())
-		mapEntries := mapInstance.Iterate()
-		var keys [][]byte
-		for mapEntries.Next(&key, &value) {
-			keys = append(keys, key)
-		}
+func cleanMapEntries(t *testing.T, m *ebpf.Map) {
+	switch m.Type() {
+	case ebpf.Hash, ebpf.Array, ebpf.PerCPUHash, ebpf.PerCPUArray:
+	default:
+		return
+	}
 
-		if shouldOnlyZero {
-			emptyValue := make([]byte, mapInstance.ValueSize())
-			for _, key := range keys {
-				if err := mapInstance.Put(&key, &emptyValue); err != nil {
-					t.Log("failed zeroing map entry; error: ", err)
-				}
-			}
+	keys := getAllKeys(t, m)
+	if len(keys) == 0 {
+		return
+	}
+	switch {
+	case isPercpu(m.Type()):
+		emptyValue := make([][]byte, ebpf.MustPossibleCPU())
+		for i := range emptyValue {
+			emptyValue[i] = make([]byte, m.ValueSize())
+		}
+		updateEntries(t, m, keys, emptyValue)
+	case m.Type() == ebpf.Array:
+		emptyValue := make([]byte, m.ValueSize())
+		updateEntries(t, m, keys, emptyValue)
+	default:
+		deleteEntries(t, m, keys)
+	}
+}
+
+func getAllKeys(t *testing.T, m *ebpf.Map) [][]byte {
+	var keys [][]byte
+	key := make([]byte, m.KeySize())
+
+	var value interface{}
+	if isPercpu(m.Type()) {
+		valueSlice := make([][]byte, ebpf.MustPossibleCPU())
+		for i := range valueSlice {
+			valueSlice[i] = make([]byte, m.ValueSize())
+		}
+		value = valueSlice
+
+	} else {
+		value = make([]byte, m.ValueSize())
+	}
+
+	it := m.Iterate()
+	for it.Next(&key, value) {
+		keys = append(keys, append([]byte{}, key...))
+	}
+	if it.Err() != nil {
+		t.Logf("failed to iterate over map %q: %v", m.String(), it.Err())
+	}
+	return keys
+}
+
+func updateEntries(t *testing.T, m *ebpf.Map, keys [][]byte, value interface{}) {
+	for _, key := range keys {
+		if err := m.Put(&key, value); err != nil {
+			t.Log("failed zeroing map entry; error: ", err)
+		}
+	}
+}
+
+func deleteEntries(t *testing.T, m *ebpf.Map, keys [][]byte) {
+	for _, key := range keys {
+		if err := m.Delete(&key); err != nil {
+			t.Log("failed deleting map entry; error: ", err)
+		}
+	}
+}
+
+func isPercpu(mapType ebpf.MapType) bool {
+	return mapType == ebpf.PerCPUArray || mapType == ebpf.PerCPUHash
+}
+
+func generateMockMap(t *testing.T, mapType ebpf.MapType) (string, *ebpf.Map) {
+	name := fmt.Sprintf("test_%s", mapType.String())
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Name:       name,
+		Type:       mapType,
+		KeySize:    4,
+		ValueSize:  1,
+		MaxEntries: 10,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { m.Close() })
+
+	populateMockMap(t, m, mapType)
+	return name, m
+}
+
+func populateMockMap(t *testing.T, m *ebpf.Map, mapType ebpf.MapType) {
+	for i := 0; i < int(m.MaxEntries()); i++ {
+		key := make([]byte, m.KeySize())
+		binary.LittleEndian.PutUint32(key, uint32(i))
+
+		valueSize := m.ValueSize()
+		if isPercpu(mapType) {
+			valueSize = uint32(ebpf.MustPossibleCPU())
+		}
+		value := make([]byte, valueSize)
+		for j := 0; j < int(valueSize); j++ {
+			value[j] = byte(i + j)
+		}
+		require.NoError(t, m.Put(key, value))
+	}
+}
+
+func checkMockMapEntriesExist(t *testing.T, m *ebpf.Map) {
+	key := make([]byte, m.KeySize())
+	value := make([]byte, m.ValueSize())
+	for i := 0; i < int(m.MaxEntries()); i++ {
+		binary.LittleEndian.PutUint32(key, uint32(i))
+		require.NoError(t, m.Lookup(&key, &value))
+	}
+}
+
+func checkMockMapIsClean(t *testing.T, m *ebpf.Map) {
+	key := make([]byte, m.KeySize())
+	value := make([]byte, m.ValueSize())
+	for i := 0; i < int(m.MaxEntries()); i++ {
+		binary.LittleEndian.PutUint32(key, uint32(i))
+		if m.Type() == ebpf.Array || isPercpu(m.Type()) {
+			require.NoError(t, m.Lookup(&key, &value))
+			require.Equal(t, make([]byte, len(value)), value, "Array/PerCPU map %s should be zeroed", m.Type().String())
 		} else {
-			for _, key := range keys {
-				if err := mapInstance.Delete(&key); err != nil {
-					t.Log("failed deleting map entry; error: ", err)
-				}
-			}
+			require.Error(t, m.Lookup(&key, &value))
 		}
+	}
+}
+
+func TestCleanProtocolMaps(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	mapTypes := []ebpf.MapType{ebpf.Hash, ebpf.Array, ebpf.PerCPUHash, ebpf.PerCPUArray}
+
+	for _, mapType := range mapTypes {
+		t.Run(mapType.String(), func(t *testing.T) {
+			name, mockMap := generateMockMap(t, mapType)
+			checkMockMapEntriesExist(t, mockMap)
+			cleanMaps(t, "test", map[string]*ebpf.Map{name: mockMap})
+			checkMockMapIsClean(t, mockMap)
+		})
 	}
 }

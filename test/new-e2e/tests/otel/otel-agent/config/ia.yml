@@ -9,7 +9,11 @@ receivers:
     config:
       scrape_configs:
         - job_name: 'datadog-agent'
-          scrape_interval: 10s
+          fallback_scrape_protocol: PrometheusText0.0.4
+          metric_name_validation_scheme: legacy
+          scrape_interval: 60s
+          scrape_protocols:
+            - PrometheusText0.0.4
           static_configs:
             - targets: [ '0.0.0.0:8888' ]
 exporters:
@@ -20,7 +24,7 @@ exporters:
       resource_attributes_as_tags: true
     hostname: "otelcol-docker"
     api:
-      key: ${DD_API_KEY}
+      key: ${env:DD_API_KEY}
 processors:
   batch:
   infraattributes:

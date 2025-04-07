@@ -71,7 +71,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	if state.macros != nil {
-		if macro, ok := state.macros[*obj.Ident]; ok {
+		if macro, ok := state.macros.GetMacroEvaluator(*obj.Ident); ok {
 			return macro.Value, obj.Pos, nil
 		}
 	}
@@ -129,7 +129,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		return &evaluator, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
-			if macro, ok := state.macros[*array.Ident]; ok {
+			if macro, ok := state.macros.GetMacroEvaluator(*array.Ident); ok {
 				return macro.Value, array.Pos, nil
 			}
 		}
@@ -347,8 +347,8 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, sta
 	return evaluator, nil
 }
 
-// StringValuesContainsWrapper makes use of operator overrides
-func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+// stringValuesContainsWrapper makes use of operator overrides
+func stringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -364,8 +364,8 @@ func StringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, s
 	return evaluator, nil
 }
 
-// StringArrayMatchesWrapper makes use of operator overrides
-func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+// stringArrayMatchesWrapper makes use of operator overrides
+func stringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
 	var err error
 
@@ -379,6 +379,11 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	}
 
 	return evaluator, nil
+}
+
+// NodeToEvaluator converts an AST expression to an evaluator
+func NodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+	return nodeToEvaluator(obj, opts, state)
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
@@ -560,7 +565,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 						return nil, pos, err
 					}
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringValuesContainsWrapper(unary, nextString, state)
+					boolEvaluator, err = stringValuesContainsWrapper(unary, nextString, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -574,7 +579,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringValuesEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err = StringArrayMatchesWrapper(nextStringArray, unary, state)
+					boolEvaluator, err = stringArrayMatchesWrapper(nextStringArray, unary, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -588,7 +593,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			case *StringArrayEvaluator:
 				switch nextStringArray := next.(type) {
 				case *StringValuesEvaluator:
-					boolEvaluator, err = StringArrayMatchesWrapper(unary, nextStringArray, state)
+					boolEvaluator, err = stringArrayMatchesWrapper(unary, nextStringArray, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -873,6 +878,30 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					}
 					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 				}
+
+			case *CIDRArrayEvaluator:
+				cidrEvaluator, ok := next.(*CIDREvaluator)
+				if !ok {
+					return nil, pos, NewTypeError(pos, reflect.String)
+				}
+
+				switch *obj.ScalarComparison.Op {
+				case "!=":
+					boolEvaluator, err = CIDRArrayMatchesCIDREvaluator(unary, cidrEvaluator, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return Not(boolEvaluator, state), obj.Pos, nil
+				case "==":
+					boolEvaluator, err = CIDRArrayMatchesCIDREvaluator(unary, cidrEvaluator, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				}
+
+				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+
 			case *StringArrayEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {

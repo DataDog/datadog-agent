@@ -14,48 +14,30 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
-type baseSuite struct {
-	suite.Suite
+type baseSuite[Env any] struct {
+	e2e.BaseSuite[Env]
 
-	startTime     time.Time
-	endTime       time.Time
-	datadogClient *datadog.Client
-	Fakeintake    *fakeintake.Client
-	clusterName   string
+	Fakeintake  *fakeintake.Client
+	clusterName string
 }
 
-func (suite *baseSuite) SetupSuite() {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	suite.Require().NoError(err)
-	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	suite.Require().NoError(err)
-	suite.datadogClient = datadog.NewClient(apiKey, appKey)
-
-	suite.startTime = time.Now()
-}
-
-func (suite *baseSuite) TearDownSuite() {
-	suite.endTime = time.Now()
-}
-
-func (suite *baseSuite) BeforeTest(suiteName, testName string) {
+func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
 }
 
-func (suite *baseSuite) AfterTest(suiteName, testName string) {
+func (suite *baseSuite[Env]) AfterTest(suiteName, testName string) {
 	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
 }
 
@@ -98,7 +80,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *baseSuite) testMetric(args *testMetricArgs) {
+func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("metric   "+prettyMetricQuery, func() {
@@ -107,7 +89,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
-		var optionalTags []*regexp.Regexp
+		optionalTags := []*regexp.Regexp{regexp.MustCompile("stackid:.*")} // The stackid tag is added by the framework itself to allow filtering on the stack id
 		if args.Optional.Tags != nil {
 			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
@@ -120,7 +102,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testMetric %s", prettyMetricQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
@@ -227,7 +209,7 @@ type testLogExpectArgs struct {
 	Message string
 }
 
-func (suite *baseSuite) testLog(args *testLogArgs) {
+func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("log   "+prettyLogQuery, func() {
@@ -249,7 +231,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
@@ -356,7 +338,7 @@ type testCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *baseSuite) testCheckRun(args *testCheckRunArgs) {
+func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
@@ -378,7 +360,7 @@ func (suite *baseSuite) testCheckRun(args *testCheckRunArgs) {
 				return "filter_tag_" + tag
 			})
 
-			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testCheckRun %s", prettyCheckRunQuery)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
@@ -453,5 +435,141 @@ func (suite *baseSuite) testCheckRun(args *testCheckRunArgs) {
 			}
 
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyCheckRunQuery)
+	})
+}
+
+type testEventArgs struct {
+	Filter testEventFilterArgs
+	Expect testEventExpectArgs
+}
+
+type testEventFilterArgs struct {
+	Source string
+	Tags   []string
+}
+
+type testEventExpectArgs struct {
+	Tags      *[]string
+	Title     string
+	Text      string
+	Priority  event.Priority
+	AlertType event.AlertType
+}
+
+func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
+	prettyEventQuery := fmt.Sprintf("%s{%s}", args.Filter.Source, strings.Join(args.Filter.Tags, ","))
+
+	suite.Run("event   "+prettyEventQuery, func() {
+		var expectedTags []*regexp.Regexp
+		if args.Expect.Tags != nil {
+			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		sendEvent := func(alertType, text string) {
+			formattedArgs, err := yaml.Marshal(args)
+			suite.Require().NoError(err)
+
+			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
+				return "filter_tag_" + tag
+			})
+
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+				Title: pointer.Ptr(fmt.Sprintf("testEvent %s", prettyEventQuery)),
+				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Query
+
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text, formattedArgs)),
+				AlertType: &alertType,
+				Tags: append([]string{
+					"app:agent-new-e2e-tests-containers",
+					"cluster_name:" + suite.clusterName,
+					"event_source:" + args.Filter.Source,
+					"test:" + suite.T().Name(),
+				}, tags...),
+			}); err != nil {
+				suite.T().Logf("Failed to post event: %s", err)
+			}
+		}
+
+		defer func() {
+			if suite.T().Failed() {
+				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and message", prettyEventQuery))
+			} else {
+				sendEvent("success", "All good!")
+			}
+		}()
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			defer func() {
+				if len(c.errors) == 0 {
+					sendEvent("success", "All good!")
+				} else {
+					sendEvent("warning", errors.Join(c.errors...).Error())
+				}
+			}()
+
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
+			events, err := suite.Fakeintake.FilterEvents(
+				args.Filter.Source,
+				fakeintake.WithMatchingTags[*aggregator.Event](regexTags),
+			)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, events, "No `%s` events yet", prettyEventQuery) {
+				return
+			}
+
+			// Check tags
+			if expectedTags != nil {
+				err := assertTags(events[len(events)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyEventQuery)
+			}
+
+			// Check title
+			if args.Expect.Title != "" {
+				assert.Regexpf(c, args.Expect.Title, events[len(events)-1].Title,
+					"Event title mismatch on `%s`", prettyEventQuery)
+			}
+
+			// Check text
+			if args.Expect.Text != "" {
+				assert.Regexpf(c, args.Expect.Text, events[len(events)-1].Text,
+					"Event text mismatch on `%s`", prettyEventQuery)
+			}
+
+			// Check priority
+			if len(args.Expect.Priority) != 0 {
+				assert.Equalf(c, args.Expect.Priority, events[len(events)-1].Priority,
+					"Event priority mismatch on `%s`", prettyEventQuery)
+			}
+
+			// Check alert type
+			if len(args.Expect.AlertType) != 0 {
+				assert.Equalf(c, args.Expect.AlertType, events[len(events)-1].AlertType,
+					"Event alert type mismatch on `%s`", prettyEventQuery)
+			}
+		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyEventQuery)
 	})
 }

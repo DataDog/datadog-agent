@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
@@ -18,13 +18,13 @@ type RemoteHost struct {
 	remote.HostOutput
 
 	*client.Host
-	context e2e.Context
+	context common.Context
 }
 
-var _ e2e.Initializable = (*RemoteHost)(nil)
+var _ common.Initializable = (*RemoteHost)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
-func (h *RemoteHost) Init(ctx e2e.Context) (err error) {
+func (h *RemoteHost) Init(ctx common.Context) (err error) {
 	h.context = ctx
 	h.Host, err = client.NewHost(ctx, h.HostOutput)
 	return err

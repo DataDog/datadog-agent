@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -173,8 +173,8 @@ func (c *Check) Cancel() { close(c.stopCh) }
 func (c *Check) Interval() time.Duration { return 0 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,

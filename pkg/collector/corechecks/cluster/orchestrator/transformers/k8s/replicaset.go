@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
@@ -16,7 +17,7 @@ import (
 
 // ExtractReplicaSet returns the protobuf model corresponding to a Kubernetes
 // ReplicaSet resource.
-func ExtractReplicaSet(rs *appsv1.ReplicaSet) *model.ReplicaSet {
+func ExtractReplicaSet(ctx processors.ProcessorContext, rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: extractMetadata(&rs.ObjectMeta),
 	}
@@ -42,7 +43,10 @@ func ExtractReplicaSet(rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	}
 
 	replicaSet.ResourceRequirements = ExtractPodTemplateResourceRequirements(rs.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveUnifiedServiceTags(rs.ObjectMeta.Labels)...)
+	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveMetadataTags(rs.ObjectMeta.Labels, rs.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &replicaSet
 }

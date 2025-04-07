@@ -62,48 +62,35 @@ HOOK_ENTRY("security_socket_connect")
 int hook_security_socket_connect(ctx_t *ctx) {
     struct socket *sk = (struct socket *)CTX_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
-    struct pid_route_t key = {};
-    u16 family = 0;
-    u16 protocol = 0;
     short socket_type = 0;
-    
-    // Extract IP and port from the sockaddr structure
-    bpf_probe_read(&family, sizeof(family), &address->sa_family);
 
-    if (family == AF_INET) {
+    // fill syscall_cache if necessary
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
+    if (!syscall) {
+        return 0;
+    }
+
+    // Extract IP and port from the sockaddr structure
+    bpf_probe_read(&syscall->connect.family, sizeof(syscall->connect.family), &address->sa_family);
+
+    if (syscall->connect.family == AF_INET) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in->sin_port), &addr_in->sin_port);
-        bpf_probe_read(&key.addr, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
-    } else if (family == AF_INET6) {
+        bpf_probe_read(&syscall->connect.port, sizeof(addr_in->sin_port), &addr_in->sin_port);
+        bpf_probe_read(&syscall->connect.addr, sizeof(addr_in->sin_addr.s_addr), &addr_in->sin_addr.s_addr);
+    } else if (syscall->connect.family == AF_INET6) {
         struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)address;
-        bpf_probe_read(&key.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
-        bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
+        bpf_probe_read(&syscall->connect.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
+        bpf_probe_read(&syscall->connect.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
     bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
 
     // We only handle TCP and UDP sockets for now
     if (socket_type == SOCK_STREAM) {
-        protocol = IPPROTO_TCP;
+        syscall->connect.protocol = IPPROTO_TCP;
     } else if (socket_type == SOCK_DGRAM) {
-        protocol = IPPROTO_UDP;
+        syscall->connect.protocol = IPPROTO_UDP;
     }
-
-    // fill syscall_cache if necessary
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
-    if (syscall) {
-        syscall->connect.addr[0] = key.addr[0];
-        syscall->connect.addr[1] = key.addr[1];
-        syscall->connect.port = key.port;
-        syscall->connect.family = family;
-        syscall->connect.protocol = protocol;
-    }
-
-    // Only handle AF_INET and AF_INET6
-    if (family != AF_INET && family != AF_INET6) {
-        return 0;
-    }
-
     return 0;
 }
 

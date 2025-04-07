@@ -8,16 +8,13 @@
 package autoscalers
 
 import (
-	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -84,75 +81,66 @@ func getMinRemainingRequestsTracker() *minTracker {
 	return minRemainingRequestsTracker
 }
 
-// IsRateLimitError is a helper function that checks if the received error is a rate limit error
-func IsRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "429 Too Many Requests")
-}
-
-// isUnprocessableEntityError is a helper function that checks if the received error is an unprocessable entity error
-func isUnprocessableEntityError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "422 Unprocessable Entity")
-}
-
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
-// It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
+// It should ALWAYS return either: (nil, err) or (map[string]Point, nil)
+// The former is used to signal a global error with the query, the latter is used to signal a successful query with potentially some errors per query.
+func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
 	ddQueriesLen := len(ddQueries)
 	if ddQueriesLen == 0 {
 		log.Tracef("No query in input - nothing to do")
 		return nil, nil
 	}
 
-	query := strings.Join(ddQueries, ",")
-	currentTime := time.Now()
-	currentTimeUnix := time.Now().Unix()
-	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
+	batchedQuery := strings.Join(ddQueries, ",")
+	currentTimeUnix := currentTime.Unix()
+	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, batchedQuery)
 	if err != nil {
-		if IsRateLimitError(err) {
+		apiErr := NewAPIError(err)
+		switch {
+		case apiErr.Code == RateLimitExceededAPIError:
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
-		} else if isUnprocessableEntityError(err) {
+		case apiErr.Code == UnprocessableEntityAPIError:
 			ddRequests.Inc("unprocessable_entity_error", le.JoinLeaderValue)
-		} else {
-			ddRequests.Inc("error", le.JoinLeaderValue)
+		case apiErr.Code == DatadogAPIError:
+			ddRequests.Inc("response_error", le.JoinLeaderValue)
+			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
+		case apiErr.Code == OtherHTTPStatusCodeAPIError:
+			ddRequests.Inc("other_http_error", le.JoinLeaderValue)
+			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
+		default:
+			ddRequests.Inc("unknown_error", le.JoinLeaderValue)
+			log.Debugf("Error while executing queries %v, err: %v", ddQueries, err)
 		}
-
-		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
+		return nil, apiErr
 	}
 	ddRequests.Inc("success", le.JoinLeaderValue)
 
 	processedMetrics := make(map[string]Point, ddQueriesLen)
 	for _, serie := range seriesSlice {
-		if serie.Metric == nil {
-			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
-			continue
-		}
-
 		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
-		var queryIndex int
+		var matchedQuery string
 		if ddQueriesLen > 1 {
 			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
-				queryIndex = *serie.QueryIndex
+				matchedQuery = ddQueries[*serie.QueryIndex]
 			} else {
-				log.Errorf("Received Serie without QueryIndex or invalid QueryIndex while we sent multiple queries. Full query: %s / Serie expression: %v / QueryIndex: %v", query, serie.Expression, serie.QueryIndex)
+				log.Errorf("Received Serie without QueryIndex or invalid QueryIndex while we sent multiple queries. Full query: %s / Serie expression: %v / QueryIndex: %v", batchedQuery, serie.Expression, serie.QueryIndex)
 				continue
 			}
+		} else {
+			matchedQuery = ddQueries[0]
+		}
+
+		// Result point, by default it's invalid
+		resultPoint := Point{
+			Timestamp: currentTimeUnix,
+			Valid:     false,
 		}
 
 		// Check if we already have a Serie result for this query. We expect query to result in a single Serie
 		// Otherwise we are not able to determine which value we should take for Autoscaling
-		if existingPoint, found := processedMetrics[ddQueries[queryIndex]]; found {
-			if existingPoint.Valid {
-				existingPoint.Valid = false
-				existingPoint.Timestamp = currentTimeUnix
-				existingPoint.Error = errors.New("multiple series found. Please change your query to return a single serie")
-				processedMetrics[ddQueries[queryIndex]] = existingPoint
-			}
+		if _, found := processedMetrics[matchedQuery]; found {
+			resultPoint.Error = NewProcessingError("multiple series found. Please change your query to return a single serie")
+			processedMetrics[matchedQuery] = resultPoint
 			continue
 		}
 
@@ -167,7 +155,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 
 			if matchedPoint == nil {
 				matchedPoint = &serie.Points[i]
-			} else if matchedPoint != nil {
+			} else {
 				// Penuultimate point found, we can stop here.
 				matchedPoint = &serie.Points[i]
 				break
@@ -176,22 +164,26 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 
 		// No point found, we can't do anything with this serie.
 		if matchedPoint == nil {
-			log.Debugf("No point found in serie for query: %s", ddQueries[queryIndex])
+			errString := fmt.Sprintf("only null values found in API response (%d points), check data is available in the last %.0f seconds", len(serie.Points), timeWindow.Seconds())
+			if serie.Interval != nil {
+				errString += fmt.Sprintf(" (interval was %d)", *serie.Interval)
+			}
+
+			resultPoint.Error = NewProcessingError(errString)
+			processedMetrics[matchedQuery] = resultPoint
 			continue
 		}
 
-		processedPoint := Point{
-			Timestamp: int64(*matchedPoint[timestamp] / 1000),
-			Value:     *matchedPoint[value],
-			Valid:     true,
-		}
-		processedMetrics[ddQueries[queryIndex]] = processedPoint
+		resultPoint.Timestamp = int64(*matchedPoint[timestamp] / 1000)
+		resultPoint.Value = *matchedPoint[value]
+		resultPoint.Valid = true
+		processedMetrics[matchedQuery] = resultPoint
 
 		// Prometheus submissions on the processed external metrics
 		metricTag := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
-		metricsEval.Set(processedPoint.Value, metricTag, le.JoinLeaderValue)
+		metricsEval.Set(resultPoint.Value, metricTag, le.JoinLeaderValue)
 		metricsUpdated.Inc(metricTag, le.JoinLeaderValue)
-		delay := currentTimeUnix - processedPoint.Timestamp
+		delay := currentTimeUnix - resultPoint.Timestamp
 		metricsDelay.Set(float64(delay), metricTag, le.JoinLeaderValue)
 	}
 
@@ -200,7 +192,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
 				Timestamp: currentTimeUnix,
-				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %.0f seconds", math.Ceil(timeWindow.Seconds())),
+				Error:     NewProcessingError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
 			}
 		}
 	}
@@ -218,24 +210,19 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 }
 
 // setTelemetryMetric is a helper to submit telemetry metrics
-func setTelemetryMetric(val string, metric telemetry.Gauge) error {
+func setTelemetryMetric(val string, metric telemetry.Gauge) {
 	valFloat, err := strconv.Atoi(val)
 	if err == nil {
 		metric.Set(float64(valFloat), queryEndpoint, le.JoinLeaderValue)
 	}
-	return err
 }
 
-func (p *Processor) updateRateLimitingMetrics() error {
+func (p *Processor) updateRateLimitingMetrics() {
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
 
-	errors := []error{
-		setTelemetryMetric(queryLimits.Limit, rateLimitsLimit),
-		setTelemetryMetric(queryLimits.Remaining, rateLimitsRemaining),
-		setTelemetryMetric(queryLimits.Period, rateLimitsPeriod),
-		setTelemetryMetric(queryLimits.Reset, rateLimitsReset),
-	}
-
-	return utilserror.NewAggregate(errors)
+	setTelemetryMetric(queryLimits.Limit, rateLimitsLimit)
+	setTelemetryMetric(queryLimits.Remaining, rateLimitsRemaining)
+	setTelemetryMetric(queryLimits.Period, rateLimitsPeriod)
+	setTelemetryMetric(queryLimits.Reset, rateLimitsReset)
 }

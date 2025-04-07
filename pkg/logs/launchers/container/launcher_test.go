@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
 package container
 
@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // testFactory is a test implementation of tailerfactory.Factory.
@@ -37,9 +37,9 @@ func (tf *testFactory) MakeTailer(source *sources.LogSource) (tailerfactory.Tail
 }
 
 func TestStartStop(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 
 	sp := launchers.NewMockSourceProvider()
 	pl := pipeline.NewMockProvider()
@@ -57,9 +57,9 @@ func TestStartStop(t *testing.T) {
 }
 
 func TestAddsRemovesSource(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name}, nil
@@ -88,9 +88,9 @@ func TestAddsRemovesSource(t *testing.T) {
 }
 
 func TestCannotMakeTailer(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
 			return nil, errors.New("uhoh")
@@ -111,9 +111,9 @@ func TestCannotMakeTailer(t *testing.T) {
 }
 
 func TestCannotStartTailer(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name, StartError: true}, nil

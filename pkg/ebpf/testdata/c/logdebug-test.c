@@ -1,11 +1,8 @@
-#include "kconfig.h"
 #include "ktypes.h"
 #include "bpf_metadata.h"
-#include <uapi/linux/ptrace.h>
 #include "bpf_tracing.h"
 #include "bpf_helpers.h"
 #include "bpf_helpers_custom.h"
-#include <uapi/linux/bpf.h>
 
 char __license[] SEC("license") = "GPL";
 

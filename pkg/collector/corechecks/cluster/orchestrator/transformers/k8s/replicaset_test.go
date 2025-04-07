@@ -8,10 +8,12 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -24,8 +26,10 @@ func TestExtractReplicaSet(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)
 	tests := map[string]struct {
-		input    appsv1.ReplicaSet
-		expected model.ReplicaSet
+		input             appsv1.ReplicaSet
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.ReplicaSet
 	}{
 		"full rs": {
 			input: appsv1.ReplicaSet{
@@ -72,7 +76,14 @@ func TestExtractReplicaSet(t *testing.T) {
 						},
 					},
 				},
-			}, expected: model.ReplicaSet{
+			},
+			labelsAsTags: map[string]string{
+				"label": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.ReplicaSet{
 				Metadata: &model.Metadata{
 					Name:              "replicaset",
 					Namespace:         "namespace",
@@ -91,7 +102,11 @@ func TestExtractReplicaSet(t *testing.T) {
 						Message:            "test message",
 					},
 				},
-				Tags: []string{"kube_condition_replicafailure:false"},
+				Tags: []string{
+					"kube_condition_replicafailure:false",
+					"application:foo",
+					"annotation_key:bar",
+				},
 				Selectors: []*model.LabelSelectorRequirement{
 					{
 						Key:      "app",
@@ -144,7 +159,14 @@ func TestExtractReplicaSet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractReplicaSet(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractReplicaSet(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

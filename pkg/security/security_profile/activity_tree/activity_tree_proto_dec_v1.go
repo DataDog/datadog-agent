@@ -9,10 +9,12 @@
 package activitytree
 
 import (
+	"net"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -39,8 +41,9 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]*SyscallNode, 0, len(pan.Syscalls)),
+		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
 		ImageTags:      pan.ImageTags,
+		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -73,11 +76,31 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		ppan.Sockets = append(ppan.Sockets, protoDecodeProtoSocket(socket))
 	}
 
-	for _, sysc := range pan.Syscalls {
-		ppan.Syscalls = append(ppan.Syscalls, NewSyscallNode(int(sysc), "", Unknown))
+	for _, sysc := range pan.SyscallNodes {
+		ppan.Syscalls = append(ppan.Syscalls, protoDecodeSyscallNode(sysc))
+	}
+
+	for _, networkDevice := range pan.NetworkDevices {
+		ppan.NetworkDevices[model.NetworkDeviceContext{
+			NetNS:   networkDevice.Netns,
+			IfIndex: networkDevice.Ifindex,
+			IfName:  networkDevice.Ifname,
+		}] = protoDecodeNetworkDevice(networkDevice)
 	}
 
 	return ppan
+}
+
+func protoDecodeSyscallNode(sysc *adproto.SyscallNode) *SyscallNode {
+	if sysc == nil {
+		return nil
+	}
+
+	return &SyscallNode{
+		ImageTags:      sysc.ImageTags,
+		GenerationType: Runtime,
+		Syscall:        int(sysc.Syscall),
+	}
 }
 
 func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
@@ -239,6 +262,67 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	}
 
 	return pdn
+}
+
+func protoDecodeNetworkDevice(device *adproto.NetworkDeviceNode) *NetworkDeviceNode {
+	if device == nil {
+		return nil
+	}
+	ndn := &NetworkDeviceNode{
+		MatchedRules: make([]*model.MatchedRule, 0, len(device.MatchedRules)),
+		FlowNodes:    make(map[model.FiveTuple]*FlowNode, len(device.FlowNodes)),
+		Context: model.NetworkDeviceContext{
+			NetNS:   device.Netns,
+			IfIndex: device.Ifindex,
+			IfName:  device.Ifname,
+		},
+	}
+
+	for _, rule := range device.MatchedRules {
+		ndn.MatchedRules = append(ndn.MatchedRules, protoDecodeProtoMatchedRule(rule))
+	}
+
+	for _, flow := range device.FlowNodes {
+		f := protoDecodeNetworkFlow(flow)
+		_, ok := ndn.FlowNodes[f.GetFiveTuple()]
+		if !ok {
+			fn := &FlowNode{
+				ImageTags:      flow.ImageTags,
+				GenerationType: Runtime,
+				Flow:           *f,
+			}
+			ndn.FlowNodes[f.GetFiveTuple()] = fn
+		}
+	}
+
+	return ndn
+}
+
+func protoDecodeNetworkFlow(flowNode *adproto.FlowNode) *model.Flow {
+	return &model.Flow{
+		Source:      protoDecodeIPPortContext(flowNode.Source),
+		Destination: protoDecodeIPPortContext(flowNode.Destination),
+		L3Protocol:  uint16(flowNode.L3Protocol),
+		L4Protocol:  uint16(flowNode.L4Protocol),
+		Ingress:     protoDecodeNetworkStats(flowNode.Ingress),
+		Egress:      protoDecodeNetworkStats(flowNode.Egress),
+	}
+}
+
+func protoDecodeIPPortContext(ipPort *adproto.IPPortContext) model.IPPortContext {
+	ipc := model.IPPortContext{
+		IPNet: *eval.IPNetFromIP(net.ParseIP(ipPort.Ip)),
+		Port:  uint16(ipPort.Port),
+	}
+	return ipc
+}
+
+func protoDecodeNetworkStats(stats *adproto.NetworkStats) model.NetworkStats {
+	ns := model.NetworkStats{
+		DataSize:    stats.DataSize,
+		PacketCount: stats.PacketCount,
+	}
+	return ns
 }
 
 func protoDecodeIMDSNode(in *adproto.IMDSNode) *IMDSNode {

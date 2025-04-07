@@ -30,12 +30,14 @@
 #include "setxattr.h"
 #include "signal.h"
 #include "splice.h"
+#include "sysctl.h"
 #include "umount.h"
 #include "unlink.h"
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
 
+#include "network/accept.h"
 #include "network/bind.h"
 #include "network/connect.h"
 
@@ -44,7 +46,7 @@
 #include "network/imds.h"
 #include "network/flow.h"
 #include "network/net_device.h"
-#include "network/router.h"
+#include "network/stats_worker.h"
 #include "network/tc.h"
 #include "network/raw.h"
 #endif

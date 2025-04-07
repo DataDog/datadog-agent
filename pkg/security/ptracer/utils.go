@@ -15,8 +15,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,7 +27,7 @@ import (
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -48,18 +46,13 @@ type controlGroup struct {
 	path string
 }
 
-func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+func getProcControlGroupsFromData(data []byte) ([]controlGroup, error) {
 	var cgroups []controlGroup
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		t := scanner.Text()
 		parts := strings.Split(t, ":")
-		var ID int
-		ID, err = strconv.Atoi(parts[0])
+		ID, err := strconv.Atoi(parts[0])
 		if err != nil {
 			continue
 		}
@@ -71,17 +64,25 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 		cgroups = append(cgroups, c)
 	}
 	return cgroups, nil
-
 }
 
-func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, error) {
-	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
+func getContainerIDFromCgroupData(data []byte) (containerutils.ContainerID, error) {
+	cgroups, err := getProcControlGroupsFromData(data)
 	if err != nil {
 		return "", err
 	}
 
 	for _, cgroup := range cgroups {
-		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
+		str := cgroup.path
+		if strings.Contains(cgroup.path, "kubepods") {
+			els := strings.Split(str, "/")
+			if len(els) > 0 {
+				str = els[len(els)-1]
+			}
+		}
+		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
+			return cid, nil
+		} else if cid, _ = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
 			return cid, nil
 		}
 	}
@@ -89,11 +90,19 @@ func getContainerIDFromProcFS(cgroupPath string) (containerutils.ContainerID, er
 }
 
 func getCurrentProcContainerID() (containerutils.ContainerID, error) {
-	return getContainerIDFromProcFS("/proc/self/cgroup")
+	data, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return "", err
+	}
+	return getContainerIDFromCgroupData(data)
 }
 
 func getProcContainerID(pid int) (containerutils.ContainerID, error) {
-	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
+	if err != nil {
+		return "", err
+	}
+	return getContainerIDFromCgroupData(data)
 }
 
 func getNSID() uint64 {
@@ -102,64 +111,6 @@ func getNSID() uint64 {
 		return rand.Uint64()
 	}
 	return stat.Ino
-}
-
-// simpleHTTPRequest used to avoid importing the crypto golang package
-func simpleHTTPRequest(uri string) ([]byte, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
-	}
-
-	addr := u.Host
-	if u.Port() == "" {
-		addr += ":80"
-	}
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	path := u.Path
-	if path == "" {
-		path = "/"
-	}
-
-	req := fmt.Sprintf("GET %s?%s HTTP/1.0\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
-
-	_, err = client.Write([]byte(req))
-	if err != nil {
-		return nil, err
-	}
-
-	var body []byte
-	buf := make([]byte, 256)
-
-	for {
-		n, err := client.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				return nil, err
-			}
-			break
-		}
-		body = append(body, buf[:n]...)
-	}
-
-	offset := bytes.Index(body, []byte{'\r', '\n', '\r', '\n'})
-	if offset < 0 {
-
-		return nil, errors.New("unable to parse http response")
-	}
-
-	return body[offset+2:], nil
 }
 
 func fillProcessCwd(process *Process) error {
@@ -184,7 +135,6 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if err != nil {
 				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
-
 			filename = filepath.Join(path, filename)
 		}
 	}
@@ -200,6 +150,21 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 		}
 	}
 	return filename, nil
+}
+
+func evalProcessSymlinks(process *Process, path string) string {
+	// if it's a /proc/self/ link, we should resolve it as if it's related to the process
+	procSelf := "/proc/self/"
+	if strings.HasPrefix(path, procSelf) {
+		newPrefix := fmt.Sprintf("/proc/%d/", process.Pid)
+		path = newPrefix + path[len(procSelf):]
+	}
+
+	newPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return newPath
 }
 
 func refreshUserCache(tracer *Tracer) error {
@@ -340,13 +305,13 @@ func getPidTTY(pid int) string {
 
 func truncateArgs(list []string) ([]string, bool) {
 	truncated := false
-	if len(list) > model.MaxArgsEnvsSize {
-		list = list[:model.MaxArgsEnvsSize]
+	if len(list) > sharedconsts.MaxArgsEnvsSize {
+		list = list[:sharedconsts.MaxArgsEnvsSize]
 		truncated = true
 	}
 	for i, l := range list {
-		if len(l) > model.MaxArgEnvSize {
-			list[i] = l[:model.MaxArgEnvSize-4] + "..."
+		if len(l) > sharedconsts.MaxArgEnvSize {
+			list[i] = l[:sharedconsts.MaxArgEnvSize-4] + "..."
 			truncated = true
 		}
 	}
@@ -410,8 +375,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 		if len(text) > 0 {
 			envCounter++
 			if matchesOnePrefix(text, priorityEnvsPrefixes) {
-				if len(text) > model.MaxArgEnvSize {
-					text = text[:model.MaxArgEnvSize-4] + "..."
+				if len(text) > sharedconsts.MaxArgEnvSize {
+					text = text[:sharedconsts.MaxArgEnvSize-4] + "..."
 					truncated = true
 				}
 				priorityEnvs = append(priorityEnvs, text)
@@ -421,8 +386,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 
 	it.Reset()
 
-	if envCounter > model.MaxArgsEnvsSize {
-		envCounter = model.MaxArgsEnvsSize
+	if envCounter > sharedconsts.MaxArgsEnvsSize {
+		envCounter = sharedconsts.MaxArgsEnvsSize
 	}
 
 	// second pass collecting
@@ -430,7 +395,7 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 	envs = append(envs, priorityEnvs...)
 
 	for it.Next() {
-		if len(envs) >= model.MaxArgsEnvsSize {
+		if len(envs) >= sharedconsts.MaxArgsEnvsSize {
 			return envs, true
 		}
 
@@ -438,8 +403,8 @@ func truncateEnvs(it StringIterator) ([]string, bool) {
 		if len(text) > 0 {
 			// if it matches one prefix, it's already in the envs through priority envs
 			if !matchesOnePrefix(text, priorityEnvsPrefixes) {
-				if len(text) > model.MaxArgEnvSize {
-					text = text[:model.MaxArgEnvSize-4] + "..."
+				if len(text) > sharedconsts.MaxArgEnvSize {
+					text = text[:sharedconsts.MaxArgEnvSize-4] + "..."
 					truncated = true
 				}
 				envs = append(envs, text)

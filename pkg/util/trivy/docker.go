@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy && docker
 
 package trivy
 
@@ -11,8 +11,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 
 	"github.com/docker/docker/client"
 )
@@ -52,9 +57,70 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		_ = os.Remove(f.Name())
 	}
 
-	return &image{
+	img := &image{
 		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
 		inspect: inspect,
 		history: configHistory(history),
-	}, cleanup, nil
+	}
+
+	return img, cleanup, nil
+}
+
+type fakeDockerContainer struct {
+	*image
+	*fakeContainer
+}
+
+func (c *fakeDockerContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
+	return c.fakeContainer.LayerByDiffID(hash)
+}
+
+func (c *fakeDockerContainer) LayerByDigest(hash string) (ftypes.LayerPath, error) {
+	return c.fakeContainer.LayerByDigest(hash)
+}
+
+func (c *fakeDockerContainer) Layers() (layers []ftypes.LayerPath) {
+	return c.fakeContainer.Layers()
+}
+
+// ScanDockerImage scans a docker image by exporting it and scanning the tarball
+func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
+	}
+
+	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		var layers []string
+		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
+			layers = append(layers, strings.Split(layerDirs, ":")...)
+		}
+
+		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
+			layers = append(layers, strings.Split(layerDirs, ":")...)
+		}
+
+		if env.IsContainerized() {
+			for i, layer := range layers {
+				layers[i] = containersimage.SanitizeHostPath(layer)
+			}
+		}
+
+		fakeContainer := &fakeDockerContainer{
+			image: fanalImage,
+			fakeContainer: &fakeContainer{
+				layerIDs:   fanalImage.inspect.RootFS.Layers,
+				layerPaths: layers,
+				imgMeta:    imgMeta,
+			},
+		}
+
+		return c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
+	}
+
+	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }

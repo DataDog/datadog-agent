@@ -10,10 +10,9 @@ package portlist
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
-
-	"golang.org/x/exp/slices"
 )
 
 // Poller scans the systems for listening ports periodically and sends
