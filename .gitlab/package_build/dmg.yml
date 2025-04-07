@@ -121,10 +121,11 @@ include:
 .macos_do_build:
   - |
     INVOKE_TASK="omnibus.build"
-    if ! dda inv -- --list | grep -qF "$INVOKE_TASK"; then
-        echo -e "\033[0;31magent.omnibus-build is deprecated. Please use omnibus.build!\033[0m"
-        INVOKE_TASK="agent.omnibus-build"
-    fi
+    # TODO: Fixed
+    # if ! dda inv -- --list | grep -qF "$INVOKE_TASK"; then
+    #     echo -e "\033[0;31magent.omnibus-build is deprecated. Please use omnibus.build!\033[0m"
+    #     INVOKE_TASK="agent.omnibus-build"
+    # fi
   - |
     echo Launching omnibus build
     if [ "$SIGN" = "true" ]; then
