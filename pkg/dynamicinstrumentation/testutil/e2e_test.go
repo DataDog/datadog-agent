@@ -126,7 +126,6 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 
 	b := []byte{}
 	var buf *bytes.Buffer
-	doCapture = false
 
 	// Generate config for this function
 	buf = bytes.NewBuffer(b)
