@@ -10,10 +10,10 @@ import (
 	"errors"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // ErrNotSupported is the error returned if GPU monitoring is not supported on this platform

@@ -7,7 +7,9 @@
 
 package module
 
-import sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+import (
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+)
 
 func preRegister(_ *sysconfigtypes.Config, _ []Factory) error {
 	return nil
