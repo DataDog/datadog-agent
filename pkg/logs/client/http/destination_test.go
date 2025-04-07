@@ -573,6 +573,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
 
 	// Create a new server
 	server := NewTestServer(200, cfg)
@@ -595,6 +596,11 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "logs", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "logs", metric[0].Tags()["source"])
 }
 
 // TestDestinationSourceTagEPForwarder tests that the source tag is set to "epforwarder" when the telemetry source name does not contain "logs"
@@ -604,6 +610,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
 
 	// Create a new server
 	server := NewTestServer(200, cfg)
@@ -622,6 +629,11 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 
 	// Verify the source tag is "epforwarder" in the telemetry metric
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
