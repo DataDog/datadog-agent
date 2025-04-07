@@ -133,7 +133,7 @@ func NewOptions(config config.Component, log log.Component, keysPerDomain map[st
 
 		resolvers[utils.GetInfraEndpoint(config)] = pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetEndpoints(),
+			r.GetAPIKeysInfo(),
 			vectorMetricsURL,
 		)
 	}

@@ -38,12 +38,13 @@ type DomainResolver interface {
 	// Resolve returns the domain to be used to send data for a given `transaction.Endpoint` along with a
 	// destination type
 	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
-	// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-	GetEndpoints() []utils.APIKeys
+	// GetAPIKeysInfo returns the list of API Keys and config paths associated with this `DomainResolver`
+	GetAPIKeysInfo() []utils.APIKeys
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
 	GetAPIKeys() []string
 	// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
-	SetAPIKeys(keys []string)
+	// Returns the list of keys that have changed
+	SetAPIKeys(keys []string) ([]string, []string)
 	// GetBaseDomain returns the base domain for this `DomainResolver`
 	GetBaseDomain() string
 	// GetAlternateDomains returns all the domains that can be returned by `Resolve()` minus the base domain
@@ -70,7 +71,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
 		found := false
 
-		for _, endpoint := range resolver.GetEndpoints() {
+		for _, endpoint := range resolver.GetAPIKeysInfo() {
 			if endpoint.ConfigSettingPath == setting {
 				found = true
 				break
@@ -90,9 +91,14 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 				return
 			}
 			keys := utils.DedupAPIKeys(endpoints)
-			resolver.SetAPIKeys(keys)
+			old, new := resolver.SetAPIKeys(keys)
 
-			log.Infof("rotating API key for '%s'", setting)
+			// Not all calls here will involve changes to the api keys since we are just reloading every time something with
+			// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
+			// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
+			if len(old) > 0 && len(new) > 0 {
+				log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(old, ","), strings.Join(new, ","))
+			}
 
 			return
 		}
@@ -154,13 +160,36 @@ func (r *SingleDomainResolver) GetAPIKeys() []string {
 	return r.dedupedAPIKeys
 }
 
-// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
-func (r *SingleDomainResolver) SetAPIKeys(keys []string) {
-	r.dedupedAPIKeys = keys
+// missing returns a list of elements that are in list a, but not in list b.
+// This is inefficient for large lists, but the assumption is that a config
+// will only have a very small number of API keys specified.
+func missing(a []string, b []string) []string {
+	new := []string{}
+
+	for _, key := range a {
+		if !slices.Contains(b, key) {
+			new = append(new, key)
+		}
+	}
+
+	return new
 }
 
-// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *SingleDomainResolver) GetEndpoints() []utils.APIKeys {
+// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
+func (r *SingleDomainResolver) SetAPIKeys(keys []string) ([]string, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old := missing(r.dedupedAPIKeys, keys)
+	new := missing(keys, r.dedupedAPIKeys)
+
+	r.dedupedAPIKeys = keys
+
+	return old, new
+}
+
+// GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`
+func (r *SingleDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys
@@ -241,12 +270,20 @@ func (r *MultiDomainResolver) GetAPIKeys() []string {
 }
 
 // SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
-func (r *MultiDomainResolver) SetAPIKeys(keys []string) {
+func (r *MultiDomainResolver) SetAPIKeys(keys []string) ([]string, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old := missing(r.dedupedAPIKeys, keys)
+	new := missing(keys, r.dedupedAPIKeys)
+
 	r.dedupedAPIKeys = keys
+
+	return old, new
 }
 
-// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *MultiDomainResolver) GetEndpoints() []utils.APIKeys {
+// GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
+func (r *MultiDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys
@@ -358,11 +395,12 @@ func (r *LocalDomainResolver) GetAPIKeys() []string {
 }
 
 // SetAPIKeys is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) SetAPIKeys(_keys []string) {
+func (r *LocalDomainResolver) SetAPIKeys(_keys []string) ([]string, []string) {
+	return []string{}, []string{}
 }
 
-// GetEndpoints returns the list of endpoints associated with this `DomainResolver`
-func (r *LocalDomainResolver) GetEndpoints() []utils.APIKeys {
+// GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
+func (r *LocalDomainResolver) GetAPIKeysInfo() []utils.APIKeys {
 	return []utils.APIKeys{}
 }
 

@@ -23,3 +23,30 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 
 	assert.Equal(t, resolver.dedupedAPIKeys, []string{"key1", "key2"})
 }
+
+func TestSingleDomainResolverSetApiKeysSimple(t *testing.T) {
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2"),
+		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
+	}
+
+	resolver := NewSingleDomainResolver("example.com", apiKeys)
+
+	old, new := resolver.SetAPIKeys([]string{"key1", "key3"})
+
+	assert.Equal(t, []string{"key2"}, old)
+	assert.Equal(t, []string{"key3"}, new)
+}
+
+func TestSingleDomainResolverSetApiKeysMany(t *testing.T) {
+	apiKeys := []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3", "key4", "key5", "key6"),
+	}
+
+	resolver := NewSingleDomainResolver("example.com", apiKeys)
+
+	old, new := resolver.SetAPIKeys([]string{"key3", "lock2", "key1", "lock4", "key5", "key6"})
+
+	assert.Equal(t, []string{"key2", "key4"}, old)
+	assert.Equal(t, []string{"lock2", "lock4"}, new)
+}

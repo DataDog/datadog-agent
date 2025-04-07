@@ -37,7 +37,7 @@ func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	return resolvedDDURL
 }
 
-// APIKeys contains a list of API keys together with the path within the config that this API key was found.
+// APIKeys contains a list of API keys together with the path within the config that this API key were configured.
 type APIKeys struct {
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
