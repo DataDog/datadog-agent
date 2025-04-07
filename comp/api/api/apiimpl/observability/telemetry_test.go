@@ -6,6 +6,7 @@
 package observability
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -18,35 +19,58 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTelemetryMiddleware(t *testing.T) {
+	at := authtokenmock.New(t)
+
 	testCases := []struct {
-		method   string
-		path     string
-		code     int
-		duration time.Duration
+		method    string
+		path      string
+		code      int
+		duration  time.Duration
+		tlsConfig *tls.Config
+		auth      string
 	}{
 		{
 			method:   http.MethodGet,
 			path:     "/test/1",
 			code:     http.StatusOK,
-			duration: 0,
+			duration: time.Millisecond,
+			tlsConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			}, // The client is not providing a certificate, so it is not MTLS
+			auth: "token",
 		},
 		{
-			method:   http.MethodPost,
-			path:     "/test/2",
-			code:     http.StatusInternalServerError,
-			duration: time.Millisecond,
+			method:    http.MethodPost,
+			path:      "/test/2",
+			code:      http.StatusInternalServerError,
+			duration:  time.Millisecond,
+			tlsConfig: at.GetTLSClientConfig(), // The client is providing same certificate as the server, so it is MTLS
+			auth:      "mTLS",
 		},
 		{
 			method:   http.MethodHead,
 			path:     "/test/3",
 			code:     http.StatusNotFound,
 			duration: time.Second,
+			tlsConfig: func() *tls.Config {
+				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				defer server.Close()
+				cfg := &tls.Config{
+					InsecureSkipVerify: true,
+					Certificates:       []tls.Certificate{server.TLS.Certificates[0]},
+				}
+				return cfg
+			}(), // The client is providing a certificate different from the server, so it is not MTLS
+			auth: "token",
 		},
 	}
 
@@ -56,18 +80,19 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tm := newTelemetryMiddlewareFactory(telemetry, clock)
-			telemetryHandler := tm.Middleware(serverName)
+			tmf, err := newTelemetryMiddlewareFactory(telemetry, clock, at.GetTLSServerConfig())
+			require.NoError(t, err)
+			telemetryHandler := tmf.Middleware(serverName)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tc.duration)
 				w.WriteHeader(tc.code)
 			}
-			server := httptest.NewServer(telemetryHandler(tcHandler))
-			defer server.Close()
+
+			server := at.NewMockServer(telemetryHandler(tcHandler))
 
 			url := url.URL{
-				Scheme: "http",
+				Scheme: "https",
 				Host:   server.Listener.Addr().String(),
 				Path:   tc.path,
 			}
@@ -75,7 +100,11 @@ func TestTelemetryMiddleware(t *testing.T) {
 			req, err := http.NewRequest(tc.method, url.String(), nil)
 			require.NoError(t, err)
 
-			resp, err := server.Client().Do(req)
+			client := server.Client()
+
+			client.Transport.(*http.Transport).TLSClientConfig = tc.tlsConfig
+
+			resp, err := client.Do(req)
 			require.NoError(t, err)
 			resp.Body.Close()
 
@@ -94,6 +123,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 				"status_code": strconv.Itoa(tc.code),
 				"method":      tc.method,
 				"path":        tc.path,
+				"auth":        tc.auth,
 			}
 			assert.Equal(t, expected, labels)
 		})
@@ -101,8 +131,11 @@ func TestTelemetryMiddleware(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
+	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry).Middleware("test")
+	tmf, err := NewTelemetryMiddlewareFactory(telemetry, at.GetTLSServerConfig())
+	require.NoError(t, err)
+	telemetryHandler := tmf.Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -121,12 +154,14 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
+	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tm := NewTelemetryMiddlewareFactory(telemetry)
+	tmf, err := NewTelemetryMiddlewareFactory(telemetry, at.GetTLSServerConfig())
+	require.NoError(t, err)
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
 	// is not created in the Middleware itself
-	_ = tm.Middleware("test1")
-	_ = tm.Middleware("test2")
+	_ = tmf.Middleware("test1")
+	_ = tmf.Middleware("test2")
 }

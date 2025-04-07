@@ -48,7 +48,11 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
+	// create the telemetry middleware
+	tmf, err := observability.NewTelemetryMiddlewareFactory(server.telemetry, server.authToken.GetTLSServerConfig())
+	if err != nil {
+		return log.Errorf("unable to create telemetry middleware factory: %v", err)
+	}
 
 	// start the CMD server
 	if err := server.startCMDServer(

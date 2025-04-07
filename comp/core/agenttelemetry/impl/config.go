@@ -260,6 +260,7 @@ var defaultProfiles = `
             - status_code
             - method
             - path
+			- auth
     schedule:
       start_after: 600
       iterations: 0
