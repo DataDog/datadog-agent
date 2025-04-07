@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -61,7 +62,7 @@ func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component) *
 }
 
 func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelemetry {
-	subsystem := gpuTelemetryModule + "__streams"
+	subsystem := consts.GpuTelemetryModule + "__streams"
 
 	return &streamCollectionTelemetry{
 		missingContainers:  tm.NewCounter(subsystem, "missing_containers", []string{"reason"}, "Number of missing containers"),

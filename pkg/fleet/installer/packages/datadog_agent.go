@@ -131,36 +131,8 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return err
 	}
 
-	// Install the agent systemd units
-	for _, unit := range stableUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to load %s: %v", unit, err)
-		}
-	}
-	for _, unit := range experimentalUnits {
-		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
-			return fmt.Errorf("failed to load %s: %v", unit, err)
-		}
-	}
-	if err = systemd.Reload(ctx); err != nil {
-		return fmt.Errorf("failed to reload systemd daemon: %v", err)
-	}
-	// enabling the agentUnit only is enough as others are triggered by it
-	if err = systemd.EnableUnit(ctx, agentUnit); err != nil {
-		return fmt.Errorf("failed to enable %s: %v", agentUnit, err)
-	}
-	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
-	}
-	// this is expected during a fresh install with the install script / asible / chef / etc...
-	// the config is populated afterwards by the install method and the agent is restarted
-	if !os.IsNotExist(err) {
-		if err = systemd.StartUnit(ctx, agentUnit); err != nil {
-			return err
-		}
-	}
-	return nil
+	err = setupStableUnits(ctx)
+	return err
 }
 
 // PostInstallAgent performs post-installation steps for the agent
@@ -243,38 +215,14 @@ func RemoveAgent(ctx context.Context) error {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent_units")
 	var spanErr error
 	defer func() { span.Finish(spanErr) }()
-	// stop experiments, they can restart stable agent
-	for _, unit := range experimentalUnits {
-		if err := systemd.StopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
-			spanErr = err
-		}
+	// stop, disable, & delete units from disk
+	spanErr = removeAgentUnits(ctx, agentExp, true)
+	if spanErr != nil {
+		log.Warnf("Failed to remove experimental units: %s", spanErr)
 	}
-	// stop stable agents
-	for _, unit := range stableUnits {
-		if err := systemd.StopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
-			spanErr = err
-		}
-	}
-
-	if err := systemd.DisableUnit(ctx, agentUnit); err != nil {
-		log.Warnf("Failed to disable %s: %s", agentUnit, err)
-		spanErr = err
-	}
-
-	// remove units from disk
-	for _, unit := range experimentalUnits {
-		if err := systemd.RemoveUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
-			spanErr = err
-		}
-	}
-	for _, unit := range stableUnits {
-		if err := systemd.RemoveUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
-			spanErr = err
-		}
+	spanErr = removeAgentUnits(ctx, agentUnit, false)
+	if spanErr != nil {
+		log.Warnf("Failed to remove stable units: %s", spanErr)
 	}
 	if err := os.Remove(agentSymlink); err != nil && !os.IsNotExist(err) {
 		log.Warnf("Failed to remove agent symlink: %s", err)
@@ -299,7 +247,8 @@ func StartAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return systemd.StartUnit(ctx, agentExp, "--no-block")
+	err := setupExperimentUnits(ctx)
+	return err
 }
 
 // StopAgentExperiment stops the agent experiment
@@ -309,14 +258,82 @@ func StopAgentExperiment(ctx context.Context) error {
 	}
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return systemd.StartUnit(ctx, agentUnit, "--no-block")
+	if err := setupStableUnits(ctx); err != nil {
+		return err
+	}
+	return removeAgentUnits(ctx, agentExp, true)
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return StopAgentExperiment(ctx)
+	if err := setupStableUnits(ctx); err != nil {
+		return err
+	}
+	return removeAgentUnits(ctx, agentExp, true)
+}
+
+func setupStableUnits(ctx context.Context) error {
+	return setupAgentUnits(ctx, agentUnit, stableUnits)
+}
+
+func setupExperimentUnits(ctx context.Context) error {
+	return setupAgentUnits(ctx, agentExp, experimentalUnits)
+}
+
+func removeAgentUnits(ctx context.Context, coreAgentUnit string, experiment bool) error {
+	units, err := systemd.ListOnDiskAgentUnits(experiment)
+	if err != nil {
+		return fmt.Errorf("failed to list agent units: %v", err)
+	}
+
+	for _, unit := range units {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
+			return err
+		}
+	}
+
+	if err := systemd.DisableUnit(ctx, coreAgentUnit); err != nil {
+		return err
+	}
+
+	for _, unit := range units {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setupAgentUnits(ctx context.Context, coreAgentUnit string, units []string) error {
+	for _, unit := range units {
+		if err := systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
+			return fmt.Errorf("failed to load %s: %v", unit, err)
+		}
+	}
+
+	if err := systemd.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload systemd daemon: %v", err)
+	}
+
+	// enabling the core agent unit only is enough as others are triggered by it
+	if err := systemd.EnableUnit(ctx, coreAgentUnit); err != nil {
+		return fmt.Errorf("failed to enable %s: %v", coreAgentUnit, err)
+	}
+
+	_, err := os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
+	} else if os.IsNotExist(err) {
+		// this is expected during a fresh install with the install script / ansible / chef / etc...
+		// the config is populated afterwards by the install method and the agent is restarted
+		return nil
+	}
+	if err = systemd.StartUnit(ctx, coreAgentUnit); err != nil {
+		return err
+	}
+	return nil
 }
 
 func installerCopy(path string) error {
@@ -348,7 +365,7 @@ func installerCopy(path string) error {
 		return fmt.Errorf("failed to copy executable: %w", err)
 	}
 
-	err = destinationFile.Chmod(0750)
+	err = destinationFile.Chmod(0755)
 	if err != nil {
 		return fmt.Errorf("failed to set permissions on destination file: %w", err)
 	}
