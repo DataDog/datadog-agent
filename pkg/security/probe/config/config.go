@@ -158,6 +158,12 @@ type Config struct {
 
 	// DNSResolutionEnabled resolving DNS names from IP addresses
 	DNSResolutionEnabled bool
+
+	// SpanTrackingEnabled defines if span tracking should be enabled
+	SpanTrackingEnabled bool
+
+	// SpanTrackingCacheSize is the size of the span tracking cache
+	SpanTrackingCacheSize int
 }
 
 // NewConfig returns a new Config object
@@ -209,6 +215,10 @@ func NewConfig() (*Config, error) {
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
+
+		// span tracking
+		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
+		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {

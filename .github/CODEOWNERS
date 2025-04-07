@@ -241,7 +241,7 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
-/cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
+/cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
@@ -516,7 +516,7 @@
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
-/pkg/languagedetection                  @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
+/pkg/languagedetection                  @DataDog/container-intake @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx-loops
 /pkg/linters/components/                @DataDog/agent-runtimes
 /pkg/logs/                              @DataDog/agent-log-pipelines
