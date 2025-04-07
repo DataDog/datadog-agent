@@ -244,6 +244,7 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
+	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
@@ -267,6 +268,62 @@ func (s *discovery) Close() {
 // Reports the status of the discovery module.
 func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("Discovery Module is running"))
+}
+
+type state struct {
+	Cache                  map[int]*model.Service `json:"cache"`
+	NoPortTries            map[int]int            `json:"no_port_tries"`
+	PotentialServices      []int                  `json:"potential_services"`
+	RunningServices        []int                  `json:"running_services"`
+	IgnorePids             []int                  `json:"ignore_pids"`
+	LastGlobalCPUTime      uint64                 `json:"last_global_cpu_time"`
+	LastCPUTimeUpdate      int64                  `json:"last_cpu_time_update"`
+	LastNetworkStatsUpdate int64                  `json:"last_network_stats_update"`
+	NetworkEnabled         bool                   `json:"network_enabled"`
+}
+
+// handleStateEndpoint is the handler for the /state endpoint.
+// Returns the internal state of the discovery module.
+func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	state := &state{
+		Cache:             make(map[int]*model.Service, len(s.cache)),
+		NoPortTries:       make(map[int]int, len(s.noPortTries)),
+		PotentialServices: make([]int, 0, len(s.potentialServices)),
+		RunningServices:   make([]int, 0, len(s.runningServices)),
+		IgnorePids:        make([]int, 0, len(s.ignorePids)),
+		NetworkEnabled:    s.network != nil,
+	}
+
+	for pid, info := range s.cache {
+		service := &model.Service{}
+		info.toModelService(pid, service)
+		state.Cache[int(pid)] = service
+	}
+
+	for pid, tries := range s.noPortTries {
+		state.NoPortTries[int(pid)] = tries
+	}
+
+	for pid := range s.potentialServices {
+		state.PotentialServices = append(state.PotentialServices, int(pid))
+	}
+
+	for pid := range s.runningServices {
+		state.RunningServices = append(state.RunningServices, int(pid))
+	}
+
+	for pid := range s.ignorePids {
+		state.IgnorePids = append(state.IgnorePids, int(pid))
+	}
+
+	state.LastGlobalCPUTime = s.lastGlobalCPUTime
+	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
+	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
+
+	utils.WriteAsJSON(w, state)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
