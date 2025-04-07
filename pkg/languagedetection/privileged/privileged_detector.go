@@ -28,6 +28,7 @@ import (
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
+	detectors.NewTracerDetector(),
 	detectors.NewInjectorDetector(),
 	detectors.NewGoDetector(),
 	detectors.NewDotnetDetector(),
