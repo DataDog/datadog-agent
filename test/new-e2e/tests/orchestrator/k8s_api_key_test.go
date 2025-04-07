@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 package orchestrator
 
@@ -23,9 +23,9 @@ import (
 //go:embed agent_api_key_values.yaml
 var agentAPIKeyRefreshValuesFmt string
 
-// TestZZZClusterAgentAPIKeyRefresh tests the agent's ability to refresh the API key
+// TestZzzClusterAgentAPIKeyRefresh tests the agent's ability to refresh the API key
 // ZZZ is used to ensure this test runs last in the suite as it requires redeploying the agent
-func (suite *k8sSuite) TestZZZClusterAgentAPIKeyRefresh() {
+func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	namespace := "datadog"
 	secretName := "apikeyrefresh"
 	apiKeyOld := "abcdefghijklmnopqrstuvwxyz123456"
@@ -90,7 +90,7 @@ func (suite *k8sSuite) applySecret(namespace, name string, secretData map[string
 // eventuallyHasExpectedAPIKey checks if the API key is present in the orchestrator resources payloads.
 func (suite *k8sSuite) eventuallyHasExpectedAPIKey(apiKey string) {
 	hasKey := func() bool {
-		keys, err := suite.Env().FakeIntake.Client().GetLastOrchestratorResourcesPayloadAPIKeys()
+		keys, err := suite.Env().FakeIntake.Client().GetOrchestratorResourcesPayloadAPIKeys()
 		if err != nil {
 			return false
 		}
