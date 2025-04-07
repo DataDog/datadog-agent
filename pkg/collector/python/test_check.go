@@ -8,6 +8,7 @@
 package python
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"testing"
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+
+	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 )
 
 /*
@@ -667,7 +670,7 @@ func testGetDiagnoses(t *testing.T) {
 
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
-	c, err := NewPythonCheck(senderManager, "fake_check", nil, false)
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, false, &agenttelemetryimpl.NoopAgentTelemetry{})
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

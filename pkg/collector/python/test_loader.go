@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 )
 
 /*
@@ -311,4 +312,16 @@ func testLoadHACheck(t *testing.T) {
 			assert.Equal(t, tc.expectedHaSupported, check.(*PythonCheck).haSupported)
 		})
 	}
+}
+
+func TestNewPythonCheckLoader(t *testing.T) {
+	// Create a mock agent telemetry component
+	agentTelemetry := &agenttelemetryimpl.NoopAgentTelemetry{}
+
+	// Create a new Python check loader
+	loader := NewPythonCheckLoader(agentTelemetry)
+
+	// Verify that the loader was created correctly
+	assert.NotNil(t, loader)
+	assert.NotNil(t, loader.agentTelemetry)
 }

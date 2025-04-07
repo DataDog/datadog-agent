@@ -12,15 +12,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 
 	yaml "gopkg.in/yaml.v2"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -30,7 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 /*
@@ -65,10 +68,11 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
+	agentTelemetry option.Option[agenttelemetry.Component]
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool, agentTelemetry option.Option[agenttelemetry.Component]) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -78,13 +82,14 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		senderManager: senderManager,
-		ModuleName:    name,
-		class:         class,
-		interval:      defaults.DefaultCheckInterval,
-		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
-		haSupported:   haSupported,
+		senderManager:  senderManager,
+		ModuleName:     name,
+		class:          class,
+		interval:       defaults.DefaultCheckInterval,
+		lastWarnings:   []error{},
+		telemetry:      utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		haSupported:    haSupported,
+		agentTelemetry: agentTelemetry,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -110,7 +115,7 @@ func (c *PythonCheck) setTraceID(traceID string, parentSpanID string) (string, e
 	return string(instanceConfig), nil
 }
 
-func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
+func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -121,18 +126,26 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
 	instance := c.instance
+	var span *installertelemetry.Span
+	defer func() {
+		if span != nil {
+			span.Finish(checkErr)
+		}
+	}()
 	if c.telemetry {
-		// Get trace ID from environment variable
-		traceID := os.Getenv("DATADOG_TRACE_ID")
-		parentSpanID := os.Getenv("DATADOG_PARENT_SPAN_ID")
-		if traceID != "" {
-			instanceConfig, err := c.setTraceID(traceID, parentSpanID)
-			if err != nil {
-				log.Warnf("Failed to set trace ID for check %s: %v", c.ModuleName, err)
-			} else {
-				cInstance := TrackedCString(instanceConfig)
-				defer C._free(unsafe.Pointer(cInstance))
-				instance = cInstance
+		agentTelemetry, ok := c.agentTelemetry.Get()
+		if ok {
+			// Get trace ID and span ID from agent telemetry
+			span, _ = agentTelemetry.StartStartupSpan("python.check")
+			if span != nil {
+				instanceConfig, err := c.setTraceID(strconv.FormatUint(span.GetTraceID(), 10), strconv.FormatUint(span.GetSpanID(), 10))
+				if err != nil {
+					log.Warnf("Failed to set trace ID for check %s: %v", c.ModuleName, err)
+				} else {
+					cInstance := TrackedCString(instanceConfig)
+					defer C._free(unsafe.Pointer(cInstance))
+					instance = cInstance
+				}
 			}
 		}
 	}
