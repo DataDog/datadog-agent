@@ -461,7 +461,6 @@ func FuzzAnyValueMarshalUnmarshal(f *testing.F) {
 		// We got a valid AnyValue, let's marshal it and check if we can unmarshal it back to the same structure
 		bts, err := value.MarshalMsg(nil, strings, NewSerializedStrings(uint32(strings.Len())))
 		assert.NoError(t, err)
-		//assert.Equal(t, data, bts)
 
 		strings2 := NewStringTable()
 		value2, _, err := UnmarshalAnyValue(bts, strings2)
@@ -516,7 +515,6 @@ func FuzzSpanLinkMarshalUnmarshal(f *testing.F) {
 		// We got a valid AnyValue, let's marshal it and check if we can unmarshal it back to the same structure
 		bts, err := link.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
 		assert.NoError(t, err)
-		//assert.Equal(t, data, bts)
 
 		strings2 := NewStringTable()
 		link2 := &InternalSpanLink{Strings: strings2}
@@ -551,7 +549,6 @@ func FuzzSpanEventMarshalUnmarshal(f *testing.F) {
 		}
 		bts, err := event.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
 		assert.NoError(t, err)
-		//assert.Equal(t, data, bts)
 
 		strings2 := NewStringTable()
 		event2 := &InternalSpanEvent{Strings: strings2}
