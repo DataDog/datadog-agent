@@ -8,8 +8,6 @@
 package modules
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -17,6 +15,8 @@ import (
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
