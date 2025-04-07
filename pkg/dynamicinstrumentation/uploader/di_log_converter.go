@@ -109,6 +109,10 @@ func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) ma
 	args := make(map[string]*ditypes.CapturedValue)
 	definitionCounter := 0
 	missingCounter := 0
+	// Definitions can be longer than captures, as params/fields marked as DoNotCapture are not included at all in the
+	// the event buffer. As a result, we need to have logic to skip over the missing captures, and push the definitions
+	// to the returned map, including the NotCaptureReason.
+	// We keep track of the number of definitions read, and the number of missing captures to do so.
 	for i := range captures {
 	top:
 		definition := definitions[definitionCounter]
