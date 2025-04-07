@@ -24,7 +24,7 @@ import (
 var agentAPIKeyRefreshValuesFmt string
 
 // TestZzzClusterAgentAPIKeyRefresh tests the agent's ability to refresh the API key
-// ZZZ is used to ensure this test runs last in the suite as it requires redeploying the agent
+// Zzz is used to ensure this test runs last in the suite as it requires redeploying the agent
 func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	namespace := "datadog"
 	secretName := "apikeyrefresh"
