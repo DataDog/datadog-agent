@@ -90,6 +90,20 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
 }
 
+func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	for _, p := range traces {
+		assert.NotEmpty(c, p.TracerPayloads)
+		for _, tp := range p.TracerPayloads {
+			tags, ok := tp.Tags["_dd.tags.process"]
+			assert.True(c, ok)
+			assert.Equal(c, processTags, tags)
+		}
+	}
+}
+
 func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()

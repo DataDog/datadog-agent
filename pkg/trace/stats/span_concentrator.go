@@ -196,8 +196,8 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
-func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string) {
-	sc.addSpan(s, aggKey, tags, origin, 1)
+func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, processTagsHash uint64, processTags string, origin string) {
+	sc.addSpan(s, aggKey, infraTags{processTagsHash: processTagsHash, processTags: processTags}, origin, 1)
 }
 
 // Flush deletes and returns complete ClientStatsPayloads.
