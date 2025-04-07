@@ -23,6 +23,7 @@ import (
 const (
 	installerUnit    = "datadog-installer.service"
 	installerUnitExp = "datadog-installer-exp.service"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var installerUnits = []string{installerUnit, installerUnitExp}

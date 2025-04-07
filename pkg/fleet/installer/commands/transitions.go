@@ -24,7 +24,7 @@ func postinstCommand() *cobra.Command {
 				return err
 			}
 			defer i.stop(err)
-			return i.Postinst(i.ctx, args[0], args[1])
+			return i.PostInstall(i.ctx, args[0], args[1])
 		},
 	}
 	return cmd
@@ -49,7 +49,7 @@ func prermCommand() *cobra.Command {
 				return errors.New("update flag is not supported for 'installer' caller; use other state transitions")
 			}
 
-			return i.Prerm(i.ctx, args[0], args[1], update)
+			return i.PreRemove(i.ctx, args[0], args[1], update)
 		},
 	}
 	cmd.Flags().BoolVar(&update, "update", false, "Set during updates, don't set during removes")
@@ -63,14 +63,14 @@ func preStartExpCommand() *cobra.Command {
 		Short:   "Run pre-start-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("pre-start-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PreStartExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -83,14 +83,14 @@ func postStartExpCommand() *cobra.Command {
 		Short:   "Run post-start-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("post-start-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PostStartExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -103,14 +103,14 @@ func preStopExpCommand() *cobra.Command {
 		Short:   "Run pre-stop-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("pre-stop-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PreStopExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -123,14 +123,14 @@ func postStopExpCommand() *cobra.Command {
 		Short:   "Run post-stop-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("post-stop-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PostStopExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -143,14 +143,14 @@ func prePromoteExpCommand() *cobra.Command {
 		Short:   "Run pre-promote-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("pre-promote-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PrePromoteExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -163,14 +163,14 @@ func postPromoteExpCommand() *cobra.Command {
 		Short:   "Run post-promote-experiment scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
+		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("post-promote-experiment")
 			if err != nil {
 				return err
 			}
 			defer i.stop(err)
 
-			panic("TODO: not implemented")
+			return i.PostPromoteExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd

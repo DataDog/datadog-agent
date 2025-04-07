@@ -13,29 +13,24 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	agentPackage       = "datadog-agent"
+const (
 	agentSymlink       = "/usr/bin/datadog-agent"
 	installerSymlink   = "/usr/bin/datadog-installer"
 	legacyAgentSymlink = "/opt/datadog-agent"
+)
 
-	// stablePath is the path to the stable agent installation
-	stablePath = filepath.Join(paths.PackagesPath, agentPackage, "stable")
-	// experimentPath is the path to the experimental agent installation
-	experimentPath = filepath.Join(paths.PackagesPath, agentPackage, "experiment")
-
+var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -65,16 +60,16 @@ var (
 	}
 )
 
-// PostInstall performs post-installation steps for the agent
-func PostInstall(ctx context.Context, installPath string, caller string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "post_install_agent")
+// setupFilesystem sets up the filesystem for the agent installation
+func setupFilesystem(ctx context.Context, installPath string, caller string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_filesystem")
 	defer func() {
 		span.Finish(err)
 	}()
 
 	// 1. Ensure the dd-agent user and group exist
 	userHomePath := installPath
-	if installPath == stablePath || installPath == experimentPath {
+	if installPath == StablePath || installPath == ExperimentPath {
 		userHomePath = "/opt/datadog-packages"
 	}
 	if err = user.EnsureAgentUserAndGroup(ctx, userHomePath); err != nil {
@@ -107,7 +102,7 @@ func PostInstall(ctx context.Context, installPath string, caller string) (err er
 	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	if installPath == stablePath {
+	if installPath == StablePath {
 		if err = file.EnsureSymlink(installPath, legacyAgentSymlink); err != nil {
 			return fmt.Errorf("failed to create symlink: %v", err)
 		}
@@ -125,24 +120,37 @@ func PostInstall(ctx context.Context, installPath string, caller string) (err er
 	if err = installinfo.WriteInstallInfo(caller); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
-
-	// 7. Call post.py for integration persistence. Allowed to fail.
-	// XXX: We should port this to Go
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/bin/python")); err == nil {
-		cmd := exec.CommandContext(ctx, filepath.Join(installPath, "embedded/bin/python"), filepath.Join(installPath, "python-scripts/post.py"), installPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("failed to run integration persistence in post.py: %s\n", err.Error())
-		}
-	}
-
 	return nil
 }
 
+// removeFilesystem cleans the filesystem
+// All operations are allowed to fail
+func removeFilesystem(ctx context.Context, installPath string) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "remove_filesystem")
+	defer func() {
+		span.Finish(nil)
+	}()
+
+	// Remove run dir
+	os.RemoveAll(filepath.Join(installPath, "run"))
+	// Remove FIPS module
+	os.Remove(filepath.Join(installPath, "embedded", "ssl", "fipsmodule.cnf"))
+	// Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
+	os.Remove(filepath.Join(installPath, ".pre_python_installed_packages.txt"))
+	os.Remove(filepath.Join(installPath, ".post_python_installed_packages.txt"))
+	os.Remove(filepath.Join(installPath, ".diff_python_installed_packages.txt"))
+	// Remove install info
+	installinfo.RemoveInstallInfo()
+	// Remove symlinks
+	os.Remove(agentSymlink)
+	os.Remove(legacyAgentSymlink)
+	if target, err := os.Readlink(installerSymlink); err == nil && strings.HasPrefix(target, installPath) {
+		os.Remove(installerSymlink)
+	}
+}
+
+// installerCopy copies the current executable to the installer path
 func installerCopy(path string) error {
-	// Copy the current executable to the installer path
-	// This is temporary and will be removed after next release
 	currentExecutable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get current executable: %w", err)
@@ -174,4 +182,67 @@ func installerCopy(path string) error {
 		return fmt.Errorf("failed to set permissions on destination file: %w", err)
 	}
 	return nil
+}
+
+// removeCompiledPythonFiles removes compiled Python files (.pyc, .pyo) and __pycache__ directories
+func removeCompiledPythonFiles(installPath string) {
+	// Remove files in in "{installPath}/embedded/.py_compiled_files.txt"
+	if _, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt")); err == nil {
+		compiledFiles, err := os.ReadFile(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
+		if err != nil {
+			fmt.Printf("failed to read compiled files list: %s\n", err.Error())
+		} else {
+			for _, file := range strings.Split(string(compiledFiles), "\n") {
+				if strings.HasPrefix(file, installPath) {
+					if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+						fmt.Printf("failed to remove compiled file %s: %s\n", file, err.Error())
+					}
+				}
+			}
+		}
+	}
+	// Remove files in {installPath}/bin/agent/dist
+	err := filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() && info.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+	}
+	// Remove files in {installPath}/python-scripts
+	err = filepath.Walk(filepath.Join(installPath, "python-scripts"), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() && info.Name() == "__pycache__" {
+			if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		} else if strings.HasSuffix(info.Name(), ".pyc") || strings.HasSuffix(info.Name(), ".pyo") {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+	}
 }
