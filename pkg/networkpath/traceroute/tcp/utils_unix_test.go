@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -343,6 +344,6 @@ func (me mockTimeoutErr) Error() string {
 	return string(me)
 }
 
-func (me mockTimeoutErr) Timeout() bool {
-	return true
+func (me mockTimeoutErr) Unwrap() error {
+	return os.ErrDeadlineExceeded
 }

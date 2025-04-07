@@ -9,8 +9,10 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
@@ -109,12 +111,10 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 			}
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
+		}
 		if err != nil {
-			if nerr, ok := err.(*net.OpError); ok {
-				if nerr.Timeout() {
-					continue
-				}
-			}
 			return packetResponse{
 				Err: err,
 			}
