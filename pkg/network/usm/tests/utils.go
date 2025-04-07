@@ -21,7 +21,7 @@ import (
 
 // cleanProtocolMapByProtocol cleans up the protocol map for a given protocol
 func cleanProtocolMapByProtocol(t *testing.T, tr *tracer.Tracer, protocol protocols.ProtocolType) {
-	selector := func(tuple netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool {
+	selector := func(_ netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool {
 		return wrapper.Stack.Application == uint8(protocol) || wrapper.Stack.Api == uint8(protocol) || wrapper.Stack.Encryption == uint8(protocol)
 	}
 	cleanProtocolMapBySelector(t, tr, selector)
@@ -29,7 +29,7 @@ func cleanProtocolMapByProtocol(t *testing.T, tr *tracer.Tracer, protocol protoc
 }
 
 // cleanProtocolMapBySelector cleans up the protocol map for a given selector
-func cleanProtocolMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(tuple netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool) {
+func cleanProtocolMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(netebpf.ConnTuple, netebpf.ProtocolStackWrapper) bool) {
 	protocolMap, err := tr.GetMap(probes.ConnectionProtocolMap)
 	require.NoError(t, err)
 
@@ -51,7 +51,7 @@ func cleanProtocolMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(t
 }
 
 // cleanConnMapBySelector cleans up the protocol map for a given selector
-func cleanConnMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(tuple netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool) {
+func cleanConnMapBySelector(t *testing.T, tr *tracer.Tracer, selector func(netebpf.ConnTuple, netebpf.ProtocolStackWrapper) bool) {
 	connMap, err := tr.GetMap(probes.ConnMap)
 	require.NoError(t, err)
 
