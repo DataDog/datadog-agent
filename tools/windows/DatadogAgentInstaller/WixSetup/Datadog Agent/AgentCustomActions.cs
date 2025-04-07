@@ -291,7 +291,7 @@ namespace WixSetup.Datadog_Agent
             RunPostInstPythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPostInstPythonScript)),
                     CustomActions.RunPostInstPythonScript,
-                    Return.check,
+                    Return.ignore,
                     When.After,
                     Step.InstallServices,
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
