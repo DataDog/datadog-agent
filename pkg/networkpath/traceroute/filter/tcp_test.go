@@ -70,7 +70,7 @@ func doTestCase(t *testing.T, tc tcpTestCase) {
 		},
 	}
 
-	rawConn, err := MakeRawConn(context.Background(), lc, "ip:tcp", cfg.Dst.Addr())
+	rawConn, err := MakeRawConn(context.Background(), lc, "ip:tcp", clientAddrPort.Addr())
 	require.NoError(t, err)
 
 	conn.Write([]byte("bar\n"))
