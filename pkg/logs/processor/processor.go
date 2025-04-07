@@ -243,7 +243,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
-
+		log.Debugf("Logs sent to Datadog log backend: %s", msg.GetContent())
+		log.Debugf("Logs sent to Datadog log backend rendered: %s", string(rendered))
 		// encode the message to its final format, it is done in-place
 		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
 			log.Error("unable to encode msg ", err)
