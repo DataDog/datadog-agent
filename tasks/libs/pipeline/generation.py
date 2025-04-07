@@ -30,23 +30,46 @@ def update_child_job_variables(kept_jobs):
     return updated_jobs
 
 
-def update_needs_parent(needs, deps_to_keep):
+def update_needs_parent(needs, deps_to_keep, package_deps=None, package_deps_suffix=""):
     """
-    Keep only the dependencies that are in the deps_to_keep list, and update them to target the parent pipeline.
+    Keep only the dependencies that are in the deps_to_keep and in package_deps lists, and update them to target the parent pipeline.
+    If package_deps_suffix is provided, it will be added to the dependencies kept from package_deps.
     """
+
+    if package_deps is None:
+        package_deps = []
 
     new_needs = []
     for need in needs:
         if isinstance(need, str):
-            if need not in deps_to_keep:
+            if need in deps_to_keep:
+                new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
+            elif need in package_deps:
+                new_needs.append(
+                    {
+                        "pipeline": "$PARENT_PIPELINE_ID",
+                        "job": need + package_deps_suffix if not need.endswith(package_deps_suffix) else need,
+                    }
+                )
+            else:
                 continue
-            new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
         elif isinstance(need, dict):
-            if "job" in need and need["job"] not in deps_to_keep:
+            if "job" in need and need["job"] in deps_to_keep:
+                new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
+            elif "job" in need and need["job"] in package_deps:
+                new_needs.append(
+                    {
+                        **need,
+                        "pipeline": "$PARENT_PIPELINE_ID",
+                        "job": need["job"] + package_deps_suffix
+                        if not need["job"].endswith(package_deps_suffix)
+                        else need["job"],
+                    }
+                )
+            else:
                 continue
-            new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
         elif isinstance(need, list):
-            new_needs.extend(update_needs_parent(need, deps_to_keep))
+            new_needs.extend(update_needs_parent(need, deps_to_keep, package_deps, package_deps_suffix))
     return new_needs
 
 

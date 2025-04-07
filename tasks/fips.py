@@ -51,7 +51,17 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         remove_fields(job)
         if "needs" in job:
             job["needs"] = update_needs_parent(
-                job["needs"], deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"]
+                job["needs"],
+                deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"],
+                package_deps=[
+                    "agent_deb-x64-a7-fips",
+                    "agent_deb-x64-a7",
+                    "windows_msi_and_bosh_zip_x64-a7-fips",
+                    "windows_msi_and_bosh_zip_x64-a7",
+                    "agent_rpm-x64-a7",
+                    "agent_suse-x64-a7",
+                ],
+                package_deps_suffix="-fips",
             )
 
     new_jobs = {}
