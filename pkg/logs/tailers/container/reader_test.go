@@ -5,7 +5,7 @@
 
 //go:build docker
 
-package docker
+package container
 
 import (
 	"bytes"
