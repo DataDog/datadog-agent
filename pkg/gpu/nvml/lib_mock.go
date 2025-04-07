@@ -16,14 +16,14 @@ import (
 // WithMockNVML sets the singleton NVML library for testing purposes.
 // This is useful to test the NVML library without having to initialize it
 // manually. It automatically restores the original NVML library on test
-func WithMockNVML(t *testing.T, lib nvml.Interface) {
+func WithMockNVML(tb testing.TB, lib nvml.Interface) {
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 
 	singleton.lib = lib
 	singleton.isInitialized = true
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		singleton.mu.Lock()
 		defer singleton.mu.Unlock()
 

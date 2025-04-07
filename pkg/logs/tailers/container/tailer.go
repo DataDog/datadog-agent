@@ -3,38 +3,64 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
-package docker
+package container
 
 import (
 	"context"
 	"fmt"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/docker/docker/api/types/container"
 )
 
 const defaultSleepDuration = 1 * time.Second
 
-type dockerContainerLogInterface interface {
+// DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
+// located at pkg/util/docker/docker_util.go
+type DockerContainerLogInterface interface {
 	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
+}
+
+func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
+	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
+		options := &kubelet.StreamLogOptions{
+			Follow:     true,
+			Timestamps: true,
+			SinceTime:  &kubelet.Time{Time: since},
+		}
+		return client.StreamLogs(ctx, namespace, podName, containerName, options)
+	}
+}
+
+func newDockerLogReader(docker DockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
+	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
+		options := container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+			Timestamps: true,
+			Details:    false,
+			Since:      since.Format(config.DateFormat),
+		}
+		return docker.ContainerLogs(ctx, containerID, options)
+	}
 }
 
 // Tailer tails logs coming from stdout and stderr of a docker container
@@ -49,11 +75,11 @@ type Tailer struct {
 	// ContainerID is the ID of the container this tailer is tailing.
 	ContainerID string
 
-	outputChan  chan *message.Message
-	decoder     *decoder.Decoder
-	dockerutil  dockerContainerLogInterface
-	Source      *sources.LogSource
-	tagProvider tag.Provider
+	outputChan      chan *message.Message
+	decoder         *decoder.Decoder
+	unsafeLogReader func(context.Context, time.Time) (io.ReadCloser, error)
+	Source          *sources.LogSource
+	tagProvider     tag.Provider
 
 	readTimeout   time.Duration
 	sleepDuration time.Duration
@@ -79,15 +105,33 @@ type Tailer struct {
 	mutex     sync.Mutex
 }
 
-// NewTailer returns a new Tailer
-func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+// NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
+func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
 		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
-		dockerutil:         cli,
+		unsafeLogReader:    newAPILogReader(client, podNamespace, podName, containerName),
+		readTimeout:        readTimeout,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
+	}
+}
+
+// NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
+func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+	return &Tailer{
+		ContainerID:        containerID,
+		outputChan:         outputChan,
+		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
+		Source:             source,
+		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID), tagger),
+		unsafeLogReader:    newDockerLogReader(cli, containerID),
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
@@ -105,7 +149,7 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Infof("Stop tailing container: %v", dockerutil.ShortContainerID(t.ContainerID))
+	log.Infof("Stop tailing container: %v", t.ContainerID)
 
 	// signal the readForever component to stop
 	t.stop <- struct{}{}
@@ -130,11 +174,11 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
-	log.Debugf("Start tailing container: %v", dockerutil.ShortContainerID(t.ContainerID))
+	log.Debugf("Start tailing container: %v", t.ContainerID)
 	return t.tail(since.Format(config.DateFormat))
 }
 
-func (t *Tailer) getLastSince() string {
+func (t *Tailer) getLastSince() time.Time {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	since, err := time.Parse(config.DateFormat, t.lastSince)
@@ -145,7 +189,7 @@ func (t *Tailer) getLastSince() string {
 		// to the offset
 		since = since.Add(time.Nanosecond)
 	}
-	return since.Format(config.DateFormat)
+	return since
 }
 
 func (t *Tailer) setLastSince(since string) {
@@ -157,16 +201,8 @@ func (t *Tailer) setLastSince(since string) {
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
 func (t *Tailer) setupReader() error {
-	options := container.LogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-		Follow:     true,
-		Timestamps: true,
-		Details:    false,
-		Since:      t.getLastSince(),
-	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	reader, err := t.dockerutil.ContainerLogs(ctx, t.ContainerID, options)
+	reader, err := t.unsafeLogReader(ctx, t.getLastSince())
 	t.reader.setUnsafeReader(reader)
 	t.readerCancelFunc = cancelFunc
 
@@ -174,11 +210,11 @@ func (t *Tailer) setupReader() error {
 }
 
 func (t *Tailer) tryRestartReader(reason string) error {
-	log.Debugf("%s for container %v", reason, dockerutil.ShortContainerID(t.ContainerID))
+	log.Debugf("%s for container %v", reason, t.ContainerID)
 	t.wait()
 	err := t.setupReader()
 	if err != nil {
-		log.Warnf("Could not restart the docker reader for container %v: %v:", dockerutil.ShortContainerID(t.ContainerID), err)
+		log.Warnf("Could not restart the docker reader for container %v: %v:", t.ContainerID, err)
 		t.erroredContainerID <- t.ContainerID
 	}
 	return err
@@ -252,14 +288,14 @@ func (t *Tailer) readForever() {
 					// * when the container has not started to output logs yet.
 					// * during a file rotation.
 					// restart the reader (restartReader() include 1second wait)
-					t.Source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", dockerutil.ShortContainerID(t.ContainerID)))
+					t.Source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", t.ContainerID))
 					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
 						return
 					}
 					continue
 				default:
 					t.Source.Status.Error(err)
-					log.Errorf("Could not tail logs for container %v: %v", dockerutil.ShortContainerID(t.ContainerID), err)
+					log.Errorf("Could not tail logs for container %v: %v", t.ContainerID, err)
 					t.erroredContainerID <- t.ContainerID
 					return
 				}

@@ -20,10 +20,9 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 )
 
 // errUnsupportedDevice is returned when the device does not support the given collector
@@ -38,6 +37,7 @@ const (
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
+	nvlink       CollectorName = "nvlink"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -71,12 +71,11 @@ var factory = map[CollectorName]subsystemBuilder{
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
+	nvlink:       newNVLinkCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
 
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
