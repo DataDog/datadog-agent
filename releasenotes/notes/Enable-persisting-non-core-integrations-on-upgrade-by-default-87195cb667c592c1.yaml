@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Agent upgrades will now persist non-core integrations by default.
