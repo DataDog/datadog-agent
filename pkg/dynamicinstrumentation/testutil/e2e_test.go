@@ -125,10 +125,9 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 	require.NoError(t, err)
 
 	b := []byte{}
-	var buf *bytes.Buffer
+	buf := bytes.NewBuffer(b)
 
 	// Generate config for this function
-	buf = bytes.NewBuffer(b)
 	functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
 	t.Log("Instrumenting ", functionWithoutPackagePrefix)
 	result := &testResult{
