@@ -21,7 +21,7 @@ import (
 
 // cleanProtocolMapByProtocol cleans up the protocol map for a given protocol
 func cleanProtocolMapByProtocol(t *testing.T, tr *tracer.Tracer, protocol protocols.ProtocolType) {
-	selector := func(_ netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool {
+	selector := func(tuple netebpf.ConnTuple, wrapper netebpf.ProtocolStackWrapper) bool {
 		return wrapper.Stack.Application == uint8(protocol) || wrapper.Stack.Api == uint8(protocol) || wrapper.Stack.Encryption == uint8(protocol)
 	}
 	cleanProtocolMapBySelector(t, tr, selector)

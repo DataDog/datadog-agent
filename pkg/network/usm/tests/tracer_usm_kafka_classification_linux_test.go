@@ -28,6 +28,7 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 	return protocolClassificationAttributes{
 		name: name,
 		context: testContext{
+			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
 			serverAddress: serverAddress,
 			extras: map[string]interface{}{
@@ -125,6 +126,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 
 	kafkaTeardown := func(_ *testing.T, ctx testContext) {
+		cleanProtocolMapByProtocol(t, tr, protocols.Kafka)
 		for key, val := range ctx.extras {
 			if strings.HasSuffix(key, "client") {
 				client := val.(*kafka.Client)
@@ -169,6 +171,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				cleanProtocolMapByProtocol(t, tr, protocols.Kafka)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
@@ -251,9 +254,9 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	for produceVersion := kafka.MinSupportedProduceRequestApiVersion; produceVersion <= kafka.MaxSupportedProduceRequestApiVersion; produceVersion++ {
+	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
 		expectedProtocol := protocols.Kafka
-		if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
+		if produceVersion < kafka.ClassificationMinSupportedProduceRequestApiVersion || produceVersion > kafka.ClassificationMaxSupportedProduceRequestApiVersion {
 			expectedProtocol = protocols.Unknown
 		}
 
@@ -280,9 +283,9 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		tests = append(tests, currentTest)
 	}
 
-	for fetchVersion := kafka.MinSupportedFetchRequestApiVersion; fetchVersion <= kafka.MaxSupportedFetchRequestApiVersion; fetchVersion++ {
+	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
 		expectedProtocol := protocols.Kafka
-		if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
+		if fetchVersion < kafka.ClassificationMinSupportedFetchRequestApiVersion || fetchVersion > kafka.ClassificationMaxSupportedFetchRequestApiVersion {
 			expectedProtocol = protocols.Unknown
 		}
 
