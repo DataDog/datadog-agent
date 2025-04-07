@@ -9,6 +9,10 @@
     echo "To remove a Go version please run:"
     echo "gimme uninstall <version>"
 
+# Activates the python home venv where we install global packages
+.macos_python_home_venv:
+  - . $HOME/.venv/bin/activate
+
 .macos_setup_python:
   - |
     PY_VERSION_AGENT=$(cat .python-version)
@@ -20,11 +24,12 @@
       echo "Python versions are not compatible. Please update the python version on the runner (https://github.com/DataDog/ci-platform-machine-images/blob/main/packer/macos-ami/team/datadog-agent-ventura.pkr.hcl)."
       exit 1
     fi
+  - !reference [.macos_python_home_venv]
   - |
     # Install dda in the home venv
-    . $HOME/.venv/bin/activate
     python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     python3 -m dda self dep sync -f legacy-tasks
+    which dda
 
 .vault_login:
   # Point the CLI to our internal vault
