@@ -25,12 +25,12 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
@@ -71,12 +71,12 @@ type iaUSTEKSTestSuite struct {
 }
 
 func TestOTelAgentIAUSTEKS(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
