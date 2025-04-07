@@ -7,6 +7,7 @@ package installtest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -288,25 +289,32 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	_, err = vm.Execute(cmd)
 	s.Require().NoError(err, "should set owner to ddAgentUserIdentity")
 
+	logFilePath := filepath.Join(s.SessionOutputDir(), "upgrade.log")
+
 	// upgrade to the new version, should fail due to folder permissions
 	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithInstallLogFile(logFilePath),
 			windowsAgent.WithIntegrationsPersistence("1"),
 		)
-		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
+		s.Require().NoError(err, "should install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}
 
-	// TODO: we shouldn't have to start the agent manually after rollback
-	//       but the kitchen tests did too.
-	err = windowsCommon.StartService(vm, "DatadogAgent")
-	s.Require().NoError(err, "agent service should start after rollback")
-
 	// the previous version should be functional
-	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.upgradeAgentPackge.AgentVersion())
+
+	// check that there is an error in the logs
+	// Ensure that the log file contains the expected error message
+	logData, err := os.ReadFile(logFilePath)
+	s.Require().NoError(err)
+	// convert from utf-16 to utf-8
+	logData, err = windowsCommon.ConvertUTF16ToUTF8(logData)
+	s.Require().NoError(err)
+	// We don't use assert.Contains because it will print the very large logData on error
+	s.Assert().True(strings.Contains(string(logData), ".diff_python_installed_packages.txt is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation."))
 
 	// Ensure services are still installed
 	// NOTE: will need to update this if we add or remove services
