@@ -343,6 +343,8 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+
   if windows_signing_enabled?
     # Sign additional binaries from here.
     # We can't request signing from the respective components/software definitions
