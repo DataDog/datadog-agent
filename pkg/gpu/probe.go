@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -30,15 +29,13 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	gpuAttacherName    = GpuModuleName
-	gpuTelemetryModule = GpuModuleName
-
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
 	// This value must be multiplied by the single event size and the result will represent the heap memory pre-allocated in Go runtime
@@ -48,11 +45,6 @@ const (
 	defaultMapCleanerInterval  = 5 * time.Minute
 	defaultMapCleanerBatchSize = 100
 	defaultEventTTL            = defaultMapCleanerInterval
-)
-
-var (
-	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = 2 * os.Getpagesize()
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -92,9 +84,6 @@ type ProbeDependencies struct {
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
-	// NvmlLib is the NVML library interface
-	NvmlLib nvml.Interface
-
 	// ProcessMonitor is the process monitor interface
 	ProcessMonitor uprobes.ProcessMonitor
 
@@ -105,15 +94,8 @@ type ProbeDependencies struct {
 
 // NewProbeDependencies creates a new ProbeDependencies instance
 func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	nvmlLib := nvml.New()
-	ret := nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return ProbeDependencies{}, fmt.Errorf("unable to initialize NVML library: %w", ret)
-	}
-
 	return ProbeDependencies{
 		Telemetry:      telemetry,
-		NvmlLib:        nvmlLib,
 		ProcessMonitor: processMonitor,
 		WorkloadMeta:   workloadMeta,
 	}, nil
@@ -139,7 +121,7 @@ type probeTelemetry struct {
 }
 
 func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
-	subsystem := gpuTelemetryModule + "__probe"
+	subsystem := consts.GpuTelemetryModule + "__probe"
 
 	return &probeTelemetry{
 		sentEntries: tm.NewCounter(subsystem, "sent_entries", nil, "Number of GPU events sent to the agent"),
@@ -159,13 +141,16 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
-	attachCfg := getAttacherConfig(cfg)
-	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot, deps.WorkloadMeta, deps.Telemetry)
+	sysCtx, err := getSystemContext(
+		withProcRoot(cfg.ProcRoot),
+		withWorkloadMeta(deps.WorkloadMeta),
+		withTelemetry(deps.Telemetry),
+		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
+		withConfig(cfg),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
-
-	sysCtx.fatbinParsingEnabled = cfg.EnableFatbinParsing
 
 	p := &Probe{
 		cfg:       cfg,
@@ -198,7 +183,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(GpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	attachCfg := getAttacherConfig(cfg)
+	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -222,7 +208,7 @@ func (p *Probe) start() error {
 	if err := p.m.Start(); err != nil {
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
-	ddebpf.AddNameMappings(p.m.Manager, GpuModuleName)
+	ddebpf.AddNameMappings(p.m.Manager, consts.GpuModuleName)
 
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
@@ -234,7 +220,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(GpuModuleName)
+	ddebpf.ClearNameMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
@@ -330,7 +316,15 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	ringBufferSize := toPowerOf2(defaultRingBufferSize)
+	devCount := p.sysCtx.deviceCache.Count()
+	if devCount == 0 {
+		devCount = 1 // Don't let the buffer size be 0
+	}
+
+	// The activity of eBPF events will scale with the number of devices, unlike in other
+	// eBPF modules where the activity is bound to the number of CPUs.
+	numPages := p.cfg.RingBufferSizePagesPerDevice * devCount
+	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
@@ -397,7 +391,7 @@ func (p *Probe) setupMapCleaner() error {
 		return fmt.Errorf("error getting %s map: %w", cudaEventStreamMap, err)
 	}
 
-	p.mapCleanerEvents, err = ddebpf.NewMapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue](eventsMap, defaultMapCleanerBatchSize, cudaEventStreamMap, GpuModuleName)
+	p.mapCleanerEvents, err = ddebpf.NewMapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue](eventsMap, defaultMapCleanerBatchSize, cudaEventStreamMap, consts.GpuModuleName)
 	if err != nil {
 		return fmt.Errorf("error creating map cleaner: %w", err)
 	}

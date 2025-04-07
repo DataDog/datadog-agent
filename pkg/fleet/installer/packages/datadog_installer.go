@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	installerSymlink = "/usr/bin/datadog-installer"
 	installerUnit    = "datadog-installer.service"
 	installerUnitExp = "datadog-installer-exp.service"
 )
