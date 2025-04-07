@@ -34,11 +34,29 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
+    , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
+{
+    _pythonHome = (python_home && strlen(python_home) > 0) ? strdup(python_home) : strdup(_defaultPythonHome);
+    if (python_exe && strlen(python_exe) > 0) {
+        _pythonExe = strdup(python_exe);
+    }
+}
+
+Three::~Three()
+{
+    // For more information on why Py_Finalize() isn't called here please
+    // refer to the header file or the doxygen documentation.
+    PyEval_RestoreThread(_threadState);
+    Py_XDECREF(_baseClass);
+}
+
+bool Three::init()
 {
     // Pre-Initialize Python with UTF-8 mode
     PyStatus status;
@@ -60,8 +78,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     _config.install_signal_handlers = 1;
 
     // Configure Python home
-    const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    status = PyConfig_SetBytesString(&_config, &_config.home, home_path);
+    status = PyConfig_SetBytesString(&_config, &_config.home, _pythonHome);
     if (PyStatus_Exception(status)) {
         if (status.err_msg) {
             setError("Failed to set python home: " + std::string(status.err_msg));
@@ -71,8 +88,8 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     }
 
     // Configure Python executable
-    if (python_exe && strlen(python_exe) > 0) {
-        status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
+    if (_pythonExe) {
+        status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe);
         if (PyStatus_Exception(status)) {
             if (status.err_msg) {
                 setError("Failed to set executable path: " + std::string(status.err_msg));
@@ -80,7 +97,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
                 setError("Failed to set executable path");
             }
         }
-        status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
+        status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe);
         if (PyStatus_Exception(status)) {
             if (status.err_msg) {
                 setError("Failed to set program name: " + std::string(status.err_msg));
@@ -89,18 +106,6 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
             }
         }
     }
-}
-
-Three::~Three()
-{
-    // For more information on why Py_Finalize() isn't called here please
-    // refer to the header file or the doxygen documentation.
-    PyEval_RestoreThread(_threadState);
-    Py_XDECREF(_baseClass);
-}
-
-bool Three::init()
-{
     // add custom builtins init funcs to Python inittab, one by one
     // Unlike its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
@@ -112,7 +117,7 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    PyStatus status = Py_InitializeFromConfig(&_config);
+    status = Py_InitializeFromConfig(&_config);
     if (PyStatus_Exception(status)) {
         if (status.err_msg) {
             setError("Failed to initialize Python: " + std::string(status.err_msg));
