@@ -38,38 +38,52 @@ def update_needs_parent(needs, deps_to_keep, package_deps=None, package_deps_suf
 
     if package_deps is None:
         package_deps = []
-
     new_needs = []
-    for need in needs:
-        if isinstance(need, str):
-            if need in deps_to_keep:
-                new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
-            elif need in package_deps:
-                new_needs.append(
-                    {
-                        "pipeline": "$PARENT_PIPELINE_ID",
-                        "job": need + package_deps_suffix if not need.endswith(package_deps_suffix) else need,
-                    }
-                )
-            else:
-                continue
-        elif isinstance(need, dict):
-            if "job" in need and need["job"] in deps_to_keep:
-                new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
-            elif "job" in need and need["job"] in package_deps:
-                new_needs.append(
-                    {
-                        **need,
-                        "pipeline": "$PARENT_PIPELINE_ID",
-                        "job": need["job"] + package_deps_suffix
+    new_needs_package_deps_set = set()
+
+    def _update_needs_parent(needs):
+        for need in needs:
+            if isinstance(need, str):
+                if need in deps_to_keep:
+                    new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
+                elif need in package_deps:
+                    job_to_add = need + package_deps_suffix if not need.endswith(package_deps_suffix) else need
+                    if job_to_add in new_needs_package_deps_set:
+                        continue
+                    new_needs.append(
+                        {
+                            "pipeline": "$PARENT_PIPELINE_ID",
+                            "job": job_to_add,
+                        }
+                    )
+                    new_needs_package_deps_set.add(job_to_add)
+                else:
+                    continue
+            elif isinstance(need, dict):
+                if "job" in need and need["job"] in deps_to_keep:
+                    new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
+                elif "job" in need and need["job"] in package_deps:
+                    job_to_add = (
+                        need["job"] + package_deps_suffix
                         if not need["job"].endswith(package_deps_suffix)
-                        else need["job"],
-                    }
-                )
-            else:
-                continue
-        elif isinstance(need, list):
-            new_needs.extend(update_needs_parent(need, deps_to_keep, package_deps, package_deps_suffix))
+                        else need["job"]
+                    )
+                    if job_to_add in new_needs_package_deps_set:
+                        continue
+                    new_needs.append(
+                        {
+                            **need,
+                            "pipeline": "$PARENT_PIPELINE_ID",
+                            "job": job_to_add,
+                        }
+                    )
+                    new_needs_package_deps_set.add(job_to_add)
+                else:
+                    continue
+            elif isinstance(need, list):
+                _update_needs_parent(need)
+
+    _update_needs_parent(needs)
     return new_needs
 
 
