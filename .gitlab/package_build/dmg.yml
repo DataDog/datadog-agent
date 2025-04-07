@@ -97,13 +97,14 @@ include:
       # have an app notarized by Apple.
       echo "$CODESIGNING_CERT_BASE64" | base64 -d > codesigning_cert.p12
       echo "$INSTALLER_CERT_BASE64" | base64 -d > installer_cert.p12
-      ls -l *.p12
 
       # Import codesigning cert, only allow codesign to use it without confirmation
+      echo Importing codesigning cert
       security import codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
       rm -f codesigning_cert.p12
 
       # Import installer cert, only allow productbuild to use it without confirmation
+      echo Importing installer cert
       security import installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
       rm -f installer_cert.p12
 
@@ -203,9 +204,6 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     - set -eo pipefail
-
-    # TODO A: Remove
-    - rm -f ~/codesigning_cert.p12 ~/installer_cert.p12
 
     - !reference [.macos_setup_python]
 
