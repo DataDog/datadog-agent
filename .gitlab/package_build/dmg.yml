@@ -95,16 +95,17 @@ include:
       # - installer certificates, to sign the .pkg archive.
       # We use both, because having signed binaries & a signed installer is a prerequisite to
       # have an app notarized by Apple.
-      echo "$CODESIGNING_CERT_BASE64" | base64 -d > ~/codesigning_cert.p12
-      echo "$INSTALLER_CERT_BASE64" | base64 -d > ~/installer_cert.p12
+      echo "$CODESIGNING_CERT_BASE64" | base64 -d > codesigning_cert.p12
+      echo "$INSTALLER_CERT_BASE64" | base64 -d > installer_cert.p12
+      ls -l *.p12
 
       # Import codesigning cert, only allow codesign to use it without confirmation
-      security import ~/codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
-      rm -f ~/codesigning_cert.p12
+      security import codesigning_cert.p12 -f pkcs12 -P "$CODESIGNING_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/codesign"
+      rm -f codesigning_cert.p12
 
       # Import installer cert, only allow productbuild to use it without confirmation
-      security import ~/installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
-      rm -f ~/installer_cert.p12
+      security import installer_cert.p12 -f pkcs12 -P "$INSTALLER_CERT_PASSPHRASE" -k "build.keychain" -T "/usr/bin/productbuild"
+      rm -f installer_cert.p12
 
       # Update the key partition list
       # Since MacOS Sierra, this line is needed to "apply" the security import changes above
@@ -197,11 +198,14 @@ new-agent_dmg-x64-a7:
     # Destroy the keychain used to sign packages
     - |
       if [ "$SIGN" = true ]; then
-        security delete-keychain "build.keychain"
+        security delete-keychain "build.keychain" || true
       fi
     - sudo umount /Volumes/Agent
   script:
     - set -eo pipefail
+
+    # TODO A: Remove
+    - rm -f ~/codesigning_cert.p12 ~/installer_cert.p12
 
     - !reference [.macos_setup_python]
 
