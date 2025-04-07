@@ -8,7 +8,14 @@
 // Package kernel holds kernel related files
 package kernel
 
-// SupportCORE returns is CORE is supported (here it's not, since we are built without eBPF support)
+// SupportCORE returns is CORE is supported
+// here it's not, since we are built without eBPF support
 func (k *Version) SupportCORE() bool {
+	return false
+}
+
+// HasSKStorage returns true if the kernel supports SK_STORAGE maps
+// here it's not, since we are built without eBPF support
+func (k *Version) HasSKStorage() bool {
 	return false
 }
