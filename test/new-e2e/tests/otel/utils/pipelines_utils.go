@@ -319,7 +319,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		tags := getLogTags(s.T(), log)
+		tags := getLogTagsAndAttrs(s.T(), log)
 		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
@@ -503,7 +503,7 @@ func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
 	require.NoError(c, err)
 	require.NotEmpty(c, logs1)
 	log1 := logs1[0]
-	log1Tags := getLogTags(c, log1)
+	log1Tags := getLogTagsAndAttrs(c, log1)
 
 	logs2, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageMatching(log2Body))
 	require.NoError(c, err)
@@ -511,8 +511,8 @@ func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
 	matchedLog := false
 	for _, log2 := range logs2 {
 		// Find second log with the same trace id
-		log2Tags := getLogTags(c, log2)
-		if log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
+		log2Tags := getLogTagsAndAttrs(c, log2)
+		if log1Tags["message"] != log2Tags["message"] && log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
 			// Verify that logs with the same trace id are sent to the same backend
 			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
 			require.Equal(c, log1Tags["backend"], log2Tags["backend"])
@@ -807,7 +807,7 @@ func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 	return getTagMapFromSlice(t, splits), true
 }
 
-func getLogTags(t require.TestingT, log *aggregator.Log) map[string]string {
+func getLogTagsAndAttrs(t require.TestingT, log *aggregator.Log) map[string]string {
 	tags := getTagMapFromSlice(t, log.Tags)
 	attrs := make(map[string]interface{})
 	err := json.Unmarshal([]byte(log.Message), &attrs)
