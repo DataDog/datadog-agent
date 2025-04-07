@@ -36,6 +36,29 @@ include:
 #   before_script:
 #     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+
+# Activates the python home venv where we install global packages
+.macos_python_home_venv:
+  - . $HOME/.venv/bin/activate
+
+.macos_setup_python:
+  - |
+    PY_VERSION_AGENT=$(cat .python-version)
+    PY_VERSION_RUNNER=$(python3 --version | cut -d " " -f 2)
+    echo "Python version on the agent: $PY_VERSION_AGENT"
+    echo "Python version on the runner: $PY_VERSION_RUNNER"
+    # Verify that python versions are compatible
+    if [[ "$PY_VERSION_RUNNER" != "$PY_VERSION_AGENT"* ]]; then
+      echo "Python versions are not compatible. Please update the python version on the runner (https://github.com/DataDog/ci-platform-machine-images/blob/main/packer/macos-ami/team/datadog-agent-ventura.pkr.hcl)."
+      exit 1
+    fi
+  - !reference [.macos_python_home_venv]
+  - |
+    # Install dda in the home venv
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    python3 -m dda self dep sync -f legacy-tasks
+    which dda
+
 # Add certificates to temporary keychain
 .setup_signing:
   - |
@@ -177,6 +200,10 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     - set -eo pipefail
+
+    - !reference [.macos_setup_python]
+    - dda inv -- --list
+    - exit
 
     - brew uses gettext --installed || true
 
