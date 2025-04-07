@@ -388,8 +388,11 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	suite.Require().NoError(err)
 	suite.Require().Len(pod.Items, 1)
 
+	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
+
 	suite.Run("cluster-agent status", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "status"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
@@ -401,7 +404,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent status --json", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
@@ -415,7 +418,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
@@ -426,7 +429,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
 		suite.Contains(stdout, "agents reporting ===")
@@ -436,15 +439,13 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Log(stdout)
 		}
 	})
-	suite.Run("cluster-agent leaderelection", func() {
-		suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
-	})
 }
 
-func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) {
+func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 	ctx := context.Background()
+	var leaderPodName string
 
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+	success := suite.EventuallyWithTf(func(c *assert.CollectT) {
 		// find cluster agent pod, it could be either leader or follower
 		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
@@ -464,7 +465,6 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) {
 		blobMap, ok := blob.(map[string]interface{})
 		assert.Truef(c, ok, "Failed to assert blob as map[string]interface{}")
 
-		var leaderPodName string
 		// Check if the "leaderName" field exists
 		assert.Contains(c, blobMap, "leaderelection", "Field `leaderelection` not found in the JSON output")
 		assert.Contains(c, blobMap["leaderelection"], "leaderName", "Field `leaderelection.leaderName` not found in the JSON output")
@@ -487,6 +487,11 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) {
 			suite.T().Log(stdout)
 		}
 	}, 2*time.Minute, 10*time.Second, "Cluster agent leader election failed")
+
+	if !success {
+		return ""
+	}
+	return leaderPodName
 }
 
 func (suite *k8sSuite) TestNginx() {
