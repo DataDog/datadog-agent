@@ -11,7 +11,7 @@
     E2E_BRANCH_OSVERS: "ubuntu-24-04"
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
+    - agent_deb-x64-a7
 
 .new-e2e_ubuntu_a7_arm64:
   variables:
@@ -21,7 +21,7 @@
     E2E_BRANCH_OSVERS: "ubuntu-20-04"
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_arm64
+    - agent_deb-arm64-a7
 
 new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
   extends:

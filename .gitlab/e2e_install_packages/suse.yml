@@ -10,7 +10,7 @@
     E2E_BRANCH_OSVERS: "sles-15"
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_suse_rpm_testing_x64-a7
+    - agent_suse-x64-a7
 
 .new-e2e_suse_a7_arm64:
   variables:
@@ -20,7 +20,7 @@
     E2E_BRANCH_OSVERS: "sles-15"
   needs:
     - !reference [.needs_new_e2e_template]
-    - deploy_suse_rpm_testing_arm64-a7
+    - agent_suse-arm64-a7
 
 new-e2e-agent-platform-install-script-suse-a7-x86_64:
   extends:
