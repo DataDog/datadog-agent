@@ -231,9 +231,6 @@
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
-/cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
-/cmd/system-probe/config/adjust_usm.go  @DataDog/ebpf-platform @DataDog/universal-service-monitoring
-/cmd/system-probe/config/adjust_security.go  @DataDog/ebpf-platform @DataDog/agent-security
 /cmd/system-probe/modules/network_tracer*   @DataDog/Networks
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/container-intake
@@ -245,8 +242,6 @@
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
-/cmd/system-probe/api/client/client_windows.go    @DataDog/windows-kernel-integrations
-/cmd/system-probe/api/server/listener_windows.go    @DataDog/windows-kernel-integrations
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
@@ -480,6 +475,12 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-runtimes
+/pkg/system-probe/                      @DataDog/ebpf-platform
+/pkg/system-probe/api/client/client_windows.go      @DataDog/windows-kernel-integrations
+/pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-kernel-integrations
+/pkg/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
+/pkg/system-probe/config/adjust_usm.go  @DataDog/ebpf-platform @DataDog/universal-service-monitoring
+/pkg/system-probe/config/adjust_security.go  @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/tagset/                            @DataDog/agent-runtimes
 /pkg/util/                              @DataDog/agent-runtimes
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
@@ -630,6 +631,8 @@
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
 /tasks/release.py                       @DataDog/agent-delivery
+/tasks/release_metrics/                 @DataDog/agent-delivery
+/tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
@@ -642,6 +645,8 @@
 /test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
 /test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
+/test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
+/test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
