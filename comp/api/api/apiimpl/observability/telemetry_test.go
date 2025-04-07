@@ -59,22 +59,12 @@ func TestTelemetryMiddleware(t *testing.T) {
 			auth:      "mTLS",
 		},
 		{
-			method:   http.MethodHead,
-			path:     "/test/3",
-			code:     http.StatusNotFound,
-			duration: time.Second,
-			tlsConfig: func() *tls.Config {
-				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				defer server.Close()
-				cfg := &tls.Config{
-					InsecureSkipVerify: true,
-					Certificates:       []tls.Certificate{server.TLS.Certificates[0]},
-				}
-				return cfg
-			}(), // The client is providing a certificate different from the server, so it is not mTLS
-			auth: "token",
+			method:    http.MethodHead,
+			path:      "/test/3",
+			code:      http.StatusNotFound,
+			duration:  time.Second,
+			tlsConfig: at.GetTLSClientConfig(),
+			auth:      "mTLS",
 		},
 	}
 
@@ -174,4 +164,107 @@ func TestTelemetryMiddlewareTwice(t *testing.T) {
 	// is not created in the Middleware itself
 	_ = tmf.Middleware("test1")
 	_ = tmf.Middleware("test2")
+}
+
+func TestTelemetryMiddlewareAuthTag(t *testing.T) {
+	at := authtokenmock.New(t)
+
+	testCases := []struct {
+		name            string
+		serverTLSConfig *tls.Config
+		clientTLSConfig *tls.Config
+		auth            string
+	}{
+		{
+			name:            "secure server & secure client",
+			serverTLSConfig: at.GetTLSServerConfig(),
+			clientTLSConfig: at.GetTLSClientConfig(),
+			auth:            "mTLS",
+		},
+		{
+			name:            "secure server & insecure client",
+			serverTLSConfig: at.GetTLSServerConfig(),
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			auth: "token",
+		},
+		{
+			name:            "insecure server & secure client",
+			serverTLSConfig: nil,
+			clientTLSConfig: at.GetTLSClientConfig(),
+			auth:            "token",
+		},
+		{
+			name:            "insecure server & insecure client",
+			serverTLSConfig: nil,
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+			auth: "token",
+		},
+		{
+			name:            "secure server & secure client with different certificate",
+			serverTLSConfig: at.GetTLSServerConfig(),
+			clientTLSConfig: func() *tls.Config {
+				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				defer server.Close()
+				cfg := &tls.Config{
+					InsecureSkipVerify: true,
+					Certificates:       []tls.Certificate{server.TLS.Certificates[0]},
+				}
+				return cfg
+			}(),
+			auth: "token",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+			// Parse the certificate from the server TLS config if it exists
+			var cert *x509.Certificate
+			var err error
+			if tc.serverTLSConfig != nil {
+				cert, err = x509.ParseCertificate(tc.serverTLSConfig.Certificates[0].Certificate[0])
+				require.NoError(t, err)
+			}
+			tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
+			require.NoError(t, err)
+			telemetryHandler := tmf.Middleware("test")
+
+			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}
+
+			server := at.NewMockServer(telemetryHandler(tcHandler))
+
+			url := url.URL{
+				Scheme: "https",
+				Host:   server.Listener.Addr().String(),
+				Path:   "/",
+			}
+
+			req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+			require.NoError(t, err)
+
+			client := server.Client()
+			client.Transport.(*http.Transport).TLSClientConfig = tc.clientTLSConfig
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+
+			observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
+			require.NoError(t, err)
+
+			require.Len(t, observabilityMetric, 1)
+
+			metric := observabilityMetric[0]
+			labels := metric.Tags()
+			assert.Equal(t, tc.auth, labels["auth"])
+		})
+	}
 }

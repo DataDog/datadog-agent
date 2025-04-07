@@ -56,7 +56,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 
 			// We can assert that the auth is at least a token because it has been checked previously by the validateToken middleware
 			auth := "token"
-			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && th.cert.Equal(r.TLS.PeerCertificates[0]) {
+			if th.cert != nil && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && th.cert.Equal(r.TLS.PeerCertificates[0]) {
 				auth = "mTLS"
 			}
 
