@@ -905,8 +905,8 @@ func (c *ntmConfig) Object() model.Reader {
 	return c
 }
 
-// NewConfig returns a new Config object.
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+// NewNodeTreeConfig returns a new Config object.
+func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),

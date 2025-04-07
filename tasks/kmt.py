@@ -96,8 +96,8 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
-CLANG_PATH_CI = Path("/tmp/clang-bpf")
-LLC_PATH_CI = Path("/tmp/llc-bpf")
+CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
+LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task
@@ -348,7 +348,11 @@ def ls(_, distro=True, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
+    print("\nAll Available Images:")
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+
+    print("\nLocally Downloaded Images:")
+    print(tabulate(vmconfig.get_local_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task(
@@ -529,8 +533,15 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
 
     cc = get_compiler(ctx)
     target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
+    env = {
+        "GOARCH": arch.go_arch,
+        "CC": "\\$DD_CC_CROSS" if arch.is_cross_compiling() else "\\$DD_CC",
+        "CXX": "\\$DD_CXX_CROSS" if arch.is_cross_compiling() else "\\$DD_CXX",
+    }
+
+    env_str = " ".join(f"{key}={value}" for key, value in env.items())
     cc.exec(
-        f"cd {TOOLS_PATH} && GOARCH={arch.go_arch} go build -o {target_path} {GOTESTSUM}",
+        f"cd {TOOLS_PATH} && {env_str} go build -o {target_path} {GOTESTSUM}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -773,9 +784,6 @@ def _prepare(
     if not ci:
         cc = get_compiler(ctx)
 
-        if arch_obj.is_cross_compiling():
-            cc.ensure_ready_for_cross_compile()
-
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
@@ -901,7 +909,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    info("[+] Generating eBPF object files...")
+    setup_runtime_clang(ctx)
+    info(f"[+] Generating eBPF object files... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 
@@ -1320,11 +1329,8 @@ def build(
     cc = get_compiler(ctx)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1336,7 +1342,7 @@ def build(
 
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        err_msg = f"no alien VMs discovered from provided profile {alien_vms}."
     else:
         err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 

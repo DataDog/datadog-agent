@@ -1,7 +1,18 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex"],
+    "enabledManagers": ["custom.regex", "pre-commit"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+    "platformCommit": "enabled",
+    "packageRules": [
+      {
+        "matchDepNames": ["integrations-core"],
+        "schedule": ["* 2-6 * * 1,3"]
+      }
+    ],
+    "pre-commit": {
+      "enabled": true,
+      "fileMatch": [".pre-commit-config.yaml"]
+    },
     "customManagers" : [
       {
         "customType": "regex",

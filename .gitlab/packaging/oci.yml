@@ -47,7 +47,12 @@
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
+          INSTALLER_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-installer-*${ARCH}.tar.xz"
+          INSTALLER_INPUT_DIR="/tmp/input_installer_${ARCH}"
+          mkdir -p ${INSTALLER_INPUT_DIR}
+          echo "Extracting installer to temporary input dir $INSTALLER_INPUT_FILE -> $INSTALLER_INPUT_DIR"
+          tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
@@ -73,7 +78,7 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps"]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps", "installer-arm64-oci", "installer-amd64-oci"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
