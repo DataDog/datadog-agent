@@ -141,10 +141,24 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) (checkErr error) {
 				instanceConfig, err := c.setTraceID(strconv.FormatUint(span.GetTraceID(), 10), strconv.FormatUint(span.GetSpanID(), 10))
 				if err != nil {
 					log.Warnf("Failed to set trace ID for check %s: %v", c.ModuleName, err)
+					// Continue with original instance
 				} else {
+					// Store original instance config for reverting later
+					originalInstance := c.instanceConfig
 					cInstance := TrackedCString(instanceConfig)
 					defer C._free(unsafe.Pointer(cInstance))
-					instance = cInstance
+
+					// Set the new instance with trace ID
+					if C.set_instance(rtloader, c.instance, cInstance) != 0 {
+						// After the check runs, revert back to original instance
+						defer func() {
+							originalCInstance := TrackedCString(originalInstance)
+							defer C._free(unsafe.Pointer(originalCInstance))
+							if C.set_instance(rtloader, c.instance, originalCInstance) == 0 {
+								log.Warnf("Failed to revert instance for check %s", c.ModuleName)
+							}
+						}()
+					}
 				}
 			}
 		}
