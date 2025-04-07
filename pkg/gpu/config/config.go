@@ -10,10 +10,10 @@ import (
 	"errors"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // ErrNotSupported is the error returned if GPU monitoring is not supported on this platform
@@ -32,17 +32,23 @@ type Config struct {
 	ConfigureCgroupPerms bool
 	// EnableFatbinParsing indicates whether the probe should enable fatbin parsing.
 	EnableFatbinParsing bool
+	// KernelCacheQueueSize is the size of the kernel cache queue for parsing requests
+	KernelCacheQueueSize int
+	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
+	RingBufferSizePagesPerDevice int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	return &Config{
-		Config:                *ebpf.NewConfig(),
-		ScanProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
-		Enabled:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
-		ConfigureCgroupPerms:  spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
-		EnableFatbinParsing:   spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
+		Config:                       *ebpf.NewConfig(),
+		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
+		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
+		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
+		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
+		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
+		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
+		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
 	}
 }

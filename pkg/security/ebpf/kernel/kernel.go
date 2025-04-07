@@ -410,6 +410,12 @@ func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
 // HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
 // See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
 func (k *Version) HasBPFForEachMapElemHelper() bool {
+	// because of https://lore.kernel.org/bpf/20211231151018.3781550-1-houtao1@huawei.com/
+	// we need a kernel 5.17 or higher on arm64 to use the bpf_for_each_map_elem helper
+	if runtime.GOARCH == "arm64" && k.Code < Kernel5_17 {
+		return false
+	}
+
 	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
 		return true
 	}

@@ -14,11 +14,11 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // GetProcStats returns a set of process stats by querying system-probe

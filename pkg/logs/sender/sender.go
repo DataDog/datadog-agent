@@ -107,7 +107,8 @@ func NewSenderV2(
 
 	queues := make([]chan *message.Payload, queueCount)
 	for idx := range queueCount {
-		queues[idx] = make(chan *message.Payload, workersPerQueue+1)
+		// Payloads are large, so the buffer will only hold one per worker
+		queues[idx] = make(chan *message.Payload, workersPerQueue)
 		for range workersPerQueue {
 			worker := newWorker(
 				config,
