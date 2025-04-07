@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package sack
 
 import (
@@ -99,7 +101,7 @@ func (s *sackPacketGen) generateBufferV4(ttl uint8) (int, []byte, error) {
 	return 20, buf.Bytes(), nil
 }
 
-func (s *sackPacketGen) GenerateV4(ttl uint8) (*ipv4.Header, []byte, error) {
+func (s *sackPacketGen) generateV4(ttl uint8) (*ipv4.Header, []byte, error) {
 	headerLen, packet, err := s.generateBufferV4(ttl)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate buffer: %w", err)

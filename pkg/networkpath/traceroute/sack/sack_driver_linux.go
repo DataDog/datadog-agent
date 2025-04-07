@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package sack
 
 import (
@@ -26,16 +28,15 @@ import (
 )
 
 type sackDriver struct {
-	tcpConn     *ipv4.RawConn
-	icmpConn    *ipv4.RawConn
-	sendTimes   []time.Time
-	buffer      []byte
-	parser      *common.FrameParser
-	innerParser *common.FrameParser
-	localAddr   netip.Addr
-	localPort   uint16
-	params      Params
-	state       *sackTCPState
+	tcpConn   *ipv4.RawConn
+	icmpConn  *ipv4.RawConn
+	sendTimes []time.Time
+	buffer    []byte
+	parser    *common.FrameParser
+	localAddr netip.Addr
+	localPort uint16
+	params    Params
+	state     *sackTCPState
 }
 
 func makeRawConn(ctx context.Context, network string, localAddr netip.Addr) (*ipv4.RawConn, error) {
@@ -73,15 +74,14 @@ func newSackDriver(ctx context.Context, params Params, localAddr netip.Addr) (*s
 	}
 
 	retval := &sackDriver{
-		tcpConn:     tcpConn,
-		icmpConn:    icmpConn,
-		sendTimes:   make([]time.Time, params.ParallelParams.MaxTTL+1),
-		buffer:      make([]byte, 1024),
-		parser:      common.NewFrameParser(),
-		innerParser: common.NewFrameParser(),
-		localAddr:   localAddr,
-		localPort:   0, // to be set by ReadHandshake()
-		params:      params,
+		tcpConn:   tcpConn,
+		icmpConn:  icmpConn,
+		sendTimes: make([]time.Time, params.ParallelParams.MaxTTL+1),
+		buffer:    make([]byte, 1024),
+		parser:    common.NewFrameParser(),
+		localAddr: localAddr,
+		localPort: 0, // to be set by ReadHandshake()
+		params:    params,
 	}
 	return retval, nil
 }
@@ -117,7 +117,7 @@ func (s *sackDriver) SendProbe(ttl uint8) error {
 		state:  *s.state,
 	}
 	// TODO ipv6
-	header, packet, err := gen.GenerateV4(ttl)
+	header, packet, err := gen.generateV4(ttl)
 	if err != nil {
 		return fmt.Errorf("sackDriver failed to generate packet: %w", err)
 	}

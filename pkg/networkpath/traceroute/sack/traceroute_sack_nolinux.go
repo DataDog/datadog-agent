@@ -19,6 +19,6 @@ var errPlatformNotSupported = &NotSupportedError{
 }
 
 // RunSackTraceroute is not supported
-func RunSackTraceroute(ctx context.Context, p Params) (*common.Results, error) {
+func RunSackTraceroute(_ctx context.Context, _p Params) (*common.Results, error) {
 	return nil, errPlatformNotSupported
 }
