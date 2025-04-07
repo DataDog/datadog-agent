@@ -13,6 +13,7 @@ include:
   needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
+    # TODO A: Remove
     FAST_TESTS: false
   script:
     - !reference [.retrieve_linux_go_deps]
