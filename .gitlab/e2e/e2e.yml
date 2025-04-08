@@ -654,6 +654,7 @@ new-e2e-ndm-snmp:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/snmp
