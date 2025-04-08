@@ -7,8 +7,9 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 
 import (
 	"context"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"time"
+
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -60,7 +61,10 @@ func createDefaultConfig() component.Config {
 // defines the consumer type of the connector
 // we want to consume traces and export metrics therefore define nextConsumer as metrics, consumer is the next component in the pipeline
 func (f *factory) createTracesToMetricsConnector(_ context.Context, params connector.Settings, cfg component.Config, nextConsumer consumer.Metrics) (c connector.Traces, err error) {
-	metricsClient := metricsclient.InitializeMetricClient(params.MeterProvider, metricsclient.ConnectorSourceTag)
+	metricsClient, err := metricsclient.InitializeMetricClient(params.MeterProvider, metricsclient.ConnectorSourceTag)
+	if err != nil {
+		return nil, err
+	}
 
 	c, err = newTraceToMetricConnector(params.TelemetrySettings, cfg, nextConsumer, metricsClient, f.tagger)
 

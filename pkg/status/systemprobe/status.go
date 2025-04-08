@@ -13,9 +13,9 @@ import (
 	"io"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // GetStatus returns the expvar stats of the system probe

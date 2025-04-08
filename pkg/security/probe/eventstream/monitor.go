@@ -553,7 +553,8 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 		cpuStats[i] = NewEventStreamMapStats()
 	}
 
-	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
+	// cardinality, map, event_type, category
+	tags := []string{pbm.config.StatsTagsCardinality, "", "", ""}
 
 	// loop through the statistics buffers of each perf map
 	for perfMapName, statsMap := range pbm.perfBufferStatsMaps {
@@ -574,6 +575,7 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 			// retrieve event type from key
 			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
 			tags[2] = fmt.Sprintf("event_type:%s", evtType)
+			tags[3] = fmt.Sprintf("category:%s", model.GetEventTypeCategory(evtType.String()))
 
 			// loop over each cpu entry
 			for cpu, stats := range cpuStats {

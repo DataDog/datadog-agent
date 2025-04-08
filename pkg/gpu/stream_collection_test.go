@@ -10,18 +10,18 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
@@ -40,7 +40,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)

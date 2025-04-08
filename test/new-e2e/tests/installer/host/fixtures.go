@@ -114,11 +114,17 @@ func (h *Host) RemoveBrokenDockerConfig() {
 
 // SetupFakeAgentExp sets up a fake Agent experiment with configurable options.
 func (h *Host) SetupFakeAgentExp() FakeAgent {
+	// Install an experiment to create the experiment units
+	latestAgentImageVersion := "7.66.0-devel.git.227.c065f5f.pipeline.60653627-1" // TODO use latest prod image when 7.65 is out
+	h.Run(fmt.Sprintf(`sudo datadog-installer install-experiment "oci://install.datad0g.com/agent-package:%s"`, latestAgentImageVersion))
+	h.Run("sudo systemctl stop datadog-agent-exp.service")
+	h.Run("sudo systemctl start datadog-agent.service")
+
 	vBroken := "/opt/datadog-packages/datadog-agent/vbroken"
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/embedded/bin", vBroken))
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/bin/agent", vBroken))
 
-	h.remote.MustExecute("sudo rm -f /opt/datadog-packages/datadog-agent/experiment") // remove symlink if it exists, next command doesn't overwrite it
+	h.remote.MustExecute("sudo rm -f /opt/datadog-packages/datadog-agent/experiment")
 	h.remote.MustExecute(fmt.Sprintf("sudo ln -sf %s /opt/datadog-packages/datadog-agent/experiment", vBroken))
 	f := FakeAgent{
 		h:    h,

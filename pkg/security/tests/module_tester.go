@@ -28,12 +28,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
