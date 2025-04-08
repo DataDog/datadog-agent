@@ -12,6 +12,26 @@
     - !reference [.needs_new_e2e_template]
     - agent_rpm-x64-a7
 
+.new-e2e_centos_a7_x86_64_iot:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "centos-79,rhel-86"
+    E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
+    E2E_BRANCH_OSVERS: "centos-79"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - iot_agent_rpm-x64
+
+.new-e2e_centos_a7_x86_64_dogstatsd:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "centos-79,rhel-86"
+    E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
+    E2E_BRANCH_OSVERS: "centos-79"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - dogstatsd_rpm-x64
+
 .new-e2e_centos-fips_a7_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -21,6 +41,26 @@
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_rpm-x64-a7
+
+.new-e2e_centos_a7_x86_64_fips_iot:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "rhel-86-fips"
+    E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
+    E2E_BRANCH_OSVERS: "rhel-86-fips"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - iot_agent_rpm-x64
+
+.new-e2e_centos_a7_x86_64_fips_dogstatsd:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "rhel-86-fips"
+    E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
+    E2E_BRANCH_OSVERS: "rhel-86-fips"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - dogstatsd_rpm-x64
 
 .new-e2e_centos6_a7_x86_64:
   variables:
@@ -48,7 +88,7 @@ new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos_a7_x86_64
+    - .new-e2e_centos_a7_x86_64_iot
     - .new-e2e_agent_a7
   rules: !reference [.on_default_new_e2e_tests]
   variables:
@@ -59,7 +99,7 @@ new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos_a7_x86_64
+    - .new-e2e_centos_a7_x86_64_dogstatsd
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-dogstatsd
@@ -90,7 +130,7 @@ new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_a7_x86_64
+    - .new-e2e_centos-fips_a7_x86_64_iot
     - .new-e2e_agent_a7
   rules: !reference [.on_default_new_e2e_tests]
   variables:
@@ -101,7 +141,7 @@ new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_a7_x86_64
+    - .new-e2e_centos-fips_a7_x86_64_dogstatsd
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-dogstatsd
@@ -152,7 +192,7 @@ new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
     - .new-e2e_os_centos
-    - .new-e2e_centos_a7_x86_64
+    - .new-e2e_centos_a7_x86_64_iot
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-iot-agent
@@ -166,7 +206,7 @@ new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_a7_x86_64
+    - .new-e2e_centos-fips_a7_x86_64_iot
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-iot-agent
