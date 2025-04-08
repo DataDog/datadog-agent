@@ -124,7 +124,7 @@ include:
   - |
     # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     # TODO
-    export VERSION_CACHE_CONTENT="$(cat agent-version.cache)"
+    # export VERSION_CACHE_CONTENT="$(cat agent-version.cache)"
     # TODO: _omnibus_cache_key_files is not necessary
     # Copy files used for the Omnibus ruby deps cache key
     # This is to work around a limitation of GitHub Actions' `hashFiles()` function which requires
@@ -241,7 +241,7 @@ new-agent_dmg-x64-a7:
       export PYENV_ROOT="$HOME/.pyenv"
       [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
       eval "$(pyenv init -)"
-      eval "$(pyenv virtualenv-init)"
+      eval "$(pyenv virtualenv-init -)"
     # TODO: Update
     - echo Using python $PYTHON_VERSION
     - |
@@ -261,9 +261,8 @@ new-agent_dmg-x64-a7:
       echo "Using Python $PYTHON_VERSION..."
       which python
       # TODO A: Specific version
-      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0"
-      pyenv rehash
-      python3 -m dda self dep sync -f legacy-tasks
+      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
+      dda self dep sync -f legacy-tasks
       pyenv rehash
     - |
       echo Pyenv versions:
