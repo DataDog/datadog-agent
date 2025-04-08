@@ -233,24 +233,24 @@ new-agent_dmg-x64-a7:
   script:
     # Test if pyenv has invalid dependencies
     - brew install pyenv || true
-    - |
-      sudo find /usr  -name 'libintl*'
-      sudo find /opt  -name 'libintl*'
-    - |
-      export PYENV_ROOT="$HOME/.pyenv"
-      [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-      eval "$(pyenv init - zsh)"
-    - pyenv install 3.12.5
-    - |
-      sudo find /usr  -name 'libintl*'
-      sudo find /opt  -name 'libintl*'
-    - python --version
-    - which python
-    - |
-      echo Pyenv versions:
-      ls "$(pyenv root)/versions"
+    # - |
+    #   sudo find /usr  -name 'libintl*'
+    #   sudo find /opt  -name 'libintl*'
+    # - |
+    #   export PYENV_ROOT="$HOME/.pyenv"
+    #   [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+    #   eval "$(pyenv init - zsh)"
+    # - pyenv install 3.12.5
+    # - |
+    #   sudo find /usr  -name 'libintl*'
+    #   sudo find /opt  -name 'libintl*'
+    # - python --version
+    # - which python
+    # - |
+    #   echo Pyenv versions:
+    #   ls "$(pyenv root)/versions"
 
-    - exit 1
+    # - exit 1
 
 
     - set -eo pipefail
