@@ -245,7 +245,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	var processesKilled int64
 	var killedAt time.Time
 	killActionStatus := KillActionStatusError
-	now := time.Now()
+	now := time.Now() // get the current time now to make sure it precedes the any process exit time
 	for _, pid := range pids {
 		log.Debugf("requesting signal %s to be sent to %d", kill.Signal, pid)
 

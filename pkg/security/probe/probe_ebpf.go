@@ -2807,12 +2807,22 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
 				}
 
+				var errBPF error
 				if p.supportsBPFSendSignal {
-					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+					errBPF = p.killListMap.Put(uint32(pid), uint32(sig))
+					if errBPF != nil {
+						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, errBPF)
 					}
 				}
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				errKill := p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				// report the error only if both kill methods failed
+				if p.supportsBPFSendSignal && (errBPF == nil || errKill == nil) {
+					return nil
+				}
+
+				return multierror.Append(errKill, errBPF).ErrorOrNil()
 			}) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
