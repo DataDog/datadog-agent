@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -1074,7 +1075,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := newConfigChooseImpl("test")
+	c := create.NewConfig("test")
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1093,7 +1094,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := newConfigChooseImpl("datadog")
+	SystemProbe := create.NewConfig("datadog")
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1452,7 +1453,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := newConfigChooseImpl("datadog")
+	conf := create.NewConfig("datadog")
 
 	initCommonWithServerless(conf)
 
@@ -1468,7 +1469,7 @@ func TestServerlessConfigInit(t *testing.T) {
 
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := newConfigChooseImpl("datadog")
+	conf := create.NewConfig("datadog")
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
@@ -1491,7 +1492,7 @@ func TestDisableCoreAgent(t *testing.T) {
 
 func TestAPMObfuscationDefaultValue(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := newConfigChooseImpl("datadog")
+	conf := create.NewConfig("datadog")
 
 	InitConfig(conf)
 	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
@@ -1534,7 +1535,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := newConfigChooseImpl("test")
+	cfg := create.NewConfig("test")
 
 	data := `scrubber.additional_keys:
 - yet_another_key

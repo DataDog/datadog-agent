@@ -1062,6 +1062,18 @@ api_key:
   #
   # integrations_logs_total_usage: 100
 
+  ## @param kublet_api_client_read_timeout - duration - optional - default: 30s
+  ## @env DD_LOGS_CONFIG_KUBELET_API_CLIENT_READ_TIMEOUT - duration - optional - default: 30s
+  ## Configure the kubelet API client's timeout used while streaming logs.
+  #
+  # kublet_api_client_read_timeout: 30
+
+  ## @param k8s_container_use_kubelet_api - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API - boolean - optional - default: false
+  ## Enable container log collection via the kubelet API, typically used for EKS Fargate
+  #
+  # k8s_container_use_kubelet_api: false
+
   ## @param streaming - custom object - optional
   ## This section allows you to configure streaming logs via remote config.
   # streaming:

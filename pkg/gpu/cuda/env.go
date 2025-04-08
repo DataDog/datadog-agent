@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 )
 
 const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
@@ -36,7 +36,7 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 // devices whose index precedes the invalid index are visible to CUDA
 // applications." If an invalid index is found, an error is returned together
 // with the list of valid devices found up until that point.
-func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
+func GetVisibleDevicesForProcess(systemDevices []*ddnvml.Device, pid int, procfs string) ([]*ddnvml.Device, error) {
 	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, procfs, cudaVisibleDevicesEnvVar)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get env var %s for process %d: %w", cudaVisibleDevicesEnvVar, pid, err)
@@ -47,16 +47,16 @@ func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs st
 
 // getVisibleDevices processes the list of GPU devices according to the value of
 // the CUDA_VISIBLE_DEVICES environment variable
-func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) ([]nvml.Device, error) {
+func getVisibleDevices(systemDevices []*ddnvml.Device, cudaVisibleDevices string) ([]*ddnvml.Device, error) {
 	if cudaVisibleDevices == "" {
 		return systemDevices, nil
 	}
 
-	var filteredDevices []nvml.Device
+	var filteredDevices []*ddnvml.Device
 	visibleDevicesList := strings.Split(cudaVisibleDevices, ",")
 
 	for _, visibleDevice := range visibleDevicesList {
-		var matchingDevice nvml.Device
+		var matchingDevice *ddnvml.Device
 		var err error
 		switch {
 		case strings.HasPrefix(visibleDevice, "GPU-"):
@@ -84,22 +84,17 @@ func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) (
 // getDeviceWithMatchingUUIDPrefix returns the first device with a UUID that
 // matches the given prefix. If there are multiple devices with the same prefix
 // or the device is not found, an error is returned.
-func getDeviceWithMatchingUUIDPrefix(systemDevices []nvml.Device, uuidPrefix string) (nvml.Device, error) {
-	var matchingDevice nvml.Device
+func getDeviceWithMatchingUUIDPrefix(systemDevices []*ddnvml.Device, uuidPrefix string) (*ddnvml.Device, error) {
+	var matchingDevice *ddnvml.Device
 	var matchingDeviceUUID string
 
 	for _, device := range systemDevices {
-		uuid, ret := device.GetUUID()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("cannot get UUID for device: %s", nvml.ErrorString(ret))
-		}
-
-		if strings.HasPrefix(uuid, uuidPrefix) {
+		if strings.HasPrefix(device.UUID, uuidPrefix) {
 			if matchingDevice != nil {
-				return nil, fmt.Errorf("non-unique UUID prefix %s, found UUIDs %s and %s", uuidPrefix, matchingDeviceUUID, uuid)
+				return nil, fmt.Errorf("non-unique UUID prefix %s, found UUIDs %s and %s", uuidPrefix, matchingDeviceUUID, device.UUID)
 			}
 			matchingDevice = device
-			matchingDeviceUUID = uuid
+			matchingDeviceUUID = device.UUID
 		}
 	}
 
@@ -112,7 +107,7 @@ func getDeviceWithMatchingUUIDPrefix(systemDevices []nvml.Device, uuidPrefix str
 
 // getDeviceWithIndex returns the device with the given index. If the index is
 // out of range or the index is not a number, an error is returned.
-func getDeviceWithIndex(systemDevices []nvml.Device, visibleDevice string) (nvml.Device, error) {
+func getDeviceWithIndex(systemDevices []*ddnvml.Device, visibleDevice string) (*ddnvml.Device, error) {
 	idx, err := strconv.Atoi(visibleDevice)
 	if err != nil {
 		return nil, fmt.Errorf("invalid device index %s: %w", visibleDevice, err)

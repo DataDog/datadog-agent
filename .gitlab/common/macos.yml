@@ -38,8 +38,13 @@
   - export VAULT_ADDR=https://vault.us1.ddbuild.io
   - vault login -method=aws -no-print
 
+.aws_retry_config:
+  - export AWS_RETRY_MODE=standard
+  - export AWS_RETRY_MAX_ATTEMPTS=5
+
 .macos_gitlab:
   before_script:
+    - !reference [.aws_retry_config]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
