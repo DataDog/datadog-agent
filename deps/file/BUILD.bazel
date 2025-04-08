@@ -3,6 +3,9 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 configure_make(
     name = "file",
     lib_source = "@file//:all",
+    env = {
+        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib",
+    },
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libmagic.so",
