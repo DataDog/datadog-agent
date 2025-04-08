@@ -95,10 +95,10 @@ bool Three::init()
         {
         }
 
-        bool check(const PyStatus &status, std::string_view message)
+        bool check(const PyStatus &status, const std::string &message)
         {
             if (PyStatus_Exception(status)) {
-                context->setError(std::string(message) + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+                context->setError(message + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
                 return false;
             }
             return true;
@@ -162,11 +162,11 @@ bool Three::init()
                                                    { CONTAINERS_MODULE_NAME, PyInit_containers } } };
 
     // Register all builtin modules before initialization
-    if (const auto failedModule = std::find_if(builtins.begin(), builtins.end(),
-                                               [](const BuiltinModule &module) { return !module.registerModule(); });
-        failedModule != builtins.end()) {
-        setError("Failed to register builtin module: " + std::string(failedModule->name));
-        return false;
+    for (std::array<BuiltinModule, 7>::const_iterator it = builtins.begin(); it != builtins.end(); ++it) {
+        if (!it->registerModule()) {
+            setError("Failed to register builtin module: " + std::string(it->name));
+            return false;
+        }
     }
 
     // Initialize Python with our configuration
