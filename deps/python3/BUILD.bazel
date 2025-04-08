@@ -26,10 +26,10 @@ configure_make(
         "OPT": "-DNDEBUG -fwrapv",
         # manually provide some dependencies cflags/ldflags instead of
         # relying on pkg-config
-        "BZIP2_CFLAGS": "-I.",
+        "ZLIB_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
+        "ZLIB_LIBS": "-lz",
+        "BZIP2_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
         "BZIP2_LIBS": "-lbz2",
-        # "LIBFFI_CFLAGS": "-I.",
-        # "LIBFFI_LIBS": "-lffi",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
