@@ -16,7 +16,9 @@ load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
     "artifact_name_pattern",
+    "action_config",
     "tool_path",
+    "tool",
     "feature",
     "flag_set",
     "flag_group",
@@ -59,8 +61,15 @@ def _impl(ctx):
         ],
     )
 
+    def path_to_tool(tool):
+        return "{}/bin/{}-{}".format(TOOLCHAIN_PATH, TRIPLET, tool)
+
     tools = ["ar", "cpp", "gcc", "g++", "gcov", "ld", "nm", "objdump", "strip"]
-    tools_path = [tool_path(name = t, path = "{}/bin/{}-{}".format(TOOLCHAIN_PATH, TRIPLET, t)) for t in tools]
+    tools_path = [tool_path(name = tool, path = path_to_tool(tool)) for tool in tools]
+
+    gpp_tool = tool(
+        path = path_to_tool("g++"),
+    )
 
     return [
         cc_common.create_cc_toolchain_config_info(
@@ -71,6 +80,23 @@ def _impl(ctx):
             compiler = "gcc",
             abi_version = "gcc-" + GCC_VERSION,
             abi_libc_version = "nothing",
+            action_configs = [
+                action_config(
+                    action_name = ACTION_NAMES.cpp_compile,
+                    enabled = True,
+                    tools = [gpp_tool],
+                ),
+                action_config(
+                    action_name = ACTION_NAMES.cpp_link_executable,
+                    enabled = True,
+                    tools = [gpp_tool],
+                ),
+                action_config(
+                    action_name = ACTION_NAMES.cpp_link_dynamic_library,
+                    enabled = True,
+                    tools = [gpp_tool],
+                ),
+            ],
             features = [
                 pic_flags,
             ],
