@@ -75,7 +75,7 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 # Issues Fixed:
 # 	1.	Dependency Mismatch:
 # 	  -	connector/datadogconnector/go.mod does not reference the latest version of exporter/datadogexporter.
-# 	  -	This adjustment is necessary until opentelemetry-collector-contrib v0.121.0 is officially released.
+# 	  -	This adjustment is necessary until opentelemetry-collector-contrib v0.122.1 is officially released.
 # 	2.	Compatibility Issue:
 # 	  -	opentelemetry-collector-contrib fails to compile due to recent changes in the Datadog Agent.
 # 	  -	The pkgconfigmodel package was renamed to viperconfig, breaking compatibility with the latest updates.
@@ -85,7 +85,7 @@ echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datad
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
-OCB_VERSION="0.121.0"
+OCB_VERSION="0.122.1"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" \
 	go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv -v "$(go env GOPATH)/bin/builder" "$WORK_DIR/ocb"
@@ -128,6 +128,7 @@ required_patterns=(
 	'health_check/dd-autoconfigured'
 	'pprof/dd-autoconfigured'
 	'zpages/dd-autoconfigured'
+	'infraattributes'
 )
 
 if ! "$WORK_DIR/retry.sh" curl -k https://localhost:7777 >flare-info.log 2>&1; then

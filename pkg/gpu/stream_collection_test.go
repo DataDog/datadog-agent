@@ -12,16 +12,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)

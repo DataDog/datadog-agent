@@ -94,26 +94,23 @@ func (s *testInstallScriptSuite) mustInstallScriptVersion(versionPredicate strin
 func (s *testInstallScriptSuite) installPrevious() {
 	s.mustInstallScriptVersion(
 		s.StableAgentVersion().Version(),
-		// TODO: switch to prod stable entry when available
-		installerwindows.WithPipeline("59254108"),
-		installerwindows.WithDevEnvOverrides("PREVIOUS_AGENT"),
+		installerwindows.WithPackage(s.StableAgentVersion().OCIPackage()),
 	)
 }
 
 func (s *testInstallScriptSuite) installCurrent() {
 	s.mustInstallScriptVersion(
-		s.CurrentAgentVersion().GetNumberAndPre(),
-		installerwindows.WithPipeline(s.Env().Environment.PipelineID()),
-		installerwindows.WithDevEnvOverrides("CURRENT_AGENT"),
+		s.CurrentAgentVersion().Version(),
+		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 }
 
 func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 	s.MustStartExperimentCurrentVersion()
 
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().GetNumberAndPre())
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
 
 func (s *testInstallScriptSuite) installOldInstallerAndAgent() {

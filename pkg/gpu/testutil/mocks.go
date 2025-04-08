@@ -60,6 +60,9 @@ var DefaultGPUComputeCapMajor = 7
 // DefaultGPUComputeCapMinor is the minor number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMinor = 5
 
+// DefaultSMVersion is the SM version for the default device returned by the mock
+var DefaultSMVersion = uint32(DefaultGPUComputeCapMajor*10 + DefaultGPUComputeCapMinor)
+
 // DefaultGPUArch is the architecture for the default device returned by the mock
 var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 

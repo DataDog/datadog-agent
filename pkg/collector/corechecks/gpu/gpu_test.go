@@ -51,7 +51,6 @@ func TestProcessSysprobeStats(t *testing.T) {
 			return testutil.GetDeviceMock(index), nvml.SUCCESS
 		},
 	}
-	check.nvmlLib = nvmlMock
 
 	// Set device cache mock
 	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)

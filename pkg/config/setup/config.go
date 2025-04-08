@@ -26,12 +26,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -251,33 +249,11 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func newConfigChooseImpl(name string) pkgconfigmodel.Config {
-	// Configure Datadog global configuration
-	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
-	// Possible values for DD_CONF_NODETREEMODEL:
-	// - "enable":    Use the nodetreemodel for the config, instead of viper
-	// - "tee":       Construct both viper and nodetreemodel. Write to both, only read from viper
-	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
-	//                nodetreemodel internals
-	// - other:       Use viper for the config
-	var cfg pkgconfigmodel.Config
-	if envvar == "enable" {
-		cfg = nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if envvar == "tee" {
-		viperImpl := viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
-		nodetreeImpl := nodetreemodel.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-		cfg = teeconfig.NewTeeConfig(viperImpl, nodetreeImpl)
-	} else {
-		cfg = viperconfig.NewConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	}
-	return cfg
-}
-
 func init() {
 	osinit()
 
-	datadog = newConfigChooseImpl("datadog")
-	systemProbe = newConfigChooseImpl("system-probe")
+	datadog = create.NewConfig("datadog")
+	systemProbe = create.NewConfig("system-probe")
 
 	// Configuration defaults
 	initConfig()
@@ -1563,6 +1539,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// Tail a container's logs by querying the kubelet's API
+	config.BindEnvAndSetDefault("logs_config.k8s_container_use_kubelet_api", false)
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
@@ -1581,6 +1559,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// This field lets you increase the read timeout to prevent the client from
 	// timing out too early in such a situation. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
+	// Configurable API client timeout while communicating with the kubelet to stream logs. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	// DEPRECATED in favor of `logs_config.force_use_http`.
