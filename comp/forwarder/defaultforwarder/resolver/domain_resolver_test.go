@@ -6,11 +6,18 @@
 package resolver
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
+
+// Makes a key exactly 32 chars long
+func makeKey(suffix string) string {
+	return strings.Repeat("0", 32-len(suffix)) + suffix
+}
 
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
 	// Note key2 exists twice in the list.
@@ -21,32 +28,40 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 
 	resolver := NewSingleDomainResolver("example.com", apiKeys)
 
-	assert.Equal(t, resolver.dedupedAPIKeys, []string{"key1", "key2"})
+	assert.Equal(t, resolver.dedupedAPIKeys,
+		[]string{"key1", "key2"})
 }
 
 func TestSingleDomainResolverSetApiKeysSimple(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", "key1", "key2"),
-		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
+		utils.NewAPIKeys("additional_endpoints", makeKey("key1"), makeKey("key2")),
+		utils.NewAPIKeys("multi_region_failover.api_key", makeKey("key2")),
 	}
 
 	resolver := NewSingleDomainResolver("example.com", apiKeys)
 
-	removed, added := resolver.SetAPIKeys([]string{"key1", "key3"})
+	removed, added := resolver.SetAPIKeys([]string{makeKey("key1"), makeKey("key3")})
 
-	assert.Equal(t, []string{"key2"}, removed)
-	assert.Equal(t, []string{"key3"}, added)
+	assert.Equal(t, []string{scrubber.HideKeyExceptLastFiveChars(makeKey("key2"))}, removed)
+	assert.Equal(t, []string{scrubber.HideKeyExceptLastFiveChars(makeKey("key3"))}, added)
 }
 
 func TestSingleDomainResolverSetApiKeysMany(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3", "key4", "key5", "key6"),
+		utils.NewAPIKeys("additional_endpoints", makeKey("key1"), makeKey("key2"), makeKey("key3"), makeKey("key4"), makeKey("key5"), makeKey("key6")),
 	}
 
 	resolver := NewSingleDomainResolver("example.com", apiKeys)
 
-	removed, added := resolver.SetAPIKeys([]string{"key3", "lock2", "key1", "lock4", "key5", "key6"})
+	removed, added := resolver.SetAPIKeys([]string{makeKey("key3"), makeKey("lock2"), makeKey("key1"), makeKey("lock4"), makeKey("key5"), makeKey("key6")})
 
-	assert.Equal(t, []string{"key2", "key4"}, removed)
-	assert.Equal(t, []string{"lock2", "lock4"}, added)
+	assert.Equal(t, []string{
+		scrubber.HideKeyExceptLastFiveChars(makeKey("key2")),
+		scrubber.HideKeyExceptLastFiveChars(makeKey("key4")),
+	}, removed)
+
+	assert.Equal(t, []string{
+		scrubber.HideKeyExceptLastFiveChars(makeKey("lock2")),
+		scrubber.HideKeyExceptLastFiveChars(makeKey("lock4")),
+	}, added)
 }
