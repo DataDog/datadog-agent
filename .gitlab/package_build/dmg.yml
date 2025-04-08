@@ -247,8 +247,6 @@ new-agent_dmg-x64-a7:
     - |
       VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
       VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
-      # TODO
-      pyenv uninstall "$PYTHON_VERSION" || true
       # Check if the virtual environment directory exists
       if [ ! -d "$VENV_PATH" ]; then
         echo "Creating virtual environment '$VENV_NAME'..."
@@ -258,9 +256,8 @@ new-agent_dmg-x64-a7:
       fi
     - |
       pyenv activate $VENV_NAME
-      echo "Using Python $PYTHON_VERSION..."
-      which python
-      # TODO A: Specific version
+      echo "Using Python $PYTHON_VERSION"
+      # TODO A: Specific version (.dda/version)
       python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
       dda self dep sync -f legacy-tasks
       pyenv rehash
