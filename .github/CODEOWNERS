@@ -715,3 +715,12 @@
 
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
+
+# This is kept last to take the most precedence while we work on
+# the migration, but this should likely be moved up once done.
+# The main intent for now is to avoid requesting reviews from lots of
+# teams everytime we change something that's only related to bazel.
+
+# Bazel build related files
+*.bzl                                    @DataDog/agent-delivery
+*.bazel                                  @DataDog/agent-delivery
