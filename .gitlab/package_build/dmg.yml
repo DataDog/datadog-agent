@@ -56,8 +56,8 @@ include:
   - |
     # Install dda in the home venv
     # TODO A: Merge with main
-    # python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0"
+    # python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
     python3 -m dda self dep sync -f legacy-tasks
     which dda
 
@@ -194,7 +194,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # TODO
   needs: []
   # needs:
