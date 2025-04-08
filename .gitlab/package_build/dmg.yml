@@ -199,7 +199,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # TODO
   needs: []
   # needs:
@@ -234,11 +234,19 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
+    # Try xcode 14.3.1
+    - set -e
+    - cd ~
+    - version=14.3.1
+    - aws s3 cp "s3://binaries-ddbuild-io-prod/macos/xcode/Xcode_${version}.xip" "Xcode_${version}.xip"
+    - xcodes install "${version}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${version}.xip"
+    - xcodes select "${version}"
+    - sudo xcodebuild -license accept
+    - sudo xcodebuild -runFirstLaunch
+
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
 
-    # TODO: Try with 14.3.1
-    - ls /Applications
 
     - set -eo pipefail
 
@@ -286,9 +294,7 @@ new-agent_dmg-x64-a7:
 
     - |
       # Clean up previous builds
-      # TODO: Verify
-      ls /omnibus || true
-      sudo bash -c "rm -rf /var/cache/omnibus/src/* /omnibus/Gemfile.lock" || true
+      sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
 
       # Set bundler install path to cached folder
       pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
