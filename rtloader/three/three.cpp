@@ -58,35 +58,6 @@ Three::~Three()
 
 bool Three::init()
 {
-    class PythonConfig
-    {
-    public:
-        explicit PythonConfig()
-        {
-            PyConfig_InitIsolatedConfig(&config);
-        }
-        ~PythonConfig()
-        {
-            PyConfig_Clear(&config);
-        }
-
-        // Prevent copying
-        PythonConfig(const PythonConfig &) = delete;
-        PythonConfig &operator=(const PythonConfig &) = delete;
-
-        PyConfig *operator->()
-        {
-            return &config;
-        }
-        const PyConfig *operator->() const
-        {
-            return &config;
-        }
-
-    private:
-        PyConfig config;
-    };
-
     class StatusHandler
     {
     public:
@@ -121,23 +92,25 @@ bool Three::init()
     }
 
     // Configure Python environment
-    PythonConfig config;
     StatusHandler status(this);
 
-    config->install_signal_handlers = 1;
+    // Initialize the configuration with default values
+    PyConfig_InitIsolatedConfig(&_config);
+    _config.install_signal_handlers = 1;
 
     // Set Python home
-    if (!status.check(PyConfig_SetBytesString(config.operator->(), &config->home, _pythonHome),
-                      "Failed to set python home")) {
+    if (!status.check(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome), "Failed to set python home")) {
+        PyConfig_Clear(&_config);
         return false;
     }
 
     // Configure Python executable if provided
     if (_pythonExe) {
-        if (!status.check(PyConfig_SetBytesString(config.operator->(), &config->executable, _pythonExe),
+        if (!status.check(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe),
                           "Failed to set executable path")
-            || !status.check(PyConfig_SetBytesString(config.operator->(), &config->program_name, _pythonExe),
+            || !status.check(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe),
                              "Failed to set program name")) {
+            PyConfig_Clear(&_config);
             return false;
         }
     }
@@ -171,9 +144,13 @@ bool Three::init()
     }
 
     // Initialize Python with our configuration
-    if (!status.check(Py_InitializeFromConfig(config.operator->()), "Failed to initialize Python")) {
+    if (!status.check(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
+        PyConfig_Clear(&_config);
         return false;
     }
+
+    // Clean up the configuration
+    PyConfig_Clear(&_config);
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
