@@ -122,7 +122,7 @@ include:
 
 .macos_setup_cache:
   - |
-    $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+    # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     # TODO
     export VERSION_CACHE_CONTENT="$(cat agent-version.cache)"
     # TODO: _omnibus_cache_key_files is not necessary
@@ -233,29 +233,46 @@ new-agent_dmg-x64-a7:
   script:
     # Test if pyenv has invalid dependencies
     - brew install pyenv || true
-    # - |
-    #   sudo find /usr  -name 'libintl*'
-    #   sudo find /opt  -name 'libintl*'
-    # - |
-    #   export PYENV_ROOT="$HOME/.pyenv"
-    #   [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-    #   eval "$(pyenv init - zsh)"
-    # - pyenv install 3.12.5
-    # - |
-    #   sudo find /usr  -name 'libintl*'
-    #   sudo find /opt  -name 'libintl*'
-    # - python --version
-    # - which python
-    # - |
-    #   echo Pyenv versions:
-    #   ls "$(pyenv root)/versions"
+    - |
+      sudo find /usr  -name 'libintl*'
+      sudo find /opt  -name 'libintl*'
+    - |
+      export PYENV_ROOT="$HOME/.pyenv"
+      [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+      eval "$(pyenv init - zsh)"
+    - PYTHON_VERSION=3.12.6
+    - pyenv install $PYTHON_VERSION || true
+    - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+    - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+    - echo "Using Python $PYTHON_VERSION..."
+    - |
+      # Check if the virtual environment directory exists
+      if [ ! -d "$VENV_PATH" ]; then
+        echo "Creating virtual environment '$VENV_NAME'..."
+        pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+      else
+        echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
+      fi
+    - pyenv activate $VENV_NAME
+    - which python
+    - python --version
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.0.5"
+    - python3 -m dda self dep sync -f legacy-tasks
+    - pyenv rehash
+    - |
+      sudo find /usr  -name 'libintl*'
+      sudo find /opt  -name 'libintl*'
+    - |
+      echo Pyenv versions:
+      ls "$(pyenv root)/versions"
 
     # - exit 1
 
 
     - set -eo pipefail
 
-    - !reference [.macos_setup_python]
+    # TODO : Remove
+    # - !reference [.macos_setup_python]
 
     - brew uses gettext --installed || true
 
