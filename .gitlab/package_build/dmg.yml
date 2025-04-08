@@ -136,17 +136,11 @@ include:
     cat release.json
     echo Omnibus Gemfile
     cat omnibus/Gemfile
-  # Setup artifactory cache
   - |
-    # export ARTIFACTORY_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY bearer-token) || exit $?; export ARTIFACTORY_TOKEN
-    # export ARTIFACTORY_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_ARTIFACTORY user) || exit $?; export ARTIFACTORY_USERNAME
-    # TODO: In home?
     export GOMODCACHE=~/gomodcache
     sudo rm -rf $GOMODCACHE
     rm -rf $GOMODCACHE
     mkdir -p $GOMODCACHE
-    # if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
-    # if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
 
 
 .macos_do_build:
@@ -223,13 +217,8 @@ new-agent_dmg-x64-a7:
     # SIGN: true
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
-    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
-    USE_CACHING_PROXY_RUBY: true
-    USE_CACHING_PROXY_PYTHON: true
-    ARTIFACTORY_URL: datadog.jfrog.io
-    ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
-    ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
+    # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    # S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
