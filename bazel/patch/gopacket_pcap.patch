@@ -1,0 +1,12 @@
+--- a/pcap/BUILD.bazel	2025-04-08 08:29:57.287355909 +0200
++++ b/pcap/BUILD.bazel	2025-04-08 09:11:29.066572849 +0200
+@@ -10,6 +10,9 @@
+         "pcap_unix.go",
+         "pcap_windows.go",
+     ],
++    cdeps = [
++        "@@//deps/pcap",
++    ],
+     cgo = True,
+     clinkopts = select({
+         "@io_bazel_rules_go//go/platform:android": [

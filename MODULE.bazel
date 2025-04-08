@@ -141,6 +141,14 @@ go_deps.module_override(
     path = "github.com/godror/godror",
 )
 
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "bazel/patch/gopacket_pcap.patch",
+    ],
+    path = "github.com/google/gopacket",
+)
+
 # circl's structure isn't supported by gazelle and leads to compilation error on amd64
 # https://github.com/bazel-contrib/rules_go/issues/3799#issuecomment-1880035642
 go_deps.module_override(
