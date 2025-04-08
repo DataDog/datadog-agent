@@ -43,24 +43,24 @@ type inner struct {
 	E string
 }
 
-type interface_complexityA struct {
+type interfaceComplexityA struct {
 	b int
-	c interface_complexityB
+	c interfaceComplexityB
 }
 
-type interface_complexityB struct {
+type interfaceComplexityB struct {
 	d int
 	e error
-	f interface_complexityC
+	f interfaceComplexityC
 }
 
-type interface_complexityC struct {
+type interfaceComplexityC struct {
 	g int
 }
 
 //go:noinline
 //nolint:all
-func test_interface_complexity(a interface_complexityA) {}
+func test_interface_complexity(a interfaceComplexityA) {}
 
 //go:noinline
 //nolint:all
@@ -130,12 +130,12 @@ func ExecuteComplexFuncs() {
 	circ.t = &circ
 	test_circular_type(circ)
 
-	test_interface_complexity(interface_complexityA{
+	test_interface_complexity(interfaceComplexityA{
 		b: 1,
-		c: interface_complexityB{
+		c: interfaceComplexityB{
 			d: 2,
 			e: errors.New("three"),
-			f: interface_complexityC{
+			f: interfaceComplexityC{
 				g: 4,
 			},
 		},

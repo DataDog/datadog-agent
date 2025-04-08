@@ -1054,12 +1054,12 @@ var interfaceCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_interface_complexity": []CapturedValueMapWithOptions{
 		{
 			CapturedValueMap: map[string]*ditypes.CapturedValue{
-				"a": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interface_complexityA", Fields: fieldMap{
+				"a": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityA", Fields: fieldMap{
 					"b": capturedValue("int", "1"),
-					"c": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interface_complexityB", Fields: fieldMap{
+					"c": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityB", Fields: fieldMap{
 						"d": capturedValue("int", "2"),
 						"e": {Type: "runtime.iface", Value: nil, NotCapturedReason: "unsupported"},
-						"f": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interface_complexityC", Fields: fieldMap{
+						"f": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityC", Fields: fieldMap{
 							"g": capturedValue("int", "4"),
 						}},
 					}},
