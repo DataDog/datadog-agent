@@ -49,15 +49,15 @@ cmake(
         "PKG_CONFIG_PATH": "$$EXT_BUILD_DEPS/librpm/lib/pkgconfig",
     },
     lib_source = "@openscap//:all",
+    out_binaries = [
+        "oscap",
+    ],
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libopenscap.so",
             "libopenscap_sce.so",
         ],
     }),
-    out_binaries = [
-        "oscap",
-    ],
     visibility = ["//visibility:public"],
     deps = [
         "//deps/dbus",
