@@ -1,0 +1,26 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "pcap",
+    configure_options = [
+        "--disable-largefile",
+        "--disable-instrument-functions",
+        "--disable-remote",
+        "--disable-usb",
+        "--disable-netmap",
+        "--disable-bluetooth",
+        "--disable-dbus",
+        "--disable-rdma",
+        "--disable-static",
+    ],
+    lib_source = "@pcap//:all",
+    out_data_dirs = [
+        "lib/pkgconfig",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libpcap.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

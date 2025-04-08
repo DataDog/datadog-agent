@@ -406,3 +406,13 @@ http_archive(
     strip_prefix = "libtool-{0}".format(LIBTOOL_VERSION),
     url = "https://ftpmirror.gnu.org/libtool/libtool-{0}.tar.gz".format(LIBTOOL_VERSION),
 )
+
+LIBPCAP_VERSION = "1.10.5"
+
+http_archive(
+    name = "pcap",
+    build_file_content = all_content,
+    sha256 = "84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925",
+    strip_prefix = "libpcap-{0}".format(LIBPCAP_VERSION),
+    url = "https://www.tcpdump.org/release/libpcap-{0}.tar.xz".format(LIBPCAP_VERSION),
+)
