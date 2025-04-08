@@ -46,49 +46,49 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		case 2:
-			tp.ContainerID, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.ContainerIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload containerID")
 				return
 			}
 		case 3:
-			tp.LanguageName, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.LanguageNameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload languageName")
 				return
 			}
 		case 4:
-			tp.LanguageVersion, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.LanguageVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload languageVersion")
 				return
 			}
 		case 5:
-			tp.TracerVersion, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.TracerVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload tracerVersion")
 				return
 			}
 		case 6:
-			tp.RuntimeID, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.RuntimeIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload runtimeID")
 				return
 			}
 		case 7:
-			tp.Env, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.EnvRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload env")
 				return
 			}
 		case 8:
-			tp.Hostname, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.HostnameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload hostname")
 				return
 			}
 		case 9:
-			tp.AppVersion, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.AppVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload appVersion")
 				return
@@ -203,7 +203,7 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 2:
-			tc.Origin, o, err = UnmarshalStreamingString(o, tc.Strings)
+			tc.OriginRef, o, err = UnmarshalStreamingString(o, tc.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read trace chunk origin")
 				return
@@ -233,7 +233,7 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 7:
-			tc.DecisionMaker, o, err = UnmarshalStreamingString(o, tc.Strings)
+			tc.DecisionMakerRef, o, err = UnmarshalStreamingString(o, tc.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read trace chunk decisionMaker")
 				return

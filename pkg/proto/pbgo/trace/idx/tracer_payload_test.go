@@ -47,15 +47,15 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		expectedStrings := []string{"", "cidcid", "go", "1.24", "v11.24", "runtime-id", "env", "hostname", "appver"}
 
 		expectedTP := &InternalTracerPayload{
-			Strings:         tp.Strings, // We will assert on this separately for improved readability here
-			ContainerID:     1,
-			LanguageName:    2,
-			LanguageVersion: 3,
-			TracerVersion:   4,
-			RuntimeID:       5,
-			Env:             6,
-			Hostname:        7,
-			AppVersion:      8,
+			Strings:            tp.Strings, // We will assert on this separately for improved readability here
+			ContainerIDRef:     1,
+			LanguageNameRef:    2,
+			LanguageVersionRef: 3,
+			TracerVersionRef:   4,
+			RuntimeIDRef:       5,
+			EnvRef:             6,
+			HostnameRef:        7,
+			AppVersionRef:      8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -86,15 +86,15 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		assert.Len(t, o, 0)
 
 		expectedTP := &InternalTracerPayload{
-			Strings:         tp.Strings, // We will assert on this separately for improved readability here
-			ContainerID:     1,
-			LanguageName:    2,
-			LanguageVersion: 3,
-			TracerVersion:   4,
-			RuntimeID:       5,
-			Env:             6,
-			Hostname:        7,
-			AppVersion:      8,
+			Strings:            tp.Strings, // We will assert on this separately for improved readability here
+			ContainerIDRef:     1,
+			LanguageNameRef:    2,
+			LanguageVersionRef: 3,
+			TracerVersionRef:   4,
+			RuntimeIDRef:       5,
+			EnvRef:             6,
+			HostnameRef:        7,
+			AppVersionRef:      8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -121,15 +121,15 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 		assert.Len(t, o, 0)
 
 		expectedChunk := &InternalTraceChunk{
-			Strings:  strings, // We will assert on this separately for improved readability here
-			Priority: 2,
-			Origin:   1,
+			Strings:   strings, // We will assert on this separately for improved readability here
+			Priority:  2,
+			OriginRef: 1,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
-			DroppedTrace:  true,
-			TraceID:       []byte{0xAF},
-			DecisionMaker: 2,
+			DroppedTrace:     true,
+			TraceID:          []byte{0xAF},
+			DecisionMakerRef: 2,
 		}
 		assert.Equal(t, expectedChunk, chunks[0])
 		strings.assertEqual(t, []string{"", "lambda", "-9"})

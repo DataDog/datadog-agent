@@ -49,22 +49,22 @@ func (s *StringTable) Len() int {
 type InternalTracerPayload struct {
 	// array of strings referenced in this tracer payload, its chunks and spans
 	Strings *StringTable
-	// containerID specifies the ID of the container where the tracer is running on.
-	ContainerID uint32
-	// languageName specifies language of the tracer.
-	LanguageName uint32
-	// languageVersion specifies language version of the tracer.
-	LanguageVersion uint32
-	// tracerVersion specifies version of the tracer.
-	TracerVersion uint32
-	// runtimeID specifies V4 UUID representation of a tracer session.
-	RuntimeID uint32
-	// env specifies `env` tag that set with the tracer.
-	Env uint32
-	// hostname specifies hostname of where the tracer is running.
-	Hostname uint32
-	// version specifies `version` tag that set with the tracer.
-	AppVersion uint32
+	// containerID specifies the ref in the strings table of the ID of the container where the tracer is running on.
+	ContainerIDRef uint32
+	// languageName specifies the ref in the strings table of the language of the tracer.
+	LanguageNameRef uint32
+	// languageVersion specifies the ref in the strings table of the language version of the tracer.
+	LanguageVersionRef uint32
+	// tracerVersion specifies the ref in the strings table of the version of the tracer.
+	TracerVersionRef uint32
+	// runtimeID specifies the ref in the strings table of the V4 UUID representation of a tracer session.
+	RuntimeIDRef uint32
+	// env specifies the ref in the strings table of the `env` tag that set with the tracer.
+	EnvRef uint32
+	// hostname specifies the ref in the strings table of the hostname of where the tracer is running.
+	HostnameRef uint32
+	// version specifies the ref in the strings table of the `version` tag that set with the tracer.
+	AppVersionRef uint32
 	// a collection of key to value pairs common in all `chunks`
 	Attributes map[uint32]*AnyValue
 	// chunks specifies list of containing trace chunks.
@@ -75,14 +75,14 @@ type InternalTracerPayload struct {
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
 type InternalTraceChunk struct {
-	Strings       *StringTable
-	Priority      int32
-	Origin        uint32
-	Attributes    map[uint32]*AnyValue
-	Spans         []*InternalSpan
-	DroppedTrace  bool
-	TraceID       []byte
-	DecisionMaker uint32
+	Strings          *StringTable
+	Priority         int32
+	OriginRef        uint32
+	Attributes       map[uint32]*AnyValue
+	Spans            []*InternalSpan
+	DroppedTrace     bool
+	TraceID          []byte
+	DecisionMakerRef uint32
 }
 
 // InternalSpan is a span structure that is optimized for trace-agent usage
@@ -92,11 +92,11 @@ type InternalSpan struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
 	// service is the name of the service with which this span is associated.
-	Service uint32
+	ServiceRef uint32
 	// name is the operation name of this span.
-	Name uint32
+	NameRef uint32
 	// resource is the resource name of this span, also sometimes called the endpoint (for web spans).
-	Resource uint32
+	ResourceRef uint32
 	// spanID is the ID of this span.
 	SpanID uint64
 	// parentID is the ID of this span's parent, or zero if this span has no parent.
@@ -110,17 +110,17 @@ type InternalSpan struct {
 	// meta is a mapping from tag name to tag value for string-valued tags.
 	Attributes map[uint32]*AnyValue
 	// type is the type of the service with which this span is associated.  Example values: web, db, lambda.
-	Type uint32
+	TypeRef uint32
 	// span_links represents a collection of links, where each link defines a causal relationship between two spans.
 	SpanLinks []*InternalSpanLink
 	// spanEvents represent an event at an instant in time related to this span, but not necessarily during the span.
 	SpanEvents []*InternalSpanEvent
 	// the optional string environment of this span
-	Env uint32
+	EnvRef uint32
 	// the optional string version of this span
-	Version uint32
+	VersionRef uint32
 	// the string component name of this span
-	Component uint32
+	ComponentRef uint32
 	// the SpanKind of this span as defined in the OTEL Specification
 	Kind SpanKind
 }
@@ -129,12 +129,12 @@ type InternalSpan struct {
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanLink struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
-	Strings    *StringTable
-	TraceID    []byte
-	SpanID     uint64
-	Attributes map[uint32]*AnyValue
-	Tracestate uint32
-	Flags      uint32
+	Strings       *StringTable
+	TraceID       []byte
+	SpanID        uint64
+	Attributes    map[uint32]*AnyValue
+	TracestateRef uint32
+	FlagsRef      uint32
 }
 
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
@@ -143,6 +143,6 @@ type InternalSpanEvent struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings    *StringTable
 	Time       uint64
-	Name       uint32
+	NameRef    uint32
 	Attributes map[uint32]*AnyValue
 }

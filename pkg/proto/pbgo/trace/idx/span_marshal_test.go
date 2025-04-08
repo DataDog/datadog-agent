@@ -35,9 +35,9 @@ func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *
 func (val *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
 	var err error
 	switch v := val.Value.(type) {
-	case *AnyValue_StringValue:
+	case *AnyValue_StringValueRef:
 		bts = msgp.AppendUint32(bts, 1) // write the type
-		bts = serStrings.AppendStreamingString(strings.Get(v.StringValue), v.StringValue, bts)
+		bts = serStrings.AppendStreamingString(strings.Get(v.StringValueRef), v.StringValueRef, bts)
 	case *AnyValue_BoolValue:
 		bts = msgp.AppendUint32(bts, 2) // write the type
 		bts = msgp.AppendBool(bts, v.BoolValue)
@@ -99,9 +99,9 @@ func (link *InternalSpanLink) MarshalMsg(bts []byte, serStrings *SerializedStrin
 		return
 	}
 	o = msgp.AppendUint32(o, 4) // tracestate
-	o = serStrings.AppendStreamingString(link.Strings.Get(link.Tracestate), link.Tracestate, o)
+	o = serStrings.AppendStreamingString(link.Strings.Get(link.TracestateRef), link.TracestateRef, o)
 	o = msgp.AppendUint32(o, 5) // flags
-	o = msgp.AppendUint32(o, link.Flags)
+	o = msgp.AppendUint32(o, link.FlagsRef)
 	return
 }
 
@@ -111,7 +111,7 @@ func (evt *InternalSpanEvent) MarshalMsg(bts []byte, serStrings *SerializedStrin
 	o = msgp.AppendUint32(o, 1) // time
 	o = msgp.AppendUint64(o, evt.Time)
 	o = msgp.AppendUint32(o, 2) // name
-	o = serStrings.AppendStreamingString(evt.Strings.Get(evt.Name), evt.Name, o)
+	o = serStrings.AppendStreamingString(evt.Strings.Get(evt.NameRef), evt.NameRef, o)
 	o = msgp.AppendUint32(o, 3) // attributes
 	o, err = MarshalAttributesMap(o, evt.Attributes, evt.Strings, serStrings)
 	if err != nil {
@@ -125,13 +125,13 @@ func (evt *InternalSpanEvent) MarshalMsg(bts []byte, serStrings *SerializedStrin
 func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
 	// Count non-default fields to determine map header size
 	numFields := 0
-	if span.Service != 0 {
+	if span.ServiceRef != 0 {
 		numFields++
 	}
-	if span.Name != 0 {
+	if span.NameRef != 0 {
 		numFields++
 	}
-	if span.Resource != 0 {
+	if span.ResourceRef != 0 {
 		numFields++
 	}
 	if span.SpanID != 0 {
@@ -152,7 +152,7 @@ func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) 
 	if len(span.Attributes) > 0 {
 		numFields++
 	}
-	if span.Type != 0 {
+	if span.TypeRef != 0 {
 		numFields++
 	}
 	if len(span.SpanLinks) > 0 {
@@ -161,30 +161,30 @@ func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) 
 	if len(span.SpanEvents) > 0 {
 		numFields++
 	}
-	if span.Env != 0 {
+	if span.EnvRef != 0 {
 		numFields++
 	}
-	if span.Version != 0 {
+	if span.VersionRef != 0 {
 		numFields++
 	}
-	if span.Component != 0 {
+	if span.ComponentRef != 0 {
 		numFields++
 	}
 	if span.Kind != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
-	if span.Service != 0 {
+	if span.ServiceRef != 0 {
 		o = msgp.AppendUint32(o, 1) // service
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Service), span.Service, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ServiceRef), span.ServiceRef, o)
 	}
-	if span.Name != 0 {
+	if span.NameRef != 0 {
 		o = msgp.AppendUint32(o, 2) // name
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Name), span.Name, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.NameRef), span.NameRef, o)
 	}
-	if span.Resource != 0 {
+	if span.ResourceRef != 0 {
 		o = msgp.AppendUint32(o, 3) // resource
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Resource), span.Resource, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ResourceRef), span.ResourceRef, o)
 	}
 	if span.SpanID != 0 {
 		o = msgp.AppendUint32(o, 4) // spanID
@@ -214,9 +214,9 @@ func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) 
 			return
 		}
 	}
-	if span.Type != 0 {
+	if span.TypeRef != 0 {
 		o = msgp.AppendUint32(o, 10) // type
-		o = msgp.AppendUint32(o, span.Type)
+		o = msgp.AppendUint32(o, span.TypeRef)
 	}
 	if len(span.SpanLinks) > 0 {
 		o = msgp.AppendUint32(o, 11) // span links
@@ -240,17 +240,17 @@ func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) 
 			}
 		}
 	}
-	if span.Env != 0 {
+	if span.EnvRef != 0 {
 		o = msgp.AppendUint32(o, 13) // env
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Env), span.Env, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.EnvRef), span.EnvRef, o)
 	}
-	if span.Version != 0 {
+	if span.VersionRef != 0 {
 		o = msgp.AppendUint32(o, 14) // version
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Version), span.Version, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.VersionRef), span.VersionRef, o)
 	}
-	if span.Component != 0 {
+	if span.ComponentRef != 0 {
 		o = msgp.AppendUint32(o, 15) // component
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.Component), span.Component, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.ComponentRef), span.ComponentRef, o)
 	}
 	if span.Kind != 0 {
 		o = msgp.AppendUint32(o, 16) // kind
@@ -294,13 +294,13 @@ func TestMarshalSpan(t *testing.T) {
 		strings := NewStringTable()
 
 		span := &InternalSpan{
-			Strings:  strings,
-			Service:  strings.Add("my-service"),
-			Name:     strings.Add("span-name"),
-			Resource: strings.Add("GET /res"),
-			SpanID:   12345678,
+			Strings:     strings,
+			ServiceRef:  strings.Add("my-service"),
+			NameRef:     strings.Add("span-name"),
+			ResourceRef: strings.Add("GET /res"),
+			SpanID:      12345678,
 			Attributes: map[uint32]*AnyValue{
-				strings.Add("foo"): {Value: &AnyValue_StringValue{StringValue: strings.Add("bar")}},
+				strings.Add("foo"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("bar")}},
 			},
 		}
 		bts, err := span.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
@@ -353,7 +353,7 @@ func TestMarshalAnyValue(t *testing.T) {
 		strings := NewStringTable()
 		strings.Add("bar")
 		serStrings := NewSerializedStrings(2)
-		anyValue := &AnyValue{Value: &AnyValue_StringValue{StringValue: 1}}
+		anyValue := &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: 1}}
 		bts, err := anyValue.MarshalMsg(nil, strings, serStrings)
 		assert.NoError(t, err)
 
@@ -416,7 +416,7 @@ func TestMarshalAnyValue(t *testing.T) {
 		strings.Add("bar")
 		serStrings := NewSerializedStrings(uint32(strings.Len()))
 		anyValue := &AnyValue{Value: &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: []*KeyValue{
-			{Key: 1, Value: &AnyValue{Value: &AnyValue_StringValue{StringValue: 2}}},
+			{Key: 1, Value: &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: 2}}},
 		}}}}
 		bts, err := anyValue.MarshalMsg(nil, strings, serStrings)
 		assert.NoError(t, err)
@@ -435,9 +435,9 @@ func TestMarshalSpanEvent(t *testing.T) {
 		event := &InternalSpanEvent{
 			Strings: strings,
 			Time:    7,
-			Name:    fooIdx,
+			NameRef: fooIdx,
 			Attributes: map[uint32]*AnyValue{
-				fooIdx: {Value: &AnyValue_StringValue{StringValue: barIdx}},
+				fooIdx: {Value: &AnyValue_StringValueRef{StringValueRef: barIdx}},
 			},
 		}
 		bts, err := event.MarshalMsg(nil, serStrings)
@@ -471,9 +471,9 @@ func FuzzAnyValueMarshalUnmarshal(f *testing.F) {
 
 func (val *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings *StringTable, expectedStrings *StringTable) {
 	switch v := val.Value.(type) {
-	case *AnyValue_StringValue:
-		actualString := actualStrings.Get(v.StringValue)
-		expectedString := expectedStrings.Get(expected.Value.(*AnyValue_StringValue).StringValue)
+	case *AnyValue_StringValueRef:
+		actualString := actualStrings.Get(v.StringValueRef)
+		expectedString := expectedStrings.Get(expected.Value.(*AnyValue_StringValueRef).StringValueRef)
 		assert.Equal(t, expectedString, actualString)
 	case *AnyValue_BoolValue:
 		assert.Equal(t, expected.Value.(*AnyValue_BoolValue).BoolValue, v.BoolValue)
@@ -535,8 +535,8 @@ func (link *InternalSpanLink) assertEqual(t *testing.T, expected *InternalSpanLi
 		actualKeyIndex := link.Strings.lookup[expectedKey]
 		link.Attributes[actualKeyIndex].assertEqual(t, v, link.Strings, expected.Strings)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.Tracestate), link.Strings.Get(link.Tracestate))
-	assert.Equal(t, expected.Flags, link.Flags)
+	assert.Equal(t, expected.Strings.Get(expected.TracestateRef), link.Strings.Get(link.TracestateRef))
+	assert.Equal(t, expected.FlagsRef, link.FlagsRef)
 }
 
 func FuzzSpanEventMarshalUnmarshal(f *testing.F) {
@@ -560,7 +560,7 @@ func FuzzSpanEventMarshalUnmarshal(f *testing.F) {
 
 func (evt *InternalSpanEvent) assertEqual(t *testing.T, expected *InternalSpanEvent) {
 	assert.Equal(t, expected.Time, evt.Time)
-	assert.Equal(t, expected.Strings.Get(expected.Name), evt.Strings.Get(evt.Name))
+	assert.Equal(t, expected.Strings.Get(expected.NameRef), evt.Strings.Get(evt.NameRef))
 	assert.Len(t, evt.Attributes, len(expected.Attributes))
 	for k, v := range expected.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
@@ -604,9 +604,9 @@ func FuzzSpanMarshalUnmarshal(f *testing.F) {
 }
 
 func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
-	assert.Equal(t, expected.Strings.Get(expected.Service), span.Strings.Get(span.Service))
-	assert.Equal(t, expected.Strings.Get(expected.Name), span.Strings.Get(span.Name))
-	assert.Equal(t, expected.Strings.Get(expected.Resource), span.Strings.Get(span.Resource))
+	assert.Equal(t, expected.Strings.Get(expected.ServiceRef), span.Strings.Get(span.ServiceRef))
+	assert.Equal(t, expected.Strings.Get(expected.NameRef), span.Strings.Get(span.NameRef))
+	assert.Equal(t, expected.Strings.Get(expected.ResourceRef), span.Strings.Get(span.ResourceRef))
 	assert.Equal(t, expected.SpanID, span.SpanID)
 	assert.Equal(t, expected.ParentID, span.ParentID)
 	assert.Equal(t, expected.Start, span.Start)
@@ -625,8 +625,8 @@ func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
 	for i, event := range expected.SpanEvents {
 		span.SpanEvents[i].assertEqual(t, event)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.Env), span.Strings.Get(span.Env))
-	assert.Equal(t, expected.Strings.Get(expected.Version), span.Strings.Get(span.Version))
-	assert.Equal(t, expected.Strings.Get(expected.Component), span.Strings.Get(span.Component))
+	assert.Equal(t, expected.Strings.Get(expected.EnvRef), span.Strings.Get(span.EnvRef))
+	assert.Equal(t, expected.Strings.Get(expected.VersionRef), span.Strings.Get(span.VersionRef))
+	assert.Equal(t, expected.Strings.Get(expected.ComponentRef), span.Strings.Get(span.ComponentRef))
 	assert.Equal(t, expected.Kind, span.Kind)
 }

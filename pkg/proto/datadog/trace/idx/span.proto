@@ -2,123 +2,104 @@ syntax = "proto3";
 
 package datadog.trace.idx;
 
-option go_package="pkg/proto/pbgo/trace/idx";
+option go_package="github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx";
 
+// AnyValue is a union of possible value types.
 message AnyValue {
 	oneof value {
-		// @gotags: json:"string_value" msg:"string_value"
-		uint32 stringValue = 1;
-		// @gotags: json:"bool_value" msg:"bool_value"
+		// stringValueRef specifies the string table ref of a string value.
+		uint32 stringValueRef = 1;
+		// boolValue specifies a bool value.
 		bool boolValue = 2;
-		// @gotags: json:"double_value" msg:"double_value"
+		// doubleValue specifies a double value.
 		double doubleValue = 3;
-		// @gotags: json:"int_value" msg:"int_value"
+		// intValue specifies an int value.
 		int64 intValue = 4;
-		// @gotags: json:"bytes_value" msg:"bytes_value"
+		// bytesValue specifies a bytes value.
 		bytes bytesValue = 5;
-		// @gotags: json:"array_value" msg:"array_value"
+		// arrayValue specifies an array value.
 		ArrayValue arrayValue = 6;
-		// @gotags: json:"key_value_list" msg:"key_value_list"
+		// keyValueList specifies a list of key-value pairs.
 		KeyValueList keyValueList = 7;
 	}
 }
 
+// KeyValue is a key-value pair where key is a string table ref and value is an AnyValue.
 message KeyValue {
-	// @gotags: json:"key" msg:"key"
+	// key specifies the string table ref of a key.
 	uint32 key = 1;
-	// @gotags: json:"value" msg:"value"
+	// value specifies a value.
 	AnyValue value = 2;
 }
 
-// a repeated list of AnyValue that is needed since `oneof` in AnyValue
+// ArrayValue is a repeated list of AnyValue that is needed since `oneof` in AnyValue
 // cannot be `repeated`
 message ArrayValue {
-	// @gotags: json:"values" msg:"values"
+	// values specifies a repeated list of AnyValue.
 	repeated AnyValue values = 1;
 }
 
-// a repeated list of KeyValue messages that is needed since `oneof`
+// KeyValueList is a repeated list of KeyValue messages that is needed since `oneof`
 // in AnyValue cannot be `repeated` or `map`
 message KeyValueList {
-	// @gotags: json:"key_values" msg:"key_values"
+	// keyValues specifies a repeated list of KeyValue.
 	repeated KeyValue keyValues = 1;
 }
 
 message SpanLink {
-   // @gotags: json:"trace_id" msg:"trace_id"
-   bytes traceID = 1;                         // Required.
-   // @gotags: json:"span_id" msg:"span_id"
-   fixed64 spanID = 2;                          // Required.
-   // @gotags: json:"attributes" msg:"attributes"
-   repeated KeyValue attributes = 3;
-   // @gotags: json:"tracestate" msg:"tracestate"
-   uint32 tracestate = 4;                      // Optional. W3C tracestate.
-   // @gotags: json:"flags" msg:"flags"
-   uint32 flags = 5;                           // Optional. W3C trace flags. If set, the high bit (bit 31) must be set.
+   // traceID specifies the ID of the trace to which this span link belongs.
+   bytes traceID = 1;
+   // spanID specifies the ID of this span.
+   fixed64 spanID = 2;
+   // attributes specifies a map of attribute key string ref to any value.
+   map<uint32, AnyValue> attributes = 3;
+   // tracestateRef specifies the string table ref of the W3C tracestate.
+   uint32 tracestateRef = 4;
+   // flagsRef specifies the string table ref of the W3C trace flags. Optional. If set, the high bit (bit 31) must be set.
+   uint32 flagsRef = 5;
 }
 
 message SpanEvent {
-  // @gotags: json:"time" msg:"time"
-  fixed64 time = 1; // time is the number of nanoseconds between the Unix epoch and this event.
-  // @gotags: json:"name" msg:"name"
-  uint32 name = 2; // name is this event's name.
-  // attributes is a mapping from attribute key string to any value.
-  // The order of attributes should be preserved in the key/value map.
-  // The supported values match the OpenTelemetry attributes specification:
-  // https://github.com/open-telemetry/opentelemetry-proto/blob/a8f08fc49d60538f97ffabcc7feac92f832976dd/opentelemetry/proto/common/v1/common.proto
-  // @gotags: json:"attributes" msg:"attributes"
-  repeated KeyValue attributes = 3;
+  // time is the number of nanoseconds between the Unix epoch and this event.
+  fixed64 time = 1;
+  // nameRef specifies the string table ref of this event's name.
+  uint32 nameRef = 2;
+  // attributes is a mapping from attribute key string ref to any value.
+  map<uint32, AnyValue> attributes = 3;
 }
 
-
 message Span {
-    // service is the name of the service with which this span is associated.
-    // @gotags: json:"service" msg:"service"
-    uint32 service = 1;
-    // name is the operation name of this span.
-    // @gotags: json:"name" msg:"name"
-    uint32 name = 2;
-    // resource is the resource name of this span, also sometimes called the endpoint (for web spans).
-    // @gotags: json:"resource" msg:"resource"
-    uint32 resource = 3;
+    // serviceRef specifies the string table ref of this span's service name.
+    uint32 serviceRef = 1;
+    // nameRef specifies the string table ref of this span's operation name.
+    uint32 nameRef = 2;
+    // resourceRef specifies the string table ref of this span's resource name.
+    uint32 resourceRef = 3;
     // spanID is the ID of this span.
-    // @gotags: json:"span_id" msg:"span_id"
     fixed64 spanID = 4;
     // parentID is the ID of this span's parent, or zero if this span has no parent.
-    // @gotags: json:"parent_id" msg:"parent_id"
     uint64 parentID = 5;
     // start is the number of nanoseconds between the Unix epoch and the beginning of this span.
-    // @gotags: json:"start" msg:"start"
     fixed64 start = 6;
     // duration is the time length of this span in nanoseconds.
-    // @gotags: json:"duration" msg:"duration"
     uint64 duration = 7;
-    // if there is an error associated with this span
-    // @gotags: json:"error" msg:"error"
+    // error specifies if there is an error associated with this span.
     bool error = 8;
-    // meta is a mapping from tag name to tag value for string-valued tags.
-    // @gotags: json:"attributes,omitempty" msg:"attributes,omitempty"
-    repeated KeyValue attributes = 9;
-    // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
-    // @gotags: json:"type" msg:"type"
-    uint32 type = 10;
+    // attributes is a mapping from attribute key string ref to any value.
+    map<uint32, AnyValue> attributes = 9;
+    // typeRef is the string table ref of the type of the service with which this span is associated.  Example values: web, db, lambda.
+    uint32 typeRef = 10;
     // span_links represents a collection of links, where each link defines a causal relationship between two spans.
-    // @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
     repeated SpanLink spanLinks = 11;
     // spanEvents represent an event at an instant in time related to this span, but not necessarily during the span.
-    // @gotags: json:"span_events,omitempty" msg:"span_events,omitempty"
     repeated SpanEvent spanEvents = 12;
-    // the optional string environment of this span
-    // @gotags: json:"env" msg:"env"
-    uint32 env = 13;
-    // the optional string version of this span
-    // @gotags: json:"version" msg:"version"
-    uint32 version = 14;
-    // the string component name of this span
-    // @gotags: json:"component" msg:"component"
-    uint32 component = 15;
-    // the SpanKind of this span as defined in the OTEL Specification
-    // @gotags: json:"kind" msg:"kind"
+    // envRef is the string table ref of the optional string environment of this span.
+    uint32 envRef = 13;
+    // versionRef is the string table ref of the optional string version of this span.
+    uint32 versionRef = 14;
+    // componentRef is the string table ref of the string component name of this span.
+    uint32 componentRef = 15;
+    // kind is the SpanKind of this span as defined in the OTEL Specification.
     SpanKind kind = 16;
 }
 

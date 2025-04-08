@@ -59,7 +59,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span service")
 				return
 			}
-			span.Service = service
+			span.ServiceRef = service
 		case 2:
 			var name uint32
 			name, bts, err = UnmarshalStreamingString(bts, span.Strings)
@@ -67,7 +67,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span name")
 				return
 			}
-			span.Name = name
+			span.NameRef = name
 
 		case 3:
 			var resc uint32
@@ -76,7 +76,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span resource")
 				return
 			}
-			span.Resource = resc
+			span.ResourceRef = resc
 		case 4:
 			var spanID uint64
 			spanID, bts, err = msgp.ReadUint64Bytes(bts)
@@ -132,7 +132,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span type")
 				return
 			}
-			span.Type = typ
+			span.TypeRef = typ
 		case 11:
 			var spanLinks []*InternalSpanLink
 			spanLinks, bts, err = UnmarshalSpanLinks(bts, span.Strings)
@@ -156,7 +156,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span env")
 				return
 			}
-			span.Env = env
+			span.EnvRef = env
 		case 14:
 			var version uint32
 			version, bts, err = UnmarshalStreamingString(bts, span.Strings)
@@ -164,7 +164,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span version")
 				return
 			}
-			span.Version = version
+			span.VersionRef = version
 		case 15:
 			var component uint32
 			component, bts, err = UnmarshalStreamingString(bts, span.Strings)
@@ -172,7 +172,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span component")
 				return
 			}
-			span.Component = component
+			span.ComponentRef = component
 		case 16:
 			var kind uint32
 			kind, bts, err = msgp.ReadUint32Bytes(bts)
@@ -240,7 +240,7 @@ func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err erro
 				err = msgp.WrapError(err, "Failed to read span event name")
 				return
 			}
-			spanEvent.Name = name
+			spanEvent.NameRef = name
 		case 3:
 			var kvl map[uint32]*AnyValue
 			kvl, bts, err = UnmarshalKeyValueMap(bts, spanEvent.Strings)
@@ -339,7 +339,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 			err = msgp.WrapError(err, "Failed to read string attribute value")
 			return
 		}
-		value.Value = &AnyValue_StringValue{StringValue: strValue}
+		value.Value = &AnyValue_StringValueRef{StringValueRef: strValue}
 	case 2: // boolValue
 		var boolValue bool
 		boolValue, o, err = msgp.ReadBoolBytes(o)
@@ -532,13 +532,13 @@ func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 4: // tracestate
-			link.Tracestate, o, err = UnmarshalStreamingString(o, link.Strings)
+			link.TracestateRef, o, err = UnmarshalStreamingString(o, link.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracestate")
 				return
 			}
 		case 5: // flags
-			link.Flags, o, err = msgp.ReadUint32Bytes(o)
+			link.FlagsRef, o, err = msgp.ReadUint32Bytes(o)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read flags")
 				return
