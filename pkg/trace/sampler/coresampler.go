@@ -12,8 +12,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -51,29 +49,14 @@ type Sampler struct {
 	targetTPS *atomic.Float64
 	// extraRate is an extra raw sampling rate to apply on top of the sampler rate
 	extraRate float64
-
-	metrics metrics
-	tags    []string
-	exit    chan struct{}
-	stopped chan struct{}
-	statsd  statsd.ClientInterface
 }
 
 // newSampler returns an initialized Sampler
-func newSampler(extraRate float64, targetTPS float64, tags []string, statsd statsd.ClientInterface) *Sampler {
+func newSampler(extraRate float64, targetTPS float64) *Sampler {
 	s := &Sampler{
 		seen:      make(map[Signature][numBuckets]float32),
 		extraRate: extraRate,
 		targetTPS: atomic.NewFloat64(targetTPS),
-		tags:      tags,
-		metrics: metrics{
-			tags:   tags,
-			statsd: statsd,
-			value:  make(map[metricsKey]metricsValue),
-		},
-		exit:    make(chan struct{}),
-		stopped: make(chan struct{}),
-		statsd:  statsd,
 	}
 	return s
 }
@@ -90,31 +73,10 @@ func (s *Sampler) updateTargetTPS(targetTPS float64) {
 
 	s.muRates.Lock()
 	for sig, rate := range s.rates {
-		newRate := rate * ratio
-		if newRate > 1 {
-			newRate = 1
-		}
+		newRate := min(rate*ratio, 1)
 		s.rates[sig] = newRate
 	}
 	s.muRates.Unlock()
-}
-
-// Start runs and the Sampler main loop
-func (s *Sampler) Start() {
-	go func() {
-		defer watchdog.LogOnPanic(s.statsd)
-		statsTicker := time.NewTicker(10 * time.Second)
-		defer statsTicker.Stop()
-		for {
-			select {
-			case <-statsTicker.C:
-				s.report()
-			case <-s.exit:
-				close(s.stopped)
-				return
-			}
-		}
-	}()
 }
 
 // countWeightedSig counts a trace sampled by the sampler and update rates
@@ -303,13 +265,6 @@ func (s *Sampler) size() int64 {
 	return int64(len(s.seen))
 }
 
-func (s *Sampler) report() {
-	s.metrics.report()
-	_ = s.statsd.Gauge(metricSamplerSize, float64(s.size()), s.tags, 1)
-}
-
-// Stop stops the main Run loop
-func (s *Sampler) Stop() {
-	close(s.exit)
-	<-s.stopped
+func (s *Sampler) report(statsd statsd.ClientInterface, name Name) {
+	_ = statsd.Gauge(MetricSamplerSize, float64(s.size()), []string{"sampler:" + name.String()}, 1)
 }

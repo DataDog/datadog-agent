@@ -97,17 +97,16 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 }
 
 // apmLanguageEnabled returns true if the package should be installed
-// Note: the PHP tracer is in beta and isn't included in the "all" or default languages
 func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
-	if _, ok := e.ApmLibraries["all"]; ok && p.Name != "datadog-apm-library-php" {
+	if _, ok := e.ApmLibraries["all"]; ok {
 		return true
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) && p.Name != "datadog-apm-library-php" {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 		return true
 	}
 	return false
@@ -163,15 +162,5 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 }
 
 func agentVersion(_ Package, e *env.Env) string {
-	minorVersion := e.AgentMinorVersion
-	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
-		minorVersion = minorVersion + "-1"
-	}
-	if e.AgentMajorVersion != "" && minorVersion != "" {
-		return e.AgentMajorVersion + "." + minorVersion
-	}
-	if minorVersion != "" {
-		return "7." + minorVersion
-	}
-	return "latest"
+	return e.GetAgentVersion()
 }

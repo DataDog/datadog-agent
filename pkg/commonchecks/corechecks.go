@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
@@ -102,4 +103,5 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
+	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 }

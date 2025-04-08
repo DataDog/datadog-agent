@@ -31,6 +31,8 @@ type ProcessorContext interface {
 	GetNodeType() pkgorchestratormodel.NodeType
 	GetMsgGroupID() int32
 	IsManifestProducer() bool
+	GetKind() string
+	GetAPIVersion() string
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -40,6 +42,8 @@ type BaseProcessorContext struct {
 	MsgGroupID       int32
 	ClusterID        string
 	ManifestProducer bool
+	Kind             string
+	APIVersion       string
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -65,6 +69,16 @@ func (c *BaseProcessorContext) GetClusterID() string {
 // IsManifestProducer returns true if the collector is a manifest producer
 func (c *BaseProcessorContext) IsManifestProducer() bool {
 	return c.ManifestProducer
+}
+
+// GetKind returns the kind
+func (c *BaseProcessorContext) GetKind() string {
+	return c.Kind
+}
+
+// GetAPIVersion returns the version
+func (c *BaseProcessorContext) GetAPIVersion() string {
+	return c.APIVersion
 }
 
 // K8sProcessorContext holds k8s resource processing attributes

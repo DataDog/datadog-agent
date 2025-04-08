@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
 
       - name: Set up Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version-file: .python-version
           cache: 'pip'
@@ -26,17 +26,17 @@ jobs:
         with:
           go-version-file: .go-version
 
-      - name: Install Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
 
       - name: Run Collector Update Script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          inv -e install-tools
-          inv -e collector.update
-          inv -e collector.generate
-          inv -e generate-licenses
-          inv -e collector.pull-request
+          dda inv -- -e install-tools
+          dda inv -- -e collector.update
+          dda inv -- -e collector.generate
+          dda inv -- -e generate-licenses
+          dda inv -- -e collector.pull-request

@@ -40,6 +40,7 @@ type Concentrator struct {
 	bsize         int64
 	exit          chan struct{}
 	exitWG        sync.WaitGroup
+	cidStats      bool
 	agentEnv      string
 	agentHostname string
 	agentVersion  string
@@ -54,10 +55,12 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		BucketInterval:         bsize,
 	}, now)
+	_, disabledCIDStats := conf.Features["disable_cid_stats"]
 	c := Concentrator{
 		spanConcentrator: sc,
 		Writer:           writer,
 		exit:             make(chan struct{}),
+		cidStats:         !disabledCIDStats,
 		agentEnv:         conf.DefaultEnv,
 		agentHostname:    conf.Hostname,
 		agentVersion:     conf.AgentVersion,
@@ -113,20 +116,11 @@ type Input struct {
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
-func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, conf *config.AgentConfig) Input {
+func NewStatsInput(numChunks int, containerID string, clientComputedStats bool) Input {
 	if clientComputedStats {
 		return Input{}
 	}
-	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	_, enabledCIDStats := conf.Features["enable_cid_stats"]
-	_, disabledCIDStats := conf.Features["disable_cid_stats"]
-	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if enableContainers && !disabledCIDStats {
-		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
-		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
-		in.ContainerID = containerID
-	}
-	return in
+	return Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks), ContainerID: containerID}
 }
 
 // Add applies the given input to the concentrator.
@@ -139,6 +133,9 @@ func (c *Concentrator) Add(t Input) {
 // addNow adds the given input into the concentrator.
 // Callers must guard!
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
+	if !c.cidStats {
+		containerID = ""
+	}
 	hostname := pt.TracerHostname
 	if hostname == "" {
 		hostname = c.agentHostname

@@ -322,7 +322,6 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
-
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
@@ -337,6 +336,42 @@ func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
 	return k.Code >= Kernel6_1
 }
 
+// HasCgroupSysctlSupportWithRingbuf returns true if cgroup/sysctl programs are available with access to ringbuffer
+func (k *Version) HasCgroupSysctlSupportWithRingbuf() bool {
+	if features.HaveProgramType(ebpf.CGroupSysctl) != nil {
+		return false
+	}
+
+	// features.HaveProgramHelper doesn't implement feature testing for cgroup/sysctl yet, keep the kernel version
+	// fall back for now.
+	if features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnRingbufOutput) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetSmpProcessorId) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnKtimeGetNs) == nil {
+		return true
+	}
+
+	return k.Code >= Kernel5_8
+}
+
+// HasTracingHelpersInCgroupSysctlPrograms returns true if basic tracing helpers are available in cgroup/sysctl programs
+// Namely, the helpers we care about are: bpf_probe_read_*, bpf_get_current_pid_tgid, bpf_get_current_task, etc
+func (k *Version) HasTracingHelpersInCgroupSysctlPrograms() bool {
+	if !k.HasCgroupSysctlSupportWithRingbuf() {
+		return false
+	}
+
+	// features.HaveProgramHelper doesn't implement feature testing for cgroup/sysctl yet, keep the kernel version
+	// fall back for now.
+	if features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentTask) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentComm) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnProbeReadKernel) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentPidTgid) == nil {
+		return true
+	}
+
+	return k.Code >= Kernel6_1
+}
+
 // HasSKStorage returns true if the kernel supports SK_STORAGE maps
 // See https://github.com/torvalds/linux/commit/6ac99e8f23d4b10258406ca0dd7bffca5f31da9d
 func (k *Version) HasSKStorage() bool {
@@ -344,7 +379,7 @@ func (k *Version) HasSKStorage() bool {
 		return true
 	}
 
-	return k.Code != 0 && k.Code > Kernel5_2
+	return k.Code != 0 && k.Code >= Kernel5_2
 }
 
 // HasSKStorageInTracingPrograms returns true if the kernel supports SK_STORAGE maps in tracing programs
@@ -358,25 +393,33 @@ func (k *Version) HasSKStorageInTracingPrograms() bool {
 		return false
 	}
 
+	// features.HaveProgramHelper doesn't implement feature testing for ebpf.Tracing yet, keep the kernel version
+	// fall back for now.
 	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) == nil {
 		return true
 	}
-	return k.Code != 0 && k.Code > Kernel5_11
+	return k.Code != 0 && k.Code >= Kernel5_11
 }
 
 // IsMapValuesToMapHelpersAllowed returns true if the kernel supports passing map values to map helpers
 // See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
 func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
-	return k.Code != 0 && k.Code > Kernel4_18
+	return k.Code != 0 && k.Code >= Kernel4_18
 }
 
 // HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
 // See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
 func (k *Version) HasBPFForEachMapElemHelper() bool {
+	// because of https://lore.kernel.org/bpf/20211231151018.3781550-1-houtao1@huawei.com/
+	// we need a kernel 5.17 or higher on arm64 to use the bpf_for_each_map_elem helper
+	if runtime.GOARCH == "arm64" && k.Code < Kernel5_17 {
+		return false
+	}
+
 	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
 		return true
 	}
-	return k.Code != 0 && k.Code > Kernel5_13
+	return k.Code != 0 && k.Code >= Kernel5_13
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19

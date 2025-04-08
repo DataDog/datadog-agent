@@ -9,6 +9,7 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"sync"
 	"syscall"
 
@@ -442,9 +443,7 @@ func initExitCauseConstants() {
 }
 
 func initBoolConstants() {
-	for k, v := range BooleanConstants {
-		seclConstants[k] = v
-	}
+	maps.Copy(seclConstants, BooleanConstants)
 }
 
 func initSSLVersionConstants() {
@@ -484,6 +483,7 @@ func initConstants() {
 	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
+	initSysCtlActionConstants()
 }
 
 // RetValError represents a syscall return error value

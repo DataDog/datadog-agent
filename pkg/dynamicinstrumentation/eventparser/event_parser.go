@@ -44,27 +44,31 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	event.PID = baseEvent.Pid
 	event.UID = baseEvent.Uid
 	event.StackPCs = baseEvent.Program_counters[:]
-	event.Argdata = readParams(record[ditypes.SizeofBaseEvent:])
+	event.ParamIndicies = baseEvent.Param_indicies[:]
+
+	event.Argdata = readParams(event.ParamIndicies, record[ditypes.SizeofBaseEvent:])
 	return &event, nil
 }
 
-func readParams(values []byte) []*ditypes.Param {
+func readParams(indicies []uint64, values []byte) []*ditypes.Param {
 	if len(values) >= 100 {
 		log.Tracef("DI event bytes (0:100): %v", values[0:100])
 	}
 	outputParams := []*ditypes.Param{}
-	for i := 0; i+sizeOfKindAndSize < len(values); {
-		paramTypeDefinition := parseTypeDefinition(values[i:])
+	for i := range indicies {
+		if i != 0 && indicies[i] == 0 {
+			break
+		}
+		if uint64(len(values)) <= indicies[i] {
+			break
+		}
+		data := values[indicies[i]:]
+		paramTypeDefinition := parseTypeDefinition(data)
 		if paramTypeDefinition == nil {
 			break
 		}
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
-		i += sizeOfTypeDefinition
-		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
-		if val == nil {
-			return outputParams
-		}
-		i += numBytesRead
+		val, _ := parseParamValue(paramTypeDefinition, data[sizeOfTypeDefinition:])
 		outputParams = append(outputParams, val)
 	}
 	return outputParams
@@ -309,35 +313,67 @@ func isTypeWithHeader(pieceType byte) bool {
 func parseIndividualValue(paramType byte, paramValueBytes []byte) string {
 	switch reflect.Kind(paramType) {
 	case reflect.Uint8:
+		if len(paramValueBytes) < 1 {
+			return "insufficient data for uint8"
+		}
 		return fmt.Sprintf("%d", uint8(paramValueBytes[0]))
 	case reflect.Int8:
+		if len(paramValueBytes) < 1 {
+			return "insufficient data for int8"
+		}
 		return fmt.Sprintf("%d", int8(paramValueBytes[0]))
 	case reflect.Uint16:
+		if len(paramValueBytes) < 2 {
+			return "insufficient data for uint16"
+		}
 		return fmt.Sprintf("%d", byteOrder.Uint16(paramValueBytes))
 	case reflect.Int16:
+		if len(paramValueBytes) < 2 {
+			return "insufficient data for int16"
+		}
 		return fmt.Sprintf("%d", int16(byteOrder.Uint16(paramValueBytes)))
 	case reflect.Uint32:
+		if len(paramValueBytes) < 4 {
+			return "insufficient data for uint32"
+		}
 		return fmt.Sprintf("%d", byteOrder.Uint32(paramValueBytes))
 	case reflect.Int32:
+		if len(paramValueBytes) < 4 {
+			return "insufficient data for int32"
+		}
 		return fmt.Sprintf("%d", int32(byteOrder.Uint32(paramValueBytes)))
 	case reflect.Uint64:
+		if len(paramValueBytes) < 8 {
+			return "insufficient data for uint64"
+		}
 		return fmt.Sprintf("%d", byteOrder.Uint64(paramValueBytes))
 	case reflect.Int64:
+		if len(paramValueBytes) < 8 {
+			return "insufficient data for int64"
+		}
 		return fmt.Sprintf("%d", int64(byteOrder.Uint64(paramValueBytes)))
 	case reflect.Uint:
+		if len(paramValueBytes) < 8 {
+			return "insufficient data for uint"
+		}
 		return fmt.Sprintf("%d", byteOrder.Uint64(paramValueBytes))
 	case reflect.Int:
+		if len(paramValueBytes) < 8 {
+			return "insufficient data for int"
+		}
 		return fmt.Sprintf("%d", int(byteOrder.Uint64(paramValueBytes)))
 	case reflect.Pointer:
+		if len(paramValueBytes) < 8 {
+			return "insufficient data for pointer"
+		}
 		return fmt.Sprintf("0x%X", byteOrder.Uint64(paramValueBytes))
 	case reflect.String:
 		return string(paramValueBytes)
 	case reflect.Bool:
-		if paramValueBytes[0] == 1 {
-			return "true"
-		} else {
+		if len(paramValueBytes) == 0 || paramValueBytes[0] == 0 {
 			return "false"
 		}
+		return "true"
 	case ditypes.KindUnsupported:
 		return "UNSUPPORTED"
 	default:

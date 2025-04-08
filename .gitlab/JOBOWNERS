@@ -20,6 +20,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
+tests_serverless                        @DataDog/serverless
 tests_windows_sysprobe*                 @DataDog/windows-kernel-integrations
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
@@ -55,6 +56,7 @@ agent_suse*                          @DataDog/agent-delivery
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
 powershell_script_signing            @DataDog/windows-agent
+datadog-otel-agent-*                 @DataDog/agent-delivery
 
 # Packaging
 agent_deb*                           @DataDog/agent-delivery
@@ -168,3 +170,6 @@ single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security
+
+# Experiment systemd units
+validate_experiment_systemd_units @DataDog/fleet

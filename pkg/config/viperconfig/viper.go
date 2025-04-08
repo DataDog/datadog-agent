@@ -201,8 +201,8 @@ func (c *safeConfig) checkKnownKey(key string) {
 	c.unknownKeys[key] = struct{}{}
 	c.Unlock()
 
-	// log without holding the lock
-	log.Warnf("config key %v is unknown", key)
+	// log without holding the lock. We use stack depth +3 to use the caller function location instead of checkKnownKey
+	log.WarnfStackDepth(3, "config key %q is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
@@ -782,8 +782,14 @@ func (c *safeConfig) Object() model.Reader {
 	return c
 }
 
-// NewConfig returns a new Config object.
+// NewConfig returns a new viper config
+// Deprecated: instead use pkg/config/create.NewConfig or NewViperConfig
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+	return NewViperConfig(name, envPrefix, envKeyReplacer)
+}
+
+// NewViperConfig returns a new Config object.
+func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
 		Viper:         viper.New(),
 		configSources: map[model.Source]*viper.Viper{},
@@ -838,4 +844,7 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 	res := make([]string, len(c.extraConfigFilePaths))
 	copy(res, c.extraConfigFilePaths)
 	return res
+}
+
+func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
 }

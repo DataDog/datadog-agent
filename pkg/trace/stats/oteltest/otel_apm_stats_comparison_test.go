@@ -124,7 +124,6 @@ func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	acfg.ComputeStatsBySpanKind = true
 	acfg.PeerTagsAggregation = true
-	acfg.Features["enable_cid_stats"] = struct{}{}
 	acfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 	return acfg
 }

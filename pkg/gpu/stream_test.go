@@ -3,34 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
 import (
-	"fmt"
-	"path"
 	"testing"
 
-	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
-
-	return sysCtx
-}
-
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -87,7 +78,8 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -156,7 +148,8 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -189,7 +182,8 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -231,7 +225,8 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -320,104 +315,126 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	require.Empty(t, stream.memAllocEvents)
 }
 
-func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
-	proc := kernel.ProcFSRoot()
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
+func TestKernelLaunchEnrichment(t *testing.T) {
+	for _, fatbinParsingEnabled := range []bool{true, false} {
+		name := "fatbinParsingEnabled"
+		if !fatbinParsingEnabled {
+			name = "fatbinParsingDisabled"
+		}
 
-	// Set up the caches in system context so no actual queries are done
-	pid, tid := uint64(1), uint64(1)
-	kernAddress := uint64(42)
-	binPath := "/path/to/binary"
-	smVersion := uint32(75)
-	kernName := "kernel"
-	kernSize := uint64(1000)
-	sharedMem := uint64(100)
-	constantMem := uint64(200)
+		t.Run(name, func(t *testing.T) {
+			proc := kernel.ProcFSRoot()
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
-	sysCtx.pidMaps[int(pid)] = []*procfs.ProcMap{
-		{StartAddr: 0, EndAddr: 1000, Offset: 0, Pathname: binPath},
+			if fatbinParsingEnabled {
+				// Ensure the kernel cache is running so we can load the kernel data
+				sysCtx.cudaKernelCache.Start()
+				t.Cleanup(sysCtx.cudaKernelCache.Stop)
+			} else {
+				require.Nil(t, sysCtx.cudaKernelCache)
+			}
+
+			// Set up the caches in system context so no actual queries are done
+			pid, tid := uint64(1), uint64(1)
+			kernAddress := uint64(42)
+			binPath := "/path/to/binary"
+			smVersion := uint32(75)
+			kernName := "kernel"
+			kernSize := uint64(1000)
+			sharedMem := uint64(100)
+			constantMem := uint64(200)
+
+			kernel := &cuda.CubinKernel{
+				Name:        kernName,
+				KernelSize:  kernSize,
+				SharedMem:   sharedMem,
+				ConstantMem: constantMem,
+			}
+
+			if fatbinParsingEnabled {
+				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
+			}
+
+			stream := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx)
+
+			kernStartTime := uint64(1)
+			launch := &gpuebpf.CudaKernelLaunch{
+				Header: gpuebpf.CudaEventHeader{
+					Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+					Pid_tgid:  uint64(pid<<32 + tid),
+					Ktime_ns:  kernStartTime,
+					Stream_id: 1,
+				},
+				Kernel_addr:     kernAddress,
+				Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+				Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+				Shared_mem_size: 0,
+			}
+			threadCount := 10 * 10 * 10 * 2 * 2
+
+			numLaunches := 3
+			for i := 0; i < numLaunches; i++ {
+				stream.handleKernelLaunch(launch)
+			}
+
+			if fatbinParsingEnabled {
+				// We need to wait until the kernel cache loads the kernel data
+				cuda.WaitForKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion)
+			}
+
+			// No sync, so we should have data
+			require.Nil(t, stream.getPastData(false))
+
+			// We should have a current kernel span running
+			currTime := uint64(100)
+			currData := stream.getCurrentData(currTime)
+			require.NotNil(t, currData)
+			require.Len(t, currData.spans, 1)
+
+			span := currData.spans[0]
+			require.Equal(t, kernStartTime, span.startKtime)
+			require.Equal(t, currTime, span.endKtime)
+			require.Equal(t, uint64(numLaunches), span.numKernels)
+			require.Equal(t, uint64(threadCount), span.avgThreadCount)
+
+			if fatbinParsingEnabled {
+				require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
+				require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
+				require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
+			} else {
+				require.Equal(t, uint64(0), span.avgMemoryUsage[sharedMemAlloc])
+				require.Equal(t, uint64(0), span.avgMemoryUsage[constantMemAlloc])
+				require.Equal(t, uint64(0), span.avgMemoryUsage[kernelMemAlloc])
+			}
+
+			// Now we mark a sync event
+			syncTime := uint64(200)
+			stream.markSynchronization(syncTime)
+
+			// We should have a past kernel span
+			pastData := stream.getPastData(true)
+			require.NotNil(t, pastData)
+
+			require.Len(t, pastData.spans, 1)
+			span = pastData.spans[0]
+			require.Equal(t, kernStartTime, span.startKtime)
+			require.Equal(t, syncTime, span.endKtime)
+			require.Equal(t, uint64(numLaunches), span.numKernels)
+			require.Equal(t, uint64(threadCount), span.avgThreadCount)
+
+			if fatbinParsingEnabled {
+				require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
+				require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
+				require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
+			} else {
+				require.Equal(t, uint64(0), span.avgMemoryUsage[sharedMemAlloc])
+				require.Equal(t, uint64(0), span.avgMemoryUsage[constantMemAlloc])
+				require.Equal(t, uint64(0), span.avgMemoryUsage[kernelMemAlloc])
+			}
+
+			// We should have no current data
+			require.Nil(t, stream.getCurrentData(currTime))
+		})
 	}
-
-	procBinPath := path.Join(proc, fmt.Sprintf("%d/root/%s", pid, binPath))
-	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
-
-	fatbin := cuda.NewFatbin()
-	fatbin.AddKernel(kernKey, &cuda.CubinKernel{
-		Name:        kernName,
-		KernelSize:  kernSize,
-		SharedMem:   sharedMem,
-		ConstantMem: constantMem,
-	})
-
-	procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
-	require.NoError(t, err)
-
-	sysCtx.cudaSymbols[procBinIdent] = &symbolsEntry{
-		Symbols: &cuda.Symbols{
-			SymbolTable: map[uint64]string{kernAddress: kernName},
-			Fatbin:      fatbin,
-		},
-	}
-
-	stream := newStreamHandler(uint32(pid), "", smVersion, sysCtx)
-
-	kernStartTime := uint64(1)
-	launch := &gpuebpf.CudaKernelLaunch{
-		Header: gpuebpf.CudaEventHeader{
-			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
-			Pid_tgid:  uint64(pid<<32 + tid),
-			Ktime_ns:  kernStartTime,
-			Stream_id: 1,
-		},
-		Kernel_addr:     kernAddress,
-		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
-		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
-		Shared_mem_size: 0,
-	}
-	threadCount := 10 * 10 * 10 * 2 * 2
-
-	numLaunches := 3
-	for i := 0; i < numLaunches; i++ {
-		stream.handleKernelLaunch(launch)
-	}
-
-	// No sync, so we should have data
-	require.Nil(t, stream.getPastData(false))
-
-	// We should have a current kernel span running
-	currTime := uint64(100)
-	currData := stream.getCurrentData(currTime)
-	require.NotNil(t, currData)
-	require.Len(t, currData.spans, 1)
-
-	span := currData.spans[0]
-	require.Equal(t, kernStartTime, span.startKtime)
-	require.Equal(t, currTime, span.endKtime)
-	require.Equal(t, uint64(numLaunches), span.numKernels)
-	require.Equal(t, uint64(threadCount), span.avgThreadCount)
-	require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
-	require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
-	require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
-
-	// Now we mark a sync event
-	syncTime := uint64(200)
-	stream.markSynchronization(syncTime)
-
-	// We should have a past kernel span
-	pastData := stream.getPastData(true)
-	require.NotNil(t, pastData)
-
-	require.Len(t, pastData.spans, 1)
-	span = pastData.spans[0]
-	require.Equal(t, kernStartTime, span.startKtime)
-	require.Equal(t, syncTime, span.endKtime)
-	require.Equal(t, uint64(numLaunches), span.numKernels)
-	require.Equal(t, uint64(threadCount), span.avgThreadCount)
-	require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
-	require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
-	require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
-
-	// We should have no current data
-	require.Nil(t, stream.getCurrentData(currTime))
 }

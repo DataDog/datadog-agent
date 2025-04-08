@@ -34,7 +34,7 @@ type installerScriptTestsWithSkippedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
@@ -42,7 +42,7 @@ var (
 		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
@@ -141,6 +141,9 @@ func (s *installerScriptBaseSuite) ProvisionerOptions() []awshost.ProvisionerOpt
 
 func (s *installerScriptBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 

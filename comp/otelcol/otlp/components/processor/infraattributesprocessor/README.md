@@ -39,12 +39,12 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 
 ## Expected Attributes
 
-The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/7d51e9e0dc9fb52aab468b372a5724eece97538c/comp/otelcol/otlp/components/processor/infraattributesprocessor/metrics.go#L42-L77) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:
+The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/a7e58c617398e40e4d9f730f855b5bda963f3d42/comp/otelcol/otlp/components/processor/infraattributesprocessor/common.go#L90-L125) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:
 
 | *[Entity](../../../../../../comp/core/tagger/README.md#entity-ids)*  | *Resource Attributes*                       |
 |----------------------------------------------------------------------|---------------------------------------------|
 | workloadmeta.KindContainer                                           | `container.id`                              |
-| workloadmeta.KindContainerImageMetadata                              | `container.image.id`                        |
+| workloadmeta.KindContainerImageMetadata                              | `oci.manifest.digest`                        |
 | workloadmeta.KindECSTask                                             | `aws.ecs.task.arn`                          |
 | workloadmeta.KindKubernetesDeployment                                | `k8s.deployment.name`, `k8s.namespace.name` |
 | workloadmeta.KindKubernetesMetadata                                  | `k8s.namespace.name`, `k8s.node.name`       |

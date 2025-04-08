@@ -81,6 +81,13 @@ type OTLP struct {
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
+	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
+	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
+	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
+	// OTLP span attribute exists, otherwise we will leave it empty.
+	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -253,6 +260,18 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+}
+
+// OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
+type OpenLineageProxy struct {
+	// Enabled reports whether OpenLineageProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -443,6 +462,9 @@ type AgentConfig struct {
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
+	// OpenLineageProxy contains the settings for the OpenLineageProxy proxy;
+	OpenLineageProxy OpenLineageProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -581,6 +603,9 @@ func New() *AgentConfig {
 		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		OpenLineageProxy: OpenLineageProxy{
+			Enabled: true,
 		},
 
 		Features:               make(map[string]struct{}),

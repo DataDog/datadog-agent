@@ -17,7 +17,7 @@
 
 BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
-BPF_ARRAY_MAP(buffer_selector, u32, 4)
+BPF_ARRAY_MAP(buffer_selector, u32, 5)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH * 2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
@@ -31,6 +31,7 @@ BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(bpf_cmd_approvers, struct u64_flags_filter_t, 1)
+BPF_ARRAY_MAP(sysctl_action_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
@@ -66,7 +67,7 @@ BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overri
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
-BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 4096)
+BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(flow_pid, struct pid_route_t, struct pid_route_entry_t, 10240)
 BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
@@ -79,12 +80,14 @@ BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
+BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
+BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
 
-BPF_SK_MAP(sock_active_pid_route, struct pid_route_t);
+BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
@@ -93,12 +96,15 @@ BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DI
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER + 1)
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
 BPF_PERCPU_ARRAY_MAP(bb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
+BPF_PERCPU_ARRAY_MAP(fb_dns_stats, struct dns_receiver_stats_t, 1)
+BPF_PERCPU_ARRAY_MAP(bb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, struct str_array_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(process_event_gen, struct process_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, struct is_discarded_by_inode_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_event, struct dns_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dns_response_event, struct dns_response_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(imds_event, struct imds_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)
@@ -108,6 +114,7 @@ BPF_PERCPU_ARRAY_MAP(raw_packet_event, struct raw_packet_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(network_flow_monitor_event_gen, struct network_flow_monitor_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
 BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
+BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
@@ -118,5 +125,6 @@ BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
 BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
+BPF_PROG_ARRAY(open_ret_progs, 1)
 
 #endif

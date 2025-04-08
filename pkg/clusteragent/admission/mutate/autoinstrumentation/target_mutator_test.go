@@ -89,7 +89,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				"registry/dd-lib-python-init:v2",
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -125,7 +125,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				"registry/dd-lib-python-init:v2",
 			},
 			expectedEnv: map[string]string{
 				"DD_PROFILING_ENABLED":            "true",
@@ -417,7 +417,11 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfo(python),
+					{
+						ctrName: "",
+						lang:    python,
+						image:   "registry/dd-lib-python-init:v2",
+					},
 				},
 			},
 		},
@@ -479,7 +483,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfo(js),
+					{
+						ctrName: "",
+						lang:    js,
+						image:   "registry/dd-lib-js-init:v5",
+					},
 				},
 			},
 		},
@@ -513,7 +521,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfo(python),
+					{
+						ctrName: "",
+						lang:    python,
+						image:   "registry/dd-lib-python-init:v2",
+					},
 				},
 			},
 		},
@@ -532,7 +544,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfo(java),
+					{
+						ctrName: "",
+						lang:    java,
+						image:   "registry/dd-lib-java-init:v1",
+					},
 				},
 			},
 		},
@@ -616,11 +632,36 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfo(java),
-					defaultLibInfo(js),
-					defaultLibInfo(python),
-					defaultLibInfo(dotnet),
-					defaultLibInfo(ruby),
+					{
+						ctrName: "",
+						lang:    java,
+						image:   "registry/dd-lib-java-init:v1",
+					},
+					{
+						ctrName: "",
+						lang:    js,
+						image:   "registry/dd-lib-js-init:v5",
+					},
+					{
+						ctrName: "",
+						lang:    python,
+						image:   "registry/dd-lib-python-init:v2",
+					},
+					{
+						ctrName: "",
+						lang:    dotnet,
+						image:   "registry/dd-lib-dotnet-init:v3",
+					},
+					{
+						ctrName: "",
+						lang:    ruby,
+						image:   "registry/dd-lib-ruby-init:v2",
+					},
+					{
+						ctrName: "",
+						lang:    php,
+						image:   "registry/dd-lib-php-init:v1",
+					},
 				},
 			},
 		},

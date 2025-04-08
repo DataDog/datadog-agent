@@ -4,7 +4,7 @@
 #include "maps.h"
 
 __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
-    u32 *value = bpf_map_lookup_elem(&flow_pid, key);
+    struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
         key->addr[0] = 0;
@@ -15,7 +15,7 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
         }
     }
 
-    return *value;
+    return value->pid;
 }
 
 __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {

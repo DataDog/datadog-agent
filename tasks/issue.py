@@ -49,6 +49,9 @@ def generate_model(_):
 def ask_reviews(_, pr_id):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
+    if 'backport' in pr.title.casefold():
+        print("This is a backport PR, we don't need to ask for reviews.")
+        return
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
@@ -74,7 +77,7 @@ def ask_reviews(_, pr_id):
 
 
 @task
-def add_reviewers(ctx, pr_id, dry_run=False):
+def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
     """
     Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
     """
@@ -117,11 +120,10 @@ def add_reviewers(ctx, pr_id, dry_run=False):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, ".github/CODEOWNERS")))
+                            owners.update(set(search_owners(file, owner_file)))
                             break
     if dry_run:
         print(f"Owners for {dependency}: {owners}")
         return
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
     pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
-    pr.add_to_labels("ask-review")

@@ -304,16 +304,19 @@ func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
 // variables to the workload that matches targeting.
 type TracerConfig struct {
 	// Name is the name of the environment variable.
-	Name string `mapstructure:"name" json:"name"`
+	Name string `json:"name,omitempty"`
 	// Value is the value to use.
-	Value string `mapstructure:"value" json:"value"`
+	Value string `json:"value,omitempty"`
+	// ValueFrom is the source for the environment variable's value.
+	ValueFrom *corev1.EnvVarSource `json:"valueFrom,omitempty"`
 }
 
 // AsEnvVar converts the TracerConfig to a corev1.EnvVar.
 func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 	return corev1.EnvVar{
-		Name:  c.Name,
-		Value: c.Value,
+		Name:      c.Name,
+		Value:     c.Value,
+		ValueFrom: c.ValueFrom,
 	}
 }
 
@@ -346,10 +349,20 @@ func getOptionalStringValue(datadogConfig config.Component, key string) *string 
 	return value
 }
 
+type pinnedLibraries struct {
+	// libs are the pinned libraries themselves.
+	libs []libInfo
+	// areSetToDefaults is true when the libs coming from the configuration
+	// are equivalent to what would be set if there was no configuration at all.
+	areSetToDefaults bool
+}
+
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
-func getPinnedLibraries(libVersions map[string]string, registry string) []libInfo {
-	var res []libInfo
+func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
+	libs := []libInfo{}
+	allDefaults := true
+
 	for lang, version := range libVersions {
 		l := language(lang)
 		if !l.isSupported() {
@@ -357,16 +370,23 @@ func getPinnedLibraries(libVersions map[string]string, registry string) []libInf
 			continue
 		}
 
-		log.Infof("Library version %s is specified for language %s", version, lang)
-		res = append(res, l.libInfo("", l.libImageName(registry, version)))
+		info := l.libInfo("", l.libImageName(registry, version))
+		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
+		libs = append(libs, info)
+
+		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+			allDefaults = false
+		}
 	}
 
-	return res
+	return pinnedLibraries{
+		libs:             libs,
+		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
+	}
 }
 
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
-
-	var conf = initResourceRequirementConfiguration{}
+	conf := initResourceRequirementConfiguration{}
 
 	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))

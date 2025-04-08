@@ -17,6 +17,7 @@ modules:
   comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
+  comp/core/configsync: default
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -83,6 +84,8 @@ modules:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
     used_by_otel: true
+  comp/otelcol/otlp/components/connector/datadogconnector:
+    used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
@@ -96,6 +99,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
+  comp/otelcol/status/def: default
+  comp/otelcol/status/impl: default
   comp/serializer/logscompression:
     used_by_otel: true
   comp/serializer/metricscompression:
@@ -141,6 +146,8 @@ modules:
   pkg/api:
     used_by_otel: true
   pkg/collector/check/defaults:
+    used_by_otel: true
+  pkg/config/create:
     used_by_otel: true
   pkg/config/env:
     used_by_otel: true
@@ -267,8 +274,11 @@ modules:
     used_by_otel: true
   pkg/util/option:
     used_by_otel: true
+  pkg/util/otel:
+    used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true
+  pkg/util/prometheus: default
   pkg/util/scrubber:
     used_by_otel: true
   pkg/util/sort:

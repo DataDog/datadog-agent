@@ -107,7 +107,7 @@ def update_go(
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `dda inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )

@@ -15,6 +15,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
@@ -48,11 +49,10 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 		entry      *dwarf.Entry
 		err        error
 	)
+	seenTypes := make(map[string]*seenTypeCounter)
 
 entryLoop:
 	for {
-		seenTypes := make(map[string]*seenTypeCounter)
-
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
@@ -64,10 +64,11 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagCompileUnit {
-			name, ok := entry.Val(dwarf.AttrName).(string)
+			_, ok := entry.Val(dwarf.AttrName).(string)
 			if !ok {
 				continue entryLoop
 			}
+			name = strings.Clone(entry.Val(dwarf.AttrName).(string))
 			ranges, err := dwarfData.Ranges(entry)
 			if err != nil {
 				log.Infof("couldnt retrieve ranges for compile unit %s: %s", name, err)
@@ -81,7 +82,18 @@ entryLoop:
 			}
 			var files []*dwarf.LineFile
 			if cuLineReader != nil {
-				files = cuLineReader.Files()
+				for _, file := range cuLineReader.Files() {
+					if file == nil {
+						files = append(files, &dwarf.LineFile{Name: "no file", Mtime: 0, Length: 0})
+						continue
+					}
+
+					files = append(files, &dwarf.LineFile{
+						Name:   strings.Clone(file.Name),
+						Mtime:  file.Mtime,
+						Length: file.Length,
+					})
+				}
 			}
 
 			for i := range ranges {
@@ -100,7 +112,7 @@ entryLoop:
 			)
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
-					fn = field.Val.(string)
+					fn = strings.Clone(field.Val.(string))
 				}
 				if field.Attr == dwarf.AttrDeclFile {
 					fileNumber = field.Val.(int64)
@@ -124,7 +136,7 @@ entryLoop:
 
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
-					funcName = field.Val.(string)
+					funcName = strings.Clone(field.Val.(string))
 					if !targetFunctions[funcName] {
 						continue entryLoop
 					}
@@ -153,7 +165,7 @@ entryLoop:
 
 			// ditypes.Parameter name
 			if entry.Field[i].Attr == dwarf.AttrName {
-				name = entry.Field[i].Val.(string)
+				name = strings.Clone(entry.Field[i].Val.(string))
 			}
 
 			if entry.Field[i].Attr == dwarf.AttrVarParam {
@@ -162,17 +174,16 @@ entryLoop:
 
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
-
 				typeReader.Seek(entry.Field[i].Val.(dwarf.Offset))
 				typeEntry, err := typeReader.Next()
 				if err != nil {
 					return nil, err
 				}
-
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
+				clear(seenTypes)
 			}
 		}
 
@@ -180,6 +191,7 @@ entryLoop:
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
 			result.Functions[funcName] = append(result.Functions[funcName], typeFields)
+			typeFields = nil
 		}
 	}
 
@@ -367,7 +379,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 
 			// Struct Field Name
 			if fieldEntry.Field[i].Attr == dwarf.AttrName {
-				newStructField.Name = fieldEntry.Field[i].Val.(string)
+				newStructField.Name = strings.Clone(fieldEntry.Field[i].Val.(string))
 			}
 
 			// Struct Field Type
@@ -453,7 +465,7 @@ func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize in
 	}
 	for i := range typeEntry.Field {
 		if typeEntry.Field[i].Attr == dwarf.AttrName {
-			typeName = typeEntry.Field[i].Val.(string)
+			typeName = strings.Clone(typeEntry.Field[i].Val.(string))
 		}
 		if typeEntry.Field[i].Attr == dwarf.AttrByteSize {
 			typeSize = typeEntry.Field[i].Val.(int64)
@@ -513,25 +525,6 @@ func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dw
 	return outerType, nil
 }
 
-func correctStructSizes(params []*ditypes.Parameter) {
-	for i := range params {
-		correctStructSize(params[i])
-	}
-}
-
-// correctStructSize sets the size of structs to the number of fields in the struct
-func correctStructSize(param *ditypes.Parameter) {
-	if param == nil || len(param.ParameterPieces) == 0 {
-		return
-	}
-	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
-		param.TotalSize = int64(len(param.ParameterPieces))
-	}
-	for i := range param.ParameterPieces {
-		correctStructSize(param.ParameterPieces[i])
-	}
-}
-
 func copyTree(dst, src *[]*ditypes.Parameter) {
 	if dst == nil || src == nil || len(*src) == 0 {
 		return
@@ -551,7 +544,10 @@ func copyTree(dst, src *[]*ditypes.Parameter) {
 func kindIsSupported(k reflect.Kind) bool {
 	if k == reflect.Map ||
 		k == reflect.UnsafePointer ||
-		k == reflect.Chan {
+		k == reflect.Chan ||
+		k == reflect.Float32 ||
+		k == reflect.Float64 ||
+		k == reflect.Interface {
 		return false
 	}
 	return true
@@ -590,7 +586,7 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 			kind = uint(e.Field[f].Val.(int64))
 		}
 		if e.Field[f].Attr == dwarf.AttrName {
-			name = e.Field[f].Val.(string)
+			name = strings.Clone(e.Field[f].Val.(string))
 		}
 	}
 	if name == "unsafe.Pointer" {
@@ -598,8 +594,9 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 		kind = uint(reflect.UnsafePointer)
 	}
 	return &ditypes.Parameter{
-		Type:             fmt.Sprintf("unsupported-%s", reflect.Kind(kind).String()),
+		Type:             reflect.Kind(kind).String(),
 		Kind:             kind,
 		NotCaptureReason: ditypes.Unsupported,
+		DoNotCapture:     true,
 	}
 }

@@ -8,13 +8,13 @@
 // Package paths defines commonly used paths throughout the installer
 package paths
 
+import "os"
+
 const (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath = "/opt/datadog-packages"
 	// ConfigsPath is the path to the Fleet-managed configuration directory.
 	ConfigsPath = "/etc/datadog-agent/managed"
-	// LocksPath is the path to the packages locks directory.
-	LocksPath = "/opt/datadog-packages/run/locks"
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir = "/opt/datadog-packages/tmp"
 	// DefaultUserConfigsDir is the default Agent configuration directory.
@@ -26,3 +26,14 @@ const (
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
 )
+
+// EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func EnsureInstallerDataDir() error {
+	return nil
+}
+
+// SetRepositoryPermissions sets the permissions on the repository directory
+func SetRepositoryPermissions(path string) error {
+	return os.Chmod(path, 0755)
+}

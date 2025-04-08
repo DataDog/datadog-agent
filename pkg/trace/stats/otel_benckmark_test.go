@@ -148,7 +148,6 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	conf := config.New()
 	conf.Hostname = "agent_host"
 	conf.DefaultEnv = "agent_env"
-	conf.Features["enable_cid_stats"] = struct{}{}
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)

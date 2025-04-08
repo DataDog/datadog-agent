@@ -24,7 +24,7 @@ type mockRCClient struct {
 	subscribers map[string][]rcCallbackFunc
 }
 
-func (m *mockRCClient) Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockRCClient) SubscribeIgnoreExpiration(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	if m.subscribers == nil {
 		m.subscribers = make(map[string][]rcCallbackFunc)
 	}

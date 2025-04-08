@@ -61,7 +61,7 @@ from tasks.system_probe import (
     check_for_ninja,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
-    get_sysprobe_buildtags,
+    get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
     ninja_generate,
@@ -96,8 +96,8 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
-CLANG_PATH_CI = Path("/tmp/clang-bpf")
-LLC_PATH_CI = Path("/tmp/llc-bpf")
+CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
+LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task
@@ -112,7 +112,7 @@ def create_stack(ctx, stack=None):
         "vcpu": "Comma separated list of CPUs, to launch each VM with",
         "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
-        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
+        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'dda inv -e kmt.create-stack [--stack=<stack>]'",
         "from-ci-pipeline": "Generate a vmconfig.json file with the VMs that failed jobs in pipeline with the given ID.",
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
@@ -286,7 +286,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
+    print(f"dda inv -- kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -301,7 +301,7 @@ def launch_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
     if provision_script is not None:
@@ -317,7 +317,7 @@ def provision_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
@@ -348,18 +348,27 @@ def ls(_, distro=True, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
+    print("\nAll Available Images:")
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
+
+    print("\nLocally Downloaded Images:")
+    print(tabulate(vmconfig.get_local_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task(
     help={
         "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
+        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None):
+def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
+    if not lite and not all_images and images is None:
+        raise Exit(
+            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
+        )
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images)
+        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -524,8 +533,15 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
 
     cc = get_compiler(ctx)
     target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
+    env = {
+        "GOARCH": arch.go_arch,
+        "CC": "\\$DD_CC_CROSS" if arch.is_cross_compiling() else "\\$DD_CC",
+        "CXX": "\\$DD_CXX_CROSS" if arch.is_cross_compiling() else "\\$DD_CXX",
+    }
+
+    env_str = " ".join(f"{key}={value}" for key, value in env.items())
     cc.exec(
-        f"cd {TOOLS_PATH} && GOARCH={arch.go_arch} go build -o {target_path} {GOTESTSUM}",
+        f"cd {TOOLS_PATH} && {env_str} go build -o {target_path} {GOTESTSUM}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -639,7 +655,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             "go": go_path,
             "chdir": "true",
             "env": env_str,
-            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+            "tags": f"-tags=\"{','.join(get_sysprobe_test_buildtags(False, False))}\"",
         },
     )
 
@@ -746,7 +762,7 @@ def prepare(
         if alien_vms is not None:
             err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
         else:
-            err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+            err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
         stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
         domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
         assert len(domains) > 0, err_msg
@@ -768,9 +784,6 @@ def _prepare(
     if not ci:
         cc = get_compiler(ctx)
 
-        if arch_obj.is_cross_compiling():
-            cc.ensure_ready_for_cross_compile()
-
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
@@ -783,7 +796,7 @@ def _prepare(
             kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -791,7 +804,7 @@ def _prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -896,7 +909,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    info("[+] Generating eBPF object files...")
+    setup_runtime_clang(ctx)
+    info(f"[+] Generating eBPF object files... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 
@@ -968,7 +982,7 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
 
     info("[+] Computing Go dependencies for test packages...")
-    build_tags = get_sysprobe_buildtags(False, False)
+    build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
 
@@ -989,7 +1003,7 @@ def kmt_sysprobe_prepare(
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
-        build_tags = get_sysprobe_buildtags(False, False)
+        build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
             pkg_name = os.path.relpath(pkg, os.getcwd())
             target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
@@ -1190,7 +1204,7 @@ def test(
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
     else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 
     assert len(domains) > 0, err_msg
 
@@ -1275,7 +1289,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     return stack
 
 
@@ -1315,11 +1329,8 @@ def build(
     cc = get_compiler(ctx)
 
     inv_echo = "-e" if ctx.config.run["echo"] else ""
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv {inv_echo} system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1331,9 +1342,9 @@ def build(
 
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        err_msg = f"no alien VMs discovered from provided profile {alien_vms}."
     else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 
     assert len(domains) > 0, err_msg
 
@@ -1364,7 +1375,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1391,7 +1402,7 @@ def ssh_config(
     """
     Print the SSH config for the given stacks.
 
-    Recommended usage: inv kmt.ssh-config --stacks=all > ~/.ssh/config-kmt.
+    Recommended usage: dda inv kmt.ssh-config --stacks=all > ~/.ssh/config-kmt.
     Then add the following to your ~/.ssh/config:
             Include ~/.ssh/config-kmt
 
@@ -1959,7 +1970,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2208,7 +2219,7 @@ def install_ddagent(
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
     else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        err_msg = f"no vms found from list {vms}. Run `dda inv -e kmt.status` to see all VMs in current stack"
 
     assert len(domains) > 0, err_msg
 

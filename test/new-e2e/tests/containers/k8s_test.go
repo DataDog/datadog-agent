@@ -88,7 +88,12 @@ func (suite *k8sSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
-	suite.testUpAndRunning(10 * time.Minute)
+	timeout := 10 * time.Minute
+	// Windows FIPS images are bigger and take longer to pull and start
+	if suite.Env().Agent.FIPSEnabled {
+		timeout = 20 * time.Minute
+	}
+	suite.testUpAndRunning(timeout)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)
@@ -110,7 +115,10 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
+				LabelSelector: fields.AndSelectors(
+					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+				).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
@@ -479,6 +487,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
@@ -498,12 +507,15 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^sub-team:contint$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -598,8 +610,11 @@ func (suite *k8sSuite) TestRedis() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -806,10 +821,13 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -829,7 +847,10 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -845,12 +866,15 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
 				`^customresource_kind:DatadogMetric`,
 				`^cr_type:ddm$`,
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 		},
 	})
@@ -915,6 +939,47 @@ func (suite *k8sSuite) TestPrometheus() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
+			Tags: []string{
+				"^kube_deployment:prometheus$",
+				"^kube_namespace:workload-prometheus$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:prometheus$`,
+				`^display_container_name:prometheus`,
+				`^endpoint:http://.*:8080/metrics$`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-prometheus$`,
+				`^image_tag:main$`,
+				`^kube_container_name:prometheus$`,
+				`^kube_deployment:prometheus$`,
+				`^kube_namespace:workload-prometheus$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:prometheus-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:prometheus-[[:alnum:]]+$`,
+				`^pod_name:prometheus-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+				`^short_image:apps-prometheus$`,
+			},
+		},
+	})
+}
+
+// This test verifies a metric collected by a Prometheus check using a custom
+// configuration stored in etcd. The configuration is identical to the previous
+// test, except that the metric "prom_gauge" has been renamed to
+// "prom_gauge_configured_in_etcd" to confirm that the check is using the
+// etcd-defined configuration.
+func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "prom_gauge_configured_in_etcd", // This is the name defined in the check config stored in etcd
 			Tags: []string{
 				"^kube_deployment:prometheus$",
 				"^kube_namespace:workload-prometheus$",

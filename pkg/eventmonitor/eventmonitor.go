@@ -18,13 +18,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -220,7 +219,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 // NewEventMonitor instantiates an event monitoring system-probe module
 func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
-		opts.StatsdClient = procstatsd.Client
+		opts.StatsdClient = &statsd.NoOpClient{}
 	}
 
 	if opts.ProbeOpts.StatsdClient == nil {

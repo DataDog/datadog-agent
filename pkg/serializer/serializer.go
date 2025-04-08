@@ -44,10 +44,6 @@ const (
 )
 
 var (
-	// AgentPayloadVersion is the versions of the agent-payload repository
-	// used to serialize to protobuf
-	AgentPayloadVersion string
-
 	expvars                                 = expvar.NewMap("serializer")
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
@@ -69,7 +65,7 @@ func initExtraHeaders(s *Serializer) {
 	}
 
 	s.protobufExtraHeaders.Set("Content-Type", protobufContentType)
-	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 
 	s.protobufExtraHeadersWithCompression = make(http.Header)
 	for k := range s.protobufExtraHeaders {
@@ -413,11 +409,19 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
 	var allowlist map[string]struct{}
-	if autoscalingFailoverEnabled && s.config.IsSet("autoscaling.failover.metrics") {
-		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-		allowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
+	if autoscalingFailoverEnabled {
+		if s.config.IsConfigured("autoscaling.failover.metrics") {
+			rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
+		} else {
+			s.logger.Info("Local autoscaling.failover.enabled is set but no metrics are configured. Defaulting to container.memory.usage and container.cpu.usage")
+			allowlist = map[string]struct{}{
+				"container.memory.usage": {},
+				"container.cpu.usage":    {},
+			}
 		}
 	}
 	return autoscalingFailoverEnabled, allowlist

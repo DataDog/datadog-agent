@@ -33,6 +33,7 @@ const (
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
+	enabled                           bool
 	core                              *mutatorCore
 	targets                           []targetInternal
 	disabledNamespaces                map[string]bool
@@ -95,7 +96,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		if len(t.TracerVersions) == 0 {
 			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry)
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
 		}
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
@@ -124,6 +125,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 	}
 
 	m := &TargetMutator{
+		enabled:                           config.Instrumentation.Enabled,
 		targets:                           internalTargets,
 		disabledNamespaces:                disabledNamespacesMap,
 		securityClientLibraryPodMutators:  config.securityClientLibraryPodMutators,
@@ -140,6 +142,12 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
 func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	// Return if the mutator is disabled.
+	if !m.enabled {
+		log.Debug("Target mutator is disabled, not mutating")
+		return false, nil
+	}
+
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// Sanitize input.
@@ -211,11 +219,20 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	// Return if the mutator is disabled.
+	if !m.enabled {
+		return false
+	}
 	return m.getTarget(pod) != nil
 }
 
 // IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
 func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
+	// Return if the mutator is disabled.
+	if !m.enabled {
+		return false
+	}
+
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[namespace]; ok {
 		return false

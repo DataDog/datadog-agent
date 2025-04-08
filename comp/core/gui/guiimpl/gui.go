@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -128,7 +128,7 @@ func newGui(deps dependencies) provides {
 	// Fetch the authentication token (persists across sessions)
 	authToken, e := security.FetchAuthToken(deps.Config)
 	if e != nil {
-		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
+		g.logger.Error("GUI server initialization failed (unable to get the AuthToken): ", e)
 		return p
 	}
 
@@ -173,7 +173,7 @@ func (g *gui) start(_ context.Context) error {
 
 	g.listener, e = net.Listen("tcp", g.address)
 	if e != nil {
-		g.logger.Errorf("GUI server didn't achieved to start: ", e)
+		g.logger.Error("GUI server didn't achieved to start: ", e)
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
@@ -233,7 +233,7 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	staticFilePath := path.Join(setup.InstallPath, "bin", "agent", "dist", "views")
+	staticFilePath := path.Join(defaultpaths.GetDistPath(), "views")
 
 	// checking against path traversal
 	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)

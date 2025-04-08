@@ -8,7 +8,6 @@ Notes about Agent6:
 
 import json
 import os
-import re
 import sys
 import tempfile
 import time
@@ -20,7 +19,7 @@ from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr, create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
@@ -31,7 +30,6 @@ from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
     get_default_branch,
-    get_git_references,
     get_last_commit,
     get_last_release_tag,
     is_agent6,
@@ -39,7 +37,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import running_in_github_actions, set_gitconfig_in_ci
+from tasks.libs.common.utils import set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -57,12 +55,12 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    INTEGRATIONS_CORE_JSON_FIELD,
     UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
     load_release_json,
+    set_current_milestone,
     set_new_release_branch,
     update_release_json,
 )
@@ -79,13 +77,9 @@ from tasks.libs.releasing.version import (
     next_final_version,
     next_rc_version,
 )
+from tasks.notify import post_message
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
-
-GITLAB_FILES_TO_UPDATE = [
-    ".gitlab-ci.yml",
-    ".gitlab/notify/notify.yml",
-]
 
 BACKPORT_LABEL_COLOR = "5319e7"
 TAG_BATCH_SIZE = 3
@@ -116,7 +110,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         verify: Checks for correctness on the Agent Version (on by default).
 
     Examples:
-        $ inv -e release.update-modules 7.27.x
+        $ dda inv -e release.update-modules 7.27.x
     """
 
     assert release_branch or version
@@ -187,9 +181,9 @@ def tag_modules(
         devel: Will create -devel tags (used after creation of the release branch).
 
     Examples:
-        $ inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
-        $ inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
-        $ inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
+        $ dda inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
+        $ dda inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -238,9 +232,9 @@ def tag_version(
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
-        $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ dda inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -303,6 +297,14 @@ def finish(ctx, release_branch, upstream="origin"):
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
+
+        next_milestone = next_final_version(ctx, release_branch, True)
+        next_milestone = next_milestone.next_version(bump_patch=True)
+        print(f"Creating the {next_milestone} milestone...")
+
+        gh = GithubAPI()
+        gh.create_milestone(str(next_milestone), exist_ok=True)
+        set_current_milestone(str(next_milestone))
 
         # Step 2: Update internal module dependencies
 
@@ -375,7 +377,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None):
+def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
     """Updates the release entries in release.json to prepare the next RC build.
 
     If the previous version of the Agent (determined as the latest tag on the
@@ -391,19 +393,17 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
     If the previous version of the Agent was an RC, updates the release entries for RC + 1.
 
     Examples:
-        If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+        If the latest tag on the branch is 7.31.0, and dda inv release.create-rc --patch-version
         is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
         will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
 
-        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and dda inv release.create-rc
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
         Updates internal module dependencies with the new RC.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
-
-        If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
         This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -504,14 +504,13 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
             new_final_version,
         )
 
-        # Step 4 - If slack workflow webhook is provided, send a slack message
-        if slack_webhook:
-            print(color_message("Sending slack notification", "bold"))
-            payload = {
-                "pr_url": pr_url,
-                "version": str(new_highest_version),
-            }
-            send_slack_msg(ctx, payload, slack_webhook)
+        # Step 4 - Send a slack message
+        message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
+        channel = 'agent-release-sync'
+        if major_version == 6:
+            channel = 'agent-ci-on-call'
+            message += "\nCan you please merge this PR and trigger a build pipeline according to <https://datadoghq.atlassian.net/wiki/x/cgEaCgE|this document>?"
+        post_message(ctx, channel, message)
 
 
 @task
@@ -627,7 +626,7 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
-        use_release_entries=True,
+        use_release_entry=True,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
@@ -636,12 +635,10 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
 
 
 @task
-def alert_ci_on_call(ctx, release_branch, slack_webhook):
+def alert_ci_on_call(ctx, release_branch):
     gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-    payload = {
-        'message': f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
-    }
-    send_slack_msg(ctx, payload, slack_webhook)
+    message = f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ndda inv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    post_message(ctx, "agent-ci-on-call", message)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -733,7 +730,7 @@ def create_release_branches(
     """Create and push release branches in Agent repositories and update them.
 
     That includes:
-        - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+        - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
         - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
@@ -801,16 +798,11 @@ def create_release_branches(
         set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        for file in GITLAB_FILES_TO_UPDATE:
-            with open(file) as gl:
-                file_content = gl.readlines()
-
-            with open(file, "w") as gl:
-                for line in file_content:
-                    if re.search(rf"compare_to: {get_default_branch()}", line):
-                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
-                    else:
-                        gl.write(line)
+        with open(".gitlab-ci.yml", "w") as f:
+            content = f.read()
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            )
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
@@ -921,10 +913,8 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
         if base_branch == get_default_branch():
             default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
             omnibus_ruby_branch = default_branches['omnibus-ruby']
-            omnibus_software_branch = default_branches['omnibus-software']
         else:
             omnibus_ruby_branch = base_branch
-            omnibus_software_branch = base_branch
 
         def _check_commit_in_repo(repo_name, branch, release_json_field):
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -932,21 +922,16 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
                     f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                     hide='stdout',
                 )
-                for version in ['nightly', 'nightly-a7']:
-                    commit = _get_release_json_value(f'{version}::{release_json_field}')
-                    if (
-                        ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited
-                        != 0
-                    ):
-                        raise Exit(
-                            code=1,
-                            message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
-                        )
-                    else:
-                        print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+                commit = _get_release_json_value(f'nightly::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[nightly] Commit {commit} was found in {repo_name} branch {branch}')
 
         _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
-        _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
 
         return True
 
@@ -992,7 +977,7 @@ def update_build_links(_, new_version, patch_version=False):
     if username is None or password is None:
         raise Exit(
             color_message(
-                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
                 "red",
             ),
             code=1,
@@ -1308,9 +1293,7 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
+        set_current_milestone(str(next))
         # Commit release.json
         ctx.run("git add release.json")
         ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
@@ -1342,10 +1325,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
         )
 
 
-def send_slack_msg(ctx, payload, webhook):
-    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
-
-
 @task
 def check_previous_agent6_rc(ctx):
     """
@@ -1371,65 +1350,5 @@ def check_previous_agent6_rc(ctx):
         err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
 
     if err_msg:
-        payload = {'message': err_msg}
-        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        post_message(ctx, "agent-ci-on-call", err_msg)
         raise Exit(message=err_msg, code=1)
-
-
-@task
-def bump_integrations_core(ctx, slack_webhook=None):
-    """
-    Create a PR to bump the integrations core fields in the release.json file
-    """
-    github_workflow_url = ""
-    if running_in_github_actions():
-        github_workflow_url = (
-            f"{os.environ.get('GITHUB_SERVER_URL')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
-        )
-    commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
-
-    rj = load_release_json()
-
-    for nightly in ["nightly", "nightly-a7"]:
-        rj[nightly][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
-
-    _save_release_json(rj)
-
-    main_branch = "main"
-    bump_integrations_core_branch = f"bump-integrations-core-{int(time.time())}"
-    ctx.run(f"git checkout -b {bump_integrations_core_branch}")
-    ctx.run("git add release.json")
-
-    commit_message = "bump integrations core to HEAD"
-    set_gitconfig_in_ci(ctx)
-    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-    if not ok:
-        raise Exit(
-            color_message(
-                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {bump_integrations_core_branch} branch and then open a PR against {main_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if not ctx.run(f"git push --set-upstream origin {bump_integrations_core_branch}", warn=True):
-        raise Exit(
-            color_message(
-                f"Could not push branch {bump_integrations_core_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    # to find the correct current milestone 'devel' is set to False even though this will only run on development branches
-    current = current_version(ctx, 7)
-    current.rc = False
-    current.devel = False
-    current.patch = 0
-    pr_url = create_datadog_agent_pr(
-        commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
-    )
-
-    if slack_webhook:
-        payload = {'pr_url': pr_url}
-        send_slack_msg(ctx, payload, slack_webhook)

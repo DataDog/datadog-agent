@@ -38,11 +38,12 @@ const commonRegistry = "gcr.io/datadoghq"
 
 var (
 	defaultLibraries = map[string]string{
-		"java":   "v1.46",
-		"python": "v2.21",
-		"ruby":   "v2.10",
-		"dotnet": "v3.10",
-		"js":     "v5.37",
+		"java":   "v1",
+		"python": "v2",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5",
+		"php":    "v1",
 	}
 
 	// TODO: Add new entry when a new language is supported
@@ -52,6 +53,7 @@ var (
 		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
 		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
 		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 )
 
@@ -65,52 +67,6 @@ func defaultLibrariesFor(languages ...string) map[string]string {
 		out[l] = defaultLibraries[l]
 	}
 	return out
-}
-
-func TestDefaultLibVersions(t *testing.T) {
-	// N.B. This test uses js since there are many major versions.
-	tests := []struct {
-		in, out string
-	}{
-		{
-			in:  "v5",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "5",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "default",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "v1",
-			out: "registry/dd-lib-js-init:v1",
-		},
-		{
-			in:  "v1.0",
-			out: "registry/dd-lib-js-init:v1.0",
-		},
-		{
-			in:  "5.0",
-			out: "registry/dd-lib-js-init:5.0",
-		},
-		{
-			in:  "v5.0",
-			out: "registry/dd-lib-js-init:v5.0",
-		},
-		{
-			in:  "latest",
-			out: "registry/dd-lib-js-init:latest",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s->%s", tt.in, tt.out), func(t *testing.T) {
-			require.Equal(t, tt.out, js.libImageName("registry", tt.in))
-		})
-	}
 }
 
 func TestInjectAutoInstruConfigV2(t *testing.T) {
@@ -177,6 +133,43 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 			}.Create(),
 			expectedInjectorImage:   "docker.io/library/apm-inject-package:v27",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name: "java + debug enabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "true",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLibConfigEnvs: map[string]string{
+				"DD_APM_INSTRUMENTATION_DEBUG": "true",
+				"DD_TRACE_STARTUP_LOGS":        "true",
+				"DD_TRACE_DEBUG":               "true",
+			},
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name: "java + debug disabled",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+					"admission.datadoghq.com/apm-inject.debug":   "false",
+				},
+			}.Create(),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -498,22 +491,26 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	var allLatestDefaultLibs []libInfo
-	for k, v := range defaultLibImageVersions {
-		allLatestDefaultLibs = append(allLatestDefaultLibs, libInfo{
-			lang:  k,
-			image: v,
-		})
+	// TODO: Add new entry when a new language is supported
+	allLatestDefaultLibs := []libInfo{
+		defaultLibInfo(java),
+		defaultLibInfo(js),
+		defaultLibInfo(python),
+		defaultLibInfo(dotnet),
+		defaultLibInfo(ruby),
+		defaultLibInfo(php),
 	}
 
 	var mockConfig model.Config
 	tests := []struct {
-		name                 string
-		pod                  *corev1.Pod
-		containerRegistry    string
-		expectedLibsToInject []libInfo
-		expectedPodEligible  *bool
-		setupConfig          func()
+		name                   string
+		pod                    *corev1.Pod
+		deployments            []common.MockDeployment
+		assertExtractedLibInfo func(*testing.T, extractedPodLibInfo)
+		containerRegistry      string
+		expectedLibsToInject   []libInfo
+		expectedPodEligible    *bool
+		setupConfig            func()
 	}{
 		{
 			name:              "java",
@@ -522,7 +519,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -533,7 +530,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -544,7 +541,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1.46", commonRegistry),
+					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
 				},
 			},
 		},
@@ -606,7 +603,10 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("", defaultLibImageVersions[java]),
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
 				{
 					lang:  "js",
 					image: "registry/dd-lib-js-init:v1",
@@ -635,7 +635,11 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("java-app", defaultLibImageVersions[java]),
+				{
+					ctrName: "java-app",
+					lang:    "java",
+					image:   "registry/dd-lib-java-init:v1",
+				},
 				{
 					ctrName: "node-app",
 					lang:    "js",
@@ -762,7 +766,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -800,10 +804,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: defaultLibImageVersions["java"],
-				},
+				defaultLibInfo(java),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -834,7 +835,10 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("", defaultLibImageVersions[java]),
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -843,13 +847,81 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "php (opt-in)",
+			name: "pod with lang-detection deployment and default libs",
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []common.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			containerRegistry: "registry",
+			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
+				t.Helper()
+				require.Equal(t, &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo("registry", "pod"),
+					},
+					injectionEnabled: true,
+				}, i.languageDetection)
+			},
+			expectedLibsToInject: []libInfo{
+				python.defaultLibInfo("registry", "pod"),
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibraries)
+				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
+			},
+		},
+		{
+			name: "pod with lang-detection deployment and libs set",
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []common.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			containerRegistry: "registry",
+			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
+				t.Helper()
+				require.Equal(t, &libInfoLanguageDetection{
+					libs:             []libInfo{python.defaultLibInfo("registry", "pod")},
+					injectionEnabled: true,
+				}, i.languageDetection)
+			},
+			expectedLibsToInject: []libInfo{
+				java.defaultLibInfo("registry", ""),
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibrariesFor("java"))
+				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
+			},
+		},
+		{
+			name:              "php",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
-					lang:  php,
-					image: "registry/dd-lib-php-init:v1.6",
+					lang:  "php",
+					image: "registry/dd-lib-php-init:v1",
 				},
 			},
 		},
@@ -868,10 +940,7 @@ func TestExtractLibInfo(t *testing.T) {
 				mockConfig.SetWithoutSource(k, v)
 			}
 
-			wmeta := fxutil.Test[workloadmeta.Component](t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
+			wmeta := common.FakeStoreWithDeployment(t, tt.deployments)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
@@ -891,6 +960,9 @@ func TestExtractLibInfo(t *testing.T) {
 			}
 
 			extracted := mutator.extractLibInfo(tt.pod)
+			if tt.assertExtractedLibInfo != nil {
+				tt.assertExtractedLibInfo(t, extracted)
+			}
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
@@ -980,6 +1052,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 		wantErr                   bool
 		wantCPU                   string
 		wantMem                   string
+		limitCPU                  string
+		limitMem                  string
 		secCtx                    *corev1.SecurityContext
 	}{
 		{
@@ -1398,6 +1472,124 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantMem: "151Mi",
 		},
 		{
+			name: "init_container_request_greater_than_limit",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "java-pod",
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{Name: "i1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{}, // No limits
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("200m"),
+							corev1.ResourceMemory: resource.MustParse("200Mi"),
+						},
+					}}},
+					Containers: []corev1.Container{{Name: "c1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					}}},
+				},
+			},
+			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:     java,
+			wantErr:  false,
+			wantCPU:  "200m",
+			wantMem:  "200Mi",
+			limitCPU: "200m",
+			limitMem: "200Mi",
+		},
+		{
+			name: "containers_request_greater_than_limit",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "java-pod",
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{Name: "i1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					}}},
+					Containers: []corev1.Container{{Name: "c1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{}, // No limits
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("200m"),
+							corev1.ResourceMemory: resource.MustParse("200Mi"),
+						},
+					}}},
+				},
+			},
+			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:     java,
+			wantErr:  false,
+			wantCPU:  "200m",
+			wantMem:  "200Mi",
+			limitCPU: "200m",
+			limitMem: "200Mi",
+		},
+		{
+			name: "sidecar_container_request_greater_than_limit",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "java-pod",
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{
+						{
+							Name: "init-container-1",
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("501m"),
+									corev1.ResourceMemory: resource.MustParse("101Mi"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("501m"),
+									corev1.ResourceMemory: resource.MustParse("101Mi"),
+								},
+							},
+						}, {
+							Name:          "sidecar-container-1",
+							RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("500m"),
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{{Name: "c1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("200m"),
+							corev1.ResourceMemory: resource.MustParse("101Mi"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("200m"),
+							corev1.ResourceMemory: resource.MustParse("101Mi"),
+						},
+					}}},
+				},
+			},
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+			wantCPU: "700m",
+			wantMem: "151Mi",
+		},
+		{
 			name: "todo",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1507,17 +1699,27 @@ func TestInjectLibInitContainer(t *testing.T) {
 
 			req := tt.pod.Spec.InitContainers[initalInitContainerCount].Resources.Requests[corev1.ResourceCPU]
 			lim := tt.pod.Spec.InitContainers[initalInitContainerCount].Resources.Limits[corev1.ResourceCPU]
-			wantCPUQuantity := resource.MustParse(tt.wantCPU)
-			t.Log("CPU wants:", wantCPUQuantity.String(), "actual lim: ", lim.String())
-			require.Zero(t, wantCPUQuantity.Cmp(req)) // Cmp returns 0 if equal
-			require.Zero(t, wantCPUQuantity.Cmp(lim))
+			requestCPUQuantity := resource.MustParse(tt.wantCPU)
+			limitCPUQuantity := requestCPUQuantity
+			if tt.limitCPU != "" {
+				limitCPUQuantity = resource.MustParse(tt.limitCPU)
+			}
+
+			t.Log("expected CPU request/limit:", requestCPUQuantity.String(), "/", limitCPUQuantity.String(), ", actual request/limit:", req.String(), "/", lim.String())
+			require.Zero(t, requestCPUQuantity.Cmp(req), "expected CPU request: %s, actual: %s", requestCPUQuantity.String(), req.String()) // Cmp returns 0 if equal
+			require.Zero(t, limitCPUQuantity.Cmp(lim), "expected CPU limit: %s, actual: %s", limitCPUQuantity.String(), lim.String())
 
 			req = tt.pod.Spec.InitContainers[initalInitContainerCount].Resources.Requests[corev1.ResourceMemory]
 			lim = tt.pod.Spec.InitContainers[initalInitContainerCount].Resources.Limits[corev1.ResourceMemory]
-			wantMemQuantity := resource.MustParse(tt.wantMem)
-			t.Log("memeory wants:", wantMemQuantity.String(), "actual lim: ", lim.String())
-			require.Zero(t, wantMemQuantity.Cmp(req))
-			require.Zero(t, wantMemQuantity.Cmp(lim))
+			requestMemQuantity := resource.MustParse(tt.wantMem)
+			limitMemQuantity := requestMemQuantity
+			if tt.limitMem != "" {
+				limitMemQuantity = resource.MustParse(tt.limitMem)
+			}
+
+			t.Log("expected memory request/limit:", requestMemQuantity.String(), "/", limitMemQuantity.String(), ", actual request/limit:", req.String(), "/", lim.String())
+			require.Zero(t, requestMemQuantity.Cmp(req), "expected memory request: %s, actual: %s", requestMemQuantity.String(), req.String())
+			require.Zero(t, limitMemQuantity.Cmp(lim), "expected memory limit: %s, actual: %s", limitMemQuantity.String(), lim.String())
 
 			expSecCtx := tt.pod.Spec.InitContainers[0].SecurityContext
 			require.Equal(t, tt.secCtx, expSecCtx)

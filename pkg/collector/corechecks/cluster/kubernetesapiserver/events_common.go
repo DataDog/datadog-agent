@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -276,7 +277,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
 		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
-		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
+		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, apiGroup)
 		if err != nil {
 			log.Debugf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}
@@ -446,10 +447,8 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 			return true
 		}
 
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
+		if slices.Contains(f.Reasons, ev.Reason) {
+			return true
 		}
 	}
 

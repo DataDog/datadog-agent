@@ -29,7 +29,7 @@ type NamespaceMutator struct {
 	config          *Config
 	filter          mutatecommon.MutationFilter
 	wmeta           workloadmeta.Component
-	pinnedLibraries []libInfo
+	pinnedLibraries pinnedLibraries
 	core            *mutatorCore
 }
 
@@ -40,7 +40,7 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*Namespa
 		return nil, err
 	}
 
-	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry)
+	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true)
 	return &NamespaceMutator{
 		config:          config,
 		filter:          filter,
@@ -102,11 +102,17 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 
 // ShouldMutatePod implements the common.MutationFilter interface for the auto-instrumentation injector.
 func (m *NamespaceMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	if !m.config.Instrumentation.Enabled {
+		return false
+	}
 	return m.filter.ShouldMutatePod(pod)
 }
 
 // IsNamespaceEligible implements the common.MutationFilter interface for the auto-instrumentation injector.
 func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
+	if !m.config.Instrumentation.Enabled {
+		return false
+	}
 	return m.filter.IsNamespaceEligible(ns)
 }
 
@@ -210,6 +216,7 @@ func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
+		injectorDebugAnnotationExtractor,
 	} {
 		opt, err := e.extract(pod)
 		if err != nil {
@@ -244,14 +251,18 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// we prefer to use these and not override their behavior.
 	//
 	// N.B. this is empty if auto-instrumentation is disabled.
-	if len(m.pinnedLibraries) > 0 {
-		return extracted.withLibs(m.pinnedLibraries)
+	if !m.pinnedLibraries.areSetToDefaults && len(m.pinnedLibraries.libs) > 0 {
+		return extracted.withLibs(m.pinnedLibraries.libs)
 	}
 
 	// if the language_detection injection is enabled
 	// (and we have things to filter to) we use that!
 	if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
 		return e
+	}
+
+	if len(m.pinnedLibraries.libs) > 0 {
+		return extracted.withLibs(m.pinnedLibraries.libs)
 	}
 
 	if extracted.source.isSingleStep() {

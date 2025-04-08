@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 )
@@ -38,13 +39,13 @@ type factory struct {
 	hostProvider SourceProviderFunc
 
 	statsIn chan []byte
-	wg      *sync.WaitGroup // waits for consumeStatsPayload to exit
 
 	createConsumer createConsumerFunc
 	options        []otlpmetrics.TranslatorOption
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
+	gatewayUsage otel.GatewayUsage
 }
 
 type tagenricher interface {
@@ -67,8 +68,20 @@ func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimen
 
 type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
-// NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion and embedded collector.
-func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+// NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
+// Serializer exporter should never receive APM stats in Agent OTLP ingestion.
+func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc) exp.Factory {
+	cfgType := component.MustNewType(TypeStr)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage())
+}
+
+// NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
+func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, gatewayusage otel.GatewayUsage) exp.Factory {
+	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, cfgType, gatewayusage)
+}
+
+func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, typ component.Type, gatewayUsage otel.GatewayUsage) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())
@@ -79,23 +92,22 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 		enricher:     enricher,
 		hostProvider: hostGetter,
 		statsIn:      statsIn,
-		wg:           wg,
 		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializerConsumer {
 			return &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
 		},
-		options: options,
+		options:      options,
+		gatewayUsage: gatewayUsage,
 	}
-	cfgType := component.MustNewType(TypeStr)
 
 	return exp.NewFactory(
-		cfgType,
+		typ,
 		newDefaultConfigForAgent,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
 }
 
-// NewFactory creates a new factory for the serializer exporter.
-func NewFactory() exp.Factory {
+// NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
+func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithRemapping())
@@ -113,15 +125,14 @@ func NewFactory() exp.Factory {
 				seenHosts:          make(map[string]struct{}),
 				seenTags:           make(map[string]struct{}),
 				buildInfo:          buildInfo,
-				gatewayUsage:       attributes.NewGatewayUsage(),
 				getPushTime:        func() uint64 { return uint64(time.Now().Unix()) },
 			}
 		},
 		options: options,
+		statsIn: statsIn,
 	}
-	cfgType := component.MustNewType(TypeStr)
 	return exp.NewFactory(
-		cfgType,
+		typ,
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
@@ -189,7 +200,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 			return nil, err
 		}
 	}
-	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter)
+	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage)
 	if err != nil {
 		return nil, err
 	}
@@ -205,12 +216,6 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 				if err != nil {
 					return err
 				}
-			}
-			if f.wg != nil {
-				f.wg.Wait() // wait for consumeStatsPayload to exit
-			}
-			if f.statsIn != nil {
-				close(f.statsIn)
 			}
 			if forwarder != nil {
 				forwarder.Stop()

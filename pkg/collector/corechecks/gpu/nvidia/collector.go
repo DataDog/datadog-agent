@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 // Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 // The main entry point is the BuildCollectors functions, which returns a set of collectors that will
@@ -20,6 +20,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,13 +37,13 @@ const (
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
+	nvlink       CollectorName = "nvlink"
 )
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
-	Name  string   // Name holds the name of the metric.
-	Value float64  // Value holds the value of the metric.
-	Tags  []string // Tags holds the tags associated with the metric.
+	Name  string  // Name holds the name of the metric.
+	Value float64 // Value holds the value of the metric.
 	Type  metrics.MetricType
 }
 
@@ -61,7 +62,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device nvml.Device, tags []string) (Collector, error)
+type subsystemBuilder func(device nvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -70,15 +71,14 @@ var factory = map[CollectorName]subsystemBuilder{
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
+	nvlink:       newNVLinkCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// Tagger is the tagger component used to tag the metrics.
-	Tagger tagger.Component
 
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
+	// DeviceCache is a cache of GPU devices.
+	DeviceCache ddnvml.DeviceCache
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -89,27 +89,11 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	devCount, ret := deps.NVML.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
-
-	for i := 0; i < devCount; i++ {
-		dev, ret := deps.NVML.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
-		}
-
-		tags, err := getTagsFromDevice(dev, deps.Tagger)
-		if err != nil {
-			log.Warnf("failed to get tags for device %s: %s", dev, err)
-			continue
-		}
-
+	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
-			c, err := builder(dev, tags)
+			c, err := builder(dev.NVMLDevice)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev, name)
+				log.Warnf("device %s does not support collector %s", dev.UUID, name)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
@@ -123,24 +107,30 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	return collectors, nil
 }
 
-// getTagsFromDevice returns the tags associated with the given NVML device.
-func getTagsFromDevice(dev nvml.Device, tagger tagger.Component) ([]string, error) {
-	uuid, ret := dev.GetUUID()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device UUID: %s", nvml.ErrorString(ret))
+// GetDeviceTagsMapping returns the mapping of tags per GPU device.
+func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
+	devCount := deviceCache.Count()
+	if devCount == 0 {
+		return nil
 	}
 
-	entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-	tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
-	if err != nil {
-		log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
+	tagsMapping := make(map[string][]string, devCount)
+
+	for _, dev := range deviceCache.All() {
+		entityID := taggertypes.NewEntityID(taggertypes.GPU, dev.UUID)
+		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
+		if err != nil {
+			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", dev.UUID, err)
+		}
+
+		if len(tags) == 0 {
+			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
+			// add at least the UUID as a tag to distinguish the values.
+			tags = []string{fmt.Sprintf("gpu_uuid:%s", dev.UUID)}
+		}
+
+		tagsMapping[dev.UUID] = tags
 	}
 
-	if len(tags) == 0 {
-		// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
-		// add at least the UUID as a tag to distinguish the values.
-		tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
-	}
-
-	return tags, nil
+	return tagsMapping
 }

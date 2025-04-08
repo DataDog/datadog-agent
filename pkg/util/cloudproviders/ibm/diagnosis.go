@@ -9,11 +9,11 @@ package ibm
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("IBM cloud Metadata availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("IBM cloud Metadata availability", diagnose)
 }
 
 // diagnose the IBM cloud metadata API availability

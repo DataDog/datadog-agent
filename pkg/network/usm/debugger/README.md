@@ -8,16 +8,16 @@ does not need to exist).  This is needed in order to be able to build the eBPF
 object files for a different architecture than your host machine.
 
 ```
-inv -e kmt.prepare system-probe --compile-only --stack=foo --arch=x86_64
-inv -e kmt.prepare system-probe --compile-only --stack=foo --arch=arm64
+dda inv -e kmt.prepare system-probe --compile-only --stack=foo --arch=x86_64
+dda inv -e kmt.prepare system-probe --compile-only --stack=foo --arch=arm64
 ```
 
 Build the binary with one of the following commands for the architecture of
 your target machine:
 
 ```
-inv -e system-probe.build-usm-debugger --arch=x86_64
-inv -e system-probe.build-usm-debugger --arch=arm64
+dda inv -e system-probe.build-usm-debugger --arch=x86_64
+dda inv -e system-probe.build-usm-debugger --arch=arm64
 ```
 
 Copy the `bin/usm-debugger` to the `system-probe` container in the

@@ -22,6 +22,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -69,6 +70,9 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+
+	rawTracepointSchedProcessExit = "raw_tracepoint__sched_process_exit"
+	oldTracepointSchedProcessExit = "tracepoint__sched__sched_process_exit"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -243,13 +247,8 @@ const (
 
 var (
 	buildKitProcessName = []byte("buildkitd")
-)
 
-// Template, will be modified during runtime.
-// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
-// a dynamic initialization.
-var opensslSpec = &protocols.ProtocolSpec{
-	Maps: []*manager.Map{
+	sharedLibrariesMaps = []*manager.Map{
 		{
 			Name: sslSockByCtxMap,
 		},
@@ -274,8 +273,21 @@ var opensslSpec = &protocols.ProtocolSpec{
 		{
 			Name: sslCtxByPIDTGIDMap,
 		},
-	},
+	}
+)
+
+// Template, will be modified during runtime.
+// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
+// a dynamic initialization.
+var opensslSpec = &protocols.ProtocolSpec{
+	Factory: newSSLProgramProtocolFactory,
+	Maps:    sharedLibrariesMaps,
 	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+			},
+		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: sslReadExProbe,
@@ -416,69 +428,70 @@ var opensslSpec = &protocols.ProtocolSpec{
 				EBPFFuncName: gnutlsDeinitProbe,
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: rawTracepointSchedProcessExit,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: oldTracepointSchedProcessExit,
+			},
+		},
 	},
 }
 
 type sslProgram struct {
-	cfg           *config.Config
-	watcher       *sharedlibraries.Watcher
-	istioMonitor  *istioMonitor
-	nodeJSMonitor *nodeJSMonitor
+	cfg         *config.Config
+	watcher     *sharedlibraries.Watcher
+	ebpfManager *manager.Manager
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
-	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
-			return nil, nil
-		}
-
-		var (
-			watcher *sharedlibraries.Watcher
-			err     error
-		)
-
-		procRoot := kernel.ProcFSRoot()
-
-		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libssl.so`),
-					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
-					UnregisterCB: removeHooks(m, openSSLProbes),
-				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libcrypto.so`),
-					RegisterCB:   addHooks(m, procRoot, cryptoProbes),
-					UnregisterCB: removeHooks(m, cryptoProbes),
-				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libgnutls.so`),
-					RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
-					UnregisterCB: removeHooks(m, gnuTLSProbes),
-				},
-			)
-			if err != nil {
-				return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
-			}
-		}
-
-		nodejs, err := newNodeJSMonitor(c, m)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
-		}
-
-		istio, err := newIstioMonitor(c, m)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
-		}
-
-		return &sslProgram{
-			cfg:           c,
-			watcher:       watcher,
-			istioMonitor:  istio,
-			nodeJSMonitor: nodejs,
-		}, nil
+func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) {
+		return nil, nil
 	}
+
+	var (
+		watcher *sharedlibraries.Watcher
+		err     error
+	)
+	sslProgram := &sslProgram{
+		cfg:         c,
+		ebpfManager: m,
+	}
+	var cleanerCB func(map[uint32]struct{})
+	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+		cleanerCB = sslProgram.cleanupDeadPids
+	}
+	procRoot := kernel.ProcFSRoot()
+
+	if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
+		watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto, cleanerCB,
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libssl.so`),
+				RegisterCB:   addHooks(m, procRoot, openSSLProbes),
+				UnregisterCB: removeHooks(m, openSSLProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libcrypto.so`),
+				RegisterCB:   addHooks(m, procRoot, cryptoProbes),
+				UnregisterCB: removeHooks(m, cryptoProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libgnutls.so`),
+				RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
+				UnregisterCB: removeHooks(m, gnuTLSProbes),
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+		}
+	}
+
+	sslProgram.watcher = watcher
+
+	return sslProgram, nil
 }
 
 // Name return the program's name.
@@ -486,36 +499,40 @@ func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
-// ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
+func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
+	})
+}
+
+// ConfigureOptions changes map attributes to the given options.
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, o.cfg)
+	o.addProcessExitProbe(options)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
-	o.istioMonitor.Start()
-	o.nodeJSMonitor.Start()
 	return nil
 }
 
 // PostStart is a no-op.
-func (o *sslProgram) PostStart(*manager.Manager) error {
+func (o *sslProgram) PostStart() error {
 	return nil
 }
 
 // Stop stops the program.
-func (o *sslProgram) Stop(*manager.Manager) {
+func (o *sslProgram) Stop() {
 	o.watcher.Stop()
-	o.istioMonitor.Stop()
-	o.nodeJSMonitor.Stop()
 }
 
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
@@ -535,6 +552,33 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		iter := currentMap.Iterate()
 		var key uint64
 		var value http.SslReadArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_read_ex_args": // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslReadExArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_write_args": // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslWriteArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_write_ex_args_t": // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_ex_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslWriteExArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -584,7 +628,7 @@ var (
 )
 
 func isContainerdTmpMount(path string) bool {
-	return strings.Contains(path, "tmpmounts/containerd-mount")
+	return strings.Contains(path, "tmpmounts/containerd-mount") || strings.Contains(path, "/tmp/ctd-volume")
 }
 
 func isBuildKit(procRoot string, pid uint32) bool {
@@ -777,4 +821,79 @@ func getUID(lib utils.PathIdentifier) string {
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
 func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+// addProcessExitProbe adds a raw or regular tracepoint program depending on which is supported.
+func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
+		p := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: rawTracepointSchedProcessExit,
+				UID:          probeUID,
+			},
+			TracepointName: "sched_process_exit",
+		}
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+		// exclude regular tracepoint
+		options.ExcludedFunctions = append(options.ExcludedFunctions, oldTracepointSchedProcessExit)
+	} else {
+		// use a regular tracepoint to intercept terminated threads
+		p := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: oldTracepointSchedProcessExit,
+				UID:          probeUID,
+			},
+		}
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+		// exclude a raw tracepoint
+		options.ExcludedFunctions = append(options.ExcludedFunctions, rawTracepointSchedProcessExit)
+	}
+}
+
+var sslPidKeyMaps = []string{
+	"ssl_read_args",
+	"ssl_read_ex_args",
+	"ssl_write_args",
+	"ssl_write_ex_args",
+	"ssl_ctx_by_pid_tgid",
+	"bio_new_socket_args",
+}
+
+// cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
+func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
+	for _, mapName := range sslPidKeyMaps {
+		err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
+		if err != nil {
+			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
+		}
+	}
+}
+
+// deleteDeadPidsInMap finds a map by name and deletes dead processes.
+// enters when raw tracepoint is not supported, kernel < 4.17
+func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
+	emap, _, err := manager.GetMap(mapName)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", mapName, err)
+	}
+
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, emap.ValueSize())
+	iter := emap.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		_ = emap.Delete(unsafe.Pointer(&k))
+	}
+
+	return nil
 }

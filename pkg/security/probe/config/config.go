@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -152,6 +152,18 @@ type Config struct {
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool
+
+	// DNSResolverCacheSize is the numer of entries in the DNS resolver LRU cache
+	DNSResolverCacheSize int
+
+	// DNSResolutionEnabled resolving DNS names from IP addresses
+	DNSResolutionEnabled bool
+
+	// SpanTrackingEnabled defines if span tracking should be enabled
+	SpanTrackingEnabled bool
+
+	// SpanTrackingCacheSize is the size of the span tracking cache
+	SpanTrackingCacheSize int
 }
 
 // NewConfig returns a new Config object
@@ -194,6 +206,8 @@ func NewConfig() (*Config, error) {
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
+		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
@@ -201,6 +215,10 @@ func NewConfig() (*Config, error) {
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
+
+		// span tracking
+		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
+		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {

@@ -12,8 +12,10 @@ import sys
 import tempfile
 import time
 import traceback
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -216,6 +218,9 @@ def get_build_flags(
     We need to invoke external processes here so this function need the
     Context object.
     """
+    if arch is None:
+        arch = Arch.local()
+
     gcflags = ""
     ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
@@ -315,15 +320,17 @@ def get_build_flags(
                 file=sys.stderr,
             )
 
-    if arch and arch.is_cross_compiling():
+    if os.getenv("DD_CC"):
+        env["CC"] = os.getenv("DD_CC")
+    if os.getenv("DD_CXX"):
+        env["CXX"] = os.getenv("DD_CXX")
+
+    if arch.is_cross_compiling():
         # For cross-compilation we need to be explicit about certain Go settings
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = arch.gcc_compiler()
-    if os.getenv('DD_CC'):
-        env['CC'] = os.getenv('DD_CC')
-    if os.getenv('DD_CXX'):
-        env['CXX'] = os.getenv('DD_CXX')
+        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
+        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -379,17 +386,24 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
-        package_version = os.path.basename(install_path)
-        if package_version != "datadog-agent":
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
         if sys.platform == 'win32':
             # On Windows we don't have a version in the install_path
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
+            package_version = get_version(
+                ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+            )
+            # append suffix
+            # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
+            #       it's also hardcoded in Generate-OCIPackage.ps1
+            package_version = f"{package_version}-1"
+        else:
+            package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     return ldflags
 
 
@@ -516,8 +530,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
-    section_id = re.sub(r"[ :/\\]", "_", section_name)
+    section_id = str(uuid.uuid4())
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
@@ -685,3 +698,8 @@ def is_windows():
 
 def is_installed(binary) -> bool:
     return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour in [5, 6] and pipeline_start.minute < 30

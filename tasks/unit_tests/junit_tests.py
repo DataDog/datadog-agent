@@ -48,14 +48,14 @@ class TestSplitJUnitXML(unittest.TestCase):
     def test_without_split(self):
         xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/bedroom-rspec-win2016-azure-x86_64.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 1)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, {}, {}), 1)
         generated_folder = xml_file.parent / "windows-agent_base"
         self.assertTrue(generated_folder.exists())
 
     def test_with_split(self):
         xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 28)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, {}, {}), 28)
 
 
 class TestGroupPerTag(unittest.TestCase):
@@ -75,7 +75,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "putsch"})
     def test_default(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", {}, "")
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 18)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
@@ -88,7 +88,7 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 18)
+        self.assertEqual(len(tags), 22)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)
@@ -97,7 +97,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
     def test_additional_tags(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", ["--tags", "simple:basique"], "")
-        self.assertEqual(len(tags), 16)
+        self.assertEqual(len(tags), 20)
         self.assertIn("simple:basique", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
@@ -106,7 +106,7 @@ class TestSetTag(unittest.TestCase):
         tags = junit.set_tags(
             "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 18)
 
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
@@ -119,6 +119,9 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
         mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
-        junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
+        junit.junit_upload_from_tgz(
+            "tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz",
+            "tasks/unit_tests/testdata/test_output_no_failure.json",
+        )
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 30)
