@@ -15,6 +15,13 @@ glibc_cc_toolchain_config(
     path = "/opt/toolchains/x86_64",
 )
 
+glibc_cc_toolchain_config(
+    name = "glibc-cc-toolchain-config_arm64",
+    arch = "aarch64",
+    gcc_version = "12.3.0",
+    path = "/opt/toolchains/aarch64",
+)
+
 filegroup(
     name = "toolchain_files",
 )
@@ -35,6 +42,17 @@ cc_toolchain(
     toolchain_config = ":glibc-cc-toolchain-config_x86",
 )
 
+cc_toolchain(
+    name = "glibc_cc_toolchain_definition_arm64",
+    all_files = ":toolchain_files",
+    compiler_files = ":toolchain_files",
+    dwp_files = ":toolchain_files",
+    linker_files = ":toolchain_files",
+    objcopy_files = ":toolchain_files",
+    strip_files = ":toolchain_files",
+    toolchain_config = ":glibc-cc-toolchain-config_arm64",
+)
+
 # Bazel's platform/toolchain APIs require this wrapper around the actual
 # toolchain defined above. It serves two purposes: declare which
 # constraint_values it supports (which can be matched to appropriate platforms)
@@ -53,5 +71,16 @@ toolchain(
         "//bazel/platforms:glibc_2_17",
     ],
     toolchain = ":glibc_cc_toolchain_definition_x86",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+toolchain(
+    name = "glibc_cc_toolchain_arm64",
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+        "//bazel/platforms:glibc_2_23",
+    ],
+    toolchain = ":glibc_cc_toolchain_definition_arm64",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )

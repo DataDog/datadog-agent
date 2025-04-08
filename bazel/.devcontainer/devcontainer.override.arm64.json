@@ -1,0 +1,17 @@
+{
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "BASE_IMAGE": "linux-glibc-2-23-arm64"
+    }
+  },
+  "mounts": [
+    {
+      "source": "/tmp/bazel-devcontainer",
+      "target": "/tmp/bazel/",
+      "type": "bind"
+    }
+  ],
+  "name": "bazel",
+  "remoteUser": "ubuntu"
+}
