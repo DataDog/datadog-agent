@@ -306,7 +306,6 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 }
 
 func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
