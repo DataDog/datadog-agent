@@ -548,6 +548,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/auditor/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/logs/auditor/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
@@ -1024,6 +1025,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/logs/auditor/def => ./comp/logs/auditor/def
 	github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none => ./comp/logs/auditor/impl-none
+	github.com/DataDog/datadog-agent/comp/logs/auditor/mock => ./comp/logs/auditor/mock
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
