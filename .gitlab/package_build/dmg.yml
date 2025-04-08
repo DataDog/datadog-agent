@@ -213,6 +213,8 @@ new-agent_dmg-x64-a7:
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: 3
+    # Which python version to use when building the agent
+    PYTHON_VERSION: 3.12.6
     # TODO
     OMNIBUS_RUBY_VERSION: celian/macos-build
     # TODO
@@ -239,9 +241,8 @@ new-agent_dmg-x64-a7:
       export PYENV_ROOT="$HOME/.pyenv"
       [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
       eval "$(pyenv init - zsh)"
-      eval "$(pyenv virtualenv-init -)
+      eval "$(pyenv virtualenv-init - zsh)"
     # TODO: Update
-    - PYTHON_VERSION=3.12.6
     - echo Using python $PYTHON_VERSION
     - |
       VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
