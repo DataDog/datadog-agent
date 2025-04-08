@@ -20,7 +20,7 @@
     E2E_BRANCH_OSVERS: "amazonlinux2023"
   needs:
     - !reference [.needs_new_e2e_template]
-    - iot_agent_rpm-x64-a7
+    - iot_agent_rpm-x64
 
 .new-e2e_amazonlinux_a7_arm64:
   variables:

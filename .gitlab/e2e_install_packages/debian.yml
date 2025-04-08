@@ -50,7 +50,7 @@
     E2E_BRANCH_OSVERS: "debian-11"
   needs:
     - !reference [.needs_new_e2e_template]
-    - heroku_agent_deb-x64
+    - agent_heroku_deb-x64-a7
 
 .new-e2e_debian_a7_arm64:
   variables:

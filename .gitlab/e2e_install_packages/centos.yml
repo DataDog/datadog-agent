@@ -42,7 +42,7 @@
     - !reference [.needs_new_e2e_template]
     - agent_rpm-x64-a7
 
-.new-e2e_centos_a7_x86_64_fips_iot:
+.new-e2e_centos-fips_a7_x86_64_iot:
   variables:
     E2E_ARCH: x86_64
     E2E_OSVERS: "rhel-86-fips"
@@ -52,7 +52,7 @@
     - !reference [.needs_new_e2e_template]
     - iot_agent_rpm-x64
 
-.new-e2e_centos_a7_x86_64_fips_dogstatsd:
+.new-e2e_centos-fips_a7_x86_64_dogstatsd:
   variables:
     E2E_ARCH: x86_64
     E2E_OSVERS: "rhel-86-fips"
