@@ -7,6 +7,7 @@ go_library(
         "const.go",
         "doc.go",
         "helpers.go",
+        "hostname.go",  # keep
         "hostname_stub.go",
         "resource.go",
         "time.go",
