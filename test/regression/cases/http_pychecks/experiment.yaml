@@ -6,7 +6,6 @@ erratic: false
 
 target:
   name: datadog-agent
-  command: /bin/entrypoint.sh
 
   environment:
     DD_TELEMETRY_ENABLED: true
@@ -15,7 +14,7 @@ target:
 
   profiling_environment:
     DD_INTEGRATION_PROFILING: true
-    DD_TRACE_AGENT_URL: unix:///var/run/datadog/apm.socket
+    DD_TRACE_AGENT_URL: unix:///smp-host/apm.socket
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     DD_INTERNAL_PROFILING_DELTA_PROFILES: true
@@ -23,7 +22,7 @@ target:
     DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
     DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
     DD_INTERNAL_PROFILING_PERIOD: 1m
-    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
