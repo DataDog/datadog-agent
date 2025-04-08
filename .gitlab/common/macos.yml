@@ -21,6 +21,9 @@
   # TODO A
   - brew install pyenv pyenv-virtualenv || true
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - |
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
   - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
   - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
   - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
