@@ -74,8 +74,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tmf, err := newTelemetryMiddlewareFactory(telemetry, clock, cert)
-			require.NoError(t, err)
+			tmf := newTelemetryMiddlewareFactory(telemetry, clock, cert)
 			telemetryHandler := tmf.Middleware(serverName)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -130,8 +129,7 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 	// Parse the certificate from the server TLS config
 	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
 	require.NoError(t, err)
-	tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
-	require.NoError(t, err)
+	tmf := NewTelemetryMiddlewareFactory(telemetry, cert)
 	telemetryHandler := tmf.Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -156,8 +154,7 @@ func TestTelemetryMiddlewareTwice(t *testing.T) {
 	// Parse the certificate from the server TLS config
 	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
 	require.NoError(t, err)
-	tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
-	require.NoError(t, err)
+	tmf := NewTelemetryMiddlewareFactory(telemetry, cert)
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
@@ -231,8 +228,7 @@ func TestTelemetryMiddlewareAuthTag(t *testing.T) {
 				cert, err = x509.ParseCertificate(tc.serverTLSConfig.Certificates[0].Certificate[0])
 				require.NoError(t, err)
 			}
-			tmf, err := NewTelemetryMiddlewareFactory(telemetry, cert)
-			require.NoError(t, err)
+			tmf := NewTelemetryMiddlewareFactory(telemetry, cert)
 			telemetryHandler := tmf.Middleware("test")
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {

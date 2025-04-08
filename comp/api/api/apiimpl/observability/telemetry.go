@@ -65,7 +65,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 	}
 }
 
-func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, cert *x509.Certificate) (TelemetryMiddlewareFactory, error) {
+func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, cert *x509.Certificate) TelemetryMiddlewareFactory {
 	tags := []string{"servername", "status_code", "method", "path", "auth"}
 	var buckets []float64 // use default buckets
 	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets)
@@ -74,13 +74,13 @@ func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Cl
 		requestDuration,
 		clock,
 		cert,
-	}, nil
+	}
 }
 
 // NewTelemetryMiddlewareFactory creates a new TelemetryMiddlewareFactory
 //
 // This function must be called only once for a given telemetry Component,
 // as it creates a new metric, and Prometheus panics if the same metric is registered twice.
-func NewTelemetryMiddlewareFactory(telemetry telemetry.Component, cert *x509.Certificate) (TelemetryMiddlewareFactory, error) {
+func NewTelemetryMiddlewareFactory(telemetry telemetry.Component, cert *x509.Certificate) TelemetryMiddlewareFactory {
 	return newTelemetryMiddlewareFactory(telemetry, clock.New(), cert)
 }

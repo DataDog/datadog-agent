@@ -55,10 +55,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// create the telemetry middleware
-	tmf, err := observability.NewTelemetryMiddlewareFactory(server.telemetry, ipcCert)
-	if err != nil {
-		return log.Errorf("unable to create telemetry middleware factory: %v", err)
-	}
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, ipcCert)
 
 	// start the CMD server
 	if err := server.startCMDServer(
