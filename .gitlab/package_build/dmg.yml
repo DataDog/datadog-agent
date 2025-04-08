@@ -232,7 +232,7 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     # Test if pyenv has invalid dependencies
-    - brew install pyenv || true
+    - brew install pyenv pyenv-virtualenv || true
     - |
       sudo find /usr  -name 'libintl*'
       sudo find /opt  -name 'libintl*'
