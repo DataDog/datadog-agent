@@ -116,21 +116,20 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
     // interfaces.
-    if (has_sequence_seen_before(&skb_tup, &skb_info)) {
-        return;
-    }
-
-    if (tcp_termination) {
-        bpf_map_delete_elem(&connection_states, &skb_tup);
-    }
+    bool processed_packet =has_sequence_seen_before(&skb_tup, &skb_info);
 
     protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
+        bpf_map_delete_elem(&connection_states, &skb_tup);
         dispatcher_delete_protocol_stack(&skb_tup, stack);
     } else if (is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
         // If we have a TLS connection and we're not in the middle of a TCP termination, we can skip the packet.
+        return;
+    }
+
+    if (processed_packet) {
         return;
     }
 
