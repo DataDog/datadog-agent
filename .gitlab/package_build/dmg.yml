@@ -217,8 +217,8 @@ new-agent_dmg-x64-a7:
     # SIGN: true
     # INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     # INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
-    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    # S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
@@ -244,6 +244,7 @@ new-agent_dmg-x64-a7:
       # Check if the virtual environment directory exists
       if [ ! -d "$VENV_PATH" ]; then
         echo "Creating virtual environment '$VENV_NAME'..."
+        pyenv install "$PYTHON_VERSION" || true
         pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
       else
         echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
