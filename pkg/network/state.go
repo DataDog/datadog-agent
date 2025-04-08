@@ -126,7 +126,7 @@ type Delta struct {
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStats // TODO this is also required
+	Redis    map[redis.Key]*redis.RequestStats
 }
 
 type lastStateTelemetry struct {
