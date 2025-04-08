@@ -17,7 +17,7 @@ require (
 	github.com/tinylib/msgp v1.2.5
 	go.opentelemetry.io/collector/component v1.28.1
 	go.opentelemetry.io/collector/config/confignet v1.28.1 // indirect
-	go.opentelemetry.io/collector/confmap v1.28.1 // indirect
+	go.opentelemetry.io/collector/confmap v1.28.1
 	go.opentelemetry.io/collector/consumer v1.28.1
 	go.opentelemetry.io/collector/exporter v0.122.1
 	go.opentelemetry.io/collector/extension v1.28.1 // indirect
