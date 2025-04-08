@@ -379,15 +379,6 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	ctx := context.Background()
-
-	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-		Limit:         1,
-	})
-	suite.Require().NoError(err)
-	suite.Require().Len(pod.Items, 1)
-
 	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
 
