@@ -123,7 +123,8 @@ include:
 .macos_setup_cache:
   - |
     $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    export VERSION_CACHE_CONTENT="$(cat agent-version.cache | base64)"
+    # TODO
+    export VERSION_CACHE_CONTENT="$(cat agent-version.cache)"
     # TODO: _omnibus_cache_key_files is not necessary
     # Copy files used for the Omnibus ruby deps cache key
     # This is to work around a limitation of GitHub Actions' `hashFiles()` function which requires
