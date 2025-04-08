@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Use cdpCacheSecondaryMgmtAddrType and cdpCacheAddress for CDP topology links in case cdpCachePrimaryMgmtAddr is empty or of an unsupported type.
+    Use cdpCacheSecondaryMgmtAddr and cdpCacheAddress for CDP topology links in case cdpCachePrimaryMgmtAddr is empty or of an unsupported type.
