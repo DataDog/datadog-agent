@@ -140,7 +140,7 @@ func TestLogsDocker(s OTelDockerTestSuite) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		tags := getLogTags(s.T(), log)
+		tags := getLogTagsAndAttrs(s.T(), log)
 		assert.Contains(s.T(), log.Message, log2Body)
 		assert.Equal(s.T(), CalendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
