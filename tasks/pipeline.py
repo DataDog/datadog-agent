@@ -850,7 +850,7 @@ def compare_to_itself(ctx):
 
     release_json = load_release_json()
 
-    with open('.gitlab-ci.yml', 'w') as f:
+    with open('.gitlab-ci.yml', 'r+') as f:
         content = f.read()
         f.write(
             content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
