@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// Microsoft-Windows-Kernel-File - https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-File.xml
 const (
 	idNameCreate       = uint16(10)
 	idNameDelete       = uint16(11)
@@ -45,6 +46,28 @@ const (
 	idCreateNewFile    = uint16(30)
 )
 
+// NT Kernel logging - https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/ETW/fileio.md
+const (
+	opName              = uint8(0)  // nolint:unused
+	opNameCreate        = uint8(32) // nolint:unused
+	opNameDelete        = uint8(35) // nolint:unused
+	opRundownDelete     = uint8(36) // nolint:unused
+	opCreate            = uint8(64) // nolint:unused
+	opDirEnumeration    = uint8(72) // nolint:unused
+	opDirNotification   = uint8(77) // nolint:unused
+	opSetInformation    = uint8(69) // nolint:unused
+	opDeleteFile        = uint8(70) // nolint:unused
+	opRenameFile        = uint8(71) // nolint:unused
+	opQueryInformation  = uint8(74) // nolint:unused
+	opFileSystemControl = uint8(75) // nolint:unused
+	opOperationEnd      = uint8(76) // nolint:unused
+	opRead              = uint8(67) // nolint:unused
+	opWrite             = uint8(68) // nolint:unused
+	opCleanup           = uint8(65) // nolint:unused
+	opClose             = uint8(66) // nolint:unused
+	opFlush             = uint8(73) // nolint:unused
+)
+
 type fileObjectPointer uint64
 
 var (
@@ -53,26 +76,30 @@ var (
 )
 
 /*
-		<template tid="CreateArgs">
-	      <data name="Irp" inType="win:Pointer"/>
-	      <data name="ThreadId" inType="win:Pointer"/>
-	      <data name="FileObject" inType="win:Pointer"/>
-	      <data name="CreateOptions" inType="win:UInt32"/>
-	      <data name="CreateAttributes" inType="win:UInt32"/>
-	      <data name="ShareAccess" inType="win:UInt32"/>
-	      <data name="FileName" inType="win:UnicodeString"/>
-	    </template>
+<template tid="CreateArgs">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="ThreadId" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="CreateOptions" inType="win:UInt32"/>
+	<data name="CreateAttributes" inType="win:UInt32"/>
+	<data name="ShareAccess" inType="win:UInt32"/>
+	<data name="FileName" inType="win:UnicodeString"/>
+
+</template>
+<template tid="CreateArgs">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="IssuingThreadId" inType="win:UInt32"/>
+	<data name="CreateOptions" inType="win:UInt32"/>
+	<data name="CreateAttributes" inType="win:UInt32"/>
+	<data name="ShareAccess" inType="win:UInt32"/>
+	<data name="FileName" inType="win:UnicodeString"/>
+
+</template>
 */
-/*
- 	<data name="Irp" inType="win:Pointer"/>
-      <data name="FileObject" inType="win:Pointer"/>
-      <data name="IssuingThreadId" inType="win:UInt32"/>
-      <data name="CreateOptions" inType="win:UInt32"/>
-      <data name="CreateAttributes" inType="win:UInt32"/>
-      <data name="ShareAccess" inType="win:UInt32"/>
-      <data name="FileName" inType="win:UnicodeString"/>
-*/
-type createHandleArgs struct {
+type createArgs struct {
 	etw.DDEventHeader
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
@@ -120,7 +147,7 @@ const (
 	kernelCreateOpts_FILE_NO_COMPRESSION         = uint32(0x00008000) // nolint:unused,revive
 )
 
-type createNewFileArgs createHandleArgs
+type createNewFileArgs createArgs
 
 /*
 The Parameters.Create.Options member is a ULONG value that describes the options that are used
@@ -136,12 +163,14 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
-	ca := &createHandleArgs{
+func (wp *WindowsProbe) _parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
+	ca := &createArgs{
 		DDEventHeader: e.EventHeader,
 	}
+
 	data := etwimpl.GetUserData(e)
-	if e.EventHeader.EventDescriptor.Version == 0 {
+	switch e.EventHeader.EventDescriptor.Version {
+	case 0:
 		ca.irp = data.GetUint64(0)
 		ca.threadID = data.GetUint64(8)
 		ca.fileObject = fileObjectPointer(data.GetUint64(16))
@@ -150,8 +179,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.shareAccess = data.GetUint32(32)
 
 		ca.fileName, _, _, _ = data.ParseUnicodeString(36)
-	} else if e.EventHeader.EventDescriptor.Version == 1 {
-
+	case 1, 3:
 		ca.irp = data.GetUint64(0)
 		ca.fileObject = fileObjectPointer(data.GetUint64(8))
 		ca.threadID = uint64(data.GetUint32(16))
@@ -160,39 +188,16 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.shareAccess = data.GetUint32(28)
 
 		ca.fileName, _, _, _ = data.ParseUnicodeString(32)
-	} else {
+	default:
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	// invalidate the path resolver entry
+	// invalidate the path resolver entry and other cache entries
+	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 	wp.filePathResolver.Remove(ca.fileObject)
-
-	// not amazing to double compute the basename.
-	basename := filepath.Base(ca.fileName)
-
-	if !wp.approveFimBasename(basename) {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.createFileApproverRejects++
-		return nil, errDiscardedPath
-	}
-
-	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.fileCreateSkippedDiscardedPaths++
-		return nil, errDiscardedPath
-	}
+	wp.createArgsCache.Remove(ca.irp)
 
 	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
-	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
-		wp.stats.fileCreateSkippedDiscardedPaths++
-		return nil, errDiscardedPath
-	}
-
-	if _, ok := wp.discardedBasenames.Get(basename); ok {
-		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
-		wp.stats.fileCreateSkippedDiscardedBasenames++
-		return nil, errDiscardedPath
-	}
 
 	// lru is thread safe, has its own locking
 	fc := fileCache{
@@ -202,15 +207,24 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
 	}
-	// if we get here, we have a new file handle. Remove it from the discarder cache in case
-	// we missed the close notification
-	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
+
+	return ca, nil
+}
+
+func (wp *WindowsProbe) parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
+	ca, err := wp._parseCreateArgs(e)
+	if err != nil {
+		return nil, err
+	}
+
+	// add it the createArgs cache so that it can be remove later from the operationEnd handling
+	wp.createArgsCache.Add(ca.irp, ca.fileObject)
 
 	return ca, nil
 }
 
 func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := wp.parseCreateHandleArgs(e)
+	ca, err := wp._parseCreateArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +232,7 @@ func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNew
 }
 
 // nolint: unused
-func (ca *createHandleArgs) string(t string) string {
+func (ca *createArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + ", ")
@@ -230,33 +244,35 @@ func (ca *createHandleArgs) string(t string) string {
 }
 
 // nolint: unused
-func (ca *createHandleArgs) String() string {
+func (ca *createArgs) String() string {
 	return ca.string("CREATE")
 }
 
 // nolint: unused
 func (ca *createNewFileArgs) String() string {
-	return (*createHandleArgs)(ca).string("CREATE_NEW_FILE")
+	return (*createArgs)(ca).string("CREATE_NEW_FILE")
 }
 
 /*
-  <template tid="SetInformationArgs">
-      <data name="Irp" inType="win:Pointer"/>
-      <data name="ThreadId" inType="win:Pointer"/>
-      <data name="FileObject" inType="win:Pointer"/>
-      <data name="FileKey" inType="win:Pointer"/>
-      <data name="ExtraInformation" inType="win:Pointer"/>
-      <data name="InfoClass" inType="win:UInt32"/>
-     </template>
+<template tid="SetInformationArgs">
 
-	 <template tid="SetInformationArgs_V1">
-      <data name="Irp" inType="win:Pointer"/>
-      <data name="FileObject" inType="win:Pointer"/>
-      <data name="FileKey" inType="win:Pointer"/>
-      <data name="ExtraInformation" inType="win:Pointer"/>
-      <data name="IssuingThreadId" inType="win:UInt32"/>
-      <data name="InfoClass" inType="win:UInt32"/>
-     </template>
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="ThreadId" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+	<data name="ExtraInformation" inType="win:Pointer"/>
+	<data name="InfoClass" inType="win:UInt32"/>
+
+</template>
+<template tid="SetInformationArgs_V1">
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+	<data name="ExtraInformation" inType="win:Pointer"/>
+	<data name="IssuingThreadId" inType="win:UInt32"/>
+	<data name="InfoClass" inType="win:UInt32"/>
+
+</template>
 */
 // nolint: unused
 type setInformationArgs struct {
@@ -388,21 +404,23 @@ func (fa *fsctlArgs) String() string {
 }
 
 /*
-	<template tid="CleanupArgs">
-      <data name="Irp" inType="win:Pointer"/>
-      <data name="threadID" inType="win:Pointer"/>
-      <data name="FileObject" inType="win:Pointer"/>
-      <data name="FileKey" inType="win:Pointer"/>
-     </template>
+<template tid="CleanupArgs">
 
- 	<template tid="CleanupArgs_V1">
-      <data name="Irp" inType="win:Pointer"/>
-      <data name="FileObject" inType="win:Pointer"/>
-      <data name="FileKey" inType="win:Pointer"/>
-      <data name="IssuingThreadId" inType="win:UInt32"/>
-     </template>
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="threadID" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+
+</template>
+<template tid="CleanupArgs_V1">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+	<data name="IssuingThreadId" inType="win:UInt32"/>
+
+</template>
 */
-
 type cleanupArgs struct {
 	etw.DDEventHeader
 	irp          uint64
@@ -419,6 +437,22 @@ type closeArgs cleanupArgs
 // nolint: unused
 type flushArgs cleanupArgs
 
+/*
+<template tid="OperationEndArgs">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="ExtraInformation" inType="win:Pointer"/>
+	<data name="Status" inType="win:UInt32"/>
+
+</template>
+*/
+type operationEndArgs struct {
+	etw.DDEventHeader
+	irp              uint64
+	extraInformation uint64
+	status           uint32
+}
+
 func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
@@ -429,7 +463,6 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 		ca.threadID = data.GetUint64(8)
 		ca.fileObject = fileObjectPointer(data.GetUint64(16))
 		ca.fileKey = data.GetUint64(24)
-
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 		ca.irp = data.GetUint64(0)
 		ca.fileObject = fileObjectPointer(data.GetUint64(8))
@@ -449,6 +482,19 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 	}
 
 	return ca, nil
+}
+
+func (wp *WindowsProbe) parseOperationEndArgs(e *etw.DDEventRecord) (*operationEndArgs, error) {
+	oe := &operationEndArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+
+	oe.irp = data.GetUint64(0)
+	oe.extraInformation = data.GetUint64(8)
+	oe.status = data.GetUint32(16)
+
+	return oe, nil
 }
 
 // nolint: unused
@@ -581,24 +627,28 @@ func (wa *writeArgs) String() string {
 }
 
 /*
-	     <template tid="DeletePathArgs">
-	      <data name="Irp" inType="win:Pointer"/>
-	      <data name="ThreadId" inType="win:Pointer"/>
-	      <data name="FileObject" inType="win:Pointer"/>
-	      <data name="FileKey" inType="win:Pointer"/>
-	      <data name="ExtraInformation" inType="win:Pointer"/>
-	      <data name="InfoClass" inType="win:UInt32"/>
-	      <data name="FilePath" inType="win:UnicodeString"/>
-	     </template>
-		      <template tid="DeletePathArgs_V1">
-	      <data name="Irp" inType="win:Pointer"/>
-	      <data name="FileObject" inType="win:Pointer"/>
-	      <data name="FileKey" inType="win:Pointer"/>
-	      <data name="ExtraInformation" inType="win:Pointer"/>
-	      <data name="IssuingThreadId" inType="win:UInt32"/>
-	      <data name="InfoClass" inType="win:UInt32"/>
-	      <data name="FilePath" inType="win:UnicodeString"/>
-	     </template>
+<template tid="DeletePathArgs">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="ThreadId" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+	<data name="ExtraInformation" inType="win:Pointer"/>
+	<data name="InfoClass" inType="win:UInt32"/>
+	<data name="FilePath" inType="win:UnicodeString"/>
+
+</template>
+<template tid="DeletePathArgs_V1">
+
+	<data name="Irp" inType="win:Pointer"/>
+	<data name="FileObject" inType="win:Pointer"/>
+	<data name="FileKey" inType="win:Pointer"/>
+	<data name="ExtraInformation" inType="win:Pointer"/>
+	<data name="IssuingThreadId" inType="win:UInt32"/>
+	<data name="InfoClass" inType="win:UInt32"/>
+	<data name="FilePath" inType="win:UnicodeString"/>
+
+</template>
 */
 type deletePathArgs struct {
 	etw.DDEventHeader
@@ -715,16 +765,18 @@ func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateAr
 		DDEventHeader: e.EventHeader,
 	}
 	data := etwimpl.GetUserData(e)
-	if e.EventHeader.EventDescriptor.Version == 0 {
+	switch e.EventHeader.EventDescriptor.Version {
+	case 0, 1, 2:
 		ca.fileKey = fileObjectPointer(data.GetUint64(0))
 		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
-	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		ca.fileKey = fileObjectPointer(data.GetUint64(0))
-		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
-	} else {
+	default:
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+
+	if strings.Contains(ca.fileName, "toto") {
+		fmt.Printf("Name create => Key: %d\n", ca.fileKey)
+	}
 
 	return ca, nil
 }
@@ -785,6 +837,36 @@ func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) string {
 	return userPath
 }
 
+func (wp *WindowsProbe) isPathAccepted(fileObject fileObjectPointer, fileName string, userFileName string) bool {
+	// not amazing to double compute the basename.
+	basename := filepath.Base(fileName)
+
+	if !wp.approveFimBasename(basename) {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.createFileApproverRejects++
+		return false
+	}
+
+	if _, ok := wp.discardedPaths.Get(fileName); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return false
+	}
+
+	if _, ok := wp.discardedUserPaths.Get(userFileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return false
+	}
+
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(fileObject), struct{}{})
+		wp.stats.fileCreateSkippedDiscardedBasenames++
+		return false
+	}
+
+	return true
+}
+
 func (wp *WindowsProbe) initializeVolumeMap() error {
 
 	buf := make([]uint16, 1024)
@@ -840,4 +922,30 @@ func (wp *WindowsProbe) initializeVolumeMap() error {
 		}
 	}
 	return nil
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseNlCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
+	return wp.parseCreateArgs(e)
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseNlNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
+	return wp.parseNameCreateArgs(e)
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseNlOperationEndArgs(e *etw.DDEventRecord) (*operationEndArgs, error) {
+
+	s := &operationEndArgs{
+		DDEventHeader: e.EventHeader,
+	}
+
+	data := etwimpl.GetUserData(e)
+
+	s.irp = data.GetUint64(0)
+	//s.extraInfo = data.GetUint64(8)
+	//s.ntStatus = data.GetUint32(16)
+
+	return s, nil
 }
