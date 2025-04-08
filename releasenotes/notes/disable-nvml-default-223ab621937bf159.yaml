@@ -9,4 +9,4 @@
 fixes:
   - |
     Add a configuration option, `enable_nvml_detection`, disabled by default, to stop
-    the agent from trying to find the NVML library on startup.
+    the Agent from trying to find the NVML library on startup.
