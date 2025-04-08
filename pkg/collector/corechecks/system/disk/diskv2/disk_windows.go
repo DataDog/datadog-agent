@@ -49,7 +49,7 @@ type netResource struct {
 
 // RemotePath constructs the remote path based on the mount type.
 // It converts the Type to uppercase to ensure case-insensitive evaluation.
-func (m mount) RemotePath() (string, string) {
+func remotePath(m mount) (string, string) {
 	if strings.TrimSpace(m.Type) == "" {
 		m.Type = "SMB"
 	}
@@ -68,7 +68,7 @@ func (c *Check) configureCreateMounts() {
 			continue
 		}
 		log.Debugf("Mounting: %s\n", m)
-		mountType, remoteName := m.RemotePath()
+		mountType, remoteName := remotePath(m)
 		log.Debugf("mountType: %s\n", mountType)
 		err := NetAddConnection(mountType, m.MountPoint, remoteName, m.Password, m.User)
 		if err != nil {
