@@ -18,12 +18,12 @@ def post(install_directory, storage_location, skip_flag=False):
             flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
 
             # this approach makes it easier to expose this file flag as an environment variable
-            # in the agent install script
+            # DD_SKIP_INSTALL_THIRD_PARTY_INTEGRATIONS in the agent install script
             skip_third_party_integration = False
             if os.path.exists(flag_path):
                 with open(flag_path, "r") as f:
                     flag_content = f.read()
-                    if flag_content.strip().lower() in ["n", "no", "false", "0", ""]:
+                    if flag_content.strip().lower() in ["y", "yes", "true", "1", ""]:
                         skip_third_party_integration = True
                     
             if not skip_third_party_integration and skip_flag:
@@ -38,7 +38,7 @@ def post(install_directory, storage_location, skip_flag=False):
                     print(f"File '{diff_python_installed_packages_file}' not found.")
                     return 0
             else:
-                print(f"File '{flag_path}' found: no third party integration will be installed.")
+                print(f"File '{flag_path}' found with an affirmative value: no third party integration will be installed.")
                 return 0
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")
