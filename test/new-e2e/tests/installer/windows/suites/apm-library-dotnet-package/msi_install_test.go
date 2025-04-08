@@ -193,7 +193,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIRollbackRemovesLibrary() {
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
 		installerwindows.WithMSILogFile("install-rollback.log"),
 		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 	)
 	s.Require().Error(err)
 
@@ -228,7 +227,6 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", newVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install-rollback.log"),
 		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 	)
 	s.Require().Error(err)
 
@@ -332,14 +330,12 @@ func (s *testAgentMSIInstallsDotnetLibrary) startExperimentWithCustomPackage(opt
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		// TODO: switch to prod stable entry when available
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("59253404")),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
-	options = append(options, installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"))
 	s.Require().NoError(s.Installer().Install(options...))
 
 	// sanity check: make sure we did indeed install the stable version
@@ -352,15 +348,15 @@ func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...
 }
 
 func (s *testAgentMSIInstallsDotnetLibrary) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
-	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	options := []installerwindows.MsiOption{
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
-	options = append(options, installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"))
 	s.Require().NoError(s.Installer().Install(
 		options...,
 	))

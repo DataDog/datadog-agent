@@ -37,8 +37,6 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -56,6 +54,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -1428,4 +1428,64 @@ func BenchmarkGetNSInfoOld(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		getNsInfoOld(os.Getpid())
 	}
+}
+
+func makeHTTPRequest(t *testing.T, method, url string) *http.Response {
+	req, err := http.NewRequest(method, url, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	return resp
+}
+
+func getStateResponse(t *testing.T, url string) *state {
+	stateURL := url + "/" + string(config.DiscoveryModule) + "/state"
+	resp := makeHTTPRequest(t, http.MethodGet, stateURL)
+
+	var state state
+	err := json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	resp.Body.Close()
+
+	return &state
+}
+
+func TestStateEndpoint(t *testing.T) {
+	discovery := setupDiscoveryModule(t)
+	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
+	serverf, _ := startTCPServer(t, "tcp4", "")
+	t.Cleanup(func() { serverf.Close() })
+	pid := os.Getpid()
+
+	_ = getServices(t, discovery.url)
+	resp := getServices(t, discovery.url)
+	startEvent := findService(pid, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
+
+	state := getStateResponse(t, discovery.url)
+	require.NotEmpty(t, state.Cache)
+
+	var serviceInfo *model.Service
+	for _, service := range state.Cache {
+		if service.PID == pid {
+			serviceInfo = service
+			break
+		}
+	}
+	require.NotNil(t, serviceInfo, "could not find service with pid %v in cache", pid)
+
+	require.Equal(t, pid, serviceInfo.PID)
+	require.Equal(t, mockedTime.Unix(), serviceInfo.LastHeartbeat)
+
+	require.NotNil(t, state.NoPortTries)
+	require.NotNil(t, state.PotentialServices)
+	require.NotNil(t, state.RunningServices)
+	require.NotNil(t, state.IgnorePids)
 }
