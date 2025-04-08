@@ -40,6 +40,14 @@ func NewRuleFilterModel(cfg RuleFilterEventConfig) (*RuleFilterModel, error) {
 	}, nil
 }
 
+// NewRuleFilterModelWithKernelVersion returns a new rule filter model
+func NewRuleFilterModelWithKernelVersion(cfg RuleFilterEventConfig, kv *kernel.Version) *RuleFilterModel {
+	return &RuleFilterModel{
+		kv:  kv,
+		cfg: cfg,
+	}
+}
+
 // NewEvent returns a new event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
