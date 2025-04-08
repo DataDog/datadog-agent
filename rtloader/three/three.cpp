@@ -153,18 +153,19 @@ bool Three::init()
         }
     };
 
-    const std::array<BuiltinModule, 7> builtins{ { { AGGREGATOR_MODULE_NAME, PyInit_aggregator },
-                                                   { DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent },
-                                                   { UTIL_MODULE_NAME, PyInit_util },
-                                                   { _UTIL_MODULE_NAME, PyInit__util },
-                                                   { TAGGER_MODULE_NAME, PyInit_tagger },
-                                                   { KUBEUTIL_MODULE_NAME, PyInit_kubeutil },
-                                                   { CONTAINERS_MODULE_NAME, PyInit_containers } } };
+    static const BuiltinModule builtins[] = { { AGGREGATOR_MODULE_NAME, PyInit_aggregator },
+                                              { DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent },
+                                              { UTIL_MODULE_NAME, PyInit_util },
+                                              { _UTIL_MODULE_NAME, PyInit__util },
+                                              { TAGGER_MODULE_NAME, PyInit_tagger },
+                                              { KUBEUTIL_MODULE_NAME, PyInit_kubeutil },
+                                              { CONTAINERS_MODULE_NAME, PyInit_containers } };
+    static const size_t numBuiltins = sizeof(builtins) / sizeof(builtins[0]);
 
     // Register all builtin modules before initialization
-    for (std::array<BuiltinModule, 7>::const_iterator it = builtins.begin(); it != builtins.end(); ++it) {
-        if (!it->registerModule()) {
-            setError("Failed to register builtin module: " + std::string(it->name));
+    for (size_t i = 0; i < numBuiltins; ++i) {
+        if (!builtins[i].registerModule()) {
+            setError("Failed to register builtin module: " + std::string(builtins[i].name));
             return false;
         }
     }
