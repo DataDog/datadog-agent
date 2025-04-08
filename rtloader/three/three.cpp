@@ -58,76 +58,121 @@ Three::~Three()
 
 bool Three::init()
 {
-    // Pre-Initialize Python with UTF-8 mode
-    PyStatus status;
-    PyPreConfig preconfig;
-    PyPreConfig_InitIsolatedConfig(&preconfig);
-    preconfig.utf8_mode = 1;
-
-    status = Py_PreInitialize(&preconfig);
-    if (PyStatus_Exception(status)) {
-        if (status.err_msg) {
-            setError("Failed to pre-initialize Python: " + std::string(status.err_msg));
-        } else {
-            setError("Failed to pre-initialize Python");
+    class PythonConfig
+    {
+    public:
+        explicit PythonConfig()
+        {
+            PyConfig_InitIsolatedConfig(&config);
         }
-    }
-
-    // Initialize the configuration with default values
-    PyConfig_InitIsolatedConfig(&_config);
-    _config.install_signal_handlers = 1;
-
-    // Configure Python home
-    status = PyConfig_SetBytesString(&_config, &_config.home, _pythonHome);
-    if (PyStatus_Exception(status)) {
-        if (status.err_msg) {
-            setError("Failed to set python home: " + std::string(status.err_msg));
-        } else {
-            setError("Failed to set python home");
+        ~PythonConfig()
+        {
+            PyConfig_Clear(&config);
         }
-    }
 
-    // Configure Python executable
-    if (_pythonExe) {
-        status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe);
-        if (PyStatus_Exception(status)) {
-            if (status.err_msg) {
-                setError("Failed to set executable path: " + std::string(status.err_msg));
-            } else {
-                setError("Failed to set executable path");
+        // Prevent copying
+        PythonConfig(const PythonConfig &) = delete;
+        PythonConfig &operator=(const PythonConfig &) = delete;
+
+        PyConfig *operator->()
+        {
+            return &config;
+        }
+        const PyConfig *operator->() const
+        {
+            return &config;
+        }
+
+    private:
+        PyConfig config;
+    };
+
+    class StatusHandler
+    {
+    public:
+        explicit StatusHandler(Three *ctx)
+            : context(ctx)
+        {
+        }
+
+        bool check(const PyStatus &status, std::string_view message)
+        {
+            if (PyStatus_Exception(status)) {
+                context->setError(std::string(message) + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+                return false;
             }
+            return true;
         }
-        status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe);
-        if (PyStatus_Exception(status)) {
-            if (status.err_msg) {
-                setError("Failed to set program name: " + std::string(status.err_msg));
-            } else {
-                setError("Failed to set program name");
-            }
+
+    private:
+        Three *context;
+    };
+
+    // Initialize UTF-8 mode
+    {
+        PyPreConfig preconfig;
+        PyPreConfig_InitIsolatedConfig(&preconfig);
+        preconfig.utf8_mode = 1;
+
+        StatusHandler status(this);
+        if (!status.check(Py_PreInitialize(&preconfig), "Failed to pre-initialize Python")) {
+            return false;
         }
     }
-    // add custom builtins init funcs to Python inittab, one by one
-    // Unlike its py2 counterpart, these need to be called before Py_Initialize
-    PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
-    PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
-    PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
-    PyImport_AppendInittab(_UTIL_MODULE_NAME, PyInit__util);
-    PyImport_AppendInittab(TAGGER_MODULE_NAME, PyInit_tagger);
-    PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
-    PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
-    // Initialize Python with our configuration
-    status = Py_InitializeFromConfig(&_config);
-    if (PyStatus_Exception(status)) {
-        if (status.err_msg) {
-            setError("Failed to initialize Python: " + std::string(status.err_msg));
-        } else {
-            setError("Failed to initialize Python");
-        }
+    // Configure Python environment
+    PythonConfig config;
+    StatusHandler status(this);
+
+    config->install_signal_handlers = 1;
+
+    // Set Python home
+    if (!status.check(PyConfig_SetBytesString(config.operator->(), &config->home, _pythonHome),
+                      "Failed to set python home")) {
         return false;
     }
-    // Clean up the configuration
-    PyConfig_Clear(&_config);
+
+    // Configure Python executable if provided
+    if (_pythonExe) {
+        if (!status.check(PyConfig_SetBytesString(config.operator->(), &config->executable, _pythonExe),
+                          "Failed to set executable path")
+            || !status.check(PyConfig_SetBytesString(config.operator->(), &config->program_name, _pythonExe),
+                             "Failed to set program name")) {
+            return false;
+        }
+    }
+
+    // Register builtin modules
+    struct BuiltinModule {
+        const char *name;
+        PyObject *(*initfunc)(void);
+
+        bool registerModule() const
+        {
+            return PyImport_AppendInittab(name, initfunc) != -1;
+        }
+    };
+
+    const std::array<BuiltinModule, 7> builtins{ { { AGGREGATOR_MODULE_NAME, PyInit_aggregator },
+                                                   { DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent },
+                                                   { UTIL_MODULE_NAME, PyInit_util },
+                                                   { _UTIL_MODULE_NAME, PyInit__util },
+                                                   { TAGGER_MODULE_NAME, PyInit_tagger },
+                                                   { KUBEUTIL_MODULE_NAME, PyInit_kubeutil },
+                                                   { CONTAINERS_MODULE_NAME, PyInit_containers } } };
+
+    // Register all builtin modules before initialization
+    if (const auto failedModule = std::find_if(builtins.begin(), builtins.end(),
+                                               [](const BuiltinModule &module) { return !module.registerModule(); });
+        failedModule != builtins.end()) {
+        setError("Failed to register builtin module: " + std::string(failedModule->name));
+        return false;
+    }
+
+    // Initialize Python with our configuration
+    if (!status.check(Py_InitializeFromConfig(config.operator->()), "Failed to initialize Python")) {
+        return false;
+    }
 
     // Set PYTHONPATH
     if (!_pythonPaths.empty()) {
