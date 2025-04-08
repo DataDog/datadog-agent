@@ -5,12 +5,13 @@ target:
   name: datadog-agent
   command: /bin/entrypoint.sh
   cpu_allotment: 4
-  memory_allotment: 8GiB
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: "12345678901234567890123456789012"
     DD_HOSTNAME: smp-regression
     DD_OTEL_ENABLED: true
+    DD_OTELCOLLECTOR_ENABLED: true
     DD_SITE: 127.0.0.1:9092
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     
