@@ -199,8 +199,10 @@ new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # parallel: 2
-  needs:
-    - setup_agent_version
+  # TODO
+  needs: []
+  # needs:
+  #   - setup_agent_version
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
