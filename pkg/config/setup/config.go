@@ -121,7 +121,7 @@ const (
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
 
-	// defaultRegistryFilename is the default registry filename
+	// DefaultRegistryFilename is the default registry filename
 	DefaultRegistryFilename = "registry.json"
 )
 
