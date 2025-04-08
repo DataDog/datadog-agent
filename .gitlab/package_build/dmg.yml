@@ -229,6 +229,7 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
+    - sudo reboot
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
     # Setup pyenv with virtual envs
