@@ -81,7 +81,7 @@ u64 __attribute__((always_inline)) rand64() {
 }
 
 void __attribute__((always_inline)) simple_memset_zero(void *ptr, size_t size) {
-    #pragma unroll
+    #pragma unroll 1200
     for (size_t i = 0; i < size; i++) {
         // volatile is necessary to prevent clang from transforming this loop into a memset call
         ((volatile char *)ptr)[i] = 0;
