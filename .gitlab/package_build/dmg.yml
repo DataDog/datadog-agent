@@ -258,7 +258,7 @@ new-agent_dmg-x64-a7:
     - pyenv activate $VENV_NAME
     - which python
     - python --version
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.0.5"
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0"
     - python3 -m dda self dep sync -f legacy-tasks
     - pyenv rehash
     - |
