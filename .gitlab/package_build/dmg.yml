@@ -119,7 +119,6 @@ include:
       security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
     fi
 
-
 .macos_setup_cache:
   - |
     # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
@@ -142,7 +141,6 @@ include:
     rm -rf $GOMODCACHE
     mkdir -p $GOMODCACHE
 
-
 .macos_do_build:
   - |
     INVOKE_TASK="omnibus.build"
@@ -163,7 +161,6 @@ include:
         dda inv -- -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     fi
     echo Built packages using omnibus
-
 
 .macos_do_notarization:
   - |
@@ -193,7 +190,6 @@ include:
         exit $EXIT_CODE
       fi
     fi
-
 
 new-agent_dmg-x64-a7:
   stage: package_build
@@ -233,13 +229,12 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    - set +e
+    - sudo reboot
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
     # Setup pyenv with virtual envs
     - |
-      export PYENV_ROOT="$HOME/.pyenv"
-      [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+      export PATH="$(pyenv root)/bin:$PATH"
       eval "$(pyenv init -)"
       eval "$(pyenv virtualenv-init -)"
     # TODO: Update
