@@ -43,7 +43,8 @@ type DomainResolver interface {
 	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
 	GetAPIKeys() []string
 	// SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
-	// Returns the list of keys that have changed
+	// Returns the list of keys that have changed - the returned keys are scrubbed as these will be used to log
+	// which keys have been changed.
 	SetAPIKeys(keys []string) ([]string, []string)
 	// GetBaseDomain returns the base domain for this `DomainResolver`
 	GetBaseDomain() string
@@ -91,13 +92,13 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 				return
 			}
 			keys := utils.DedupAPIKeys(endpoints)
-			old, new := resolver.SetAPIKeys(keys)
+			removed, added := resolver.SetAPIKeys(keys)
 
 			// Not all calls here will involve changes to the api keys since we are just reloading every time something with
 			// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
 			// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
-			if len(old) > 0 && len(new) > 0 {
-				log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(old, ","), strings.Join(new, ","))
+			if len(removed) > 0 && len(added) > 0 {
+				log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
 			}
 
 			return
@@ -117,7 +118,13 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			return
 		}
 
-		log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
+		if ok1 {
+			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
+		} else if ok2 {
+			log.Errorf("old API key for '%s' is invalid (not a string) ignoring new value", setting)
+		} else {
+			log.Errorf("new and old API key for '%s' is invalid (not a string) ignoring new value", setting)
+		}
 	})
 }
 
@@ -163,16 +170,17 @@ func (r *SingleDomainResolver) GetAPIKeys() []string {
 // missing returns a list of elements that are in list a, but not in list b.
 // This is inefficient for large lists, but the assumption is that a config
 // will only have a very small number of API keys specified.
+// NOTE, this scrubs the API key to avoid leaking the key when logging.
 func missing(a []string, b []string) []string {
-	new := []string{}
+	added := []string{}
 
 	for _, key := range a {
 		if !slices.Contains(b, key) {
-			new = append(new, key)
+			added = append(added, scrubber.HideKeyExceptLastFiveChars(key))
 		}
 	}
 
-	return new
+	return added
 }
 
 // SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
@@ -180,12 +188,12 @@ func (r *SingleDomainResolver) SetAPIKeys(keys []string) ([]string, []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	old := missing(r.dedupedAPIKeys, keys)
-	new := missing(keys, r.dedupedAPIKeys)
+	removed := missing(r.dedupedAPIKeys, keys)
+	added := missing(keys, r.dedupedAPIKeys)
 
 	r.dedupedAPIKeys = keys
 
-	return old, new
+	return removed, added
 }
 
 // GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`
@@ -274,12 +282,12 @@ func (r *MultiDomainResolver) SetAPIKeys(keys []string) ([]string, []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	old := missing(r.dedupedAPIKeys, keys)
-	new := missing(keys, r.dedupedAPIKeys)
+	removed := missing(r.dedupedAPIKeys, keys)
+	added := missing(keys, r.dedupedAPIKeys)
 
 	r.dedupedAPIKeys = keys
 
-	return old, new
+	return removed, added
 }
 
 // GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
