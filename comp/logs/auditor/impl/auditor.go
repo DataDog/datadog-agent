@@ -18,12 +18,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
-
-// DefaultRegistryFilename is the default registry filename
-const DefaultRegistryFilename = "registry.json"
 
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
@@ -80,7 +78,7 @@ type Provides struct {
 // newAuditor is the public constructor for the auditor
 func newAuditor(deps Dependencies) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
-	filename := DefaultRegistryFilename
+	filename := setup.DefaultRegistryFilename
 	ttl := time.Duration(deps.Config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	messageChannelSize := deps.Config.GetInt("logs_config.message_channel_size")
 	atomicRegistryWrite := deps.Config.GetBool("logs_config.atomic_registry_write")

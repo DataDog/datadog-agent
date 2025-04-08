@@ -122,7 +122,7 @@ const (
 	DefaultNetworkPathMaxTTL = 30
 
 	// defaultRegistryFilename is the default registry filename
-	defaultRegistryFilename = "registry.json"
+	DefaultRegistryFilename = "registry.json"
 )
 
 // datadog is the global configuration object
