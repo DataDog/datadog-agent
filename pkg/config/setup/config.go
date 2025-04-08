@@ -1072,8 +1072,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
-
-	config.BindEnvAndSetDefault("logs_config.registry_filename", DefaultRegistryFilename)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1700,7 +1698,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
-	config.BindEnvAndSetDefault("logs_config.registry_filename", DefaultRegistryFilename)
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", 23)
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
