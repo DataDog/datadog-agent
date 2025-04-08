@@ -7,6 +7,7 @@ cmake(
         "ENABLE_PYTHON3": "OFF",
         "WITH_PCRE2": "ON",
         "ENABLE_TESTS": "OFF",
+        "ENABLE_OSCAP_UTIL_DOCKER": "FALSE",
         "BLKID_INCLUDE_DIR:PATH": "$$EXT_BUILD_DEPS/util-linux/include",
         "BLKID_LIBRARY:FILEPATH": "$$EXT_BUILD_DEPS/util-linux/lib/libblkid.so",
         "BZIP2_INCLUDE_DIR:PATH": "$$EXT_BUILD_DEPS/include",
@@ -40,7 +41,7 @@ cmake(
         "XMLSEC_LIBRARY:FILEPATH": "$$EXT_BUILD_DEPS/xmlsec/lib/libxmlsec1.so",
         "XMLSEC_OPENSSL_LIBRARY:FILEPATH": "$$EXT_BUILD_DEPS/xmlsec/lib/libxmlsec1-openssl.so",
         # CMake's check_include_dir doesn't allow for a specific path to be searched (AFAICS)
-        # but be can shortcut the check instead
+        # but we can shortcut the check instead
         "HAVE_ACL_LIBACL_H": "YES",
         "HAVE_SYS_ACL_H": "YES",
     },
