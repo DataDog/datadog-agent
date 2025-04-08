@@ -98,7 +98,9 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	excludedFilesystems, found := conf["excluded_filesystems"]
 	if excludedFilesystems, ok := excludedFilesystems.([]interface{}); found && ok {
 		for _, excludedFilesystem := range excludedFilesystems {
-			c.cfg.excludedFilesystems = append(cfg.excludedFilesystems, excludedFilesystem.(string))
+			if strExcludedFilesystem, ok := excludedFilesystem.(string); ok {
+				c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, strExcludedFilesystem)
+			}
 		}
 	}
 
@@ -108,7 +110,9 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	excludedDisks, found := conf["excluded_disks"]
 	if excludedDisks, ok := excludedDisks.([]interface{}); found && ok {
 		for _, excludedDisk := range excludedDisks {
-			c.cfg.excludedDisks = append(cfg.excludedDisks, excludedDisk.(string))
+			if strExcludedDisk, ok := excludedDisk.(string); ok {
+				c.cfg.excludedDisks = append(c.cfg.excludedDisks, strExcludedDisk)
+			}
 		}
 	}
 
