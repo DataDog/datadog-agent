@@ -9,5 +9,5 @@
 features:
   - |
     Feature parity between Python disk check and Go disk check.
-    The new version of the disk check will be disabled by default.
+    The new version of the disk check is disabled by default for now, but it will be enabled later on.
     It can be enabled by setting ``use_diskv2_check: true`` in your configuration.
