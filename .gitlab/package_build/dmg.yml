@@ -37,29 +37,34 @@ include:
 #     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 
-# Activates the python home venv where we install global packages
-.macos_python_home_venv:
-  - . $HOME/.venv/bin/activate
-
 .macos_setup_python:
+  # Setup pyenv with virtual envs
+  - echo Using python $PYTHON_VERSION
   - |
-    PY_VERSION_AGENT=$(cat .python-version)
-    PY_VERSION_RUNNER=$(python3 --version | cut -d " " -f 2)
-    echo "Python version on the agent: $PY_VERSION_AGENT"
-    echo "Python version on the runner: $PY_VERSION_RUNNER"
-    # Verify that python versions are compatible
-    if [[ "$PY_VERSION_RUNNER" != "$PY_VERSION_AGENT"* ]]; then
-      echo "Python versions are not compatible. Please update the python version on the runner (https://github.com/DataDog/ci-platform-machine-images/blob/main/packer/macos-ami/team/datadog-agent-ventura.pkr.hcl)."
-      exit 1
+    export PATH="$(pyenv root)/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+  - |
+    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+    VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+    # Check if the virtual environment directory exists
+    if [ ! -d "$VENV_PATH" ]; then
+      echo "Creating virtual environment '$VENV_NAME'..."
+      pyenv install "$PYTHON_VERSION" || true
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+    else
+      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
     fi
-  - !reference [.macos_python_home_venv]
   - |
-    # Install dda in the home venv
-    # TODO A: Merge with main
-    # python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    pyenv activate $VENV_NAME
+    echo "Using Python $PYTHON_VERSION"
+    # TODO A: Specific version (.dda/version)
     python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
-    python3 -m dda self dep sync -f legacy-tasks
-    which dda
+    dda self dep sync -f legacy-tasks
+    pyenv rehash
+  - |
+    echo Pyenv versions:
+    ls "$(pyenv root)/versions"
 
 # Add certificates to temporary keychain
 .macos_setup_signing:
@@ -194,7 +199,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  parallel: 2
+  # parallel: 2
   # TODO
   needs: []
   # needs:
@@ -229,45 +234,13 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    - sudo reboot
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
-    # Setup pyenv with virtual envs
-    - |
-      export PATH="$(pyenv root)/bin:$PATH"
-      eval "$(pyenv init -)"
-      eval "$(pyenv virtualenv-init -)"
-    # TODO: Update
-    - echo Using python $PYTHON_VERSION
-    - |
-      VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-      VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
-      # Check if the virtual environment directory exists
-      if [ ! -d "$VENV_PATH" ]; then
-        echo "Creating virtual environment '$VENV_NAME'..."
-        pyenv install "$PYTHON_VERSION" || true
-        pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
-      else
-        echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
-      fi
-    - |
-      pyenv activate $VENV_NAME
-      echo "Using Python $PYTHON_VERSION"
-      # TODO A: Specific version (.dda/version)
-      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
-      dda self dep sync -f legacy-tasks
-      pyenv rehash
-    - |
-      echo Pyenv versions:
-      ls "$(pyenv root)/versions"
 
-    # - exit 1
-
+    # TODO: Try with 14.3.1
+    - ls /Applications
 
     - set -eo pipefail
-
-    # TODO : Remove
-    # - !reference [.macos_setup_python]
 
     - brew uses gettext --installed || true
 
@@ -279,6 +252,7 @@ new-agent_dmg-x64-a7:
       fi
 
     - !reference [.vault_login]
+    - !reference [.macos_setup_python]
 
     # Setup
     - |
