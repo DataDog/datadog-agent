@@ -44,7 +44,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			method:   http.MethodGet,
 			path:     "/test/1",
 			code:     http.StatusOK,
-			duration: time.Millisecond,
+			duration: 0,
 			tlsConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			}, // The client is not providing a certificate, so it is not mTLS
@@ -124,12 +124,8 @@ func TestTelemetryMiddleware(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
-	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	// Parse the certificate from the server TLS config
-	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
-	require.NoError(t, err)
-	tmf := NewTelemetryMiddlewareFactory(telemetry, cert)
+	tmf := NewTelemetryMiddlewareFactory(telemetry, nil)
 	telemetryHandler := tmf.Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -149,12 +145,8 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
-	at := authtokenmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	// Parse the certificate from the server TLS config
-	cert, err := x509.ParseCertificate(at.GetTLSServerConfig().Certificates[0].Certificate[0])
-	require.NoError(t, err)
-	tmf := NewTelemetryMiddlewareFactory(telemetry, cert)
+	tmf := NewTelemetryMiddlewareFactory(telemetry, nil)
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
