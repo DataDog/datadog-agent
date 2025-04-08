@@ -40,7 +40,7 @@ repos:
       args: [ "-w", "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
         files: release.json
