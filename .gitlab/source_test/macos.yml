@@ -39,7 +39,7 @@ tests_macos_gitlab_amd64:
   tags: ["macos:ventura-amd64-test", "specific:true"]
   after_script:
     - !reference [.vault_login]
-    - !reference [.macos_python_home_venv]
+    - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
 
@@ -47,11 +47,10 @@ tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   rules:
     !reference [.manual]
-  # TODO: Try arm
   tags: ["macos:ventura-arm64", "specific:true"]
   allow_failure: true
   after_script:
     - !reference [.vault_login]
-    - !reference [.macos_python_home_venv]
+    - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]

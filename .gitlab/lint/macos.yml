@@ -24,5 +24,4 @@ lint_macos_gitlab_arm64:
   rules:
     - !reference [.on_main]
     - !reference [.manual]
-  # TODO: Try arm
   tags: ["macos:ventura-arm64", "specific:true"]
