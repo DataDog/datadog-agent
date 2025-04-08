@@ -5,7 +5,10 @@
 
 package sample
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 type tierA struct {
 	a int
@@ -40,6 +43,25 @@ type inner struct {
 	E string
 }
 
+type interface_complexityA struct {
+	b int
+	c interface_complexityB
+}
+
+type interface_complexityB struct {
+	d int
+	e error
+	f interface_complexityC
+}
+
+type interface_complexityC struct {
+	g int
+}
+
+//go:noinline
+//nolint:all
+func test_interface_complexity(a interface_complexityA) {}
+
 //go:noinline
 //nolint:all
 func test_multiple_struct_tiers(a tierA) {}
@@ -65,6 +87,10 @@ type circularReferenceType struct {
 //nolint:all
 //go:noinline
 func test_circular_type(x circularReferenceType) {}
+
+//nolint:all
+//go:noinline
+func test_interface_and_int(a int, b error, c uint) {}
 
 //nolint:all
 func ExecuteComplexFuncs() {
@@ -103,4 +129,18 @@ func ExecuteComplexFuncs() {
 	circ := circularReferenceType{}
 	circ.t = &circ
 	test_circular_type(circ)
+
+	test_interface_complexity(interface_complexityA{
+		b: 1,
+		c: interface_complexityB{
+			d: 2,
+			e: errors.New("three"),
+			f: interface_complexityC{
+				g: 4,
+			},
+		},
+	})
+
+	test_interface_and_int(1, errors.New("two"), 3)
+
 }
