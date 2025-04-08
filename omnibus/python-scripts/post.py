@@ -22,7 +22,7 @@ def post(install_directory, storage_location, skip_flag=False):
             skip_third_party_integration = False
             with open(flag_path, 'r') as f:
                 flag_content = f.read()
-                if flag_content.strip().lower() in ["n", "no", "false", "0"]:
+                if flag_content.strip().lower() in ["n", "no", "false", "0", "", None]:
                     skip_third_party_integration = True
                     
             if not skip_third_party_integration and skip_flag:
