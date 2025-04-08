@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
+  rev: v0.11.4
   hooks:
     - id: ruff
       args: [ --fix ]
@@ -45,7 +45,7 @@ repos:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.3
+  rev: v1.7.7
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]
