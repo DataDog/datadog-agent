@@ -8,7 +8,6 @@ Notes about Agent6:
 
 import json
 import os
-import re
 import sys
 import tempfile
 import time
@@ -20,7 +19,7 @@ from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr, create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
@@ -31,7 +30,6 @@ from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
     get_default_branch,
-    get_git_references,
     get_last_commit,
     get_last_release_tag,
     is_agent6,
@@ -39,7 +37,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import running_in_github_actions, set_gitconfig_in_ci
+from tasks.libs.common.utils import set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -57,7 +55,6 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    INTEGRATIONS_CORE_JSON_FIELD,
     UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
@@ -83,11 +80,6 @@ from tasks.libs.releasing.version import (
 from tasks.notify import post_message
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
-
-GITLAB_FILES_TO_UPDATE = [
-    ".gitlab-ci.yml",
-    ".gitlab/notify/notify.yml",
-]
 
 BACKPORT_LABEL_COLOR = "5319e7"
 TAG_BATCH_SIZE = 3
@@ -806,16 +798,11 @@ def create_release_branches(
         set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        for file in GITLAB_FILES_TO_UPDATE:
-            with open(file) as gl:
-                file_content = gl.readlines()
-
-            with open(file, "w") as gl:
-                for line in file_content:
-                    if re.search(rf"compare_to: {get_default_branch()}", line):
-                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
-                    else:
-                        gl.write(line)
+        with open(".gitlab-ci.yml", "w") as f:
+            content = f.read()
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            )
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
@@ -1365,68 +1352,3 @@ def check_previous_agent6_rc(ctx):
     if err_msg:
         post_message(ctx, "agent-ci-on-call", err_msg)
         raise Exit(message=err_msg, code=1)
-
-
-@task
-def bump_integrations_core(ctx):
-    """
-    Create a PR to bump the integrations core fields in the release.json file
-    """
-    github_workflow_url = ""
-    if running_in_github_actions():
-        github_workflow_url = (
-            f"{os.environ.get('GITHUB_SERVER_URL')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
-        )
-    commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
-
-    rj = load_release_json()
-
-    rj["nightly"][INTEGRATIONS_CORE_JSON_FIELD] = commit_hash
-
-    _save_release_json(rj)
-
-    main_branch = "main"
-    bump_integrations_core_branch = f"bump-integrations-core-{int(time.time())}"
-    ctx.run(f"git checkout -b {bump_integrations_core_branch}")
-    ctx.run("git add release.json")
-
-    commit_message = "bump integrations core to HEAD"
-    set_gitconfig_in_ci(ctx)
-    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-    if not ok:
-        raise Exit(
-            color_message(
-                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {bump_integrations_core_branch} branch and then open a PR against {main_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if not ctx.run(f"git push --set-upstream origin {bump_integrations_core_branch}", warn=True):
-        raise Exit(
-            color_message(
-                f"Could not push branch {bump_integrations_core_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    # to find the correct current milestone 'devel' is set to False even though this will only run on development branches
-    current = current_version(ctx, 7)
-    current.rc = False
-    current.devel = False
-    current.patch = 0
-    pr_url = create_datadog_agent_pr(
-        commit_message,
-        main_branch,
-        bump_integrations_core_branch,
-        str(current),
-        body=github_workflow_url,
-        other_labels=["team/integrations"],
-    )
-    for channel in ["agent-integrations-reviews", 'agent-delivery-reviews']:
-        post_message(
-            ctx,
-            channel,
-            f":pr-open: A <{pr_url}/s|PR> to bump `integrations-core` has been created. Please review and merge it.",
-        )

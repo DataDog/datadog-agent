@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 func TestLoaderCompile(t *testing.T) {
