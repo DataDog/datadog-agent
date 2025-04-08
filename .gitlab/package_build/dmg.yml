@@ -217,8 +217,8 @@ new-agent_dmg-x64-a7:
     # SIGN: true
     # INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     # INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
-    # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-    # S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
@@ -229,7 +229,6 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    - sudo reboot
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
     # Setup pyenv with virtual envs
