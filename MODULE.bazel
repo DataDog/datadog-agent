@@ -140,7 +140,6 @@ go_deps.module_override(
     ],
     path = "github.com/godror/godror",
 )
-
 go_deps.module_override(
     patch_strip = 1,
     patches = [
@@ -152,13 +151,12 @@ go_deps.module_override(
 # circl's structure isn't supported by gazelle and leads to compilation error on amd64
 # https://github.com/bazel-contrib/rules_go/issues/3799#issuecomment-1880035642
 go_deps.module_override(
+    patch_strip = 1,
     patches = [
         "bazel/patch/circl-bazel.patch",
     ],
-    patch_strip = 1,
     path = "github.com/cloudflare/circl",
 )
-
 use_repo(
     go_deps,
     "com_github_acobaugh_osrelease",
