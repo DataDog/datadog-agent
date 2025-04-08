@@ -21,7 +21,7 @@ import (
 )
 
 func setupPlatformMocks() {
-	diskv2.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return nil
 	}
 }
@@ -48,12 +48,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
 	setupDefaultMocks()
-	var netAddConnectionCalls []NetAddConnectionCall
-	diskv2.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
-		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
-			Name: "mount",
-			Args: []string{"-t", mountType, remoteName, localName},
-		})
+	var netAddConnectionCalls [][]string
+	diskv2.NetAddConnection = func(localName, remoteName, password, username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
 	diskCheck := createCheck()
@@ -81,19 +78,10 @@ create_mounts:
 
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(netAddConnectionCalls))
-	expectedNetAddConnectionCalls := []NetAddConnectionCall{
-		{
-			Name: "mount",
-			Args: []string{"-t", "SMB", `\\smbserver\space`, "p:"},
-		},
-		{
-			Name: "mount",
-			Args: []string{"-t", "SMB", `\\smbserver\space`, "s:"},
-		},
-		{
-			Name: "mount",
-			Args: []string{"-t", "NFS", `nfsserver:/mnt/nfs_share`, "n:"},
-		},
+	expectedNetAddConnectionCalls := [][]string{
+		{`\\smbserver\space`, "p:", "", ""},
+		{`\\smbserver\space`, "s:", "somepassword", "auser"},
+		{`nfsserver:/mnt/nfs_share`, "n:", "", ""},
 	}
 	for i, mountCall := range netAddConnectionCalls {
 		assert.Equal(t, expectedNetAddConnectionCalls[i], mountCall)
@@ -102,12 +90,9 @@ create_mounts:
 
 func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigured_ThenMountsAreNotCreated(t *testing.T) {
 	setupDefaultMocks()
-	var netAddConnectionCalls []NetAddConnectionCall
-	diskv2.NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
-		netAddConnectionCalls = append(netAddConnectionCalls, NetAddConnectionCall{
-			Name: "mount",
-			Args: []string{"-t", mountType, remoteName, localName},
-		})
+	var netAddConnectionCalls [][]string
+	diskv2.NetAddConnection = func(localName, remoteName, password, username string) error {
+		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
 	diskCheck := createCheck()
@@ -135,7 +120,7 @@ create_mounts:
 
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenErrorMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.NetAddConnection = func(_mountType, _localName, _remoteName, _password, _username string) error {
+	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return errors.New("error calling NetAddConnection")
 	}
 	diskCheck := createCheck()

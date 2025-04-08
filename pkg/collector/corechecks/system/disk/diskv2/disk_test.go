@@ -1901,8 +1901,3 @@ service_check_rw: true
 	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckUnknown, "", []string{"device:tmpfs", "device_name:tmpfs"}, "")
 	m.AssertServiceCheck(t, "disk.read_write", servicecheck.ServiceCheckCritical, "", []string{"device:shm", "device_name:shm"}, "")
 }
-
-type NetAddConnectionCall struct {
-	Name string
-	Args []string
-}

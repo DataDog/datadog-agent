@@ -49,16 +49,16 @@ type netResource struct {
 
 // RemotePath constructs the remote path based on the mount type.
 // It converts the Type to uppercase to ensure case-insensitive evaluation.
-func remotePath(m mount) (string, string) {
+func remotePath(m mount) string {
 	if strings.TrimSpace(m.Type) == "" {
-		m.Type = "SMB"
+		m.Type = "smb"
 	}
 	// Convert Type to uppercase for case-insensitive comparison
-	normalizedType := strings.ToUpper(strings.TrimSpace(m.Type))
-	if normalizedType == "NFS" {
-		return normalizedType, fmt.Sprintf(`%s:%s`, m.Host, m.Share)
+	normalizedType := strings.ToLower(strings.TrimSpace(m.Type))
+	if normalizedType == "nfs" {
+		return fmt.Sprintf(`%s:%s`, m.Host, m.Share)
 	}
-	return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
+	return fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
 }
 
 func (c *Check) configureCreateMounts() {
@@ -68,9 +68,8 @@ func (c *Check) configureCreateMounts() {
 			continue
 		}
 		log.Debugf("Mounting: %s\n", m)
-		mountType, remoteName := remotePath(m)
-		log.Debugf("mountType: %s\n", mountType)
-		err := NetAddConnection(mountType, m.MountPoint, remoteName, m.Password, m.User)
+		remoteName := remotePath(m)
+		err := NetAddConnection(m.MountPoint, remoteName, m.Password, m.User)
 		if err != nil {
 			log.Errorf("Failed to mount %s on %s: %s", m.MountPoint, remoteName, err)
 			continue
@@ -80,7 +79,7 @@ func (c *Check) configureCreateMounts() {
 }
 
 // NetAddConnection specifies the command used to add a new network connection.
-var NetAddConnection = func(_mountType, localName, remoteName, password, username string) error {
+var NetAddConnection = func(localName, remoteName, password, username string) error {
 	return wNetAddConnection2(localName, remoteName, password, username)
 }
 
