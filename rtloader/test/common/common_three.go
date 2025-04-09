@@ -23,8 +23,5 @@ func GetRtLoader() *C.rtloader_t {
 	executablePath := C.CString("/folder/mock_python_interpeter_bin_path")
 	defer C.free(unsafe.Pointer(executablePath))
 
-	pythonHome := C.CString("/folder/mock_python_home")
-	defer C.free(unsafe.Pointer(pythonHome))
-
-	return C.make3(pythonHome, executablePath, &err)
+	return C.make3(nil, executablePath, &err)
 }
