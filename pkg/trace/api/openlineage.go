@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +52,11 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 		// if the main intake URL is invalid we don't use additional endpoints
 		return nil, nil, fmt.Errorf("[openlineage] error parsing intake URL %s: %v", host, err)
 	}
+
+	if cfg.OpenLineageProxy.APIVersion >= 2 {
+		addOpenLineageAPIVersion(u, cfg.OpenLineageProxy.APIVersion)
+	}
+
 	urls = append(urls, u)
 	apiKeys = append(apiKeys, apiKey)
 
@@ -62,11 +68,21 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 				log.Errorf("[openlineage] error parsing additional intake URL %s: %v", urlStr, err)
 				continue
 			}
+			if cfg.OpenLineageProxy.APIVersion >= 2 {
+				addOpenLineageAPIVersion(u, cfg.OpenLineageProxy.APIVersion)
+			}
 			urls = append(urls, u)
 			apiKeys = append(apiKeys, key)
 		}
 	}
 	return urls, apiKeys, nil
+}
+
+func addOpenLineageAPIVersion(u *url.URL, version int) {
+	query := u.Query()
+	query.Set("api-version", strconv.Itoa(version))
+	u.RawQuery = query.Encode()
+	log.Debug("[openlineage] OpenLineage API version added, URL: %s", u.String())
 }
 
 func openLineageErrorHandler(message string) http.Handler {
