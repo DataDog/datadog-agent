@@ -26,7 +26,7 @@ def post(install_directory, storage_location, skip_flag=False):
                     if flag_content.strip().lower() in ["y", "yes", "true", "1", ""]:
                         skip_third_party_integration = True
                     
-            if not skip_third_party_integration and skip_flag:
+            if not skip_third_party_integration or skip_flag:
                 print(f"File '{flag_path}' found")
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
