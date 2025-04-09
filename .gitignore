@@ -56,6 +56,8 @@ pkg/status/template.go
 # jetbrains IDE directory
 /.idea/
 
+.cursor
+
 # Ignore debs from the root of the project.
 datadog-agent*_amd64.deb
 
