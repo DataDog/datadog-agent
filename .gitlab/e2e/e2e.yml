@@ -552,12 +552,15 @@ new-e2e-installer-windows:
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
+    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
     # TODO: temp override of version until we have a stable version
     # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel-1"
-    - export PREVIOUS_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.65.0-devel.git.579.0000ac2.pipeline.59404687.msi
-    - export PREVIOUS_AGENT_OCI_REGISTRY=install.datad0g.com
-    - export PREVIOUS_AGENT_OCI_VERSION=7.65.0-devel.git.579.0000ac2.pipeline.59404687-1
+    - export STABLE_AGENT_VERSION_PACKAGE="7.65.0-devel.git.579.0000ac2.pipeline.59404687-1"
+    # NOTE: pkg/version.GetNumberAndPre doesn't work on url-safe versions, it looks for the `+` character
+    - export STABLE_AGENT_VERSION=7.65.0-devel
+    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.65.0-devel.git.579.0000ac2.pipeline.59404687.msi
+    - export STABLE_AGENT_OCI_REGISTRY=install.datad0g.com
+    - export STABLE_AGENT_OCI_VERSION=7.65.0-devel.git.579.0000ac2.pipeline.59404687-1
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
