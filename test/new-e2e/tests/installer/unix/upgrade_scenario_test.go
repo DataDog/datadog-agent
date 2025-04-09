@@ -118,11 +118,11 @@ var testCatalog = catalog{
 const (
 	unknownAgentImageVersion = "7.52.1-1"
 
-	// TODO: when 7.65 & the next version is out, use the latest prod images
-	previousAgentImageVersion     = "7.66.0-devel.git.228.ceafd66.pipeline.60765521-1"
-	latestAgentImageVersion       = "7.66.0-devel.git.229.657188f.pipeline.60790778-1"
-	previousInstallerImageVersion = "7.66.0-devel.git.228.ceafd66.pipeline.60765521-1"
-	latestInstallerImageVersion   = "7.66.0-devel.git.229.657188f.pipeline.60790778-1"
+	// TODO: when 7.66 & the next version is out, use the latest prod images
+	previousAgentImageVersion     = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestAgentImageVersion       = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
+	previousInstallerImageVersion = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestInstallerImageVersion   = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
