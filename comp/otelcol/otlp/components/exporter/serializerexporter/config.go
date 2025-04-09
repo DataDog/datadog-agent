@@ -23,7 +23,8 @@ import (
 type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
-	exporterhelper.QueueConfig   `mapstructure:",squash"`
+
+	exporterhelper.QueueConfig `mapstructure:"sending_queue"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.

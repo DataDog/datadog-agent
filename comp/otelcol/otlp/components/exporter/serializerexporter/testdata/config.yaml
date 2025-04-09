@@ -1,6 +1,7 @@
 serializer:
   timeout: 10s
-  queue_size: 100
+  sending_queue:
+    queue_size: 100
   metrics:
     tag_cardinality: high
     apm_stats_receiver_addr: localhost:1234
