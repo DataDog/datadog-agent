@@ -136,7 +136,6 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	if err != nil {
 		return err
 	}
-	c.deviceLabels = make(map[string]string)
 	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	c.deviceLabels = make(map[string]string)
 	for _, line := range lines {
