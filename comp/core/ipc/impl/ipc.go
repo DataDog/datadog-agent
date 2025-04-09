@@ -8,8 +8,10 @@ package ipcimpl
 
 import (
 	"crypto/tls"
+	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,6 +35,7 @@ type Provides struct {
 type ipcComp struct {
 	logger log.Component
 	conf   config.Component
+	client ipc.HTTPClient
 }
 
 // NewComponent creates a new ipc component
@@ -58,12 +61,13 @@ func NewComponent(reqs Requires) Provides {
 		Comp: option.New[ipc.Component](&ipcComp{
 			logger: reqs.Log,
 			conf:   reqs.Conf,
+			client: ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf),
 		}),
 	}
 }
 
-// Get returns the session token
-func (ipc *ipcComp) Get() string {
+// GetAuthToken returns the session token
+func (ipc *ipcComp) GetAuthToken() string {
 	return util.GetAuthToken()
 }
 
@@ -75,4 +79,14 @@ func (ipc *ipcComp) GetTLSClientConfig() *tls.Config {
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (ipc *ipcComp) GetTLSServerConfig() *tls.Config {
 	return util.GetTLSServerConfig()
+}
+
+func (ipc *ipcComp) HTTPMiddleware(next http.Handler) http.Handler {
+	return ipchttp.NewHTTPMiddleware(func(format string, params ...interface{}) {
+		ipc.logger.Errorf(format, params...)
+	}, ipc.GetAuthToken())(next)
+}
+
+func (ipc *ipcComp) GetClient() ipc.HTTPClient {
+	return ipc.client
 }

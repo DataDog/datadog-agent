@@ -23,19 +23,39 @@ func Module() fxutil.Module {
 			ipcimpl.NewComponent,
 		),
 		fx.Provide(unwrapIPCComp),
+		fx.Provide(newIPCClient),
+		fx.Provide(newOptionalIPCClient),
 	)
 }
 
 type optionalIPCComp struct {
 	fx.In
-	At  option.Option[ipc.Component]
+	IPC option.Option[ipc.Component]
 	Log log.Component
 }
 
 func unwrapIPCComp(deps optionalIPCComp) (ipc.Component, error) {
-	ipc, ok := deps.At.Get()
+	ipc, ok := deps.IPC.Get()
 	if !ok {
 		return nil, deps.Log.Errorf("ipc component has not been initialized")
 	}
 	return ipc, nil
+}
+
+// newIPCClient allow to use ipc.HTTPClient as dependency instead of using option.Option[ipc.Component].
+func newIPCClient(deps optionalIPCComp) (ipc.HTTPClient, error) {
+	ipc, ok := deps.IPC.Get()
+	if !ok {
+		return nil, deps.Log.Errorf("ipc client not found")
+	}
+	return ipc.GetClient(), nil
+}
+
+// newOptionalIPCClient allow to use option.Option[authtoken.IPCClient] as dependency instead of using option.Option[authtoken.Component].
+func newOptionalIPCClient(deps optionalIPCComp) option.Option[ipc.HTTPClient] {
+	ipcComp, ok := deps.IPC.Get()
+	if !ok {
+		return option.None[ipc.HTTPClient]()
+	}
+	return option.New(ipcComp.GetClient())
 }

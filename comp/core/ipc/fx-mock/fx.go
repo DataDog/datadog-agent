@@ -9,6 +9,8 @@ package fx
 import (
 	"testing"
 
+	"go.uber.org/fx"
+
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,6 +21,8 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(newMock),
 		fxutil.ProvideOptional[ipc.Component](),
+		fx.Provide(newIPCClient),
+		fxutil.ProvideOptional[ipc.HTTPClient](),
 	)
 }
 
@@ -30,4 +34,8 @@ type Requires struct {
 // newMock creates a new mock ipc component
 func newMock(reqs Requires) ipc.Component {
 	return mock.Mock(reqs.T)
+}
+
+func newIPCClient(deps ipc.Component) ipc.HTTPClient {
+	return deps.GetClient()
 }

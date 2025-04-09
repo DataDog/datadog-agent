@@ -8,6 +8,7 @@ package noneimpl
 
 import (
 	"crypto/tls"
+	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
@@ -27,8 +28,8 @@ func NewNoopIPC() Provides {
 	}
 }
 
-// Get returns the session token
-func (ipc *ipcComponent) Get() string {
+// GetAuthToken returns the session token
+func (ipc *ipcComponent) GetAuthToken() string {
 	return ""
 }
 
@@ -40,4 +41,15 @@ func (ipc *ipcComponent) GetTLSClientConfig() *tls.Config {
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (ipc *ipcComponent) GetTLSServerConfig() *tls.Config {
 	return &tls.Config{}
+}
+
+func (ipc *ipcComponent) HTTPMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Noop
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (ipc *ipcComponent) GetClient() ipc.HTTPClient {
+	return nil // TODO IPC: could panic if dereferenced
 }
