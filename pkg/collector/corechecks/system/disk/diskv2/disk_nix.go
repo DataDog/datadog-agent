@@ -112,7 +112,6 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 			log.Debugf("Failed to parse line %s because of %v - skipping the line (some labels might be missing)\n", line, err)
 			continue
 		}
-
 		if device.Label != "" && device.Text != "" {
 			c.deviceLabels[device.Text] = device.Label
 		}
@@ -147,22 +146,18 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 		}
 		// Typically line looks like:
 		// /dev/sda1: UUID="..." TYPE="ext4" LABEL="root"
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) < 2 {
+		device, details, ok := strings.Cut(line, ":")
+		if !ok {
 			log.Debugf("skipping malformed line: '%s'", line)
 			continue
 		}
-		device := strings.TrimSpace(parts[0])  // e.g. "/dev/sda1"
-		details := strings.TrimSpace(parts[1]) // e.g. `UUID="..." TYPE="ext4" LABEL="root"`
+		device = strings.TrimSpace(device)   // e.g. "/dev/sda1"
+		details = strings.TrimSpace(details) // e.g. `UUID="..." TYPE="ext4" LABEL="root"`
 		match := labelRegex.FindStringSubmatch(details)
 		if len(match) == 2 {
 			// match[1] is everything captured by ([^"]+)
 			c.deviceLabels[device] = match[1]
-		} else {
-			// No label found for this device
-			c.deviceLabels[device] = ""
 		}
-
 	}
 	return nil
 }
