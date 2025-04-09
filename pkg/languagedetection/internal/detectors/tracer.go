@@ -31,7 +31,7 @@ type tracerDetector struct {
 func (i tracerDetector) DetectLanguage(proc model.Process) (model.Language, error) {
 	trMeta, err := tracermetadata.GetTracerMetadata(int(proc.GetPid()), i.hostProc)
 	if err != nil {
-		return model.Language{}, fmt.Errorf("error parsing tracer metadata: %s", err)
+		return model.Language{}, err
 	}
 
 	var name model.LanguageName
