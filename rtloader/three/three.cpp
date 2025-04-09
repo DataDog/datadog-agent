@@ -115,33 +115,15 @@ bool Three::init()
         }
     }
 
-    // Register builtin modules
-    struct BuiltinModule {
-        const char *name;
-        PyObject *(*initfunc)(void);
-
-        bool registerModule() const
-        {
-            return PyImport_AppendInittab(name, initfunc) != -1;
-        }
-    };
-
-    static const BuiltinModule builtins[] = { { AGGREGATOR_MODULE_NAME, PyInit_aggregator },
-                                              { DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent },
-                                              { UTIL_MODULE_NAME, PyInit_util },
-                                              { _UTIL_MODULE_NAME, PyInit__util },
-                                              { TAGGER_MODULE_NAME, PyInit_tagger },
-                                              { KUBEUTIL_MODULE_NAME, PyInit_kubeutil },
-                                              { CONTAINERS_MODULE_NAME, PyInit_containers } };
-    static const size_t numBuiltins = sizeof(builtins) / sizeof(builtins[0]);
-
-    // Register all builtin modules before initialization
-    for (size_t i = 0; i < numBuiltins; ++i) {
-        if (!builtins[i].registerModule()) {
-            setError("Failed to register builtin module: " + std::string(builtins[i].name));
-            return false;
-        }
-    }
+    // add custom builtins init funcs to Python inittab, one by one
+    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
+    PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
+    PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
+    PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
+    PyImport_AppendInittab(_UTIL_MODULE_NAME, PyInit__util);
+    PyImport_AppendInittab(TAGGER_MODULE_NAME, PyInit_tagger);
+    PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
+    PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
     if (!status.check(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
