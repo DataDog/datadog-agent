@@ -561,7 +561,7 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 			// From a forced sync, so the end time is just one nanosecond after the last kernel launch
 			require.Equal(t, getTimeForKernel(endKernelIndex)+1, span.endKtime, "endKtime for span %d (forced sync)is incorrect", i)
 		} else {
-			// From a regular sync event, so the end time is the one we send in the sync event plus one
+			// From a regular sync event, so the end time is the one we send in the sync event
 			require.Equal(t, getTimeForSync(endKernelIndex), span.endKtime, "endKtime for span %d (manual sync) is incorrect", i)
 		}
 		kernelsSeen += spanLength
