@@ -8,11 +8,11 @@ skip_transitive_dependency_licensing true
 
 dependency "pip3"
 
-relative_path "setuptools-#{version}"
+wheel_filename = "setuptools-#{version}-py3-none-any.whl"
 
-source :url => "https://github.com/pypa/setuptools/archive/v#{version}.tar.gz",
-       :sha256 => "081209b1c080b30ca78013dde35600a3070508fcce745a939498f4d76e05b6a6",
-       :extract => :seven_zip
+source :url => "https://files.pythonhosted.org/packages/c2/8b/abb577ca6ab2c71814d535b1ed1464c5f4aaefe1a31bbeb85013eb9b2401/#{wheel_filename}",
+       :sha256 => "6f590d76b713d5de4e49fe4fbca24474469f53c83632d5d0fd056f7ff7e8112b",
+       :target_filename => wheel_filename
 
 build do
   # 2.0 is the license version here, not the python version
@@ -24,7 +24,7 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
-  command "#{python} -m pip install ."
+  command "#{python} -m pip install ./#{wheel_filename}"
 
   if ohai["platform"] != "windows"
     block do
