@@ -1561,10 +1561,11 @@ profiles:
 }
 
 func TestTopologyPayload_CDPSecondaryIP(t *testing.T) {
+	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
