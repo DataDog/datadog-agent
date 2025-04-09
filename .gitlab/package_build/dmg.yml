@@ -226,6 +226,10 @@ new-agent_dmg-x64-a7:
     # INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
     # S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    INTEGRATION_WHEELS_CACHE_BUCKET:
+    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD:
+    S3_OMNIBUS_CACHE_BUCKET:
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS:
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
