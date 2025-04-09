@@ -109,5 +109,5 @@ func NewSystemProbe(t testing.TB) model.Config {
 // SetDefaultConfigType sets the config type for the mock config in use
 func SetDefaultConfigType(t *testing.T, configType string) {
 	mockConfig := New(t)
-	mockConfig.SetConfigType("yaml")
+	mockConfig.SetConfigType(configType)
 }

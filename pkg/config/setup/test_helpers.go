@@ -17,7 +17,7 @@ import (
 // newEmptyMockConf returns an empty config appropriate for running tests
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
-func newEmptyMockConf(t *testing.T) pkgconfigmodel.Config {
+func newEmptyMockConf(_ *testing.T) pkgconfigmodel.Config {
 	cfg := create.NewConfig("test")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
