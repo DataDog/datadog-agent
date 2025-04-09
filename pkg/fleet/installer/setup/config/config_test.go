@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package common
+package config
 
 import (
 	"os"
@@ -21,7 +21,7 @@ func TestEmptyConfig(t *testing.T) {
 	config := Config{}
 	config.DatadogYAML.APIKey = "1234567890" // Required field
 
-	err := writeConfigs(config, tempDir)
+	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
@@ -56,7 +56,7 @@ env: "old_env"
 	config.DatadogYAML.Hostname = "new_hostname"
 	config.DatadogYAML.LogsEnabled = true
 
-	err = writeConfigs(config, tempDir)
+	err = WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check datadog.yaml
@@ -72,43 +72,6 @@ env: "old_env"
 		"env":          "old_env",
 		"logs_enabled": true,
 	}, datadog)
-}
-
-func TestInjectTracerConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	config := Config{}
-	config.InjectTracerYAML = InjectTracerConfig{
-		Version:       1,
-		ConfigSources: "env",
-		AdditionalEnvironmentVariables: []InjectTracerConfigEnvVar{
-			{
-				Key:   "DD_ENV",
-				Value: "prod",
-			},
-		},
-	}
-
-	err := writeConfigs(config, tempDir)
-	assert.NoError(t, err)
-
-	// Check inject/tracer.yaml
-	injectTracerConfigPath := filepath.Join(tempDir, injectTracerConfigFile)
-	assert.FileExists(t, injectTracerConfigPath)
-	injectTracerYAML, err := os.ReadFile(injectTracerConfigPath)
-	assert.NoError(t, err)
-	var injectTracer map[string]interface{}
-	err = yaml.Unmarshal(injectTracerYAML, &injectTracer)
-	assert.NoError(t, err)
-	assert.Equal(t, map[string]interface{}{
-		"version":        1,
-		"config_sources": "env",
-		"additional_environment_variables": []interface{}{
-			map[string]interface{}{
-				"key":   "DD_ENV",
-				"value": "prod",
-			},
-		},
-	}, injectTracer)
 }
 
 func TestIntegrationConfigInstanceSpark(t *testing.T) {
@@ -135,7 +98,7 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 		},
 	}
 
-	err := writeConfigs(config, tempDir)
+	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
 
 	// Check spark.d/kebabricks.yaml
@@ -165,4 +128,32 @@ func TestIntegrationConfigInstanceSpark(t *testing.T) {
 			},
 		},
 	}, spark)
+}
+
+func TestApplicationMonitoring(t *testing.T) {
+	tempDir := t.TempDir()
+	config := Config{
+		ApplicationMonitoringYAML: &ApplicationMonitoringConfig{
+			Default: APMConfigurationDefault{
+				TraceDebug:             BoolToPtr(true),
+				DataJobsEnabled:        BoolToPtr(true),
+				IntegrationsEnabled:    BoolToPtr(false),
+				DataJobsCommandPattern: "I am a string",
+			},
+		},
+	}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	// Check application_monitoring.yaml
+	configPath := filepath.Join(tempDir, "application_monitoring.yaml")
+	assert.FileExists(t, configPath)
+	configYAML, err := os.ReadFile(configPath)
+	assert.NoError(t, err)
+	cfgres := ApplicationMonitoringConfig{}
+	err = yaml.Unmarshal(configYAML, &cfgres)
+	assert.NoError(t, err)
+
+	assert.Equal(t, *config.ApplicationMonitoringYAML, cfgres)
 }
