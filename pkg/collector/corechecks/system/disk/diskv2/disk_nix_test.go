@@ -33,6 +33,7 @@ const blkidData = string(`
 /dev/sda1: UUID="abc-123" LABEL="MYLABEL1"
 /dev/sda2: UUID=\"def-456\" LABEL="MYLABEL2"
 /dev/sda3: UUID=\"def-789\"
+/dev/sda6: UUID="abc-321" LABEL=
 
 /dev/sda4:
 /dev/sda5
@@ -107,6 +108,21 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReport
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenEmptyBlkidLabelsAreNotReportedAsTags(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createCheck()
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda6", "device_name:sda6", "label:", "device_label:"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda6", "device_name:sda6", "label:", "device_label:"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda6", "device_name:sda6", "label:", "device_label:"})
 }
 
 func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRuns_ThenBlkidLabelsAreReportedAsTags(t *testing.T) {

@@ -37,6 +37,12 @@ var partitionsTrue = []gopsutil_disk.PartitionStat{
 		Opts:       []string{"rw", "relatime"},
 	},
 	{
+		Device:     "/dev/sda6",
+		Mountpoint: "/home/backup",
+		Fstype:     "ext4",
+		Opts:       []string{"rw", "relatime"},
+	},
+	{
 		Device:     "tmpfs",
 		Mountpoint: "/run",
 		Fstype:     "tmpfs",
@@ -82,6 +88,18 @@ var usageData = map[string]*gopsutil_disk.UsageStat{
 		Total:             50000000000, // 50 GB
 		Free:              20000000000, // 20 GB
 		Used:              30000000000, // 30 GB
+		UsedPercent:       60.0,
+		InodesTotal:       500000,
+		InodesUsed:        200000,
+		InodesFree:        300000,
+		InodesUsedPercent: 40.0,
+	},
+	"/home/backup": {
+		Path:              "/home/backup",
+		Fstype:            "ext4",
+		Total:             20000000000, // 20 GB
+		Free:              10000000000, // 10 GB
+		Used:              10000000000, // 10 GB
 		UsedPercent:       60.0,
 		InodesTotal:       500000,
 		InodesUsed:        200000,
