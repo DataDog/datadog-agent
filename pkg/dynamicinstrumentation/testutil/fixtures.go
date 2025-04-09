@@ -148,7 +148,7 @@ var stringCaptures = fixtures{
 var arrayCaptures = fixtures{
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_byte_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "[2]uint8", Elements: []ditypes.CapturedValue{
 				{Type: "uint8", Value: strPtr("1")},
 				{Type: "uint8", Value: strPtr("1")},
 			}}},
@@ -157,7 +157,7 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_rune_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "[2]int32", Elements: []ditypes.CapturedValue{
 				{Type: "int32", Value: strPtr("1")},
 				{Type: "int32", Value: strPtr("2")},
 			}}},
@@ -166,7 +166,7 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "[2]string", Elements: []ditypes.CapturedValue{
 				{Type: "string", Value: strPtr("one")},
 				{Type: "string", Value: strPtr("two")},
 			}}},
@@ -184,7 +184,7 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int8_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "[2]int8", Elements: []ditypes.CapturedValue{
 				{Type: "int8", Value: strPtr("1")},
 				{Type: "int8", Value: strPtr("2")},
 			}}},
@@ -193,7 +193,7 @@ var arrayCaptures = fixtures{
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_array": []CapturedValueMapWithOptions{
 		{
-			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "array", Elements: []ditypes.CapturedValue{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{"x": {Type: "[2]uint", Elements: []ditypes.CapturedValue{
 				{Type: "uint", Value: strPtr("1")},
 				{Type: "uint", Value: strPtr("2")},
 			}}},
@@ -1050,6 +1050,36 @@ var captureDepthCaptures = fixtures{
 	},
 }
 
+var interfaceCaptures = fixtures{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_interface_complexity": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityA", Fields: fieldMap{
+					"b": capturedValue("int", "1"),
+					"c": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityB", Fields: fieldMap{
+						"d": capturedValue("int", "2"),
+						"e": {Type: "runtime.iface", Value: nil, NotCapturedReason: "unsupported"},
+						"f": {Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.interfaceComplexityC", Fields: fieldMap{
+							"g": capturedValue("int", "4"),
+						}},
+					}},
+				}},
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_interface_and_int": []CapturedValueMapWithOptions{
+		{
+			CapturedValueMap: map[string]*ditypes.CapturedValue{
+				"a": capturedValue("int", "1"),
+				"b": {Type: "runtime.iface", Value: nil, NotCapturedReason: "unsupported"},
+				"c": capturedValue("uint", "3"),
+			},
+			Options: TestInstrumentationOptions{CaptureDepth: 10},
+		},
+	},
+}
+
 // mergeMaps combines multiple fixture maps into a single map
 func mergeMaps(maps ...fixtures) fixtures {
 	result := make(fixtures)
@@ -1069,4 +1099,5 @@ var expectedCaptures = mergeMaps(
 	sliceCaptures,
 	pointerCaptures,
 	captureDepthCaptures,
+	interfaceCaptures,
 )
