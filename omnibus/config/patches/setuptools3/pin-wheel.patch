@@ -1,0 +1,11 @@
+--- a/setuptools/build_meta.py
++++ b/setuptools/build_meta.py
+@@ -335,7 +335,7 @@ class _BuildMetaBackend(_ConfigSettingsTranslator):
+         exec(code, locals())
+ 
+     def get_requires_for_build_wheel(self, config_settings=None):
+-        return self._get_build_requires(config_settings, requirements=['wheel'])
++        return self._get_build_requires(config_settings, requirements=['wheel==0.45.1'])
+ 
+     def get_requires_for_build_sdist(self, config_settings=None):
+         return self._get_build_requires(config_settings, requirements=[])
