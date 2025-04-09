@@ -208,8 +208,10 @@ new-agent_dmg-x64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      # TODO: Verify + only *.dmg + version manifest
-      - omnibus_build/pkg
+      - omnibus/pkg/*.dmg
+      - omnibus/pkg/version-manifest.json
+      # TODO: Remove
+      - omnibus_build
     when: always
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -234,16 +236,23 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
+    - |
+      BINARY="/usr/local/bin/gitlab-runner"
+      # Encoded: `identifier "com.apple.finder" and anchor apple`
+      CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
+      sudo sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
+      sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
+      sudo reboot
     # Try xcode 14.3.1
-    - set -e
-    - pushd ~
-    - version=14.3.1
-    - aws s3 cp "s3://binaries-ddbuild-io-prod/macos/xcode/Xcode_${version}.xip" "Xcode_${version}.xip"
-    - xcodes install "${version}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${version}.xip"
-    - xcodes select "${version}"
-    - sudo xcodebuild -license accept
-    - sudo xcodebuild -runFirstLaunch
-    - popd
+    # - set -e
+    # - pushd ~
+    # - version=14.3.1
+    # - aws s3 cp "s3://binaries-ddbuild-io-prod/macos/xcode/Xcode_${version}.xip" "Xcode_${version}.xip"
+    # - xcodes install "${version}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${version}.xip"
+    # - xcodes select "${version}"
+    # - sudo xcodebuild -license accept
+    # - sudo xcodebuild -runFirstLaunch
+    # - popd
 
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
