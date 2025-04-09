@@ -471,7 +471,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		healthprobefx.Module(),
 		adschedulerimpl.Module(),
-		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
+		fx.Provide(func(dsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
 					"log_level":                              commonsettings.NewLogLevelRuntimeSetting(),
@@ -486,6 +486,7 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+					"dogstatsd_blocklist":                    internalsettings.NewDsdBlocklistRuntimeSetting(dsdServer),
 				},
 				Config: config,
 			}

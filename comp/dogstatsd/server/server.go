@@ -497,6 +497,15 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
+func (s *server) SetBlocklist(metrics []string) {
+	// TODO
+}
+
+func (s *server) GetBlocklist() []string {
+	// TODO
+	return s.enrichConfig.metricBlocklist.data
+}
+
 func (s *server) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()

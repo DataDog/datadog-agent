@@ -28,6 +28,12 @@ type Component interface {
 
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
+
+	// GetBlocklist returns the metrics blocklist configured for the DogStatsD server.
+	GetBlocklist() []string
+
+	// SetBlocklist sets the blocklist to apply when parsing metrics from the DogStatsD listener.
+	SetBlocklist([]string)
 }
 
 // Mock implements mock-specific methods.
