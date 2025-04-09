@@ -60,12 +60,6 @@ Package api implements the "api" bundle,
 
 Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 
-### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
-
-Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.
-This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
-auth_token file but can fetch it it's available.
-
 ### [comp/api/grpcserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/grpcserver)
 
 Package grpcserver defines the component interface for the grpcserver component.
@@ -114,6 +108,11 @@ agent flavors and binaries.
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
 Package agenttelemetry implements a component to generate Agent telemetry
+
+### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
+
+Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).
+It also provides helpers to use them in the agent (TLS configuration, HTTP client, etc.).
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 

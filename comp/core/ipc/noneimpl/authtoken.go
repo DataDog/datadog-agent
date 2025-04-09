@@ -9,30 +9,30 @@ package noneimpl
 import (
 	"crypto/tls"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/ipc"
 )
 
-type authToken struct {
+type ipcComponent struct {
 }
 
-var _ authtoken.Component = (*authToken)(nil)
+var _ ipc.Component = (*ipcComponent)(nil)
 
-// NewNoopAuthToken return a void implementation of the authtoken.Component
-func NewNoopAuthToken() authtoken.Component {
-	return &authToken{}
+// NewNoopIPC return a void implementation of the ipc.Component
+func NewNoopIPC() ipc.Component {
+	return &ipcComponent{}
 }
 
 // Get returns the session token
-func (at *authToken) Get() (string, error) {
-	return "", nil
+func (ipc *ipcComponent) Get() string {
+	return ""
 }
 
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
-func (at *authToken) GetTLSClientConfig() *tls.Config {
+func (ipc *ipcComponent) GetTLSClientConfig() *tls.Config {
 	return &tls.Config{}
 }
 
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
-func (at *authToken) GetTLSServerConfig() *tls.Config {
+func (ipc *ipcComponent) GetTLSServerConfig() *tls.Config {
 	return &tls.Config{}
 }

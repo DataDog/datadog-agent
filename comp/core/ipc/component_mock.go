@@ -5,11 +5,13 @@
 
 //go:build test
 
-package authtoken
+package ipc
 
 import (
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Mock is the mocked component type.
@@ -17,4 +19,5 @@ type Mock interface {
 	Component
 	// NewMockServer allows to create a mock server that use the IPC certificate
 	NewMockServer(handler http.Handler) *httptest.Server
+	Optional() option.Option[Component]
 }

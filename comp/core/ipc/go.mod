@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/api/authtoken
+module github.com/DataDog/datadog-agent/comp/core/ipc
 
 go 1.23.0
 
