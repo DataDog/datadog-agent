@@ -49,6 +49,7 @@ type Check struct {
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
 	agentConfig                config.Component
+	PythonCheck                *check.Check
 }
 
 // Run executes the check
@@ -59,6 +60,9 @@ func (c *Check) Run() error {
 	fmt.Println(c.config)
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Printf("%#v\n", c)
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("PYTHON CHECK IN SNMP GO CHECK RUN")
+	fmt.Println(c.PythonCheck)
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
@@ -215,6 +219,7 @@ func (c *Check) IsHASupported() bool {
 
 // Factory creates a new check factory
 func Factory(agentConfig config.Component, rcClient rcclient.Component) option.Option[func() check.Check] {
+	fmt.Println("FACTORY OF SNMP IS CALLED INSIDE")
 	return option.New(func() check.Check {
 		return newCheck(agentConfig, rcClient)
 	})

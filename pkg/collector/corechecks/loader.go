@@ -30,9 +30,11 @@ const GoCheckLoaderName string = "core"
 
 // RegisterCheck adds a check to the catalog
 func RegisterCheck(name string, checkFactory option.Option[func() check.Check]) {
+	fmt.Println("CALLING REGISTER CHECK")
 	if v, ok := checkFactory.Get(); ok {
 		catalog[name] = v
 	}
+	fmt.Println("FINISHED CALLING REGISTER CHECK")
 }
 
 // GetRegisteredFactoryKeys get the keys for all registered factories
@@ -68,7 +70,9 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 		return c, errors.New(msg)
 	}
 
+	fmt.Println("CALLING FACTORY")
 	c = factory()
+	fmt.Println("FINISHED CALLING FACTORY")
 	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
 		if errors.Is(err, check.ErrSkipCheckInstance) {
 			return c, err

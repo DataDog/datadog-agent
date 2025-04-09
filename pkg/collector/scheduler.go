@@ -9,6 +9,7 @@ package collector
 import (
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"slices"
 	"strings"
 	"sync"
@@ -193,26 +194,55 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 		fmt.Println("LEN OF LOADERS")
 		fmt.Println(len(s.loaders))
+		var pythonLoader check.Loader
 		for _, loader := range s.loaders {
+			if loader.Name() == "python" {
+				pythonLoader = loader
+			}
+
 			// the loader is skipped if the loader name is set and does not match
 			fmt.Printf("SELECTED INSTANCE LOADER %s VS LOADER.NAME %s\n", selectedInstanceLoader, loader.Name())
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
 				fmt.Printf("Loader name %v does not match, skip loader %v for check %v\n", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
+
 			fmt.Println("=====================")
 			fmt.Println("=====================")
 			fmt.Println("=====================")
 			fmt.Println(config)
 			fmt.Println("=====================")
+			fmt.Println("CONFIG NAME")
+			fmt.Println(config.Name)
 			fmt.Println("=====================")
+			fmt.Println("CONFIG INSTANCE")
+			fmt.Println(instance)
 			fmt.Println("=====================")
 			c, err := loader.Load(s.senderManager, config, instance)
-			fmt.Println("CONFIG C")
+			fmt.Println("CONFIG C STRING")
 			fmt.Println(c)
 			fmt.Println("=====================")
+			fmt.Printf("%#v\n", c)
+			fmt.Println("=====================")
+			fmt.Println("CONFIC C STRING")
+			fmt.Println(c.String())
+			fmt.Println("=====================")
+			fmt.Println("SELECTED LOADER")
+			fmt.Println(selectedInstanceLoader)
 			fmt.Println("=====================")
 			fmt.Println("=====================")
+			fmt.Println("=====================")
+
+			if selectedInstanceLoader == "core" && c != nil && c.String() == "snmp" {
+				fmt.Println("ENTERING IN THE IF CONDITION TO SET PYTHON CHECK")
+				pythonC, err := pythonLoader.Load(s.senderManager, config, instance)
+				fmt.Println("PYTHON CHECK")
+				fmt.Println(pythonC)
+				fmt.Println("PYTHON CHECK ERROR")
+				fmt.Println(err)
+				c.(*snmp.Check).PythonCheck = &pythonC
+			}
+
 			if err != nil {
 				fmt.Printf("Unable to load check '%s' using loader %s: %v\n", config.Name, loader.Name(), err)
 			}
@@ -239,11 +269,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
-	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
-	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
-	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
-	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
-	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
 	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
 	var checks []check.Check
 	if checkScheduler == nil {
