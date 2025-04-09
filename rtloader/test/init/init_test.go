@@ -11,18 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-func TestInitFailure(t *testing.T) {
-	// Reset memory counters
-	helpers.ResetMemoryStats()
-
-	if err := runInit("../invalid/path"); err == nil {
-		t.Errorf("Expected error, got nil")
-	}
-
-	// Check for leaks
-	helpers.AssertMemoryUsage(t)
-}
-
 func TestInit(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
@@ -33,4 +21,16 @@ func TestInit(t *testing.T) {
 
 	// Check for expected allocations
 	helpers.AssertMemoryExpectation(t, helpers.Allocations, initAllocations)
+}
+
+func TestInitFailure(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	if err := runInit("../invalid/path"); err == nil {
+		t.Errorf("Expected error, got nil")
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
