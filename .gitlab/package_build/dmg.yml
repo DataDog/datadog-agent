@@ -236,23 +236,10 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    # Try xcode 14.3.1
-    # - set -e
-    # - pushd ~
-    # - version=14.3.1
-    # - aws s3 cp "s3://binaries-ddbuild-io-prod/macos/xcode/Xcode_${version}.xip" "Xcode_${version}.xip"
-    # - xcodes install "${version}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${version}.xip"
-    # - xcodes select "${version}"
-    # - sudo xcodebuild -license accept
-    # - sudo xcodebuild -runFirstLaunch
-    # - popd
-
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
 
-
     - set -eo pipefail
-    - xcodes select 14.3.1
 
     - brew uses gettext --installed || true
 
