@@ -37,8 +37,6 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -56,6 +54,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"

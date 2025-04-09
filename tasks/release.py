@@ -8,7 +8,6 @@ Notes about Agent6:
 
 import json
 import os
-import re
 import sys
 import tempfile
 import time
@@ -81,11 +80,6 @@ from tasks.libs.releasing.version import (
 from tasks.notify import post_message
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
-
-GITLAB_FILES_TO_UPDATE = [
-    ".gitlab-ci.yml",
-    ".gitlab/notify/notify.yml",
-]
 
 BACKPORT_LABEL_COLOR = "5319e7"
 TAG_BATCH_SIZE = 3
@@ -804,16 +798,11 @@ def create_release_branches(
         set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        for file in GITLAB_FILES_TO_UPDATE:
-            with open(file) as gl:
-                file_content = gl.readlines()
-
-            with open(file, "w") as gl:
-                for line in file_content:
-                    if re.search(rf"compare_to: {get_default_branch()}", line):
-                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
-                    else:
-                        gl.write(line)
+        with open(".gitlab-ci.yml", "w") as f:
+            content = f.read()
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            )
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")

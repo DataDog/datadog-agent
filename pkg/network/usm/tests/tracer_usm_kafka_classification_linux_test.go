@@ -284,13 +284,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			originalPostTracer := tt.postTracerSetup
-			wrapperPostTracer := func(t *testing.T, ctx testContext) {
-				cleanProtocolMapByProtocol(t, tr, protocols.Kafka)
-				originalPostTracer(t, ctx)
-			}
-			tt.postTracerSetup = wrapperPostTracer
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Kafka)
 		})
 	}
 }

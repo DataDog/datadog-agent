@@ -56,8 +56,9 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
     "./pkg/gpu/...",
-    "./cmd/system-probe/config/...",
+    "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/networkpath/traceroute/filter/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -134,10 +135,14 @@ def ninja_define_ebpf_compiler(
         command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
-    strip = "&& /opt/datadog-agent/embedded/bin/llvm-strip -g $out" if strip_object_files else ""
+
+    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
+    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
+    strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
+
     nw.rule(
         name="llc",
-        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip_part}",
     )
 
 
