@@ -79,7 +79,7 @@ func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool
 	// so to get properly type map we need to decode it twice
 
 	// We need to start with default config to get the corrent default values
-	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil, nil, nil).CreateDefaultConfig()
+	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil).CreateDefaultConfig()
 
 	x := cf.(*serializerexporter.ExporterConfig).Metrics
 	if strict {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 //go:build linux_bpf && nvml
 
@@ -9,19 +9,14 @@ package gpu
 
 import (
 	"fmt"
-	"slices"
-	"time"
-
-	"github.com/prometheus/procfs"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const nvidiaResourceName = "nvidia.com/gpu"
@@ -31,17 +26,8 @@ type systemContext struct {
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
 
-	// cudaSymbols maps each executable file path to its Fatbin file data
-	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
-
-	// pidMaps maps each process ID to its memory maps
-	pidMaps map[int][]*procfs.ProcMap
-
 	// procRoot is the root directory for process information
 	procRoot string
-
-	// procfsObj is the procfs filesystem object to retrieve process maps
-	procfsObj procfs.FS
 
 	// selectedDeviceByPIDAndTID maps each process ID to the map of thread IDs to selected device index.
 	// The reason to have a nested map is to allow easy cleanup of data when a process exits.
@@ -60,60 +46,69 @@ type systemContext struct {
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
-	// telemetry holds telemetry elements for the context
-	telemetry *contextTelemetry
+	// cudaKernelCache caches kernel data and handles background loading
+	cudaKernelCache *cuda.KernelCache
+}
 
-	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-	fatbinTelemetry *fatbinTelemetry
-
-	// fatbinParsingEnabled is a flag to enable/disable fatbin parsing.
-	// TODO: this flag will be unnecessary once we have a separate structure for the fatbin parser
+type systemContextOptions struct {
+	procRoot             string
+	wmeta                workloadmeta.Component
+	tm                   telemetry.Component
 	fatbinParsingEnabled bool
+	config               *config.Config
 }
 
-// symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
-// parsing the same file multiple times when it has different paths (e.g., symlinks in /proc/PID/root)
-// We add fileSize to the identifier to mitigate possible issues with inode reuse.
-type symbolFileIdentifier struct {
-	inode    int
-	fileSize int64
+type systemContextOption func(*systemContextOptions)
+
+func withProcRoot(procRoot string) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.procRoot = procRoot
+	}
 }
 
-// contextTelemetry holds telemetry elements for the context
-type contextTelemetry struct {
-	symbolCacheSize telemetry.Gauge
-	activePIDs      telemetry.Gauge
+func withWorkloadMeta(wmeta workloadmeta.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.wmeta = wmeta
+	}
 }
 
-// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-type fatbinTelemetry struct {
-	readErrors     telemetry.Counter
-	fatbinPayloads telemetry.Counter
-	kernelsPerFile telemetry.Histogram
-	kernelSizes    telemetry.Histogram
+func withTelemetry(tm telemetry.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.tm = tm
+	}
 }
 
-// symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
-// time the entry was accessed, for cleanup purposes.
-type symbolsEntry struct {
-	*cuda.Symbols
-	lastUsedTime time.Time
+func withFatbinParsingEnabled(enabled bool) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.fatbinParsingEnabled = enabled
+	}
 }
 
-func (e *symbolsEntry) updateLastUsedTime() {
-	e.lastUsedTime = time.Now()
+func withConfig(config *config.Config) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.config = config
+	}
 }
 
-func getSystemContext(procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
+func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
+	opts := &systemContextOptions{
+		fatbinParsingEnabled: false,
+		config:               config.New(),
+	}
+	for _, opt := range optList {
+		opt(opts)
+	}
+	return opts
+}
+
+func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
+	opts := newSystemContextOptions(optList...)
+
 	ctx := &systemContext{
-		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
-		pidMaps:                   make(map[int][]*procfs.ProcMap),
-		procRoot:                  procRoot,
+		procRoot:                  opts.procRoot,
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]*ddnvml.Device),
-		workloadmeta:              wmeta,
-		telemetry:                 newContextTelemetry(tm),
-		fatbinTelemetry:           newfatbinTelemetry(tm),
+		workloadmeta:              opts.wmeta,
 	}
 
 	var err error
@@ -127,135 +122,32 @@ func getSystemContext(procRoot string, wmeta workloadmeta.Component, tm telemetr
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
-	ctx.procfsObj, err = procfs.NewFS(procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
+	if opts.fatbinParsingEnabled {
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		if err != nil {
+			return nil, fmt.Errorf("error creating kernel cache: %w", err)
+		}
 	}
 
 	return ctx, nil
 }
 
-func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
-	subsystem := gpuTelemetryModule + "__context"
-
-	return &contextTelemetry{
-		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
-		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of active PIDs being monitored"),
-	}
-}
-
-func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
-	subsystem := gpuTelemetryModule + "__fatbin_parser"
-
-	return &fatbinTelemetry{
-		readErrors:     tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
-		fatbinPayloads: tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
-		kernelsPerFile: tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
-		kernelSizes:    tm.NewHistogram(subsystem, "kernel_sizes", nil, "Size of kernels in bytes", []float64{100, 1000, 10000, 100000, 1000000, 10000000}),
-	}
-}
-
-func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
-	stat, err := utils.UnixStat(path)
-	if err != nil {
-		return symbolFileIdentifier{}, fmt.Errorf("error getting file info: %w", err)
-	}
-
-	return symbolFileIdentifier{inode: int(stat.Ino), fileSize: stat.Size}, nil
-}
-
-func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
-	fileIdent, err := buildSymbolFileIdentifier(path)
-	if err != nil {
-		// an error means we cannot access the file, so returning makes sense as we will fail later anyways
-		return nil, fmt.Errorf("error building symbol file identifier: %w", err)
-	}
-
-	if data, ok := ctx.cudaSymbols[fileIdent]; ok {
-		data.updateLastUsedTime()
-		return data, nil
-	}
-
-	smVersionSet := ctx.deviceCache.SMVersionSet()
-	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, smVersionSet)
-
-	data, err := cuda.GetSymbols(path, smVersionSet)
-	if err != nil {
-		ctx.fatbinTelemetry.readErrors.Inc()
-		return nil, fmt.Errorf("error getting file data: %w", err)
-	}
-
-	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.CompressedPayloads), "compressed")
-	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.UncompressedPayloads), "uncompressed")
-	ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(data.Fatbin.NumKernels()))
-
-	for kernel := range data.Fatbin.GetKernels() {
-		ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(kernel.KernelSize))
-	}
-
-	wrapper := &symbolsEntry{Symbols: data}
-	wrapper.updateLastUsedTime()
-	ctx.cudaSymbols[fileIdent] = wrapper
-
-	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
-
-	return wrapper, nil
-}
-
-func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) {
-	if maps, ok := ctx.pidMaps[pid]; ok {
-		return maps, nil
-	}
-
-	proc, err := ctx.procfsObj.Proc(pid)
-	if err != nil {
-		return nil, fmt.Errorf("error opening process %d: %w", pid, err)
-	}
-
-	maps, err := proc.ProcMaps()
-	if err != nil {
-		return nil, fmt.Errorf("error reading process %d memory maps: %w", pid, err)
-	}
-
-	// Remove any maps that don't have a pathname, we only want to keep the ones that are backed by a file
-	// to read from there the CUDA symbols.
-	maps = slices.DeleteFunc(maps, func(m *procfs.ProcMap) bool {
-		return m.Pathname == ""
-	})
-	slices.SortStableFunc(maps, func(a, b *procfs.ProcMap) int {
-		return int(a.StartAddr) - int(b.StartAddr)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error reading process memory maps: %w", err)
-	}
-
-	ctx.pidMaps[pid] = maps
-	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
-	return maps, nil
-}
-
 // removeProcess removes any data associated with a process from the system context.
 func (ctx *systemContext) removeProcess(pid int) {
-	delete(ctx.pidMaps, pid)
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
 
-	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.CleanProcessData(pid)
+	}
 }
 
-// cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
+// cleanOld removes any old entries that have not been accessed in a while, to avoid
 // retaining unused data forever
-func (ctx *systemContext) cleanupOldEntries() {
-	maxFatbinAge := 5 * time.Minute
-	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
-
-	for path, data := range ctx.cudaSymbols {
-		if data.lastUsedTime.Before(fatbinExpirationTime) {
-			delete(ctx.cudaSymbols, path)
-		}
+func (ctx *systemContext) cleanOld() {
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.CleanOld()
 	}
-
-	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given
