@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -101,12 +100,13 @@ func TestGetHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithProjectID(t *testing.T) {
+	mockConfig := configmock.New(t)
 	ctx := context.Background()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", false)
+	mockConfig.SetWithoutSource("gce_send_project_id_tag", true)
+	defer mockConfig.SetWithoutSource("gce_send_project_id_tag", false)
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
