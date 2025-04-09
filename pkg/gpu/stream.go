@@ -235,7 +235,7 @@ func (sh *StreamHandler) createMemoryAllocation(freeKtimeNs uint64, alloc *gpueb
 	sh.allocations = append(sh.allocations, &data)
 }
 
-func (sh *StreamHandler) onEvictedAlloc(key uint64, value gpuebpf.CudaMemEvent) {
+func (sh *StreamHandler) onEvictedAlloc(_ uint64, value gpuebpf.CudaMemEvent) {
 	// If we are suspending the evict callback, don't create memory allocations.
 	// The reason is that the LRU cache calls the eviction callback whenever an item is removed for
 	// any cause (full cache or manual removal). In handleMemEvent, we manually remove items from the cache,
