@@ -262,7 +262,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 func (c *collector) Pull(_ context.Context) error {
 	lib, err := ddnvml.GetNvmlLib()
 	if err != nil {
-		return fmt.Errorf("failed to get NVML : %w", err)
+		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
 	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(lib)
 	if err != nil {
