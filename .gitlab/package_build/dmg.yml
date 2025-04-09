@@ -66,6 +66,18 @@ include:
     echo Pyenv versions:
     ls "$(pyenv root)/versions"
 
+.macos_setup_go:
+  - |
+    echo Setting up Go
+    mkdir -p ~/go
+    export GO_VERSION="$(cat .go-version)"
+    eval "$(gimme $GO_VERSION)"
+    export PATH="$PATH:$GOROOT/bin"
+  - |
+    echo Go version should be $GO_VERSION
+    go version
+  - dda inv check-go-version
+
 # Add certificates to temporary keychain
 .macos_setup_signing:
   - |
@@ -84,16 +96,16 @@ include:
       export APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT password) || exit $?; export APPLE_ACCOUNT
 
       # Create temporary build keychain
-      security create-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+      security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
       # Let the keychain stay unlocked for 2 hours, otherwise the OS might lock
       # it again after a period of inactivity.
-      security set-keychain-settings -lut 7200 "build.keychain"
+      security set-keychain-settings -lut 7200 "$KEYCHAIN_NAME"
 
       # Add the build keychain to the list of active keychains
-      security list-keychains -d user -s "build.keychain" "login.keychain"
+      security list-keychains -d user -s "$KEYCHAIN_NAME" "login.keychain"
 
-      security unlock-keychain -p "$KEYCHAIN_PWD" "build.keychain"
+      security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
       # Apple has two different kinds of certificates:
       # - code signing certificates, to sign binaries.
@@ -121,7 +133,7 @@ include:
       # for reference.
       # Note: this feature is badly documented (and doesn't even appear in the command list if you run security --help...).
       # Note: we silence the output of this command because it contains metadata about the certificates.
-      security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "build.keychain" &>/dev/null
+      security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_NAME" &>/dev/null
     fi
 
 .macos_setup_cache:
@@ -141,6 +153,11 @@ include:
     echo Omnibus Gemfile
     cat omnibus/Gemfile
   - |
+    # Clean up previous builds
+    sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
+    # Set bundler install path to cached folder
+    pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
+  - |
     export GOMODCACHE=~/gomodcache
     sudo rm -rf $GOMODCACHE
     rm -rf $GOMODCACHE
@@ -148,22 +165,19 @@ include:
 
 .macos_do_build:
   - |
-    INVOKE_TASK="omnibus.build"
-    # TODO: Fixed
-    # if ! dda inv -- --list | grep -qF "$INVOKE_TASK"; then
-    #     echo -e "\033[0;31magent.omnibus-build is deprecated. Please use omnibus.build!\033[0m"
-    #     INVOKE_TASK="agent.omnibus-build"
-    # fi
+    rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
+    mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
+    rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
   - |
     echo Launching omnibus build
     if [ "$SIGN" = "true" ]; then
         # Unlock the keychain to get access to the signing certificates
         security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-        dda inv -- -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e omnibus.build --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
         # Lock the keychain once we're done
         security lock-keychain "$KEYCHAIN_NAME"
     else
-        dda inv -- -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
+        dda inv -- -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" --base-dir "$OMNIBUS_DIR" || exit 1
     fi
     echo Built packages using omnibus
 
@@ -210,6 +224,7 @@ new-agent_dmg-x64-a7:
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
+    # TODO
     when: always
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -220,6 +235,7 @@ new-agent_dmg-x64-a7:
     OMNIBUS_RUBY_VERSION: celian/macos-build
     # TODO
     # SIGN: true
+    KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
@@ -248,11 +264,6 @@ new-agent_dmg-x64-a7:
       else
         echo "Signing disabled"
       fi
-
-    - !reference [.vault_login]
-    - !reference [.macos_setup_python]
-
-    # Setup
     - |
       export RELEASE_VERSION=$RELEASE_VERSION_7
       export INSTALL_DIR="$PWD/datadog-agent-build/bin"
@@ -260,38 +271,16 @@ new-agent_dmg-x64-a7:
       export OMNIBUS_DIR="$PWD/omnibus_build"
       unset OMNIBUS_BASE_DIR
       export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
-    - !reference [.macos_setup_signing]
-    # Setup cache
-    - !reference [.macos_setup_cache]
-    - mkdir -p ~/go
-
-    - |
-      rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
-      mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-      rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
-
-    - |
-      echo Setting up Go
-      export GO_VERSION="$(cat .go-version)"
-      eval "$(gimme $GO_VERSION)"
-      echo "CELIAN gopath: $GOPATH, goroot: $GOROOT"
-      # export GOPATH="$GOROOT" # TODO
-      export PATH="$PATH:$GOROOT/bin"
-      echo Go version should be $GO_VERSION
-      go version
-      dda inv check-go-version || exit 1
-
-    - |
-      # Clean up previous builds
-      sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
-
-      # Set bundler install path to cached folder
-      pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
-
       # Update the INTEGRATION_CORE_VERSION if requested
       if [ -n "$INTEGRATIONS_CORE_REF" ]; then
           export INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_REF"
       fi
+    - !reference [.vault_login]
+    - !reference [.macos_setup_python]
+    - !reference [.macos_setup_go]
+    - !reference [.macos_setup_signing]
+    # Setup cache
+    - !reference [.macos_setup_cache]
     - !reference [.macos_do_build]
     - !reference [.macos_do_notarization]
     - !reference [.upload_sbom_artifacts]
