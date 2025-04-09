@@ -255,7 +255,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.27.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.27.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.27.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.122.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.122.1 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.121.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.122.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.121.0 // indirect
