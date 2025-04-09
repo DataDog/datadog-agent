@@ -239,6 +239,7 @@ new-agent_dmg-x64-a7:
       unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
       # unset S3_OMNIBUS_CACHE_BUCKET || true
       # unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
+      unset OMNIBUS_GIT_CACHE_DIR
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
 
@@ -265,8 +266,6 @@ new-agent_dmg-x64-a7:
       unset OMNIBUS_BASE_DIR
       unset OMNIBUS_PACKAGE_DIR
     - !reference [.macos_setup_signing]
-    # TODO: xcode 14.2?
-    # - xcode-select -s /Applications/Xcode_14.3.1.app
     # Setup cache
     - !reference [.macos_setup_cache]
     - mkdir -p ~/go
