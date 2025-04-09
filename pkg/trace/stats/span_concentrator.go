@@ -196,6 +196,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
+// todo:raphael migrate dd-trace-go API to not depend on containerID/containerTags and add processTags at encoding layer
 func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
 	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1)
 }
