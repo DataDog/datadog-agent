@@ -220,10 +220,10 @@ new-agent_dmg-x64-a7:
     OMNIBUS_RUBY_VERSION: celian/macos-build
     # TODO
     # SIGN: true
-    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
-    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
-    # S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
-    # S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
+    # INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+    # INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
+    S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+    S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS: true
   before_script:
     - sudo umount /Volumes/Agent || true
   after_script:
@@ -235,10 +235,10 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     - |
-      # unset INTEGRATION_WHEELS_CACHE_BUCKET || true
-      # unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
-      unset S3_OMNIBUS_CACHE_BUCKET || true
-      unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
+      unset INTEGRATION_WHEELS_CACHE_BUCKET || true
+      unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
+      # unset S3_OMNIBUS_CACHE_BUCKET || true
+      # unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
     # TODO: Within runner image
     - brew install pyenv pyenv-virtualenv || true
 
