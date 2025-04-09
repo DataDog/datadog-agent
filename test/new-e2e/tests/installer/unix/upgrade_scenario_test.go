@@ -604,7 +604,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 		),
 	)
 
-	s.mustStopExperiment(datadogAgent)
+	s.mustStopConfigExperiment(datadogAgent)
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {

@@ -413,8 +413,8 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
 	if !state.HasExperiment() {
-		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		// Return early
+		return nil
 	}
 
 	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
