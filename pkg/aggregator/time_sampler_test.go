@@ -691,6 +691,6 @@ func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilst
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, bl, forceFlushAll	)
+	sampler.flush(timestamp, &series, &sketches, bl, forceFlushAll)
 	return series, sketches
 }

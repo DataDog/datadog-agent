@@ -1479,7 +1479,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	// Control dogstatsd shutdown behaviors
-	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false, "DD_DOGSTATSD_FLUSH_INCOMPLETE_BUCKETS")
+	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
