@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
@@ -21,7 +23,9 @@ import (
 
 func TestKernelLaunchesHandled(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	require.NoError(t, err)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -79,7 +83,9 @@ func TestKernelLaunchesHandled(t *testing.T) {
 
 func TestMemoryAllocationsHandled(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -144,12 +150,14 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	require.Nil(t, stream.getCurrentData(currTime))
 
 	// Also check we didn't leak
-	require.Empty(t, stream.memAllocEvents)
+	require.Empty(t, stream.memAllocEvents.Keys())
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -183,7 +191,9 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -226,7 +236,9 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	require.NoError(t, err)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -312,7 +324,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	require.Nil(t, stream.getCurrentData(memFreeTime2+1))
 
 	// Also check we didn't leak
-	require.Empty(t, stream.memAllocEvents)
+	require.Empty(t, stream.memAllocEvents.Keys())
 }
 
 func TestKernelLaunchEnrichment(t *testing.T) {
@@ -356,7 +368,9 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
 
-			stream := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx)
+			streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+			stream, err := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx, getStreamLimits(config.New()), streamTelemetry)
+			require.NoError(t, err)
 
 			kernStartTime := uint64(1)
 			launch := &gpuebpf.CudaKernelLaunch{
@@ -437,4 +451,239 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			require.Nil(t, stream.getCurrentData(currTime))
 		})
 	}
+}
+
+func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	limits := streamLimits{
+		maxKernelLaunches: 5,
+		maxAllocEvents:    5,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
+	require.NoError(t, err)
+
+	// Add a few kernel launches, not reaching the limit
+	for i := 0; i < limits.maxKernelLaunches-1; i++ {
+		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Type:     uint32(gpuebpf.CudaEventTypeKernelLaunch),
+				Ktime_ns: uint64(i),
+			},
+		})
+	}
+
+	require.Len(t, stream.kernelLaunches, limits.maxKernelLaunches-1)
+
+	// Add one more, should trigger a sync
+	stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:     uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Ktime_ns: uint64(limits.maxKernelLaunches),
+		},
+	})
+	require.Len(t, stream.kernelLaunches, 0)
+
+	require.Len(t, stream.kernelSpans, 1)
+	span := stream.kernelSpans[0]
+	require.Equal(t, uint64(limits.maxKernelLaunches), span.numKernels)
+}
+
+func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	limits := streamLimits{
+		maxKernelLaunches: 5,
+		maxAllocEvents:    5,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
+	require.NoError(t, err)
+
+	// number of kernel launches between syncs
+	sequence := []int{
+		3,
+		14,
+		2,
+		4,
+		5,
+	}
+
+	expectedSpanLengths := []int{
+		3, // manual sync from the first launch group
+		5, // forced sync from the second launch group
+		5, // forced sync from the second launch group
+		4, // manual sync from the second launch group
+		2, // manual sync from the third launch group
+		4, // manual sync from the fourth launch group
+		5, // forced sync, by the fifth launch group
+	}
+
+	launchedKernels := 0
+
+	getTimeForKernel := func(kernelIndex int) uint64 {
+		return uint64(kernelIndex * 3)
+	}
+
+	getTimeForSync := func(kernelIndex int) uint64 {
+		return uint64((kernelIndex * 3) + 2)
+	}
+
+	for _, numLaunches := range sequence {
+		for j := 0; j < numLaunches; j++ {
+			stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+				Header: gpuebpf.CudaEventHeader{
+					Type:     uint32(gpuebpf.CudaEventTypeKernelLaunch),
+					Ktime_ns: getTimeForKernel(launchedKernels),
+				},
+			})
+			launchedKernels++
+		}
+
+		stream.markSynchronization(getTimeForSync(launchedKernels - 1)) //sync corresponding to the last kernel sent
+	}
+
+	// No launch should remain
+	require.Len(t, stream.kernelLaunches, 0)
+
+	// Check that the spans are as expected
+	require.Len(t, stream.kernelSpans, len(expectedSpanLengths))
+	kernelsSeen := 0
+	for i, span := range stream.kernelSpans {
+		spanLength := expectedSpanLengths[i]
+		require.Equal(t, uint64(spanLength), span.numKernels, "numKernels for span %d is incorrect", i)
+		require.Equal(t, getTimeForKernel(kernelsSeen), span.startKtime, "startKtime for span %d is incorrect", i)
+
+		endKernelIndex := kernelsSeen + spanLength - 1
+
+		if spanLength == 5 {
+			// From a forced sync, so the end time is just one nanosecond after the last kernel launch
+			require.Equal(t, getTimeForKernel(endKernelIndex)+1, span.endKtime, "endKtime for span %d (forced sync)is incorrect", i)
+		} else {
+			// From a regular sync event, so the end time is the one we send in the sync event plus one
+			require.Equal(t, getTimeForSync(endKernelIndex), span.endKtime, "endKtime for span %d (manual sync) is incorrect", i)
+		}
+		kernelsSeen += spanLength
+	}
+	require.Equal(t, kernelsSeen, launchedKernels)
+}
+
+func TestMemoryAllocationEviction(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	limits := streamLimits{
+		maxKernelLaunches: 5,
+		maxAllocEvents:    5,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
+	require.NoError(t, err)
+
+	// Add a few memory allocations, go over the limit
+	for i := 0; i < limits.maxAllocEvents+1; i++ {
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Type:     uint32(gpuebpf.CudaEventTypeMemory),
+				Ktime_ns: uint64(i + 100),
+			},
+			Type: gpuebpf.CudaMemAlloc,
+			Addr: uint64(i + 1),
+			Size: uint64((i + 1) * 1024),
+		})
+
+		if i < limits.maxAllocEvents {
+			// No evictions yet
+			require.Equal(t, i+1, stream.memAllocEvents.Len())
+		}
+	}
+
+	// At this point we should have gotten one eviction
+	require.Equal(t, limits.maxAllocEvents, stream.memAllocEvents.Len())
+
+	// Check that we got an allocation evicted
+	require.Len(t, stream.allocations, 1)
+	alloc := stream.allocations[0]
+	require.Equal(t, uint64(100), alloc.startKtime)
+	require.Equal(t, uint64(1024), alloc.size)
+}
+
+func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	limits := streamLimits{
+		maxKernelLaunches: 5,
+		maxAllocEvents:    5,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
+	require.NoError(t, err)
+
+	// Get the current time in nanoseconds, to compare with the time set in evicted allocations
+	testBeginKtimeNs, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+
+	totalEvents := 200 * limits.maxAllocEvents
+
+	for i := 0; i < totalEvents; i++ {
+		addr := uint64(i)
+		size := uint64(i * 1024)
+		ktime := uint64(i)
+
+		// All iterations get an allocation event
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Type:     uint32(gpuebpf.CudaEventTypeMemory),
+				Ktime_ns: ktime,
+			},
+			Type: gpuebpf.CudaMemAlloc,
+			Addr: addr,
+			Size: size,
+		})
+
+		// Only even iterations get a free event
+		if i%2 == 0 {
+			stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+				Type: gpuebpf.CudaMemFree,
+				Addr: addr,
+				Header: gpuebpf.CudaEventHeader{
+					Type:     uint32(gpuebpf.CudaEventTypeMemory),
+					Ktime_ns: ktime + 1,
+				},
+			})
+		}
+
+		// We should have at most the max number of allocations
+		require.LessOrEqual(t, stream.memAllocEvents.Len(), limits.maxAllocEvents)
+	}
+
+	// Now validate all the allocations
+	require.Equal(t, limits.maxAllocEvents, stream.memAllocEvents.Len())
+
+	// We should have
+	// - 100 allocations from the corresponding frees on every even iteration
+	// - 95 allocations from the evictions on every odd iteration (last ones are not evicted yet)
+	expectedAllocations := totalEvents/2 + (totalEvents/2 - limits.maxAllocEvents)
+	require.Len(t, stream.allocations, expectedAllocations)
+
+	seenIndexes := make(map[uint64]bool)
+
+	// Check that the allocations are correct
+	for _, alloc := range stream.allocations {
+		if alloc.startKtime%2 == 0 {
+			// This allocation should come from the corresponding free event, so the time
+			// is deterministic, the one that we set in the free event
+			require.Equal(t, alloc.startKtime+1, alloc.endKtime)
+		} else {
+			// This allocation should come from the eviction, so the time comes from NowNanoseconds
+			// The sanity check here is that the end time (eviction time) is after the test started
+			require.Greater(t, alloc.endKtime, uint64(testBeginKtimeNs))
+		}
+
+		require.Equal(t, uint64(alloc.startKtime*1024), alloc.size)
+		require.False(t, seenIndexes[alloc.startKtime], "already saw allocation with index %d", alloc.startKtime)
+		seenIndexes[alloc.startKtime] = true
+	}
+
+	require.Len(t, seenIndexes, expectedAllocations)
 }
