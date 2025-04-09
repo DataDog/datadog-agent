@@ -2,6 +2,40 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.3:
+
+7.64.3
+======
+
+.. _Release Notes_7.64.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-04-09
+
+- Please refer to the `7.64.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7643>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.64.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.23.8``.
+
+
+.. _Release Notes_7.64.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Add a configuration option, `enable_nvml_detection`, disabled by default, to stop
+  the Agent from trying to find the NVML library on startup.
+
+- Fix remote tagger initialization log message to be logged only once.
+
+
 .. _Release Notes_7.64.2:
 
 7.64.2
