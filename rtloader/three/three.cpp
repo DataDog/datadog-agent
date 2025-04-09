@@ -34,50 +34,17 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
+    , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    // Pre-Initialize Python with UTF-8 mode
-    PyStatus status;
-    PyPreConfig preconfig;
-    PyPreConfig_InitIsolatedConfig(&preconfig);
-    preconfig.utf8_mode = 1;
-
-    status = Py_PreInitialize(&preconfig);
-    if (PyStatus_Exception(status)) {
-        setError("Failed to pre-initialize Python: " + std::string(status.err_msg));
-    }
-
-    // Initialize the configuration with default values
-    PyConfig_InitIsolatedConfig(&_config);
-    _config.install_signal_handlers = 1;
-
-    // Configure Python home
-    const auto home_path = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    status = PyConfig_SetBytesString(&_config, &_config.home, home_path);
-    if (PyStatus_Exception(status)) {
-        setError("Failed to set python home: " + std::string(status.err_msg));
-        PyConfig_Clear(&_config);
-        return;
-    }
-
-    // Configure Python executable
+    _pythonHome = (python_home && strlen(python_home) > 0) ? strdup(python_home) : strdup(_defaultPythonHome);
     if (python_exe && strlen(python_exe) > 0) {
-        status = PyConfig_SetBytesString(&_config, &_config.executable, python_exe);
-        if (PyStatus_Exception(status)) {
-            setError("Failed to set executable path: " + std::string(status.err_msg));
-            PyConfig_Clear(&_config);
-            return;
-        }
-        status = PyConfig_SetBytesString(&_config, &_config.program_name, python_exe);
-        if (PyStatus_Exception(status)) {
-            setError("Failed to set program name: " + std::string(status.err_msg));
-            PyConfig_Clear(&_config);
-            return;
-        }
+        _pythonExe = strdup(python_exe);
     }
 }
 
@@ -91,8 +58,65 @@ Three::~Three()
 
 bool Three::init()
 {
+    class StatusHandler
+    {
+    public:
+        explicit StatusHandler(Three *ctx)
+            : context(ctx)
+        {
+        }
+
+        bool check(const PyStatus &status, const std::string &message)
+        {
+            if (PyStatus_Exception(status)) {
+                context->setError(message + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+                return false;
+            }
+            return true;
+        }
+
+    private:
+        Three *context;
+    };
+
+    // Initialize UTF-8 mode
+    {
+        PyPreConfig preconfig;
+        PyPreConfig_InitIsolatedConfig(&preconfig);
+        preconfig.utf8_mode = 1;
+
+        StatusHandler status(this);
+        if (!status.check(Py_PreInitialize(&preconfig), "Failed to pre-initialize Python")) {
+            return false;
+        }
+    }
+
+    // Configure Python environment
+    StatusHandler status(this);
+
+    // Initialize the configuration with default values
+    PyConfig_InitIsolatedConfig(&_config);
+    _config.install_signal_handlers = 1;
+
+    // Set Python home
+    if (!status.check(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome), "Failed to set python home")) {
+        PyConfig_Clear(&_config);
+        return false;
+    }
+
+    // Configure Python executable if provided
+    if (_pythonExe) {
+        if (!status.check(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe),
+                          "Failed to set executable path")
+            || !status.check(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe),
+                             "Failed to set program name")) {
+            PyConfig_Clear(&_config);
+            return false;
+        }
+    }
+
     // add custom builtins init funcs to Python inittab, one by one
-    // Unlike its py2 counterpart, these need to be called before Py_Initialize
+    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
@@ -102,10 +126,11 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    PyStatus status = Py_InitializeFromConfig(&_config);
-    if (PyStatus_Exception(status)) {
-        setError("Failed to initialize Python: " + std::string(status.err_msg));
+    if (!status.check(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
+        PyConfig_Clear(&_config);
+        return false;
     }
+
     // Clean up the configuration
     PyConfig_Clear(&_config);
 
