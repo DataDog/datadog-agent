@@ -7,6 +7,7 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -23,6 +24,7 @@ type BundleParams struct {
 	SecretParams
 	SysprobeConfigParams
 	LogParams
+	IPCParams
 }
 
 // ConfigParams defines the parameters of the config component
@@ -36,3 +38,6 @@ type LogParams = log.Params
 
 // SysprobeConfigParams defines the parameters of the system-probe config component
 type SysprobeConfigParams = sysprobeconfigimpl.Params
+
+// IPCParams defines the parameters of the IPC component
+type IPCParams = ipc.Params
