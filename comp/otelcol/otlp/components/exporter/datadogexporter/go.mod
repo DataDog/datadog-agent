@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.61.0
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.62.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.12

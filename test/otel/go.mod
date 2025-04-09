@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.61.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.62.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
