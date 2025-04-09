@@ -16,7 +16,9 @@
     ACTION: promote
     BUILD_PIPELINE_ID: $CI_PIPELINE_ID
     RELEASE_PRODUCT: datadog-installer
-    RELEASE_VERSION: $CI_COMMIT_TAG
+    # We use CI_COMMIT_REF_NAME	here instead of CI_COMMIT_TAG as this is expected to be triggered via `pipeline.run` rather
+    # than on a tag push.
+    RELEASE_VERSION: $CI_COMMIT_REF_NAME
     TARGET_REPO_BRANCH: $BUCKET_BRANCH
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
