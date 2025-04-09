@@ -125,3 +125,11 @@ func (r *RequestStats) AddRequest(isError bool, count int, staticTags uint64, la
 		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
 }
+
+func (r *RequestStats) Close() {
+	for _, stats := range r.ErrorsToStats {
+		if stats != nil {
+			stats.close()
+		}
+	}
+}

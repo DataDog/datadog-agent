@@ -62,8 +62,17 @@ func (s *RedisSuite) TestFormatRedisStats() {
 				redisDefaultConnection,
 			},
 		},
-		Redis: map[redis.Key]*redis.RequestStat{
-			dummyKey: {},
+		Redis: map[redis.Key]*redis.RequestStats{
+			dummyKey: {map[bool]*redis.RequestStat{
+				false: {
+					FirstLatencySample: 1,
+					Count:              2,
+				},
+				true: {
+					FirstLatencySample: 1,
+					Count:              2,
+				},
+			}},
 		},
 	}
 
@@ -71,7 +80,21 @@ func (s *RedisSuite) TestFormatRedisStats() {
 		Aggregations: []*model.DatabaseStats{
 			{
 				DbStats: &model.DatabaseStats_Redis{
-					Redis: &model.RedisStats{},
+					Redis: &model.RedisAggregation{
+						Command:   model.RedisCommand(int32(dummyKey.Command)),
+						KeyName:   dummyKey.KeyName,
+						Truncated: dummyKey.Truncated,
+						ErrorToStats: map[bool]*model.RedisStats{
+							false: {
+								FirstLatencySample: in.Redis[dummyKey].ErrorsToStats[false].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorsToStats[false].Count),
+							},
+							true: {
+								FirstLatencySample: in.Redis[dummyKey].ErrorsToStats[false].FirstLatencySample,
+								Count:              uint32(in.Redis[dummyKey].ErrorsToStats[false].Count),
+							},
+						},
+					},
 				},
 			},
 		},
@@ -120,8 +143,10 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Redis: map[redis.Key]*redis.RequestStat{
-			redisKey: {},
+		Redis: map[redis.Key]*redis.RequestStats{
+			redisKey: {
+				ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+			},
 		},
 	}
 
@@ -129,6 +154,7 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 	t.Cleanup(encoder.Close)
 	aggregations := getRedisAggregations(t, encoder, in.Conns[0])
 	assert.NotNil(aggregations)
+	assert.Equal(10, int(aggregations.Aggregations[0].GetRedis().ErrorToStats[false].Count))
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the Redis stats
@@ -174,8 +200,10 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Redis: map[redis.Key]*redis.RequestStat{
-			redisKey: {},
+		Redis: map[redis.Key]*redis.RequestStats{
+			redisKey: {
+				ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+			},
 		},
 	}
 
@@ -187,6 +215,7 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 	for _, conn := range in.Conns {
 		aggregations := getRedisAggregations(t, encoder, conn)
 		assert.NotNil(aggregations.Aggregations[0].GetRedis())
+		assert.Equal(10, int(aggregations.Aggregations[0].GetRedis().ErrorToStats[false].Count))
 	}
 }
 
@@ -211,7 +240,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
 		},
-		Redis: make(map[redis.Key]*redis.RequestStat),
+		Redis: make(map[redis.Key]*redis.RequestStats),
 	}
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
@@ -239,7 +268,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 				redis.GetCommand,
 				"dummyKey",
 				false,
-			)] = &redis.RequestStat{}
+			)] = &redis.RequestStats{ErrorsToStats: map[bool]*redis.RequestStat{false: {Count: 10}}}
 		}
 	}
 

@@ -184,9 +184,7 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 			Stats: keysToStats,
 		}, func() {
 			for _, stats := range keysToStats {
-				for _, stat := range stats.ErrorsToStats {
-					stat.close()
-				}
+				stats.Close()
 			}
 		}
 }
