@@ -24,6 +24,8 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
+  patch source: "pin-wheel.patch"
+
   command "#{python} -m pip install ."
 
   if ohai["platform"] != "windows"
