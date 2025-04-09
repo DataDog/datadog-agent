@@ -91,8 +91,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, len(urls), 5)
-		assert.Equal(t, len(keys), 5)
+		assert.Equal(t, 5, len(urls))
+		assert.Equal(t, 5, len(keys))
 
 		for _, url := range urls {
 			urlStr := url.String()
@@ -150,8 +150,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, len(urls), 5)
-		assert.Equal(t, len(keys), 5)
+		assert.Equal(t, 5, len(urls))
+		assert.Equal(t, 5, len(keys))
 
 		for _, url := range urls {
 			urlStr := url.String()
@@ -187,8 +187,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://data-obs-intake.datadoghq.eu/api/v1/lineage")
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, "https://data-obs-intake.datadoghq.eu/api/v1/lineage", urls[0].String())
+		assert.Equal(t, []string{"test_api_key"}, keys)
 	})
 
 	t.Run("dd-site-fallback", func(t *testing.T) {
@@ -198,8 +198,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://data-obs-intake.datadoghq.eu/api/v1/lineage")
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, "https://data-obs-intake.datadoghq.eu/api/v1/lineage", urls[0].String())
+		assert.Equal(t, []string{"test_api_key"}, keys)
 	})
 
 	t.Run("datadoghq.com", func(t *testing.T) {
@@ -211,8 +211,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://data-obs-intake.datadoghq.com/api/v1/lineage?api-version=17")
-		assert.Equal(t, keys, []string{"test_api_key"})
+		assert.Equal(t, "https://data-obs-intake.datadoghq.com/api/v1/lineage?api-version=17", urls[0].String())
+		assert.Equal(t, []string{"test_api_key"}, keys)
 
 	})
 
@@ -223,7 +223,7 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 		urls, _, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://data-obs-intake.datadoghq.com/api/v1/lineage")
+		assert.Equal(t, "https://data-obs-intake.datadoghq.com/api/v1/lineage", urls[0].String())
 	})
 
 	t.Run("different-api", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 		urls, _, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://intake.testing.com/different-api")
+		assert.Equal(t, "https://intake.testing.com/different-api", urls[0].String())
 	})
 }
 

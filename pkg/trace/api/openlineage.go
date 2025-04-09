@@ -46,7 +46,7 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 		// Fallback to the main agent site
 		host = fmt.Sprintf(openlineageURLTemplate, cfg.Site)
 	}
-	log.Debug("[openlineage] OpenLineage Host: %s", host)
+	log.Debugf("[openlineage] OpenLineage Host: %s", host)
 	u, err := url.Parse(host)
 	if err != nil {
 		// if the main intake URL is invalid we don't use additional endpoints
@@ -82,7 +82,7 @@ func addOpenLineageAPIVersion(u *url.URL, version int) {
 	query := u.Query()
 	query.Set("api-version", strconv.Itoa(version))
 	u.RawQuery = query.Encode()
-	log.Debug("[openlineage] OpenLineage API version added, URL: %s", u.String())
+	log.Debugf("[openlineage] OpenLineage API version added, URL: %s", u.String())
 }
 
 func openLineageErrorHandler(message string) http.Handler {
@@ -164,7 +164,7 @@ func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Respons
 		if rerr != nil {
 			log.Errorf("[openlineage] RoundTrip failed: %v", rerr)
 		} else {
-			log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s", rresp.Status, m.urls[0].Host, m.urls[0].Path)
+			log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s, query %s", rresp.Status, m.urls[0].Host, m.urls[0].Path, m.urls[0].Query())
 		}
 
 		return rresp, rerr
@@ -184,7 +184,7 @@ func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Respons
 			if rerr != nil {
 				log.Errorf("[openlineage] RoundTrip failed: %v", rerr)
 			} else {
-				log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s", rresp.Status, m.urls[0].Host, m.urls[0].Path)
+				log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s, query: %s", rresp.Status, u.Host, u.Path, u.Query())
 			}
 			continue
 		}
