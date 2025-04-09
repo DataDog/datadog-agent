@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
+const initAllocations = 0
+
 func TestInit(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
@@ -31,7 +33,7 @@ func TestInitFailure(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected error, got nil")
 	}
-	t.Logf("Error: %w", err)
+	t.Logf("Error: %v", err)
 	t.Logf("Allocations: %d", helpers.Allocations.Value())
 	t.Logf("Frees: %d", helpers.Frees.Value())
 
