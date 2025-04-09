@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix metrics origins mapping for Kyverno and Slurm.
