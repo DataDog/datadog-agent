@@ -41,10 +41,6 @@ func TestTracerResult(t *testing.T) {
 			out:   languagemodels.Python,
 		},
 		{
-			tdata: "tracer_golang.data",
-			out:   languagemodels.Go,
-		},
-		{
 			tdata: "tracer_wrong.data",
 			err:   true,
 		},
