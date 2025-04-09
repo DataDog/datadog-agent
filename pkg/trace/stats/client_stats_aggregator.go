@@ -381,7 +381,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		IsTraceRoot:    b.IsTraceRoot,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
-		k.PeerTagsHash = peerTagsHash(tags)
+		k.PeerTagsHash = tagsFnvHash(tags)
 	}
 	return k
 }

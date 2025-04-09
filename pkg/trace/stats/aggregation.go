@@ -94,7 +94,7 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			Synthetics:     synthetics,
 			IsTraceRoot:    isTraceRoot,
 			GRPCStatusCode: s.grpcStatusCode,
-			PeerTagsHash:   peerTagsHash(s.matchingPeerTags),
+			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
 		},
 	}
 	return agg
@@ -104,10 +104,10 @@ func processTagsHash(processTags string) uint64 {
 	if processTags == "" {
 		return 0
 	}
-	return peerTagsHash(strings.Split(processTags, ","))
+	return tagsFnvHash(strings.Split(processTags, ","))
 }
 
-func peerTagsHash(tags []string) uint64 {
+func tagsFnvHash(tags []string) uint64 {
 	if len(tags) == 0 {
 		return 0
 	}
@@ -134,7 +134,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			SpanKind:       g.SpanKind,
 			StatusCode:     g.HTTPStatusCode,
 			Synthetics:     g.Synthetics,
-			PeerTagsHash:   peerTagsHash(g.PeerTags),
+			PeerTagsHash:   tagsFnvHash(g.PeerTags),
 			IsTraceRoot:    g.IsTraceRoot,
 			GRPCStatusCode: g.GRPCStatusCode,
 		},
