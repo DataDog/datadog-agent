@@ -81,6 +81,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
+	fmt.Println("SCHEDULER")
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
@@ -167,7 +168,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 	for _, instance := range config.Instances {
 		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			fmt.Printf("skip loading jmx check '%s', it is handled elsewhere\n", config.Name)
 			continue
 		}
 
@@ -177,7 +178,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 		err := yaml.Unmarshal(instance, &instanceConfig)
 		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+			fmt.Printf("Unable to parse instance config for check `%s`: %v\n", config.Name, instance)
 			continue
 		}
 
@@ -185,20 +186,38 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			selectedInstanceLoader = instanceConfig.LoaderName
 		}
 		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+			fmt.Printf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)\n", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
 		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+			fmt.Printf("Loading check instance for check '%s' using default loaders\n", config.Name)
 		}
 
+		fmt.Println("LEN OF LOADERS")
+		fmt.Println(len(s.loaders))
 		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
+			fmt.Printf("SELECTED INSTANCE LOADER %s VS LOADER.NAME %s\n", selectedInstanceLoader, loader.Name())
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+				fmt.Printf("Loader name %v does not match, skip loader %v for check %v\n", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println(config)
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println("=====================")
 			c, err := loader.Load(s.senderManager, config, instance)
+			fmt.Println("CONFIG C")
+			fmt.Println(c)
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			if err != nil {
+				fmt.Printf("Unable to load check '%s' using loader %s: %v\n", config.Name, loader.Name(), err)
+			}
 			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				fmt.Printf("%v: successfully loaded check '%s'\n", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
@@ -208,15 +227,24 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		}
 
 		if len(errors) == numLoaders {
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+			fmt.Printf("Unable to load a check from instance of config '%s': %s\n", config.Name, strings.Join(errors, "; "))
 		}
 	}
+
+	fmt.Println("LEN DE CHECK")
+	fmt.Println(len(checks))
 
 	return checks, nil
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
 	var checks []check.Check
 	if checkScheduler == nil {
 		return checks

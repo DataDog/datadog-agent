@@ -85,6 +85,7 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 
 // Schedules a specific check
 func runCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
+	fmt.Println("RUN CHECK HANDLER")
 	return func(_ http.ResponseWriter, r *http.Request) {
 		// Fetch the desired check
 		name := mux.Vars(r)["name"]
@@ -107,6 +108,7 @@ func runCheckOnceHandler(
 
 // Runs a specified check once
 func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
+	fmt.Println("RUN CHECK ONCE")
 	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
@@ -162,8 +164,10 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Compo
 
 // Reloads a running check
 func reloadCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
+	fmt.Println("RELOAD CHECK HANDLER")
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := html.EscapeString(mux.Vars(r)["name"])
+		fmt.Println("CALLING GET CHECKS BY NAME FOR CONFIGS IN REALODCHECKHANDLER")
 		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 		if len(instances) == 0 {
 			log.Errorf("Can't reload %s: check has no new instances.", name)

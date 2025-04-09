@@ -254,6 +254,7 @@ func run(
 	telemetry telemetry.Component,
 	logReceiver option.Option[integrations.Component],
 ) error {
+	fmt.Println("RUN COMMAND")
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -418,6 +419,7 @@ func run(
 		}
 	}
 
+	fmt.Println("CALLING GET CHECKS BY NAME FOR CONFIGS IN COMMAND.GO")
 	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
 
 	// something happened while getting the check(s), display some info.
@@ -468,6 +470,8 @@ func run(
 
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
+		fmt.Println("RUNNING CHECK")
+		fmt.Printf("%#v\n", c)
 		s := runCheck(cliParams, c, printer)
 		resultBytes, err := json.Marshal(s)
 		if err != nil {
@@ -633,6 +637,7 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 	}
 	for i := 0; i < times; i++ {
 		t0 := time.Now()
+		fmt.Println("THIS IS WHERE WE CALL CHECK RUN")
 		err := c.Run()
 		warnings := c.GetWarnings()
 		sStats, _ := c.GetSenderStats()

@@ -53,6 +53,15 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println(c.config)
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Printf("%#v\n", c)
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	var checkErr error
 	sender, err := c.GetSender()
 	if err != nil {
