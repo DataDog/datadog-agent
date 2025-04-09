@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	regoast "github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
-	regotypes "github.com/open-policy-agent/opa/types"
+	regoast "github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/rego"
+	regotypes "github.com/open-policy-agent/opa/v1/types"
 )
 
 // EvaluateRegoRule evaluates the given rule and resolved inputs map against
@@ -61,6 +61,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 			"opa.runtime": {},
 		}),
 		rego.ParsedInput(input),
+		rego.SetRegoVersion(regoast.RegoV0),
 	)
 
 	log.Tracef("starting rego evaluation for rule=%s:%s", benchmark.FrameworkID, rule.ID)
