@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -io=false
+//go:generate go run github.com/tinylib/msgp
 
 // Package tracermetadata parses the tracer-generated metadata
 package tracermetadata
