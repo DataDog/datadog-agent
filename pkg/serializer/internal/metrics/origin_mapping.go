@@ -1011,9 +1011,9 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 	case metrics.MetricSourceKubeflow:
 		return 416
 	case metrics.MetricSourceSlurm:
-		return 417
-	case metrics.MetricSourceKyverno:
 		return 418
+	case metrics.MetricSourceKyverno:
+		return 417
 	case metrics.MetricSourceTibcoEMS:
 		return 419
 	case metrics.MetricSourceMilvus:
