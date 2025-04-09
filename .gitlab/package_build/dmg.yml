@@ -204,14 +204,12 @@ new-agent_dmg-x64-a7:
   needs: []
   # needs:
   #   - setup_agent_version
-  timeout: 6h
+  timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
   artifacts:
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
-      # TODO: Remove
-      - omnibus_build
     when: always
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -282,8 +280,9 @@ new-agent_dmg-x64-a7:
       echo Setting up Go
       export GO_VERSION="$(cat .go-version)"
       eval "$(gimme $GO_VERSION)"
-      export GOPATH="$GOROOT" # TODO
-      export PATH="$PATH:$GOPATH/bin"
+      echo "CELIAN gopath: $GOPATH, goroot: $GOROOT"
+      # export GOPATH="$GOROOT" # TODO
+      export PATH="$PATH:$GOROOT/bin"
       echo Go version should be $GO_VERSION
       go version
       dda inv check-go-version || exit 1
@@ -301,6 +300,7 @@ new-agent_dmg-x64-a7:
       fi
     - !reference [.macos_do_build]
     - !reference [.macos_do_notarization]
+    - !reference [.upload_sbom_artifacts]
     - |
       if [ "$SIGN" = true ]; then
         echo Built signed package
