@@ -103,7 +103,7 @@ func runAgentSidekicks(ag component) error {
 	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
-	if pcfg := profilingConfig(tracecfg); pcfg != nil {
+	if pcfg := profilingConfig(tracecfg, ag.params.DisableInternalProfiling); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
 			log.Warn(err)
 		} else {
@@ -118,19 +118,19 @@ func runAgentSidekicks(ag component) error {
 	return nil
 }
 
-func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface) {
+func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface, disableInternalProfiling bool) {
 	defer watchdog.LogOnPanic(statsd)
 
 	log.Flush()
 
 	tracecfg := cfg.Object()
-	if pcfg := profilingConfig(tracecfg); pcfg != nil {
+	if pcfg := profilingConfig(tracecfg, disableInternalProfiling); pcfg != nil {
 		profiling.Stop()
 	}
 }
 
-func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
-	if !pkgconfigsetup.Datadog().GetBool("apm_config.internal_profiling.enabled") {
+func profilingConfig(tracecfg *tracecfg.AgentConfig, disableInternalProfiling bool) *profiling.Settings {
+	if !pkgconfigsetup.Datadog().GetBool("apm_config.internal_profiling.enabled") || disableInternalProfiling {
 		return nil
 	}
 	endpoint := pkgconfigsetup.Datadog().GetString("internal_profiling.profile_dd_url")
