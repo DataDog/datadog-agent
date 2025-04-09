@@ -116,7 +116,7 @@ var ErrMemFdFileNotFound = errors.New("memfd file not found")
 // GetProcessMemFdFile reads a maximum amount of bytes from the
 // memFdFileName if it was found.
 func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMaxSize int) ([]byte, error) {
-	path, found := FindMemFdFilePath(pid, procRoot, memFdFileName)
+	path, found := findMemFdFilePath(pid, procRoot, memFdFileName)
 	if !found {
 		return nil, ErrMemFdFileNotFound
 	}
@@ -148,7 +148,7 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 	return data, nil
 }
 
-// FindMemFdFilePath searches for the file in the process open file descriptors.
+// findMemfdFilePath searches for the file in the process open file descriptors.
 // In order to find the correct file, we need to iterate the list of files
 // (named after file descriptor numbers) in /proc/$PID/fd and get the name from
 // the target of the symbolic link.
@@ -161,7 +161,7 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 // lrwx------ 1 foo foo 64 Aug 13 14:24 2 -> /dev/pts/6
 // lrwx------ 1 foo foo 64 Aug 13 14:24 3 -> '/memfd:dd_process_inject_info.msgpac (deleted)'
 // ```
-func FindMemFdFilePath(pid int, procRoot string, memFdFileName string) (string, bool) {
+func findMemFdFilePath(pid int, procRoot string, memFdFileName string) (string, bool) {
 	fdsPath := filepath.Join(procRoot, strconv.Itoa(pid), "fd")
 	// quick path, the shadow file is the first opened file by the process
 	// unless there are inherited fds
