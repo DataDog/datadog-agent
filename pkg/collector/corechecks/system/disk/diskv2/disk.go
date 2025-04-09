@@ -392,7 +392,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		log.Debugf("usage %s", usage)
 		// Exclude disks with total disk size 0
 		if usage.Total == 0 {
-			log.Infof("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
+			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s] with total disk size %d bytes", partition.Device, partition.Mountpoint, partition.Fstype, usage.Total)
 			continue
 		}
 		// Exclude disks with total disk size smaller than 'min_disk_size' (which is configured in MiB)
