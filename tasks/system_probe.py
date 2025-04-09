@@ -2095,7 +2095,9 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
         namespace (str | None): The namespace where the agent pod is running.
     """
     ns_arg = f"-n {namespace}" if namespace else ""
-    ctx.run(f'kubectl {ns_arg} exec {pod_name} -c system-probe -- /bin/bash -c "curl --unix-socket \\$DD_SYSPROBE_SOCKET http://unix/gpu/debug/collect-events?count={event_count} > /tmp/gpu-events.ndjson"')
+    ctx.run(
+        f'kubectl {ns_arg} exec {pod_name} -c system-probe -- /bin/bash -c "curl --unix-socket \\$DD_SYSPROBE_SOCKET http://unix/gpu/debug/collect-events?count={event_count} > /tmp/gpu-events.ndjson"'
+    )
 
     ctx.run(f"mkdir -p {output_dir}")
     ctx.run(f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")
