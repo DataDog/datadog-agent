@@ -59,7 +59,8 @@ type collectorImpl struct {
 type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
-	Lc compdef.Lifecycle
+	Lc         compdef.Lifecycle
+	Shutdowner compdef.Shutdowner
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -146,6 +147,13 @@ var buildInfo = component.BuildInfo{
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
+	if !reqs.Config.GetBool("otelcollector.enabled") {
+		reqs.Log.Info("OpenTelemetry Collector is not enabled, exiting application")
+		// Required to signal that the whole app must stop.
+		_ = reqs.Shutdowner.Shutdown()
+		return Provides{}, nil
+	}
+
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err

@@ -35,11 +35,12 @@ UNFREEZE_REPO_AGENT = "datadog-agent"
 INTERNAL_DEPS_REPOS = ["omnibus-ruby", "datadog-agent-macos-build"]
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
-UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT]
+UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-buildimages"]
 DEFAULT_BRANCHES = {
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent-macos-build": "master",
     "datadog-agent": "main",
+    "datadog-agent-buildimages": "main",
 }
 DEFAULT_BRANCHES_AGENT6 = {
     "omnibus-ruby": "6.53.x",

@@ -113,7 +113,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
+		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get),
 		debugexporter.NewFactory(),
 	}
 
