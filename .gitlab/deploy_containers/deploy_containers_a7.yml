@@ -44,6 +44,27 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-7${JMX}-win${OS}${FLAVOR}-amd64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}-ltsc${LTSC_VERSION}${JMX}"
 
+.deploy_containers-a7-base-fips:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIELINE_ID)-fips" || exit $?; fi
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-arm64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
+
+.deploy_containers-a7-full-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7-full-amd64,${IMG_BASE_SRC}-7-full-arm64"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7-jmx-win1809-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2022-amd64"
+    - export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-full"
+
 .deploy_containers-a7_external:
   extends: .deploy_containers-a7-base
   parallel:
