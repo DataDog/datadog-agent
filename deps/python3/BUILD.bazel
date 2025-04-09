@@ -45,6 +45,7 @@ configure_make(
     out_data_dirs = [
         "lib/python3.12/",
     ],
+    out_include_dir = "include/python3.12",
     out_shared_libs = [
         "libpython3.12.so",
         "libpython3.so",
