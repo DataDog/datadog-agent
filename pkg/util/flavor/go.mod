@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/flavor
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/stretchr/testify v1.10.0
 )

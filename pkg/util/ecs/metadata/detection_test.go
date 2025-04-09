@@ -19,10 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/mock"
 )
 
 func TestLocateECSHTTP(t *testing.T) {
