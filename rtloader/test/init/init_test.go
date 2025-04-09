@@ -27,9 +27,13 @@ func TestInitFailure(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
 
-	if err := runInit("../invalid/path"); err == nil {
+	err := runInit("../invalid/path")
+	if err == nil {
 		t.Errorf("Expected error, got nil")
 	}
+	t.Logf("Error: %w", err)
+	t.Logf("Allocations: %d", helpers.Allocations.Value())
+	t.Logf("Frees: %d", helpers.Frees.Value())
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
