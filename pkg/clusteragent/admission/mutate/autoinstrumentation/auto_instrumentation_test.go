@@ -1685,7 +1685,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = mutator.core.newContainerMutators(requirements)
+			c.Mutators = mutator.core.newInitContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {

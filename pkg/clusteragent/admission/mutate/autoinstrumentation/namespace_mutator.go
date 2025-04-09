@@ -149,7 +149,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		initContainerMutators = m.newContainerMutators(requirements)
+		initContainerMutators = m.newInitContainerMutators(requirements)
 		injector              = m.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
 			initContainerMutators: initContainerMutators,
 		}))
@@ -205,7 +205,11 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	return lastError
 }
 
-func (m *mutatorCore) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
+// newInitContainerMutators constructs container mutators for behavior
+// that is common and passed to the init containers we create.
+//
+// At this point in time it is: resource requirements and security contexts.
+func (m *mutatorCore) newInitContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
 	return containerMutators{
 		containerResourceRequirements{requirements},
 		containerSecurityContext{m.config.initSecurityContext},
