@@ -79,9 +79,9 @@ create_mounts:
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(netAddConnectionCalls))
 	expectedNetAddConnectionCalls := [][]string{
-		{`\\smbserver\space`, "p:", "", ""},
-		{`\\smbserver\space`, "s:", "somepassword", "auser"},
-		{`nfsserver:/mnt/nfs_share`, "n:", "", ""},
+		{"p:", `\\smbserver\space`, "", ""},
+		{"s:", `\\smbserver\space`, "somepassword", "auser"},
+		{"n:", `nfsserver:/mnt/nfs_share`, "", ""},
 	}
 	for i, mountCall := range netAddConnectionCalls {
 		assert.Equal(t, expectedNetAddConnectionCalls[i], mountCall)
