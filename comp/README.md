@@ -109,11 +109,6 @@ agent flavors and binaries.
 
 Package agenttelemetry implements a component to generate Agent telemetry
 
-### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
-
-Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).
-It also provides helpers to use them in the agent (TLS configuration, HTTP client, etc.).
-
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
 *Datadog Team*: container-platform
@@ -160,6 +155,11 @@ Package hostname exposes hostname.Get() as a component.
 ### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
 
 Package hostnameinterface describes the interface for hostname methods
+
+### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
+
+Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).
+It also provides helpers to use them in the agent (TLS configuration, HTTP client, etc.).
 
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 

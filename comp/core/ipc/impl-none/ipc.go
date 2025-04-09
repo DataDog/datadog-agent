@@ -9,17 +9,22 @@ package noneimpl
 import (
 	"crypto/tls"
 
-	"github.com/DataDog/datadog-agent/comp/core/ipc"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
 type ipcComponent struct {
 }
 
-var _ ipc.Component = (*ipcComponent)(nil)
+// Provides defines the output of the ipc component
+type Provides struct {
+	Comp ipc.Component
+}
 
 // NewNoopIPC return a void implementation of the ipc.Component
-func NewNoopIPC() ipc.Component {
-	return &ipcComponent{}
+func NewNoopIPC() Provides {
+	return Provides{
+		Comp: &ipcComponent{},
+	}
 }
 
 // Get returns the session token

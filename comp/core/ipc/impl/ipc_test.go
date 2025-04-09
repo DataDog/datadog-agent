@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/ipc"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -26,25 +26,25 @@ func TestBothModes(t *testing.T) {
 	mockConfig.SetWithoutSource("auth_token_file_path", authPath)
 	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcPath)
 
-	reqs := dependencies{
+	reqs := Requires{
 		Log:    logmock.New(t),
 		Conf:   mockConfig,
 		Params: ipc.ForOneShot(),
 	}
-	provides := newOptionalIPC(reqs)
-	_, ok := provides.Get()
+	provides := NewComponent(reqs)
+	_, ok := provides.Comp.Get()
 	require.False(t, ok)
 
 	// Simulate a daemon created the auth artifact
 	{
 		daemonReqs := reqs
 		daemonReqs.Params = ipc.ForDaemon()
-		provides := newOptionalIPC(daemonReqs)
-		comp, ok := provides.Get()
+		provides := NewComponent(daemonReqs)
+		comp, ok := provides.Comp.Get()
 		require.True(t, ok)
 
 		// Check that the auth token is set
-		assert.Equal(t, util.GetAuthToken(), comp.Get())
+		assert.Equal(t, util.GetAuthToken(), comp.GetAuthToken())
 
 		// Check that the IPC certificate is set
 		assert.Equal(t, util.GetTLSClientConfig(), comp.GetTLSClientConfig())
@@ -52,12 +52,12 @@ func TestBothModes(t *testing.T) {
 	}
 
 	// re-create the component
-	provides = newOptionalIPC(reqs)
-	comp, ok := provides.Get()
+	provides = NewComponent(reqs)
+	comp, ok := provides.Comp.Get()
 	require.True(t, ok)
 
 	// Check that the auth token is set
-	assert.Equal(t, util.GetAuthToken(), comp.Get())
+	assert.Equal(t, util.GetAuthToken(), comp.GetAuthToken())
 
 	// Check that the IPC certificate is set
 	assert.Equal(t, util.GetTLSClientConfig(), comp.GetTLSClientConfig())
