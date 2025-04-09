@@ -34,7 +34,7 @@ var LsblkCommand = func() (string, error) {
 	}
 	return string(output), nil
 }
-var labelRegex = regexp.MustCompile(`LABEL="([^"]+)"`)
+var labelRegex = regexp.MustCompile(`(?i)LABEL="([^"]+)"`)
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	log.Debugf("Fetching all device labels from lsblk")
