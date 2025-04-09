@@ -17,10 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -109,6 +110,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
+				AuthParams:   authtoken.ForDaemon(),
 			},
 		),
 		fx.Supply(
@@ -154,9 +156,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-
-		// Provide authtoken module
-		createandfetchimpl.Module(),
 
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
