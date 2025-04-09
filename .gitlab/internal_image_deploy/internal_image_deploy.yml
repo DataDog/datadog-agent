@@ -194,9 +194,9 @@ docker_trigger_internal-full:
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_manual]
   needs:
-    - job: docker_build_ot_agent7_jmx
+    - job: docker_build_agent7_full
       artifacts: false
-    - job: docker_build_ot_agent7_jmx_arm64
+    - job: docker_build_agent7_full_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
