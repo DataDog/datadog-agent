@@ -19,21 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestHasTracerMetadata(t *testing.T) {
-	pid := os.Getpid()
-	procfs := kernel.ProcFSRoot()
-
-	t.Run("with tracer metadata", func(t *testing.T) {
-		createTracerMemfd(t, []byte("invalid data"))
-		require.True(t, HasTracerMetadata(pid, procfs))
-	})
-
-	t.Run("without tracer metadata", func(t *testing.T) {
-		require.False(t, HasTracerMetadata(pid, procfs))
-	})
-
-}
-
 func TestGetTracerMetadata(t *testing.T) {
 	pid := os.Getpid()
 	procfs := kernel.ProcFSRoot()

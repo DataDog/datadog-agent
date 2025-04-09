@@ -16,13 +16,6 @@ import (
 const memfdTracerFileName = "datadog-tracer-info-"
 const memFdTracerMaxSize = 1 << 16
 
-// HasTracerMetadata returns true if tracer metadata
-// is present for a given process
-func HasTracerMetadata(pid int, procRoot string) bool {
-	_, found := kernel.FindMemFdFilePath(pid, procRoot, memfdTracerFileName)
-	return found
-}
-
 // GetTracerMetadata parses the tracer-generated metadata
 // according to
 // https://docs.google.com/document/d/1kcW6BLdYxXeTSUz31cBqoqfW1Jjs0IDljfKeUfIRQp4/
