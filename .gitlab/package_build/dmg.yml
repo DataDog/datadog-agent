@@ -199,7 +199,7 @@ include:
 new-agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  parallel: 2
+  # parallel: 2
   # TODO
   needs: []
   # needs:
@@ -236,13 +236,6 @@ new-agent_dmg-x64-a7:
       fi
     - sudo umount /Volumes/Agent
   script:
-    - |
-      BINARY="/usr/local/bin/gitlab-runner"
-      # Encoded: `identifier "com.apple.finder" and anchor apple`
-      CSREQ=fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003
-      sudo sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-      sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAppleEvents','$BINARY',1,2,3,1,NULL,NULL,0,'com.apple.finder',X'$CSREQ',NULL,1592919552);"
-      sudo reboot
     # Try xcode 14.3.1
     # - set -e
     # - pushd ~
@@ -259,6 +252,7 @@ new-agent_dmg-x64-a7:
 
 
     - set -eo pipefail
+    - xcodes select 14.3.1
 
     - brew uses gettext --installed || true
 
