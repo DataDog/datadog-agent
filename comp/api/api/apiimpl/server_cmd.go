@@ -65,7 +65,7 @@ func (server *apiServer) startCMDServer(
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
 	cmdMuxHandler = observability.LogResponseHandler(cmdServerName)(cmdMuxHandler)
 
-	tlsConfig := server.authToken.GetTLSServerConfig()
+	tlsConfig := server.ipc.GetTLSServerConfig()
 
 	srv := &http.Server{
 		Addr:      cmdAddr,

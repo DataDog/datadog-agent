@@ -248,7 +248,7 @@ func start(log log.Component,
 	settings settings.Component,
 	compression logscompression.Component,
 	datadogConfig config.Component,
-	authToken authtoken.Component,
+	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 	_ metadatarunner.Component,
@@ -316,7 +316,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagnoseComp, dcametadataComp); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

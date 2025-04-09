@@ -13,8 +13,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -50,7 +51,8 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				coreconfig.Module(),
 				secretsimpl.Module(),
 				logfx.Module(),
-				fetchonlyimpl.Module(),
+				ipcfx.Module(),
+				fx.Supply(ipc.ForOneShot()),
 				otelagentStatusfx.Module(),
 			)
 		},

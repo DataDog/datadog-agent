@@ -22,9 +22,9 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -245,8 +245,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Create Auth Token for the client
-			authtokenmock.New(t)
+			// Create ipc component for the client
+			ipcmock.Mock(t)
 
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,

@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
@@ -30,8 +30,8 @@ var templatesFS embed.FS
 
 // Requires defines the dependencies of the status component.
 type Requires struct {
-	Config    config.Component
-	Authtoken authtoken.Component
+	Config config.Component
+	IPC    ipc.Component
 }
 
 // Provides contains components provided by status constructor.
@@ -43,7 +43,7 @@ type Provides struct {
 type statusProvider struct {
 	Config         config.Component
 	client         *http.Client
-	authToken      authtoken.Component
+	ipc            ipc.Component
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -70,9 +70,9 @@ type prometheusRuntimeConfig struct {
 // NewComponent creates a new status component.
 func NewComponent(reqs Requires) Provides {
 	comp := statusProvider{
-		Config:    reqs.Config,
-		client:    apiutil.GetClient(),
-		authToken: reqs.Authtoken,
+		Config: reqs.Config,
+		client: apiutil.GetClient(),
+		ipc:    reqs.IPC,
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,
 			"metrics":         0.0,
@@ -195,13 +195,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		}
 	}
 
-	auth, err := s.authToken.Get()
-	if err != nil {
-		return map[string]interface{}{
-			"url":   extensionURL,
-			"error": err.Error(),
-		}
-	}
+	auth := s.ipc.GetAuthToken()
 	options := apiutil.ReqOptions{
 		Conn:      apiutil.CloseConnection,
 		Authtoken: auth,

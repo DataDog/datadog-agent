@@ -51,7 +51,7 @@ func newIPCClient(deps optionalIPCComp) (ipc.HTTPClient, error) {
 	return ipc.GetClient(), nil
 }
 
-// newOptionalIPCClient allow to use option.Option[authtoken.IPCClient] as dependency instead of using option.Option[authtoken.Component].
+// newOptionalIPCClient allow to use option.Option[authtoken.IPCClient] as dependency instead of using option.Option[ipc.Component].
 func newOptionalIPCClient(deps optionalIPCComp) option.Option[ipc.HTTPClient] {
 	ipcComp, ok := deps.IPC.Get()
 	if !ok {

@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -61,14 +61,14 @@ const (
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.At)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c, tagger, at)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger, ipc)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -85,7 +85,7 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -115,7 +115,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, at)
+		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {

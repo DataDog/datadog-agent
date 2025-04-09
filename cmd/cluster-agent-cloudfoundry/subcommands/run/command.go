@@ -162,7 +162,7 @@ func run(
 	_ healthprobe.Component,
 	settings settings.Component,
 	logReceiver option.Option[integrations.Component],
-	authToken authtoken.Component,
+	ipc ipc.Component,
 	diagonseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 ) error {
@@ -207,7 +207,7 @@ func run(
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagonseComp, dcametadataComp); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
