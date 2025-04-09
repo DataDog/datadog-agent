@@ -30,7 +30,6 @@ type Pipeline struct {
 	processor       *processor.Processor
 	strategy        sender.Strategy
 	serverless      bool
-	flushWg         *sync.WaitGroup
 	pipelineMonitor metrics.PipelineMonitor
 }
 
@@ -71,7 +70,6 @@ func NewPipeline(
 		processor:       processor,
 		strategy:        strategy,
 		serverless:      serverless,
-		flushWg:         flushWg,
 		pipelineMonitor: senderImpl.PipelineMonitor(),
 	}
 }
