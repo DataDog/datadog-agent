@@ -631,6 +631,8 @@
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
 /tasks/release.py                       @DataDog/agent-delivery
+/tasks/release_metrics/                 @DataDog/agent-delivery
+/tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
