@@ -96,6 +96,50 @@ with open(r'%s', 'w') as f:
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSysHomeValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(sys.prefix)`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_home` error: %v", err)
+	}
+
+	if output != "/folder/mock_python_home" {
+		t.Errorf("Unexpected sys.home value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSysUTFValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(str(sys.flags.utf8_mode))`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_home` error: %v", err)
+	}
+
+	if output != "1" {
+		t.Errorf("UTF-8 mode is not enabled, got: %s", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestGetError(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
