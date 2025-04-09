@@ -514,7 +514,7 @@ func getLoadBalancingLogs(c require.TestingT, s OTelTestSuite, service string) {
 		log2Tags := getLogTagsAndAttrs(c, log2)
 		if log1Tags["message"] != log2Tags["message"] && log1Tags["dd.trace_id"] == log2Tags["dd.trace_id"] {
 			// Verify that logs with the same trace id are sent to the same backend
-			s.T().Log("Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
+			s.T().Log(s.T().Name(), "Log service", service+",", "Log trace_id", log1Tags["dd.trace_id"]+",", "Log1 Backend", log1Tags["backend"]+",", "Log2 Backend", log2Tags["backend"])
 			require.Equal(c, log1Tags["backend"], log2Tags["backend"])
 			matchedLog = true
 			break
@@ -568,7 +568,7 @@ func TestLoadBalancing(s OTelTestSuite) {
 	for service, spans := range spanMap {
 		backend := ""
 		for _, span := range spans {
-			s.T().Log("Span service:", service+",", "Backend:", span.Meta["backend"])
+			s.T().Log(s.T().Name(), "Span service:", service+",", "Backend:", span.Meta["backend"])
 			if backend == "" {
 				backend = span.Meta["backend"]
 				continue
@@ -579,7 +579,7 @@ func TestLoadBalancing(s OTelTestSuite) {
 	for service, metricTags := range metricTagsMap {
 		backend := ""
 		for _, tags := range metricTags {
-			s.T().Log("Metric service:", service+",", "Backend:", tags["backend"])
+			s.T().Log(s.T().Name(), "Metric service:", service+",", "Backend:", tags["backend"])
 			if backend == "" {
 				backend = tags["backend"]
 				continue

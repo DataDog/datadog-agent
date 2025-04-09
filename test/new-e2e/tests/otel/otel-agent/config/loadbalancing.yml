@@ -8,19 +8,19 @@ receivers:
   otlp/backend-1:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:55690
+        endpoint: 0.0.0.0:4319
   otlp/backend-2:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:55700
+        endpoint: 0.0.0.0:4320
   otlp/backend-3:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:55710
+        endpoint: 0.0.0.0:4321
   otlp/backend-4:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:55720
+        endpoint: 0.0.0.0:4322
 processors:
   resource/1:
     attributes:
@@ -61,10 +61,10 @@ exporters:
     resolver:
       static:
         hostnames:
-          - 0.0.0.0:55690
-          - 0.0.0.0:55700
-          - 0.0.0.0:55710
-          - 0.0.0.0:55720
+          - 0.0.0.0:4319
+          - 0.0.0.0:4320
+          - 0.0.0.0:4321
+          - 0.0.0.0:4322
 service:
   pipelines:
     traces/loadbalancer:
