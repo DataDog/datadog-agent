@@ -116,6 +116,7 @@ with open(r'%s', 'w') as f:
 	}
 
 	// Check if the path contains typical Python installation directories
+	output = strings.ToLower(output)
 	if !strings.Contains(output, "python") && !strings.Contains(output, "miniforge") && !strings.Contains(output, "conda") {
 		t.Errorf("Python home path '%s' does not appear to be a valid Python installation directory", output)
 	}

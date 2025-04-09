@@ -16,17 +16,27 @@ import (
 //
 import "C"
 
-func runInit() error {
+// getRtLoader returns a new rtloader instance
+func getRtLoader() (*C.rtloader_t, error) {
+	rtloader := (*C.rtloader_t)(common.GetRtLoader())
+	if rtloader == nil {
+		return nil, fmt.Errorf("make failed")
+	}
+	return rtloader, nil
+}
+
+// runInitWithPath initializes the rtloader with the given Python path
+func runInit(pythonPath string) error {
 	// Initialize memory tracking
 	helpers.InitMemoryTracker()
 
-	rtloader := (*C.rtloader_t)(common.GetRtLoader())
-	if rtloader == nil {
-		return fmt.Errorf("make failed")
+	rtloader, err := getRtLoader()
+	if err != nil {
+		return err
 	}
 
 	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
+	C.add_python_path(rtloader, C.CString(pythonPath))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
