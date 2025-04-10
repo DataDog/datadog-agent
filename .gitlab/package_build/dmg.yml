@@ -297,28 +297,22 @@ test-cache:
   needs: []
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
-  # cache:
-  #   key:
-  #     files:
-  #       - omnibus/Gemfile
-  #       - release.json
-  #   prefix: $CI_JOB_NAME
-  #   paths:
-  #     - omnibus/vendor/bundle
   script:
+    - !reference [.cache_omnibus_ruby_deps, setup]
     - cache="omnibus/vendor/bundle"
-    - if [ -d "$cache" ]; then echo "Cache exists"; else echo "Cache does not exist"; fi
-    - mkdir -p "$cache/testdir"
-    - |
-      ls "$cache"
-      ls "$cache/testdir"
-    - |
-      touch "$cache/test.txt"
-      touch "$cache/test2.txt"
-      mkdir -p "$cache/testdir"
-      touch "$cache/testdir/test3.txt"
-    - echo cache updated
-    - cat release.json
-    # - echo "Testing cache on $cache"
-    # - mkdir -p _omnibus_cache_key_files
-    # - cp ./{release.json,omnibus/Gemfile} ./_omnibus_cache_key_files
+    - ls "$cache"
+    # - if [ -d "$cache" ]; then echo "Cache exists"; else echo "Cache does not exist"; fi
+    # - mkdir -p "$cache/testdir"
+    # - |
+    #   ls "$cache"
+    #   ls "$cache/testdir"
+    # - |
+    #   touch "$cache/test.txt"
+    #   touch "$cache/test2.txt"
+    #   mkdir -p "$cache/testdir"
+    #   touch "$cache/testdir/test3.txt"
+    # - echo cache updated
+    # - cat release.json
+    # # - echo "Testing cache on $cache"
+    # # - mkdir -p _omnibus_cache_key_files
+    # # - cp ./{release.json,omnibus/Gemfile} ./_omnibus_cache_key_files
