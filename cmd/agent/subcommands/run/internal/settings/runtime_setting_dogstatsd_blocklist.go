@@ -19,7 +19,7 @@ type DsdBlocklistRuntimeSetting struct {
 	Server dogstatsd.Component
 }
 
-// NewDsdStatsRuntimeSetting creates a new instance of DsdBlocklistRuntimeSetting
+// NewDsdBlocklistRuntimeSetting creates a new instance of DsdBlocklistRuntimeSetting
 func NewDsdBlocklistRuntimeSetting(server dogstatsd.Component) *DsdBlocklistRuntimeSetting {
 	return &DsdBlocklistRuntimeSetting{
 		Server: server,

@@ -498,12 +498,11 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 func (s *server) SetBlocklist(metrics []string) {
-	// TODO
+	s.enrichConfig.metricBlocklist.data.Store(&metrics)
 }
 
 func (s *server) GetBlocklist() []string {
-	// TODO
-	return s.enrichConfig.metricBlocklist.data
+	return *(s.enrichConfig.metricBlocklist.data.Load())
 }
 
 func (s *server) handleMessages() {

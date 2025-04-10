@@ -6,13 +6,15 @@
 package server
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 )
 
 type blocklist struct {
-	data        []string
+	data        *atomic.Pointer[[]string]
 	matchPrefix bool
 }
 
@@ -38,38 +40,53 @@ func newBlocklist(data []string, matchPrefix bool) blocklist {
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
 
+	ptr := atomic.Pointer[[]string]{}
+	ptr.Store(&data)
+
 	return blocklist{
-		data:        data,
+		data:        &ptr,
 		matchPrefix: matchPrefix,
 	}
 }
 
+// update the blocklsit, values won't be modified.
+func (b *blocklist) update(values []string) {
+	data := slices.Clone(values)
+	sort.Strings(data)
+	b.data.Store(&data)
+}
+
+// test returns true if the given name is part of the blocklist.
 func (b *blocklist) test(name string) bool {
-	if len(b.data) == 0 {
+	if b.data == nil {
 		return false
 	}
 
-	i := sort.SearchStrings(b.data, name)
+	// atomically access the blocklist
+	blist := *(b.data.Load())
+
+	i := sort.SearchStrings(blist, name)
 
 	// SearchStrings returns an index such that either:
-	// - data[i] == name
-	// - data[i-1] < name (if i > 0) && data[i] > name (if i < len(b.data))
+	// - blist[i] == name
+	// - blist[i-1] < name (if i > 0) && blist[i] > name (if i < len(b.data))
 	//
-	// If for some j, data[j] is a prefix of name, then:
+	// If for some j, blist[j] is a prefix of name, then:
 	//
 	// - j < i, because any prefix of a string is less than string itself,
 	//
 	// - if j < i - 1, then strings in range [j+1, i-1] would have
-	// data[j] as a prefix, which is impossible by construction of
-	// data.
+	// blist[j] as a prefix, which is impossible by construction of
+	// blist.
 	//
 	// Thus j must be i - 1.
-	if b.matchPrefix && i > 0 && strings.HasPrefix(name, b.data[i-1]) {
+	if b.matchPrefix && i > 0 && strings.HasPrefix(name, blist[i-1]) {
 		return true
 	}
-	if i < len(b.data) {
-		return name == b.data[i]
+	if i < len(blist) {
+		return name == blist[i]
 	}
 
+	fmt.Println("end")
 	return false
 }
