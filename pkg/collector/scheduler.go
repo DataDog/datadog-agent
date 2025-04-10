@@ -241,15 +241,15 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				if pythonLoader != nil {
 					fmt.Println("ENTERING IN THE IF CONDITION TO SET PYTHON CHECK")
 					pythonC, err := pythonLoader.Load(s.senderManager, config, instance)
-					fmt.Println("PYTHON CHECK")
+					fmt.Println("PYTHON CHECK STRING IN IF CONDITION")
 					fmt.Println(pythonC)
-					fmt.Println("PYTHON CHECK STRING")
+					fmt.Println("PYTHON CHECK IN IF CONDITION")
 					fmt.Printf("%#v\n", pythonC)
-					fmt.Println("PYTHON CHECK ERROR")
+					fmt.Println("PYTHON CHECK ERROR IN IF CONDITION")
 					fmt.Println(err)
 					c.(*snmp.Check).PythonCheck = pythonC
 				} else {
-					fmt.Println("PYTHON LOADER IS NIL")
+					fmt.Println("PYTHON LOADER IS NIL IN IF CONDITION")
 				}
 			}
 
