@@ -402,23 +402,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			continue
 		}
 		log.Debugf("Passed partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
-		tags := []string{}
-		if c.instanceConfig.TagByFilesystem {
-			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
-		}
-		var deviceName string
-		if c.instanceConfig.UseMount {
-			deviceName = partition.Mountpoint
-		} else {
-			deviceName = partition.Device
-		}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
-		tags = append(tags, c.getDeviceTags(deviceName)...)
-		label, ok := c.deviceLabels[partition.Device]
-		if ok {
-			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
-		}
+
+		tags := c.getPartitionTags(partition)
 		c.sendPartitionMetrics(sender, usage, tags)
 
 		if c.instanceConfig.ServiceCheckRw {
@@ -483,6 +468,27 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+}
+
+func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string {
+	tags := []string{}
+	if c.instanceConfig.TagByFilesystem {
+		tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
+	}
+	var deviceName string
+	if c.instanceConfig.UseMount {
+		deviceName = partition.Mountpoint
+	} else {
+		deviceName = partition.Device
+	}
+	tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+	tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
+	tags = append(tags, c.getDeviceTags(deviceName)...)
+	label, ok := c.deviceLabels[partition.Device]
+	if ok {
+		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+	}
+	return tags
 }
 
 func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
