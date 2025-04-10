@@ -63,6 +63,10 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
     return tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq;
 }
 
+// Saves the current TCP sequence number in the connection states map. This is used to prevent
+// dispatching the same packet multiple times. The sequence number is only saved if the packet is not
+// a TCP termination packet. This is to avoid saving the sequence number of packets that are not
+// part of the connection anymore.
 static __always_inline void cache_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
     if (skb_info && skb_info->tcp_seq && !is_tcp_termination(skb_info)) {
         bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
@@ -180,7 +184,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         }
     }
 
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN && is_protocol_supported_for_dispatcher(cur_fragment_protocol)) {
+    if (is_protocol_supported_for_dispatcher(cur_fragment_protocol)) {
         // We need to make sure we don't dispatch the same packet multiple times.
         cache_tcp_seq(&skb_tup, &skb_info);
 
