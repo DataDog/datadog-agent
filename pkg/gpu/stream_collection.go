@@ -46,6 +46,7 @@ type streamCollection struct {
 	telemetry       *streamCollectionTelemetry
 	streamTelemetry *streamTelemetry
 	streamLimits    streamLimits
+	maxStreams      int
 }
 
 type streamCollectionTelemetry struct {
@@ -54,6 +55,7 @@ type streamCollectionTelemetry struct {
 	finalizedProcesses telemetry.Counter
 	activeHandlers     telemetry.Gauge
 	removedHandlers    telemetry.Counter
+	rejectedStreams    telemetry.Counter
 }
 
 type streamTelemetry struct {
@@ -77,6 +79,7 @@ func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, c
 		telemetry:       newStreamCollectionTelemetry(telemetry),
 		streamTelemetry: newStreamTelemetry(telemetry),
 		streamLimits:    getStreamLimits(config),
+		maxStreams:      config.MaxStreams,
 	}
 }
 
@@ -97,6 +100,7 @@ func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelem
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
 		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
 		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
+		rejectedStreams:    tm.NewCounter(subsystem, "rejected_streams_due_to_limit", nil, "Number of rejected streams due to the max stream limit"),
 	}
 }
 
@@ -167,6 +171,11 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the device not provided (it's nil), it will be retrieved from the system context.
 func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
+	if sc.streamCount() >= sc.maxStreams {
+		sc.telemetry.rejectedStreams.Inc()
+		return nil, fmt.Errorf("max streams reached")
+	}
+
 	pid, tid := getPidTidFromHeader(header)
 	metadata := streamMetadata{
 		pid:         pid,

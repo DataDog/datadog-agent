@@ -40,6 +40,8 @@ type Config struct {
 	MaxKernelLaunchesPerStream int
 	// MaxMemAllocEventsPerStream is the maximum number of memory allocation events to process per stream before evicting the oldest events.
 	MaxMemAllocEventsPerStream int
+	// MaxStreams is the maximum number of streams that can be processed concurrently.
+	MaxStreams int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -56,5 +58,6 @@ func New() *Config {
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
 		MaxKernelLaunchesPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_kernel_launches_per_stream")),
 		MaxMemAllocEventsPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_mem_alloc_events_per_stream")),
+		MaxStreams:                   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_streams")),
 	}
 }
