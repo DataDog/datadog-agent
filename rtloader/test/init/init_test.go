@@ -8,29 +8,32 @@ package testinit
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestInit(t *testing.T) {
-	// Reset memory counters
-	helpers.ResetMemoryStats()
-
-	rtloader, err := getRtLoader()
-
 	// Test failed initialization first
+	helpers.ResetMemoryStats()
+	rtloader, err := getRtLoader()
+	require.NoError(t, err, "Failed to get rtloader")
+
 	err = runInit(rtloader, "../invalid/path")
-	if err == nil {
-		t.Errorf("Expected error, got nil")
-	}
+	assert.Error(t, err, "Expected error for invalid path")
 	t.Logf("Error: %v", err)
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 
-	// Test successful initialization
-	if err := runInit(rtloader, "../python"); err != nil {
-		t.Errorf("Expected nil, got: %v", err)
-	}
+	// Test successful initialization with a new rtloader instance
+	helpers.ResetMemoryStats()
+	rtloader, err = getRtLoader()
+	require.NoError(t, err, "Failed to get rtloader")
+
+	err = runInit(rtloader, "../python")
+	assert.NoError(t, err, "Expected successful initialization")
 
 	// Check for expected allocations
 	helpers.AssertMemoryExpectation(t, helpers.Allocations, initAllocations)
