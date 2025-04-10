@@ -11,6 +11,9 @@ const (
 	// with the number of traces contained in the payload.
 	TraceCount = "X-Datadog-Trace-Count"
 
+	// ProcessTags is a list that contains process tags split by a ','.
+	ProcessTags = "X-Datadog-Process-Tags"
+
 	// ContainerID specifies the name of the header which contains the ID of the
 	// container where the request originated.
 	// Deprecated in favor of Datadog-Entity-ID.

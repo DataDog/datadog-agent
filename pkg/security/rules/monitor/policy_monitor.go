@@ -204,11 +204,15 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name   string      `json:"name,omitempty"`
-	Value  interface{} `json:"value,omitempty"`
-	Field  string      `json:"field,omitempty"`
-	Append bool        `json:"append,omitempty"`
-	Scope  string      `json:"scope,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Value        interface{} `json:"value,omitempty"`
+	DefaultValue interface{} `json:"default_value,omitempty"`
+	Field        string      `json:"field,omitempty"`
+	Expression   string      `json:"expression,omitempty"`
+	Append       bool        `json:"append,omitempty"`
+	Scope        string      `json:"scope,omitempty"`
+	Size         int         `json:"size,omitempty"`
+	TTL          string      `json:"ttl,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -298,11 +302,17 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 			}
 		case action.Def.Set != nil:
 			ruleAction.Set = &RuleSetAction{
-				Name:   action.Def.Set.Name,
-				Value:  action.Def.Set.Value,
-				Field:  action.Def.Set.Field,
-				Append: action.Def.Set.Append,
-				Scope:  string(action.Def.Set.Scope),
+				Name:         action.Def.Set.Name,
+				Value:        action.Def.Set.Value,
+				DefaultValue: action.Def.Set.DefaultValue,
+				Field:        action.Def.Set.Field,
+				Expression:   action.Def.Set.Expression,
+				Append:       action.Def.Set.Append,
+				Scope:        string(action.Def.Set.Scope),
+				Size:         action.Def.Set.Size,
+			}
+			if action.Def.Set.TTL != nil {
+				ruleAction.Set.TTL = action.Def.Set.TTL.String()
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
