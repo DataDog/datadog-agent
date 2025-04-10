@@ -157,6 +157,8 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
+	fmt.Println("GET CHECKS")
+
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 

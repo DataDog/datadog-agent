@@ -61,10 +61,14 @@ func (c *Check) Run() error {
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Printf("%#v\n", c)
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-	fmt.Println("PYTHON CHECK STRING IN SNMP GO CHECK RUN")
-	fmt.Println(c.PythonCheck.String())
-	fmt.Println("PYTHON CHECK IN SNMP GO CHECK RUN")
-	fmt.Printf("%#v\n", c.PythonCheck)
+	if c.PythonCheck != nil {
+		fmt.Println("PYTHON CHECK STRING IN SNMP GO CHECK RUN")
+		fmt.Println(c.PythonCheck.String())
+		fmt.Println("PYTHON CHECK IN SNMP GO CHECK RUN")
+		fmt.Printf("%#v\n", c.PythonCheck)
+	} else {
+		fmt.Println("PYTHON CHECK IS NIL IN THE CONFIG")
+	}
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
@@ -82,7 +86,11 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.IsDiscovery() {
+		fmt.Println("CONFIG IS DISCOVERY")
 		discoveredDevices := c.discovery.GetDiscoveredDeviceConfigs()
+
+		fmt.Println("NUMBER OF DEVICES DISCOVERED")
+		fmt.Println(len(discoveredDevices))
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
@@ -112,6 +120,7 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
+		fmt.Println("CONFIG IS NOT DISCOVERY")
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
 		if err != nil {
 			// TODO: ERR HERE
@@ -121,7 +130,11 @@ func (c *Check) Run() error {
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 		if checkErr != nil {
-			return c.PythonCheck.Run()
+			fmt.Println("CHECK ERROR IN NOT DISCOVERY")
+			fmt.Println(checkErr.Error())
+			if c.PythonCheck != nil {
+				return c.PythonCheck.Run()
+			}
 		}
 		// TODO: ERR HERE
 	}
