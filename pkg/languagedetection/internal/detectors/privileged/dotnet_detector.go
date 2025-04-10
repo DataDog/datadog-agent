@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package detectors
+// Package privileged contains language detectors which need elevated privileges.
+package privileged
 
 import (
 	"bufio"
