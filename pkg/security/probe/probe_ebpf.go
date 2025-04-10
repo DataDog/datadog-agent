@@ -2221,6 +2221,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "tracing_helpers_in_cgroup_sysctl",
 			Value: utils.BoolTouint64(p.kernelVersion.HasTracingHelpersInCgroupSysctlPrograms()),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_limiter_rate",
+			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
