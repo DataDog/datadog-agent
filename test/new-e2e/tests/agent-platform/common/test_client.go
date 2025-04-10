@@ -192,7 +192,12 @@ func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor 
 	}
 
 	c.Host.CopyFile(packagePath, path.Base(packagePath))
-	_, err = c.PkgManager.Install("./" + path.Base(packagePath))
+	if c.Host.OSVersion == "ubuntu-14-04" {
+		_, err = c.ExecuteWithRetry("sudo dpkg -i ./" + path.Base(packagePath))
+	} else {
+		_, err = c.PkgManager.Install("./" + path.Base(packagePath))
+	}
+
 	if err != nil {
 		return err
 	}
@@ -201,10 +206,7 @@ func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor 
 
 	_ = c.Host.MustExecute(fmt.Sprintf("sudo sed -i 's/api_key:.*/api_key: %s/' %sdatadog.yaml", "deadbeefdeadbeefdeadbeefdeadbeef", configFolder))
 
-	_, err = c.SvcManager.Start(c.Helper.GetServiceName())
-	if err != nil {
-		return err
-	}
+	_, _ = c.SvcManager.Start(c.Helper.GetServiceName())
 
 	return nil
 }

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -66,7 +65,7 @@ func TestUpgradeScript(t *testing.T) {
 		}
 
 		t.Run(fmt.Sprintf("test upgrade on %s %s", osVers, *architecture), func(tt *testing.T) {
-			flake.Mark(tt)
+			// flake.Mark(tt)
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
 
@@ -98,7 +97,7 @@ func (is *upgradeSuite) TestUpgrade() {
 }
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""), installparams.WithLocalPackagePath(""))
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
