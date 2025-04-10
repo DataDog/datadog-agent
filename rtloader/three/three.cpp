@@ -82,7 +82,7 @@ bool Three::init()
     // Initialize UTF-8 mode
     {
         PyPreConfig preconfig;
-        PyPreConfig_InitIsolatedConfig(&preconfig);
+        PyPreConfig_InitPythonConfig(&preconfig);
         preconfig.utf8_mode = 1;
 
         StatusHandler status(this);
@@ -95,7 +95,7 @@ bool Three::init()
     StatusHandler status(this);
 
     // Initialize the configuration with default values
-    PyConfig_InitIsolatedConfig(&_config);
+    PyConfig_InitPythonConfig(&_config);
     _config.install_signal_handlers = 1;
 
     // Set Python home
