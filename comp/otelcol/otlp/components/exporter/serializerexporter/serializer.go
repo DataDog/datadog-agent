@@ -8,7 +8,6 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -18,9 +17,9 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -98,7 +97,7 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := viperconfig.NewConfig("DD", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+			pkgconfig := create.NewConfig("DD")
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)

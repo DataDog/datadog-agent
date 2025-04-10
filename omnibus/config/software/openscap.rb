@@ -4,12 +4,12 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'openscap'
-default_version '1.4.0'
+default_version '1.4.1'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.4.0") { source sha256: "b64f3709f0e072262708212d56897c419abdd2dc618273a363bc0497c6b4ba0b" }
+version("1.4.1") { source sha256: "6ba92a9bd1244b0fcaafe880416cac0ea067eca9a6b583dddbdcaee59637034a" }
 
 ship_source_offer true
 
