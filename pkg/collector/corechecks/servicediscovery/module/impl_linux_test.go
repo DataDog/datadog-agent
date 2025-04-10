@@ -136,7 +136,7 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 }
 
 func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
-	location := url + "/" + string(config.DiscoveryModule) + pathServices
+	location := url + "/" + string(config.DiscoveryModule) + pathCheck
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	require.NoError(t, err)
 
