@@ -26,15 +26,9 @@ func getRtLoader() (*C.rtloader_t, error) {
 }
 
 // runInitWithPath initializes the rtloader with the given Python path
-func runInit(pythonPath string) error {
+func runInit(rtloader *C.rtloader_t, pythonPath string) error {
 	// Initialize memory tracking
 	helpers.InitMemoryTracker()
-
-	rtloader, err := getRtLoader()
-	if err != nil {
-		return err
-	}
-
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(rtloader, C.CString(pythonPath))
 

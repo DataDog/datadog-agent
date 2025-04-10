@@ -15,25 +15,23 @@ func TestInit(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
 
-	if err := runInit("../python"); err != nil {
-		t.Errorf("Expected nil, got: %v", err)
-	}
+	rtloader, err := getRtLoader()
 
-	// Check for expected allocations
-	helpers.AssertMemoryExpectation(t, helpers.Allocations, initAllocations)
-}
-
-func TestInitFailure(t *testing.T) {
-	// Reset memory counters
-	helpers.ResetMemoryStats()
-
-	err := runInit("../invalid/path")
+	// Test failed initialization first
+	err = runInit(rtloader, "../invalid/path")
 	if err == nil {
 		t.Errorf("Expected error, got nil")
 	}
 	t.Logf("Error: %v", err)
 
-
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
+
+	// Test successful initialization
+	if err := runInit(rtloader, "../python"); err != nil {
+		t.Errorf("Expected nil, got: %v", err)
+	}
+
+	// Check for expected allocations
+	helpers.AssertMemoryExpectation(t, helpers.Allocations, initAllocations)
 }
