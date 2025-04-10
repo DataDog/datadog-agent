@@ -7,9 +7,10 @@ package stats
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
@@ -225,7 +226,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchStatSpans {
-				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{Env: "a", Hostname: "b", Version: "c", ContainerID: "d"})
 			}
 		}
 	})
@@ -283,7 +284,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchStatSpans {
-				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{Env: "a", Hostname: "b", Version: "c", ContainerID: "d"})
 			}
 		}
 	})
