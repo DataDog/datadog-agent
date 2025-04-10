@@ -296,13 +296,15 @@ test-cache:
   tags: ["macos:ventura-amd64-test", "specific:true"]
   needs: []
   cache:
-    key:
-      files:
-        - omnibus/Gemfile
-        - release.json
-    prefix: $CI_JOB_NAME
-    paths:
-      - omnibus/vendor/bundle
+    - !reference [.cache_omnibus_ruby_deps, cache]
+  # cache:
+  #   key:
+  #     files:
+  #       - omnibus/Gemfile
+  #       - release.json
+  #   prefix: $CI_JOB_NAME
+  #   paths:
+  #     - omnibus/vendor/bundle
   script:
     - cache="omnibus/vendor/bundle"
     - if [ -d "$cache" ]; then echo "Cache exists"; else echo "Cache does not exist"; fi
