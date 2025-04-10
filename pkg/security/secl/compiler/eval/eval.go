@@ -26,6 +26,7 @@ const (
 	FunctionWeight       = 5
 	InArrayWeight        = 10
 	HandlerWeight        = 50
+	PatternWeight        = 80
 	RegexpWeight         = 100
 	InPatternArrayWeight = 1000
 	IteratorWeight       = 2000
@@ -1267,12 +1268,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			evaluator := &StringEvaluator{
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
+				Weight:    PatternWeight,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
+				Weight:    RegexpWeight,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.IP != nil:

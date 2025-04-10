@@ -8,7 +8,9 @@
 // Package modules is all the module definitions for system-probe
 package modules
 
-import "github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+import (
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+)
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{}

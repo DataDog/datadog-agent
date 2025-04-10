@@ -31,15 +31,15 @@ func (h *Host) LastJournaldTimestamp() JournaldTimestamp {
 	res := strings.TrimSpace(h.remote.MustExecute("sudo journalctl -n 1 --output=json 2> /dev/null"))
 	var log journaldLog
 	err := json.Unmarshal([]byte(res), &log)
-	require.NoError(h.t, err, res)
+	require.NoError(h.t(), err, res)
 	return JournaldTimestamp(log.MonotonicTimestamp)
 }
 
 // AssertUnitProperty asserts that the given systemd unit has the given property
 func (h *Host) AssertUnitProperty(unit, property, value string) {
 	res, err := h.remote.Execute(fmt.Sprintf("sudo systemctl show -p %s %s", property, unit))
-	require.NoError(h.t, err)
-	require.Equal(h.t, fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute(fmt.Sprintf("sudo systemctl cat %s", unit)))
+	require.NoError(h.t(), err)
+	require.Equal(h.t(), fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute(fmt.Sprintf("sudo systemctl cat %s", unit)))
 }
 
 func popIfMatches(searchedEvents []SystemdEvent, log journaldLog) []SystemdEvent {
@@ -88,7 +88,7 @@ func (h *Host) stripSystemd244(events []SystemdEvent) []SystemdEvent {
 // AssertSystemdEvents asserts that the systemd events have been logged since the given timestamp
 func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventSequence) {
 	var lastSearchedEvents []SystemdEvent
-	success := assert.Eventually(h.t, func() bool {
+	success := assert.Eventually(h.t(), func() bool {
 		logs := h.journaldLogsSince(since)
 		if len(logs) < len(events.Events) {
 			return false
@@ -110,9 +110,9 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 
 	if !success {
 		logs := h.journaldLogsSince(since)
-		h.t.Logf("Blocked on validating: %v", lastSearchedEvents)
-		h.t.Logf("Expected events: %v", events.Events)
-		h.t.Logf("Actual events: %v", logs)
+		h.t().Logf("Blocked on validating: %v", lastSearchedEvents)
+		h.t().Logf("Expected events: %v", events.Events)
+		h.t().Logf("Actual events: %v", logs)
 
 		// Display all journalctl logs from units in the events
 		units := map[string]struct{}{}
@@ -123,7 +123,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 
 		for unit := range units {
-			h.t.Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
+			h.t().Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
 		}
 	}
 }
@@ -220,7 +220,7 @@ func (s SystemdEventSequence) Unordered(events SystemdEventSequence) SystemdEven
 func (h *Host) journaldLogsSince(since JournaldTimestamp) []journaldLog {
 	h.remote.MustExecute("sudo journalctl --output=json _COMM=systemd -u datadog* 1> /tmp/journald_logs")
 	file, err := h.ReadFile("/tmp/journald_logs")
-	require.NoError(h.t, err)
+	require.NoError(h.t(), err)
 	lines := strings.Split(string(file), "\n")
 	logs := make([]journaldLog, 0, len(lines))
 	for _, line := range lines {

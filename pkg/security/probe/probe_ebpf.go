@@ -2221,6 +2221,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "tracing_helpers_in_cgroup_sysctl",
 			Value: utils.BoolTouint64(p.kernelVersion.HasTracingHelpersInCgroupSysctlPrograms()),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_limiter_rate",
+			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2252,7 +2256,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, probes.MapSpecEditorOpts{
+	opts := probes.MapSpecEditorOpts{
 		TracedCgroupSize:          p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:            p.useRingBuffers,
 		UseMmapableMaps:           p.useMmapableMaps,
@@ -2261,7 +2265,14 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:   p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:   p.config.Probe.NetworkFlowMonitorSKStorageEnabled,
-	}, p.kernelVersion)
+		SpanTrackMaxCount:         1,
+	}
+
+	if p.config.Probe.SpanTrackingEnabled {
+		opts.SpanTrackMaxCount = p.config.Probe.SpanTrackingCacheSize
+	}
+
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(p.numCPU, opts, p.kernelVersion)
 
 	if p.useRingBuffers {
 		p.managerOptions.SkipRingbufferReaderStartup = map[string]bool{
@@ -2807,12 +2818,22 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
 				}
 
+				var errBPF error
 				if p.supportsBPFSendSignal {
-					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+					errBPF = p.killListMap.Put(uint32(pid), uint32(sig))
+					if errBPF != nil {
+						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, errBPF)
 					}
 				}
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				errKill := p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				// report the error only if both kill methods failed
+				if p.supportsBPFSendSignal && (errBPF == nil || errKill == nil) {
+					return nil
+				}
+
+				return multierror.Append(errKill, errBPF).ErrorOrNil()
 			}) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
