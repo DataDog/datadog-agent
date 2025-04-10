@@ -35,7 +35,7 @@ func TestUnmarshalConfig(t *testing.T) {
 	require.NoError(t, cm.Unmarshal(&got))
 	want := factory.CreateDefaultConfig().(*ExporterConfig)
 	want.TimeoutConfig.Timeout = 10 * time.Second
-	want.QueueConfig.QueueSize = 100
+	want.QueueBatchConfig.QueueSize = 100
 	want.Metrics.APMStatsReceiverAddr = "localhost:1234"
 	want.Metrics.TagCardinality = "high"
 	want.Metrics.Tags = "tag"

@@ -14,8 +14,8 @@ import (
 // ExporterConfig defines configuration for the serializer exporter.
 type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
-	exporterhelper.TimeoutConfig `mapstructure:",squash"`
-	exporterhelper.QueueConfig   `mapstructure:",squash"`
+	exporterhelper.TimeoutConfig    `mapstructure:",squash"`
+	exporterhelper.QueueBatchConfig `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.
