@@ -60,12 +60,13 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
     // check if we've seen this TCP segment before. this can happen in the
     // context of localhost traffic where the same TCP segment can be seen
     // multiple times coming in and out from different interfaces
-    if (tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq) {
-        return true;
-    }
+    return tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq;
+}
 
-    bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
-    return false;
+static __always_inline void cache_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
+    if (skb_info && skb_info->tcp_seq) {
+        bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
+    }
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
@@ -161,6 +162,9 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
+
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
@@ -197,6 +201,8 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
