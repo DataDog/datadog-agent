@@ -25,3 +25,8 @@ func NewZypper(host *components.RemoteHost) *Zypper {
 func (s *Zypper) Remove(pkg string) (string, error) {
 	return s.host.Execute("sudo zypper remove -y " + pkg)
 }
+
+// Install executes install command from zypper
+func (s *Zypper) Install(pkg string) (string, error) {
+	return s.host.Execute("sudo zypper install -y " + pkg)
+}

@@ -33,6 +33,8 @@ const (
 	AgentCommitSHA = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentCommitSHA
 	// AgentFIPS pulumi config parameter name
 	AgentFIPS = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentFIPS
+	// AgentLocalPackagePath pulumi config parameter name
+	AgentLocalPackagePath = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentLocalPackage
 
 	// InfraEnvironmentVariables pulumi config parameter name
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
@@ -143,6 +145,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.MajorVersion:        {AgentMajorVersion},
 		parameters.CommitSHA:           {AgentCommitSHA},
 		parameters.InitOnly:            {InfraInitOnly},
+		parameters.LocalPackagePath:    {AgentLocalPackagePath},
 	}
 
 	for storeKey, configMapKeys := range params {

@@ -27,3 +27,8 @@ func NewApt(host *components.RemoteHost) *Apt {
 func (s *Apt) Remove(pkg string) (string, error) {
 	return s.host.Execute(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
 }
+
+// Install call install from apt
+func (s *Apt) Install(pkg string) (string, error) {
+	return s.host.Execute(fmt.Sprintf("sudo apt install -q -y %s", pkg))
+}

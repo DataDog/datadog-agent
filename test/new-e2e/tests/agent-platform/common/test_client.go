@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,6 +184,33 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	return execWithRetry(func(cmd string) (string, error) { return c.Host.Execute(cmd) }, cmd)
 }
 
+// InstallAgentFromLocalPackage installs the agent from a local package
+func (c *TestClient) InstallAgentFromLocalPackage(localPath string, agentFlavor string) error {
+	packagePath, err := agent.GetPackagePath(localPath, c.Host.OSFlavor, agentFlavor, componentos.AMD64Arch) // Will be changed with c.Host.Architecture when it is exposed
+	if err != nil {
+		return err
+	}
+
+	c.Host.CopyFile(packagePath, path.Base(packagePath))
+	if c.Host.OSVersion == "ubuntu-14-04" {
+		_, err = c.ExecuteWithRetry("sudo dpkg -i ./" + path.Base(packagePath))
+	} else {
+		_, err = c.PkgManager.Install("./" + path.Base(packagePath))
+	}
+
+	if err != nil {
+		return err
+	}
+	configFolder := c.Helper.GetConfigFolder()
+	_ = c.Host.MustExecute(fmt.Sprintf("sudo cp -r %sdatadog.yaml.example %sdatadog.yaml", configFolder, configFolder))
+
+	_ = c.Host.MustExecute(fmt.Sprintf("sudo sed -i 's/api_key:.*/api_key: %s/' %sdatadog.yaml", "deadbeefdeadbeefdeadbeefdeadbeef", configFolder))
+
+	_, _ = c.SvcManager.Start(c.Helper.GetServiceName())
+
+	return nil
+}
+
 // NewWindowsTestClient create a TestClient for Windows VM
 func NewWindowsTestClient(context common.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
@@ -314,6 +343,11 @@ func (c *DockerTestClient) Execute(command string) (output string, err error) {
 // ExecuteWithRetry execute the command with retry
 func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
 	return execWithRetry(c.Execute, cmd)
+}
+
+// InstallAgentFromLocalPackage installs the agent from a local package
+func (c *DockerTestClient) InstallAgentFromLocalPackage(_localPath string, _agentFlavor string) error {
+	panic("not implemented")
 }
 
 func execWithRetry(exec func(string) (string, error), cmd string) (string, error) {
