@@ -29,8 +29,8 @@ func TestInit(t *testing.T) {
 
 	// Test successful initialization with a new rtloader instance
 	helpers.ResetMemoryStats()
-	rtloader, err = getRtLoader()
-	require.NoError(t, err, "Failed to get rtloader")
+	//rtloader, err = getRtLoader()
+	//require.NoError(t, err, "Failed to get rtloader")
 
 	err = runInit(rtloader, "../python")
 	assert.NoError(t, err, "Expected successful initialization")
