@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -153,9 +154,13 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	metrics := data[0].Aggregator.Metrics
 	for i := range metrics {
 		// remove the disk_check_version tag
+		tagLen := len(metrics[i].Tags)
 		metrics[i].Tags = slices.DeleteFunc(metrics[i].Tags, func(tag string) bool {
 			return tag == diskCheckVersionTag
 		})
+		if !assert.Equalf(v.T(), 1, tagLen-len(metrics[i].Tags), "expected tag %s once in metric %s, but found %d times", diskCheckVersion, metrics[i].Metric, tagLen-len(metrics[i].Tags)) {
+			v.T().Logf("metric: %+v", metrics[i])
+		}
 	}
 
 	return metrics
