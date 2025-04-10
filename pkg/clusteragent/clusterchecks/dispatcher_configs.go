@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -86,6 +87,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 		currentNode.Unlock()
 	}
 
+	log.Infof("Dispatched configuration %s:%s to node %s", config.Name, config.Source, targetNodeName)
 	return true
 }
 
