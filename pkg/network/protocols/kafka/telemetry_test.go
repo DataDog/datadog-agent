@@ -88,13 +88,13 @@ func TestTelemetry_Count(t *testing.T) {
 
 func verifyHitsCount(t *testing.T, telemetry *Telemetry, tx *KafkaTransaction) {
 	if tx.Request_api_key == 0 {
-		if tx.Request_api_version < ClassificationMinSupportedProduceRequestApiVersion || tx.Request_api_version > DecodingMaxSupportedProduceRequestApiVersion {
+		if tx.Request_api_version < ClassificationMinSupportedProduceRequestApiVersion || tx.Request_api_version > ClassificationMaxSupportedProduceRequestApiVersion {
 			assert.Equal(t, telemetry.produceHits.hitsUnsupportedVersion.Get(), int64(tx.Records_count), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
 		assert.Equal(t, telemetry.produceHits.hitsVersions[tx.Request_api_version-ClassificationMinSupportedProduceRequestApiVersion].Get(), int64(tx.Records_count), "produceHits count is incorrect")
 	} else if tx.Request_api_key == 1 {
-		if tx.Request_api_version < ClassificationMinSupportedFetchRequestApiVersion || tx.Request_api_version > DecodingMaxSupportedFetchRequestApiVersion {
+		if tx.Request_api_version < ClassificationMinSupportedFetchRequestApiVersion || tx.Request_api_version > ClassificationMaxSupportedFetchRequestApiVersion {
 			assert.Equal(t, telemetry.fetchHits.hitsUnsupportedVersion.Get(), int64(tx.Records_count), "hitsUnsupportedVersion count is incorrect")
 			return
 		}
