@@ -11,17 +11,15 @@ import (
 	"math"
 	"os"
 	"slices"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -39,7 +37,7 @@ func TestLinuxDiskSuite(t *testing.T) {
 		// if running locally, use the hardcoded pipeline id
 		agentOptions = append(agentOptions,
 			// update pipeline id when you push changes to the disk check or the agent itself
-			agentparams.WithPipeline("61451328"),
+			agentparams.WithPipeline("61736511"),
 		)
 		// helpful for local runs
 		suiteOptions = append(suiteOptions, e2e.WithDevMode())
@@ -89,38 +87,46 @@ instances:
 	}
 }
 
-type metricPayload struct {
-	name           string
-	tags           []string
-	points         []float64
-	ty             int32
-	unit           string
-	sourceTypeName string
-	interval       int64
-	originProduct  uint32
-	originCategory uint32
-	originService  uint32
-}
-
-func metricPayloadCompare(a, b metricPayload) bool {
-	return a.name == b.name &&
-		slices.Equal(a.tags, b.tags) &&
-		slices.EqualFunc(a.points, b.points, func(a, b float64) bool {
-			if a == 0 {
-				return b == 0
-			}
-			return math.Abs(a-b)/a <= metricCompareTolerance
+func metricPayloadCompare(a, b check.Metric) bool {
+	return a.Host == b.Host &&
+		a.Interval == b.Interval &&
+		a.Metric == b.Metric &&
+		slices.EqualFunc(a.Points, b.Points, func(a, b []float64) bool {
+			return slices.EqualFunc(a, b, func(a, b float64) bool {
+				if a == 0 {
+					return b == 0
+				}
+				return math.Abs(a-b)/a <= metricCompareTolerance
+			})
 		}) &&
-		a.ty == b.ty &&
-		a.unit == b.unit &&
-		a.sourceTypeName == b.sourceTypeName &&
-		a.interval == b.interval &&
-		a.originProduct == b.originProduct &&
-		a.originCategory == b.originCategory &&
-		a.originService == b.originService
+		a.SourceTypeName == b.SourceTypeName &&
+		a.Type == b.Type &&
+		compareTags(a.Tags, b.Tags)
 }
 
-func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []metricPayload {
+// compare the tags in both slices
+// not sure if there can be duplicates in the tags, but let's assume so
+// this is inefficient, but good enough for this test
+func compareTags(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	tagsA := make(map[string]int, len(a))
+	for _, tag := range a {
+		tagsA[tag]++
+	}
+	for _, tag := range b {
+		tagsA[tag]--
+	}
+	for _, count := range tagsA {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
 	v.T().Helper()
 
 	diskCheckVersion := "old"
@@ -139,71 +145,18 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 		),
 	))
 
-	// flush fakeintake payloads
-	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(v.T(), err)
-
 	// run the check
-	v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk"}))
+	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json"}))
+	data := check.ParseJSONOutput(v.T(), []byte(output))
 
-	// wait for the metrics to be received by the fakeintake
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.disk.total")
-		require.NoError(c, err)
-		require.NotEmpty(c, metrics)
-		v.T().Logf("metrics: %v", metrics)
-
-		found := false
-		for _, metric := range metrics {
-			if slices.ContainsFunc(metric.Tags, func(tag string) bool {
-				return tag == diskCheckVersionTag
-			}) {
-				found = true
-				break
-			}
-		}
-		require.True(c, found)
-	}, time.Second*10, time.Second*1)
-
-	// get the metric payloads for the disk check
-	metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
-	require.NoError(v.T(), err)
-	var diskMetricPayloads []metricPayload
-	for _, metric := range metrics {
-		if !strings.HasPrefix(metric, "system.disk.") &&
-			!strings.HasPrefix(metric, "system.fs.inodes.") {
-			continue
-		}
-
-		payloads, err := v.Env().FakeIntake.Client().FilterMetrics(metric)
-		require.NoError(v.T(), err)
-		for _, payload := range payloads {
-			points := make([]float64, len(payload.Points))
-			for i, point := range payload.Points {
-				points[i] = point.Value
-			}
-
-			tags := make([]string, 0, len(payload.Tags))
-			for _, tag := range payload.Tags {
-				if tag != diskCheckVersionTag {
-					tags = append(tags, tag)
-				}
-			}
-
-			diskMetricPayloads = append(diskMetricPayloads, metricPayload{
-				name:           payload.Metric,
-				tags:           tags,
-				points:         points,
-				ty:             int32(payload.Type),
-				unit:           payload.Unit,
-				sourceTypeName: payload.SourceTypeName,
-				interval:       payload.Interval,
-				originProduct:  payload.GetMetadata().Origin.GetOriginProduct(),
-				originCategory: payload.GetMetadata().Origin.GetOriginCategory(),
-				originService:  payload.GetMetadata().Origin.GetOriginService(),
-			})
-		}
+	require.Len(v.T(), data, 1)
+	metrics := data[0].Aggregator.Metrics
+	for i := range metrics {
+		// remove the disk_check_version tag
+		metrics[i].Tags = slices.DeleteFunc(metrics[i].Tags, func(tag string) bool {
+			return tag == diskCheckVersionTag
+		})
 	}
 
-	return diskMetricPayloads
+	return metrics
 }

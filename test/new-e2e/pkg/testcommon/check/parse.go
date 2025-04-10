@@ -35,7 +35,7 @@ type Metric struct {
 	Type           string      `json:"type"`
 }
 
-// ParseJSONOutput parses the check command json output
+// ParseJSONOutput parses the check command output
 func ParseJSONOutput(t *testing.T, check []byte) []Root {
 	// On Windows a warning is printed when running the check command with the wrong user
 	// This warning is not part of the JSON output and needs to be ignored when parsing
