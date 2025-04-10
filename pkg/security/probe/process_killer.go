@@ -243,7 +243,9 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	sig := model.SignalConstants[kill.Signal]
 
 	var processesKilled int64
-	killedAt := time.Now()
+	var killedAt time.Time
+	killActionStatus := KillActionStatusError
+	now := time.Now() // get the current time now to make sure it precedes the any process exit time
 	for _, pid := range pids {
 		log.Debugf("requesting signal %s to be sent to %d", kill.Signal, pid)
 
@@ -251,6 +253,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 			seclog.Debugf("failed to kill process %d: %s", pid, err)
 		} else {
 			processesKilled++
+			killedAt = now
+			killActionStatus = KillActionStatusPerformed
 		}
 	}
 
@@ -269,7 +273,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	report := &KillActionReport{
 		Scope:      scope,
 		Signal:     kill.Signal,
-		Status:     KillActionStatusPerformed,
+		Status:     killActionStatus,
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
