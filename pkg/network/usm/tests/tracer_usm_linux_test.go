@@ -1155,7 +1155,7 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.MySQL)
 		})
 	}
 }
@@ -1401,7 +1401,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
 			}
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Postgres)
 		})
 	}
 }
@@ -1561,7 +1561,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Mongo)
 		})
 	}
 }
@@ -1748,7 +1748,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Redis)
 		})
 	}
 }
@@ -1922,7 +1922,7 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.AMQP)
 		})
 	}
 }
@@ -2190,7 +2190,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.HTTP2, protocols.GRPC)
 		})
 	}
 }
@@ -2566,4 +2566,16 @@ func (s *USMSuite) TestVerifySketches() {
 			tt.testFunc(s.T(), tr)
 		})
 	}
+}
+
+func testProtocolClassificationInnerWithProtocolCleanup(t *testing.T, tt protocolClassificationAttributes, tr *tracer.Tracer, protos ...protocols.ProtocolType) {
+	originalPostTracer := tt.postTracerSetup
+	wrapperPostTracer := func(t *testing.T, ctx testContext) {
+		for _, proto := range protos {
+			cleanProtocolMapByProtocol(t, tr, proto)
+		}
+		originalPostTracer(t, ctx)
+	}
+	tt.postTracerSetup = wrapperPostTracer
+	testProtocolClassificationInner(t, tt, tr)
 }

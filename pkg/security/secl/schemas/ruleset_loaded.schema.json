@@ -129,7 +129,13 @@
                         "value": {
                             "type":["string", "number", "object", "array", "boolean", "null"]
                         },
+                        "default_value": {
+                            "type": ["string", "number", "object", "array", "boolean", "null"]
+                        },
                         "field": {
+                            "type": "string"
+                        },
+                        "expression": {
                             "type": "string"
                         },
                         "append": {
@@ -137,7 +143,13 @@
                         },
                         "scope": {
                             "type": "string",
-                            "enum": ["process", "container"]
+                            "enum": ["process", "container", "cgroup"]
+                        },
+                        "size": {
+                            "type": "integer"
+                        },
+                        "ttl": {
+                            "type": "string"
                         }
                     }
                 },
@@ -175,6 +187,17 @@
                         },
                         "no_compression": {
                             "type": "boolean"
+                        }
+                    }
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
                         }
                     }
                 }
