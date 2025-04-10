@@ -238,11 +238,14 @@ new-agent_dmg-x64-a7:
   script:
     - unset OMNIBUS_GIT_CACHE_DIR
     # TODO: Within runner image
-    - brew install pyenv pyenv-virtualenv || true
+    # - brew install pyenv pyenv-virtualenv || true
 
     - set -eo pipefail
 
     - brew uses gettext --installed || true
+    - |
+      sudo find /usr -name "libintl*" || true
+      sudo find /opt -name "libintl*" || true
 
     - |
       if [ "$SIGN" = true ]; then
