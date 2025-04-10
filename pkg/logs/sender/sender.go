@@ -83,7 +83,7 @@ func NewSender(
 	}
 }
 
-// NewSenderV2 returns a new sender.
+// NewSenderV2 is the default implementation of the sender factory.
 func NewSenderV2(
 	config pkgconfigmodel.Reader,
 	auditor auditor.Auditor,
@@ -96,7 +96,6 @@ func NewSenderV2(
 	pipelineMonitor metrics.PipelineMonitor,
 ) *Sender {
 	var workers []*worker
-
 	if queueCount <= 0 {
 		queueCount = DefaultQueuesCount
 	}
