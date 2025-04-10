@@ -49,7 +49,7 @@ type Check struct {
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
 	agentConfig                config.Component
-	PythonCheck                *check.Check
+	PythonCheck                check.Check
 }
 
 // Run executes the check
@@ -66,10 +66,17 @@ func (c *Check) Run() error {
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+
+	if c.PythonCheck != nil {
+		return c.PythonCheck.Run()
+	}
+
 	var checkErr error
 	sender, err := c.GetSender()
 	if err != nil {
-		return err
+		// TODO: ERR HERE
+		return c.PythonCheck.Run()
+		//return err
 	}
 
 	if c.config.IsDiscovery() {
@@ -88,6 +95,7 @@ func (c *Check) Run() error {
 			deviceCk := discoveredDevices[i]
 			hostname, err := deviceCk.GetDeviceHostname()
 			if err != nil {
+				// TODO: ERR HERE
 				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
 				continue
 			}
@@ -104,10 +112,16 @@ func (c *Check) Run() error {
 	} else {
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
 		if err != nil {
-			return err
+			// TODO: ERR HERE
+			return c.PythonCheck.Run()
+			//return err
 		}
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
+		if checkErr != nil {
+			return c.PythonCheck.Run()
+		}
+		// TODO: ERR HERE
 	}
 
 	// Commit

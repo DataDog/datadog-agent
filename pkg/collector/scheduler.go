@@ -240,7 +240,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				fmt.Println(pythonC)
 				fmt.Println("PYTHON CHECK ERROR")
 				fmt.Println(err)
-				c.(*snmp.Check).PythonCheck = &pythonC
+				c.(*snmp.Check).PythonCheck = pythonC
 			}
 
 			if err != nil {
