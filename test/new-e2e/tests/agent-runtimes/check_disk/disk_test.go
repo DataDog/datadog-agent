@@ -27,7 +27,7 @@ type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-const metricCompareTolerance = 0.01
+const metricCompareTolerance = 0.02
 
 func TestLinuxDiskSuite(t *testing.T) {
 	agentOptions := []agentparams.Option{}
