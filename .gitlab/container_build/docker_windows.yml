@@ -86,6 +86,3 @@
   variables:
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
     SERVERCORE: "-servercore"
-
-include:
-  - .gitlab/container_build/docker_windows_agent6.yml
