@@ -6,6 +6,9 @@
 package redis
 
 import (
+	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -48,6 +51,22 @@ type RequestStat struct {
 func NewRequestStats() *RequestStats {
 	return &RequestStats{
 		ErrorsToStats: make(map[bool]*RequestStat),
+	}
+}
+
+func (r *RequestStat) initSketch() error {
+	latencies := protocols.SketchesPool.Get()
+	if latencies == nil {
+		return errors.New("error recording redis transaction latency: could not create new ddsketch")
+	}
+	r.Latencies = latencies
+	return nil
+}
+
+func (r *RequestStat) close() {
+	if r.Latencies != nil {
+		r.Latencies.Clear()
+		protocols.SketchesPool.Put(r.Latencies)
 	}
 }
 
