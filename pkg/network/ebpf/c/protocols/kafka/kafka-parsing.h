@@ -1628,7 +1628,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     switch (kafka_header.api_key) {
         case KAFKA_FETCH:
             if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-                // Fetch request version 13 and above is not supported.
                 return false;
             }
             break;

@@ -156,7 +156,6 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 
 	kafkaTeardown := func(_ *testing.T, ctx testContext) {
-		cleanProtocolMapByProtocol(t, tr, protocols.Kafka)
 		for key, val := range ctx.extras {
 			if strings.HasSuffix(key, "client") {
 				client := val.(*kafka.Client)
@@ -201,7 +200,6 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cleanProtocolMapByProtocol(t, tr, protocols.Kafka)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					DialFn:        defaultDialer.DialContext,
