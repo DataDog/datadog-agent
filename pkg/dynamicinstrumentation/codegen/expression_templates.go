@@ -118,10 +118,12 @@ bpf_printk("Setting param index %d to %d", {{.Arg1}}, context.output_offset);
 event->base.param_indicies[{{.Arg1}}] = context.output_offset;
 `
 
+// This causes a compiler error which is used in testing
 var compilerErrorText = `
 !@#$%^
 `
 
+// This causes a verifier error which is used in testing
 var verifierErrorText = `
 for (int i=0; i==0;) {
     i++;
