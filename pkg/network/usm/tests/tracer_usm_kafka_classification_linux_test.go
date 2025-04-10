@@ -27,7 +27,7 @@ import (
 func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
 	produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 
-	if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
+	if produceVersion < kafka.ClassificationMinSupportedProduceRequestApiVersion || produceVersion > kafka.ClassificationMaxSupportedProduceRequestApiVersion {
 		produceExpectedStack.Application = protocols.Unknown
 	}
 
@@ -68,7 +68,7 @@ func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, t
 func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
 	fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 
-	if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
+	if fetchVersion < kafka.ClassificationMinSupportedFetchRequestApiVersion || fetchVersion > kafka.ClassificationMaxSupportedFetchRequestApiVersion {
 		fetchExpectedStack.Application = protocols.Unknown
 	}
 
@@ -270,13 +270,13 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	for produceVersion := kafka.MinSupportedProduceRequestApiVersion; produceVersion <= kafka.MaxSupportedProduceRequestApiVersion; produceVersion++ {
+	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
 		currentTest := getProduceVersionTest(int16(produceVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
 	}
 
-	for fetchVersion := kafka.MinSupportedFetchRequestApiVersion; fetchVersion <= kafka.MaxSupportedFetchRequestApiVersion; fetchVersion++ {
+	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
 		currentTest := getFetchVersionTest(int16(fetchVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
