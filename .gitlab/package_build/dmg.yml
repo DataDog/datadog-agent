@@ -137,25 +137,9 @@ include:
     fi
 
 .macos_setup_cache:
-  - |
-    # $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    # TODO
-    # export VERSION_CACHE_CONTENT="$(cat agent-version.cache)"
-    # TODO: _omnibus_cache_key_files is not necessary
-    # Copy files used for the Omnibus ruby deps cache key
-    # This is to work around a limitation of GitHub Actions' `hashFiles()` function which requires
-    # files to be inside the workspace.
-    mkdir -p _omnibus_cache_key_files
-    cp ./{release.json,omnibus/Gemfile} ./_omnibus_cache_key_files
-    # TODO: Cache _omnibus_cache_key_files
-    echo Release JSON
-    cat release.json
-    echo Omnibus Gemfile
-    cat omnibus/Gemfile
-  - |
-    # Clean up previous builds
-    sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
-    # Set bundler install path to cached folder
+  # Clean up previous builds
+  - sudo bash -c "rm -rf /var/cache/omnibus/src/*" || true
+  # Set bundler install path to cached folder
   - !reference [.cache_omnibus_ruby_deps, setup]
   - |
     export GOMODCACHE=~/gomodcache
