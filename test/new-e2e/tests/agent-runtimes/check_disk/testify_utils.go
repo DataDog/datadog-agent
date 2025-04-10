@@ -51,7 +51,7 @@ func diffLists[T any](listA []T, listB []T, compareFunc func(a, b T) bool) (extr
 	return
 }
 
-func ElementsMatch[T any](t require.TestingT, listA, listB []T, compareFunc func(a, b T) bool, msgAndArgs ...interface{}) {
+func elementsMatch[T any](t require.TestingT, listA, listB []T, compareFunc func(a, b T) bool, msgAndArgs ...interface{}) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}

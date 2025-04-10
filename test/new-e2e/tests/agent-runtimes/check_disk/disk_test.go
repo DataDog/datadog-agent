@@ -82,7 +82,7 @@ instances:
 			goMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, true)
 
 			// assert the check output
-			ElementsMatch(v.T(), pythonMetrics, goMetrics, metricPayloadCompare)
+			elementsMatch(v.T(), pythonMetrics, goMetrics, metricPayloadCompare)
 			v.T().Logf("the check emitted %d metrics", len(pythonMetrics))
 		})
 	}
