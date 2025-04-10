@@ -37,14 +37,14 @@ type streamLimits struct {
 type StreamHandler struct {
 	metadata             streamMetadata
 	kernelLaunches       []enrichedKernelLaunch
-	memAllocEvents       *lru.LRU[uint64, gpuebpf.CudaMemEvent]
+	memAllocEvents       *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
 	kernelSpans          []*kernelSpan
 	allocations          []*memoryAllocation
 	processEnded         bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx               *systemContext
 	limits               streamLimits
 	telemetry            *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	suspendEvictCallback bool
+	suspendEvictCallback bool             // stops the eviction callback from creating memory allocations when we are manually removing items from the cache (see onEvictedAlloc for more details))
 }
 
 // streamMetadata contains metadata about a CUDA stream

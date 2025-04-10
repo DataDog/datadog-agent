@@ -40,13 +40,13 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams         map[streamKey]*StreamHandler
-	globalStreams   map[globalStreamKey]*StreamHandler
-	sysCtx          *systemContext
-	telemetry       *streamCollectionTelemetry
-	streamTelemetry *streamTelemetry
-	streamLimits    streamLimits
-	maxStreams      int
+	streams             map[streamKey]*StreamHandler
+	globalStreams       map[globalStreamKey]*StreamHandler
+	sysCtx              *systemContext
+	collectionTelemetry *streamCollectionTelemetry // telemetry for the stream collection
+	streamTelemetry     *streamTelemetry           // telemetry for the stream handlers. We hold a single reference that we pass to all the stream handlers
+	streamLimits        streamLimits
+	maxStreams          int
 }
 
 type streamCollectionTelemetry struct {
@@ -73,21 +73,23 @@ func getStreamLimits(config *config.Config) streamLimits {
 
 func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
-		streams:         make(map[streamKey]*StreamHandler),
-		globalStreams:   make(map[globalStreamKey]*StreamHandler),
-		sysCtx:          sysCtx,
-		telemetry:       newStreamCollectionTelemetry(telemetry),
-		streamTelemetry: newStreamTelemetry(telemetry),
-		streamLimits:    getStreamLimits(config),
-		maxStreams:      config.MaxStreams,
+		streams:             make(map[streamKey]*StreamHandler),
+		globalStreams:       make(map[globalStreamKey]*StreamHandler),
+		sysCtx:              sysCtx,
+		collectionTelemetry: newStreamCollectionTelemetry(telemetry),
+		streamTelemetry:     newStreamTelemetry(telemetry),
+		streamLimits:        getStreamLimits(config),
+		maxStreams:          config.MaxStreams,
 	}
 }
 
 func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
+	subsystem := consts.GpuTelemetryModule + "__streams"
+
 	return &streamTelemetry{
-		forcedSyncOnKernelLaunch: tm.NewCounter(consts.GpuTelemetryModule+"__streams", "forced_sync_on_kernel_launch", nil, "Number of forced syncs on kernel launch"),
-		allocEvicted:             tm.NewCounter(consts.GpuTelemetryModule+"__streams", "alloc_evicted", nil, "Number of allocations evicted from the cache"),
-		invalidFreeEvents:        tm.NewCounter(consts.GpuTelemetryModule+"__streams", "invalid_free_events", nil, "Number of invalid free events"),
+		forcedSyncOnKernelLaunch: tm.NewCounter(subsystem, "forced_sync_on_kernel_launch", nil, "Number of forced syncs on kernel launch"),
+		allocEvicted:             tm.NewCounter(subsystem, "alloc_evicted", nil, "Number of allocations evicted from the cache"),
+		invalidFreeEvents:        tm.NewCounter(subsystem, "invalid_free_events", nil, "Number of invalid free events"),
 	}
 }
 
@@ -122,7 +124,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	// that can be called to retrieve it only when needed
 	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), memoizedContainerID)
 	if err != nil {
-		sc.telemetry.missingDevices.Inc()
+		sc.collectionTelemetry.missingDevices.Inc()
 		return nil, err
 	}
 
@@ -139,7 +141,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 		}
 
 		sc.globalStreams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+		sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
 	return stream, nil
@@ -162,7 +164,7 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 		}
 
 		sc.streams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+		sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
 	return stream, nil
@@ -172,7 +174,7 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 // If the device not provided (it's nil), it will be retrieved from the system context.
 func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
 	if sc.streamCount() >= sc.maxStreams {
-		sc.telemetry.rejectedStreams.Inc()
+		sc.collectionTelemetry.rejectedStreams.Inc()
 		return nil, fmt.Errorf("max streams reached")
 	}
 
@@ -188,7 +190,7 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 		device, err = sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
 		if err != nil {
 			log.Warnf("error getting GPU device for process %d: %s", pid, err)
-			sc.telemetry.missingDevices.Inc()
+			sc.collectionTelemetry.missingDevices.Inc()
 			return nil, err
 		}
 	}
@@ -208,12 +210,12 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 		if err != nil {
 			log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
 
-			sc.telemetry.missingContainers.Inc("error")
+			sc.collectionTelemetry.missingContainers.Inc("error")
 			return ""
 		}
 
 		if containerID == "" {
-			sc.telemetry.missingContainers.Inc("missing")
+			sc.collectionTelemetry.missingContainers.Inc("missing")
 		}
 
 		return containerID
@@ -245,7 +247,7 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 		if handler.metadata.pid == pid {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
 			_ = handler.markEnd()
-			sc.telemetry.finalizedProcesses.Inc()
+			sc.collectionTelemetry.finalizedProcesses.Inc()
 		}
 	}
 }
@@ -254,16 +256,16 @@ func (sc *streamCollection) clean() {
 	for key, handler := range sc.streams {
 		if handler.processEnded {
 			delete(sc.streams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+			sc.collectionTelemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
 	for key, handler := range sc.globalStreams {
 		if handler.processEnded {
 			delete(sc.globalStreams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+			sc.collectionTelemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
-	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+	sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 }
