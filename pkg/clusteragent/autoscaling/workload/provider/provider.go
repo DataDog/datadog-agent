@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -82,6 +83,9 @@ func StartWorkloadAutoscaling(
 		localRecommender := local.NewRecommender(podWatcher, store)
 		go localRecommender.Run(ctx)
 	}
+
+	externalRecommender := external.NewRecommender(podWatcher, store)
+	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
 }
