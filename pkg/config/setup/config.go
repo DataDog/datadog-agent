@@ -120,9 +120,6 @@ const (
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
-
-	// DefaultRegistryFilename is the default registry filename
-	DefaultRegistryFilename = "registry.json"
 )
 
 // datadog is the global configuration object
