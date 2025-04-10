@@ -359,7 +359,8 @@ deploy_containers-single_machine_performance-full-amd64-a7:
   extends: .docker_publish_job_definition
   stage: deploy_containers
   rules:
-    !reference [.on_internal_final]
+    - !reference [.on_dev_branches]
+    - when: on_success
   variables:
     IMG_REGISTRIES: internal-aws-smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
