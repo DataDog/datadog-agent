@@ -233,10 +233,8 @@ modules:
   pkg/telemetry:
     used_by_otel: true
   pkg/template:
-    lint_targets: []
-    test_targets: []
-    should_test_condition: never
     should_replace_internal_modules: false
+    should_test_condition: never
   pkg/trace:
     used_by_otel: true
   pkg/trace/stats/oteltest:

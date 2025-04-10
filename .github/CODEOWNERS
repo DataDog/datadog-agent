@@ -386,6 +386,7 @@
 /pkg/telemetry/                         @DataDog/agent-runtimes
 /pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
 /pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform
+/pkg/template/                          @DataDog/agent-runtimes
 /pkg/version/                           @DataDog/agent-runtimes
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
