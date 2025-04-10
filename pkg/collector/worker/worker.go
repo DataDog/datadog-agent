@@ -127,7 +127,7 @@ func newWorkerWithOptions(
 
 // Run waits for checks and run them as long as they arrive on the channel
 func (w *Worker) Run() {
-	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
+	fmt.Printf("Runner %d, worker %d: Ready to process checks...\n", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
 	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
@@ -161,6 +161,9 @@ func (w *Worker) Run() {
 
 		utilizationTracker.Started()
 
+		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		fmt.Println("CALLING CHECK RUN IN WORKER.GO")
+		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		// Run the check
 		checkErr := check.Run()
 
@@ -220,7 +223,7 @@ func (w *Worker) Run() {
 		checkLogger.CheckFinished()
 	}
 
-	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
+	fmt.Printf("Runner %d, worker %d: Finished processing checks.\n", w.runnerID, w.ID)
 }
 
 func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
