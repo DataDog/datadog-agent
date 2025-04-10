@@ -169,8 +169,8 @@ private:
     typedef std::vector<std::string> PyPaths;
 
     PyConfig _config;
-    char *_pythonHome;
-    char *_pythonExe;
+    std::string _pythonHome;
+    std::string _pythonExe;
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */
