@@ -100,12 +100,12 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogInstaller),
 			Version: latestInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", latestInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/installer-package:%s", latestInstallerImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", previousInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/installer-package:%s", previousInstallerImageVersion),
 		},
 		{
 			Package: string(datadogApmInject),
@@ -116,12 +116,13 @@ var testCatalog = catalog{
 }
 
 const (
-	unknownAgentImageVersion  = "7.52.1-1"
-	previousAgentImageVersion = "7.66.0-devel.git.166.e2417f6.pipeline.60319460-1" // TODO use latest prod image when 7.66 is out
-	latestAgentImageVersion   = "7.66.0-devel.git.167.e5390a4.pipeline.60360411-1" // TODO use latest prod image when 7.65 is out
+	unknownAgentImageVersion = "7.52.1-1"
 
-	latestInstallerImageVersion   = "7.56.0-installer-0.4.5-1"
-	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
+	// TODO: when 7.66 & the next version is out, use the latest prod images
+	previousAgentImageVersion     = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestAgentImageVersion       = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
+	previousInstallerImageVersion = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestInstallerImageVersion   = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
