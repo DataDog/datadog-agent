@@ -128,7 +128,7 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithFile("/etc/datadog-agent/conf.d/conf.yaml", checkConfig, true),
+			agentparams.WithFile("/etc/datadog-agent/conf.d/disk.d/conf.yaml", checkConfig, true),
 		),
 	))
 
