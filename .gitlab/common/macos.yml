@@ -18,8 +18,6 @@
     echo "pyenv uninstall -f <version>"
 
 .select_python_env_commands:
-  # TODO A
-  - brew install pyenv pyenv-virtualenv || true
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
   - |
     eval "$(pyenv init -)"
