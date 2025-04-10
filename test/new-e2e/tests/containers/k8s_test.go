@@ -494,6 +494,9 @@ func (suite *k8sSuite) TestNginx() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
 				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
@@ -503,9 +506,11 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
 				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
 				`^kube_replica_set:nginx-[[:alnum:]]+$`,
 				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
 				`^domain:deployment$`,
@@ -534,6 +539,41 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_service:nginx$`,
 				`^url:http://`,
 			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.connections",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
+				`^team:contp$`,
+			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
