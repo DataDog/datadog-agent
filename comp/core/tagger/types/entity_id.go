@@ -48,11 +48,14 @@ func (eid EntityID) String() string {
 	return eid.prefix.ToUID(eid.id)
 }
 
+var supportedPrefixes = AllPrefixesSet()
+
 // NewEntityID builds and returns an EntityID object
+// A panic will occur if an unsupported prefix is used
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
-	if len(prefix) == 0 {
+	if _, found := supportedPrefixes[prefix]; !found {
 		// prefix is expected to be set based on the prefix enum defined below
-		panic("entity id prefix can't be empty")
+		panic(fmt.Sprintf("unsupported tagger entity prefix: %q", prefix))
 	}
 	return EntityID{prefix, id}
 }
