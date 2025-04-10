@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,12 +20,16 @@ type StatKeeper struct {
 	stats      map[Key]*RequestStat
 	statsMutex sync.RWMutex
 	maxEntries int
+	// parametersInterner stores interned versions of the all parameters currently stored in
+	// the `StatKeeper`
+	parametersInterner *intern.StringInterner
 }
 
 // NewStatkeeper creates a new StatKeeper
 func NewStatkeeper(c *config.Config) *StatKeeper {
 	newStatKeeper := &StatKeeper{
-		maxEntries: c.MaxPostgresStatsBuffered,
+		maxEntries:         c.MaxPostgresStatsBuffered,
+		parametersInterner: intern.NewStringInterner(),
 	}
 	newStatKeeper.resetNoLock()
 	return newStatKeeper
@@ -37,7 +42,7 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 
 	key := Key{
 		Operation:     tx.Operation(),
-		Parameters:    tx.Parameters(),
+		Parameters:    s.parametersInterner.GetString(tx.Parameters()),
 		ConnectionKey: tx.ConnTuple(),
 	}
 	requestStats, ok := s.stats[key]
