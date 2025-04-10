@@ -60,6 +60,7 @@ include:
     echo "Using Python $PYTHON_VERSION"
     # TODO A: Specific version (.dda/version)
     python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v0.5.0" --break-system-packages
+    pyenv rehash
     dda self dep sync -f legacy-tasks
     pyenv rehash
   - |
@@ -243,9 +244,9 @@ new-agent_dmg-x64-a7:
     - set -eo pipefail
 
     - brew uses gettext --installed || true
-    - |
-      sudo find /usr -name "libintl*" || true
-      sudo find /opt -name "libintl*" || true
+    # - |
+    #   sudo find /usr -name "libintl*" || true
+    #   sudo find /opt -name "libintl*" || true
 
     - |
       if [ "$SIGN" = true ]; then
