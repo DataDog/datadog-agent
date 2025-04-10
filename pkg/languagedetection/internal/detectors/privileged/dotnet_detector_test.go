@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package detectors
+package privileged
 
 import (
 	"os"

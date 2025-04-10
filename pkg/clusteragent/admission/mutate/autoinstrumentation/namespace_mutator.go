@@ -134,6 +134,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	if len(config.libs) == 0 {
 		return nil
 	}
+
 	requirements, injectionDecision := initContainerResourceRequirements(pod, m.config.defaultResourceRequirements)
 	if injectionDecision.skipInjection {
 		if pod.Annotations == nil {
@@ -145,14 +146,17 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 	var (
 		lastError      error
+		startTime      = time.Now()
 		configInjector = &libConfigInjector{}
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		initContainerMutators = m.newContainerMutators(requirements)
-		injector              = m.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
+		initContainerMutators = m.newInitContainerMutators(requirements)
+		injectorOptions       = libRequirementOptions{
 			initContainerMutators: initContainerMutators,
-		}))
+		}
+
+		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(m.config.version),
 		}
@@ -165,7 +169,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return err
 	}
 
-	if err := injector.mutatePod(pod); err != nil {
+	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
@@ -205,14 +209,24 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	return lastError
 }
 
-func (m *mutatorCore) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
+// newInitContainerMutators constructs container mutators for behavior
+// that is common and passed to the init containers we create.
+//
+// At this point in time it is: resource requirements and security contexts.
+func (m *mutatorCore) newInitContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
 	return containerMutators{
 		containerResourceRequirements{requirements},
 		containerSecurityContext{m.config.initSecurityContext},
 	}
 }
 
-func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
+// newInjector creates an injector instance for this pod.
+func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
+	opts := []injectorOption{
+		injectorWithLibRequirementOptions(lopts),
+		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
+	}
+
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
@@ -228,8 +242,7 @@ func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, m.config.containerRegistry, m.config.Instrumentation.InjectorImageTag, opts...).
-		podMutator(m.config.version)
+	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
 // isPodEligible checks whether we are allowed to inject in this pod.
