@@ -64,7 +64,7 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 }
 
 static __always_inline void cache_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
-    if (skb_info && skb_info->tcp_seq) {
+    if (skb_info && skb_info->tcp_seq && !is_tcp_termination(skb_info)) {
         bpf_map_update_with_telemetry(connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
     }
 }
