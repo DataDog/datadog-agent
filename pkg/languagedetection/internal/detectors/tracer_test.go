@@ -50,7 +50,7 @@ func TestTracerResult(t *testing.T) {
 		t.Run(testCase.tdata, func(t *testing.T) {
 			curDir, err := testutil.CurDir()
 			require.NoError(t, err)
-			testDataPath := filepath.Join(curDir, "testdata", testCase.tdata)
+			testDataPath := filepath.Join(curDir, "testdata/tracer", testCase.tdata)
 			data, err := os.ReadFile(testDataPath)
 			require.NoError(t, err)
 			createTracerMemfd(t, data)
