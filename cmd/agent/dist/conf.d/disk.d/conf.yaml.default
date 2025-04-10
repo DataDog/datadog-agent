@@ -198,7 +198,7 @@ instances:
     #
     # use_lsblk: false
 
-    ## @param device_tag_re - list of regex:tags string - optional
+    ## @param device_tag_re - map of regex to tags - optional
     ## Instruct the check to apply additional tags to matching
     ## devices (or mount points if `use_mount` is true).
     ##
