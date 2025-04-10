@@ -169,6 +169,17 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
+	s.updatePythonOnSuse()
+}
+
+func (s *packageBaseSuite) updatePythonOnSuse() {
+	// Suse15 comes with Python3.6 by default which is too old for injection
+	if s.os.Flavor != e2eos.Suse {
+		return
+	}
+	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
+	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
+	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
