@@ -12,9 +12,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"io"
 	"math/bits"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -1087,22 +1091,55 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSResponse) UnmarshalBinary(data []byte, ev EventType, dnsResolver *dns.Resolver) (int, error) {
+	var dnsLayer = new(layers.DNS)
+	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
+		return 0, fmt.Errorf("failed to decode DNS response: %s", err)
+	}
+
+	if ev == FullDNSResponseEventType {
+		e.ID = dnsLayer.ID
+		e.ResponseCode = uint8(dnsLayer.ResponseCode)
+		e.Question.Count = dnsLayer.QDCount
+		e.Question.Name = string(dnsLayer.Questions[0].Name)
+		e.Question.Class = uint16(dnsLayer.Questions[0].Class)
+		e.Question.Type = uint16(dnsLayer.Questions[0].Type)
+		e.Question.Size = uint16(len(data))
+	}
+
+	for _, answer := range dnsLayer.Answers {
+		if answer.Type == layers.DNSTypeCNAME {
+			dnsResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+		} else if answer.Type == layers.DNSTypeA || answer.Type == layers.DNSTypeAAAA {
+			ip, ok := netip.AddrFromSlice(answer.IP)
+			if ok {
+				dnsResolver.AddNew(string(answer.Name), ip)
+			} else {
+				return 0, fmt.Errorf("DNS response with an invalid IP received: %v", ip)
+			}
+		}
+	}
+
+	return len(data), nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 10 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = binary.NativeEndian.Uint16(data[0:2])
-	e.Count = binary.NativeEndian.Uint16(data[2:4])
-	e.Type = binary.NativeEndian.Uint16(data[4:6])
-	e.Class = binary.NativeEndian.Uint16(data[6:8])
-	e.Size = binary.NativeEndian.Uint16(data[8:10])
+	e.Question.Count = binary.NativeEndian.Uint16(data[2:4])
+	e.Question.Type = binary.NativeEndian.Uint16(data[4:6])
+	e.Question.Class = binary.NativeEndian.Uint16(data[6:8])
+	e.Question.Size = binary.NativeEndian.Uint16(data[8:10])
 	var err error
-	e.Name, err = decodeDNSName(data[10:])
+	e.Question.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Question.Count, e.Question.Type, e.Question.Size)
 	}
-	if err = validateDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Question.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil

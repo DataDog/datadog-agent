@@ -3645,6 +3645,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 	out.SignalEventSerializer = new(SignalEventSerializer)
 	out.SpliceEventSerializer = new(SpliceEventSerializer)
 	out.DNSEventSerializer = new(DNSEventSerializer)
+	out.DNSResponseEventSerializer = new(DNSResponseEventSerializer)
 	out.IMDSEventSerializer = new(IMDSEventSerializer)
 	out.AcceptEventSerializer = new(AcceptEventSerializer)
 	out.BindEventSerializer = new(BindEventSerializer)
@@ -3795,6 +3796,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 					out.DNSEventSerializer = new(DNSEventSerializer)
 				}
 				(*out.DNSEventSerializer).UnmarshalEasyJSON(in)
+			}
+		case "dns_response":
+			if in.IsNull() {
+				in.Skip()
+				out.DNSResponseEventSerializer = nil
+			} else {
+				if out.DNSResponseEventSerializer == nil {
+					out.DNSResponseEventSerializer = new(DNSResponseEventSerializer)
+				}
+				(*out.DNSResponseEventSerializer).UnmarshalEasyJSON(in)
 			}
 		case "imds":
 			if in.IsNull() {
@@ -4112,6 +4123,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 			out.RawString(prefix)
 		}
 		(*in.DNSEventSerializer).MarshalEasyJSON(out)
+	}
+	if in.DNSResponseEventSerializer != nil {
+		const prefix string = ",\"dns_response\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.DNSResponseEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.IMDSEventSerializer != nil {
 		const prefix string = ",\"imds\":"

@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"math"
 	"path"
 	"strings"
@@ -82,6 +83,8 @@ var InvalidDiscarders = map[eval.Field][]string{
 	"removexattr.file.path":        dentryInvalidDiscarder,
 	"chdir.file.path":              dentryInvalidDiscarder,
 }
+
+var dnsMask uint16
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
@@ -688,4 +691,37 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		}))
 	SupportedDiscarders["chdir.file.path"] = true
+
+	allDiscarderHandlers["dns_response"] = append(allDiscarderHandlers["dns_response"], dnsResponseDiscarderWrapper(model.FullDNSResponseEventType,
+		func(event *model.Event) (eval.Field, *model.DNSResponse, bool) {
+			return "dns_response.response_code", &event.DNSResponse, false
+		}))
+	SupportedDiscarders["dns_response.response_code"] = true
+}
+
+func dnsResponseDiscarderWrapper(_ model.EventType, getter func(event *model.Event) (eval.Field, *model.DNSResponse, bool)) onDiscarderHandler {
+	return func(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
+		field, dnsResponse, _ := getter(event)
+
+		if discarder.Field == field {
+			mask := uint16(1)
+			mask <<= dnsResponse.ResponseCode
+			dnsMask |= mask
+
+			bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+			if err != nil {
+				return false, err
+			}
+
+			err = bufferSelector.Put(uint32(0), dnsMask)
+			if err != nil {
+				return false, err
+			}
+
+			seclog.Tracef("DNS discarder for response code: %d", dnsResponse.ResponseCode)
+			return true, nil
+		}
+
+		return false, nil
+	}
 }

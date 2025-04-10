@@ -1007,11 +1007,11 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
 	case model.DNSEventType:
-		event.DNS.Name = ti.eventDNSReq
-		event.DNS.Type = 1  // A
-		event.DNS.Class = 1 // INET
-		event.DNS.Size = uint16(len(ti.eventDNSReq))
-		event.DNS.Count = 1
+		event.DNS.Question.Name = ti.eventDNSReq
+		event.DNS.Question.Type = 1  // A
+		event.DNS.Question.Class = 1 // INET
+		event.DNS.Question.Size = uint16(len(ti.eventDNSReq))
+		event.DNS.Question.Count = 1
 	}
 
 	// setting process ancestor

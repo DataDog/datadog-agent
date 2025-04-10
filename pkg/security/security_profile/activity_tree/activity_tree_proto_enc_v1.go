@@ -310,11 +310,11 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(ev.Name),
-		Type:  uint32(ev.Type),
-		Class: uint32(ev.Class),
-		Size:  uint32(ev.Size),
-		Count: uint32(ev.Count),
+		Name:  escape(ev.Question.Name),
+		Type:  uint32(ev.Question.Type),
+		Class: uint32(ev.Question.Class),
+		Size:  uint32(ev.Question.Size),
+		Count: uint32(ev.Question.Count),
 	}
 }
 

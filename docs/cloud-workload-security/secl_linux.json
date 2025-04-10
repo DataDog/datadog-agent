@@ -1931,22 +1931,22 @@
         {
           "name": "dns.question.class",
           "definition": "the class looked up by the DNS question",
-          "property_doc_link": "dns-question-class-doc"
+          "property_doc_link": "common-dnsquestion-class-doc"
         },
         {
           "name": "dns.question.count",
           "definition": "the total count of questions in the DNS request",
-          "property_doc_link": "dns-question-count-doc"
+          "property_doc_link": "common-dnsquestion-count-doc"
         },
         {
           "name": "dns.question.length",
           "definition": "the total DNS request size in bytes",
-          "property_doc_link": "dns-question-length-doc"
+          "property_doc_link": "common-dnsquestion-length-doc"
         },
         {
           "name": "dns.question.name",
           "definition": "the queried domain name",
-          "property_doc_link": "dns-question-name-doc"
+          "property_doc_link": "common-dnsquestion-name-doc"
         },
         {
           "name": "dns.question.name.length",
@@ -1956,7 +1956,7 @@
         {
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
-          "property_doc_link": "dns-question-type-doc"
+          "property_doc_link": "common-dnsquestion-type-doc"
         },
         {
           "name": "network.destination.ip",
@@ -2012,6 +2012,55 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
+      "name": "dns_response",
+      "definition": "A DNS response was received",
+      "type": "Network",
+      "from_agent_version": "7.6x",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "dns_response.id",
+          "definition": "[Experimental] the DNS request ID",
+          "property_doc_link": "dns_response-id-doc"
+        },
+        {
+          "name": "dns_response.question.class",
+          "definition": "the class looked up by the DNS question",
+          "property_doc_link": "common-dnsquestion-class-doc"
+        },
+        {
+          "name": "dns_response.question.count",
+          "definition": "the total count of questions in the DNS request",
+          "property_doc_link": "common-dnsquestion-count-doc"
+        },
+        {
+          "name": "dns_response.question.length",
+          "definition": "the total DNS request size in bytes",
+          "property_doc_link": "common-dnsquestion-length-doc"
+        },
+        {
+          "name": "dns_response.question.name",
+          "definition": "the queried domain name",
+          "property_doc_link": "common-dnsquestion-name-doc"
+        },
+        {
+          "name": "dns_response.question.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "dns_response.question.type",
+          "definition": "a two octet code which specifies the DNS question type",
+          "property_doc_link": "common-dnsquestion-type-doc"
+        },
+        {
+          "name": "dns_response.response_code",
+          "definition": "Response code of the DNS response",
+          "property_doc_link": "dns_response-response_code-doc"
         }
       ]
     },
@@ -7889,6 +7938,19 @@
       "examples": []
     },
     {
+      "name": "*.class",
+      "link": "common-dnsquestion-class-doc",
+      "type": "int",
+      "definition": "the class looked up by the DNS question",
+      "prefixes": [
+        "dns.question",
+        "dns_response.question"
+      ],
+      "constants": "DNS qclasses",
+      "constants_link": "dns-qclasses",
+      "examples": []
+    },
+    {
       "name": "*.comm",
       "link": "common-process-comm-doc",
       "type": "string",
@@ -7927,6 +7989,19 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.count",
+      "link": "common-dnsquestion-count-doc",
+      "type": "int",
+      "definition": "the total count of questions in the DNS request",
+      "prefixes": [
+        "dns.question",
+        "dns_response.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -8828,6 +8903,19 @@
     },
     {
       "name": "*.length",
+      "link": "common-dnsquestion-length-doc",
+      "type": "int",
+      "definition": "the total DNS request size in bytes",
+      "prefixes": [
+        "dns.question",
+        "dns_response.question"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
       "definition": "Length of the corresponding element",
@@ -8839,6 +8927,7 @@
         "chown.file.name",
         "chown.file.path",
         "dns.question.name",
+        "dns_response.question.name",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
@@ -9100,6 +9189,19 @@
         "splice.file",
         "unlink.file",
         "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.name",
+      "link": "common-dnsquestion-name-doc",
+      "type": "string",
+      "definition": "the queried domain name",
+      "prefixes": [
+        "dns.question",
+        "dns_response.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9599,6 +9701,19 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-dnsquestion-type-doc",
+      "type": "int",
+      "definition": "a two octet code which specifies the DNS question type",
+      "prefixes": [
+        "dns.question",
+        "dns_response.question"
+      ],
+      "constants": "DNS qtypes",
+      "constants_link": "dns-qtypes",
       "examples": []
     },
     {
@@ -10182,63 +10297,27 @@
       "examples": []
     },
     {
-      "name": "dns.question.class",
-      "link": "dns-question-class-doc",
+      "name": "dns_response.id",
+      "link": "dns_response-id-doc",
       "type": "int",
-      "definition": "the class looked up by the DNS question",
+      "definition": "[Experimental] the DNS request ID",
       "prefixes": [
-        "dns"
-      ],
-      "constants": "DNS qclasses",
-      "constants_link": "dns-qclasses",
-      "examples": []
-    },
-    {
-      "name": "dns.question.count",
-      "link": "dns-question-count-doc",
-      "type": "int",
-      "definition": "the total count of questions in the DNS request",
-      "prefixes": [
-        "dns"
+        "dns_response"
       ],
       "constants": "",
       "constants_link": "",
       "examples": []
     },
     {
-      "name": "dns.question.length",
-      "link": "dns-question-length-doc",
+      "name": "dns_response.response_code",
+      "link": "dns_response-response_code-doc",
       "type": "int",
-      "definition": "the total DNS request size in bytes",
+      "definition": "Response code of the DNS response",
       "prefixes": [
-        "dns"
+        "dns_response"
       ],
       "constants": "",
       "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "dns.question.name",
-      "link": "dns-question-name-doc",
-      "type": "string",
-      "definition": "the queried domain name",
-      "prefixes": [
-        "dns"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "dns.question.type",
-      "link": "dns-question-type-doc",
-      "type": "int",
-      "definition": "a two octet code which specifies the DNS question type",
-      "prefixes": [
-        "dns"
-      ],
-      "constants": "DNS qtypes",
-      "constants_link": "dns-qtypes",
       "examples": []
     },
     {

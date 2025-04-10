@@ -190,6 +190,17 @@ type DNSEventSerializer struct {
 	Question DNSQuestionSerializer `json:"question"`
 }
 
+// DNSResponseEventSerializer serializes a DNS response event to JSON
+// easyjson:json
+type DNSResponseEventSerializer struct {
+	// id is the unique identifier of the DNS request
+	ID uint16 `json:"id"`
+	// question is a DNS question for the DNS request
+	Question DNSQuestionSerializer `json:"question"`
+	// rcode is the response code present in the response
+	RCode uint8 `json:"response_code"`
+}
+
 // ExitEventSerializer serializes an exit event to JSON
 // easyjson:json
 type ExitEventSerializer struct {
@@ -305,12 +316,27 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return &DNSEventSerializer{
 		ID: d.ID,
 		Question: DNSQuestionSerializer{
-			Class: model.QClass(d.Class).String(),
-			Type:  model.QType(d.Type).String(),
-			Name:  d.Name,
-			Size:  d.Size,
-			Count: d.Count,
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
 		},
+	}
+}
+
+// nolint: deadcode, unused
+func newDNSResponseEventSerializer(d *model.DNSResponse) *DNSResponseEventSerializer {
+	return &DNSResponseEventSerializer{
+		ID: d.ID,
+		Question: DNSQuestionSerializer{
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
+		},
+		RCode: d.ResponseCode,
 	}
 }
 

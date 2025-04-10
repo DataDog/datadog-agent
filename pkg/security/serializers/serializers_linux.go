@@ -667,6 +667,7 @@ type EventSerializer struct {
 	*SignalEventSerializer        `json:"signal,omitempty"`
 	*SpliceEventSerializer        `json:"splice,omitempty"`
 	*DNSEventSerializer           `json:"dns,omitempty"`
+	*DNSResponseEventSerializer   `json:"dns_response,omitempty"`
 	*IMDSEventSerializer          `json:"imds,omitempty"`
 	*AcceptEventSerializer        `json:"accept,omitempty"`
 	*BindEventSerializer          `json:"bind,omitempty"`
@@ -1307,7 +1308,6 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	}
 
 	eventType := model.EventType(event.Type)
-
 	switch eventType {
 	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1533,6 +1533,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.FullDNSResponseEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.DNSResponseEventSerializer = newDNSResponseEventSerializer(&event.DNSResponse)
 	case model.IMDSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
