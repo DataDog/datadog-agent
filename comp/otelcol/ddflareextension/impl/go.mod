@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
-go 1.23.6
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/authtoken v0.64.0

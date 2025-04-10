@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/sender
 
-go 1.23.6
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.62.3

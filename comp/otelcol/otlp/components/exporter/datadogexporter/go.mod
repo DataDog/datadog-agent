@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.23.6
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.61.0
