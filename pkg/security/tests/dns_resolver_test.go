@@ -91,22 +91,18 @@ func TestDNSResolver(t *testing.T) {
 	defer test.Close()
 	p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 
-	// Makes a DNS query for a couple hostnames on a list and checks
+	// Injects DNS responses for a couple hostnames on and checks
 	// if the resolver saved all of them on the cache
 	t.Run("saves-hostname-for-all-ips", func(t *testing.T) {
 		// This test contains a 1 second backoff, and tries 10 times until it fails
 		attempts := 10
 
-		savedAllHostnamesFor := func(hostname string, ipAddresses []net.IP) {
+		savedAllHostnamesFor := func(hostname string, ipAddresses []netip.Addr) {
 			assert.GreaterOrEqual(t, len(ipAddresses), 1)
 
 			for _, ipAddress := range ipAddresses {
 				for ; attempts != 0; attempts-- {
-					nip, ok := netip.AddrFromSlice(ipAddress)
-					if !ok {
-						t.Fatal("Couldn't get an IP address. Network issues?")
-					}
-					list := p.Resolvers.DNSResolver.HostListFromIP(nip)
+					list := p.Resolvers.DNSResolver.HostListFromIP(ipAddress)
 
 					if len(list) != 0 {
 						assert.True(t, slices.Contains(list, hostname))
@@ -118,17 +114,38 @@ func TestDNSResolver(t *testing.T) {
 			}
 		}
 
-		hostList := []string{"perdu.com", "datadoghq.com", "datadoghq.eu", "example.com", "example.org", "example.net"}
-		var addresses = make(map[string][]net.IP)
+		//hostList := []string{"example.com"}
+		var addresses = make(map[string][]netip.Addr)
+		example_com := "0000000000000000000000000800450000a41fbd400001115b567f0000357f0000010035d7140090fed76d7481800001000600000001076578616d706c6503636f6d0000010001c00c00010001000000ea0004600780c6c00c00010001000000ea000417c0e454c00c00010001000000ea000417d7008ac00c00010001000000ea000417d70088c00c00010001000000ea000417c0e450c00c00010001000000ea0004600780af000029ffd6000000000000"
+		example_net := "0000000000000000000000000800450000841fc1400001115b727f0000357f0000010035affa0070feb7477981800001000400000001076578616d706c65036e65740000010001c00c0001000100000079000417d7008dc00c0001000100000079000417d70087c00c00010001000000790004600780d1c00c00010001000000790004600780bb000029ffd6000000000000"
+		example_org := "0000000000000000000000000800450000841fbf400001115b747f0000357f0000010035bbbc0070feb7f39181800001000400000001076578616d706c65036f72670000010001c00c00010001000000f8000417d70085c00c00010001000000f8000417d70084c00c00010001000000f80004600780c0c00c00010001000000f80004600780ba000029ffd6000000000000"
 
-		for _, host := range hostList {
-			ipAddresses, err := net.LookupIP(host)
-			if err != nil {
-				t.Fatalf("couldn't get IP address for host %s", host)
-			}
-
-			addresses[host] = ipAddresses
+		addresses["example.com"] = []netip.Addr{
+			netip.MustParseAddr("96.7.128.198"),
+			netip.MustParseAddr("23.215.0.138"),
+			netip.MustParseAddr("23.192.228.84"),
+			netip.MustParseAddr("23.215.0.136"),
+			netip.MustParseAddr("23.192.228.80"),
+			netip.MustParseAddr("96.7.128.175"),
 		}
+
+		addresses["example.net"] = []netip.Addr{
+			netip.MustParseAddr("23.215.0.141"),
+			netip.MustParseAddr("23.215.0.135"),
+			netip.MustParseAddr("96.7.128.209"),
+			netip.MustParseAddr("96.7.128.187"),
+		}
+
+		addresses["example.org"] = []netip.Addr{
+			netip.MustParseAddr("23.215.0.133"),
+			netip.MustParseAddr("23.215.0.132"),
+			netip.MustParseAddr("96.7.128.192"),
+			netip.MustParseAddr("96.7.128.186"),
+		}
+
+		err = injectHexDump("lo", example_com)
+		err = injectHexDump("lo", example_net)
+		err = injectHexDump("lo", example_org)
 
 		for hostname, addresses := range addresses {
 			savedAllHostnamesFor(hostname, addresses)
