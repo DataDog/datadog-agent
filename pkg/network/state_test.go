@@ -2294,6 +2294,8 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 
 }
 
+// TODO add redis tests
+
 func TestKafkaStats(t *testing.T) {
 	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
