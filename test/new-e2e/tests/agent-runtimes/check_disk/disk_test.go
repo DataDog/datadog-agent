@@ -7,6 +7,7 @@
 package checkdisk
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"slices"
@@ -94,7 +95,7 @@ type metricPayload struct {
 	points         []float64
 	ty             int32
 	unit           string
-	SourceTypeName string
+	sourceTypeName string
 	interval       int64
 	originProduct  uint32
 	originCategory uint32
@@ -112,7 +113,7 @@ func metricPayloadCompare(a, b metricPayload) bool {
 		}) &&
 		a.ty == b.ty &&
 		a.unit == b.unit &&
-		a.SourceTypeName == b.SourceTypeName &&
+		a.sourceTypeName == b.sourceTypeName &&
 		a.interval == b.interval &&
 		a.originProduct == b.originProduct &&
 		a.originCategory == b.originCategory &&
@@ -120,15 +121,21 @@ func metricPayloadCompare(a, b metricPayload) bool {
 }
 
 func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []metricPayload {
+	v.T().Helper()
+
+	diskCheckVersion := "old"
 	if useNewVersion {
 		agentConfig += "\nuse_diskv2_check: true"
-		checkConfig += "\n  loader: core"
+		checkConfig += "\n    loader: core"
+		diskCheckVersion = "new"
 	}
+	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
+	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithFile("/etc/datadog-agent/conf.d/disk.d/conf.yaml", checkConfig, true),
+			agentparams.WithIntegration("disk.d", checkConfig),
 		),
 	))
 
@@ -144,6 +151,18 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.disk.total")
 		require.NoError(c, err)
 		require.NotEmpty(c, metrics)
+		v.T().Logf("metrics: %v", metrics)
+
+		found := false
+		for _, metric := range metrics {
+			if slices.ContainsFunc(metric.Tags, func(tag string) bool {
+				return tag == diskCheckVersionTag
+			}) {
+				found = true
+				break
+			}
+		}
+		require.True(c, found)
 	}, time.Second*10, time.Second*1)
 
 	// get the metric payloads for the disk check
@@ -164,13 +183,20 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 				points[i] = point.Value
 			}
 
+			tags := make([]string, 0, len(payload.Tags))
+			for _, tag := range payload.Tags {
+				if tag != diskCheckVersionTag {
+					tags = append(tags, tag)
+				}
+			}
+
 			diskMetricPayloads = append(diskMetricPayloads, metricPayload{
 				name:           payload.Metric,
-				tags:           payload.Tags,
+				tags:           tags,
 				points:         points,
 				ty:             int32(payload.Type),
 				unit:           payload.Unit,
-				SourceTypeName: payload.SourceTypeName,
+				sourceTypeName: payload.SourceTypeName,
 				interval:       payload.Interval,
 				originProduct:  payload.GetMetadata().Origin.GetOriginProduct(),
 				originCategory: payload.GetMetadata().Origin.GetOriginCategory(),
