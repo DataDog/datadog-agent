@@ -609,7 +609,7 @@ workflow:
 # Alternative of the above to have an agent-release-management trigger
 # for stable branches in case of failure in any previous job
 .on_deploy_installer_stable_on_failure:
-  - <<: *if_deploy_installer
+  - <<: *if_deploy_installer_stable
     when: on_failure
 
 .except_deploy:

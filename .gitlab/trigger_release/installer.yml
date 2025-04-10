@@ -19,7 +19,7 @@
     TARGET_REPO_BRANCH: $BUCKET_BRANCH
   script:
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - 'dda inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION
       --variable AUTO_RELEASE
@@ -72,4 +72,4 @@ installer_trigger_manual_prod_release_on_failure:
     # the created pipeline would likely cause this job to timeout
     NO_FOLLOW: "--no-follow"
   rules:
-    - !reference [.on_deploy_installer_stable_on_failure] 
+    - !reference [.on_deploy_installer_stable_on_failure]
