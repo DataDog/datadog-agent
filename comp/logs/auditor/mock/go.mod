@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/logs/auditor/mock
+module github.com/DataDog/datadog-agent
 
 go 1.23.0
 
