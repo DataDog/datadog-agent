@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline
 
-go 1.23.0
+go 1.23.6
+
+toolchain go1.23.7
 
 require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.61.0
 
