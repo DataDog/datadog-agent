@@ -238,8 +238,6 @@ new-agent_dmg-x64-a7:
     - sudo umount /Volumes/Agent
   script:
     - unset OMNIBUS_GIT_CACHE_DIR
-    # TODO: Within runner image
-    # - brew install pyenv pyenv-virtualenv || true
 
     - set -eo pipefail
 
