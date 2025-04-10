@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	datadogclientmodule "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -41,6 +39,7 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -146,6 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
+					IPCParams:    ipc.ForDaemon(),
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
@@ -218,7 +218,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressionfx.Module(),
 				metricscompressionfx.Module(),
 				diagnosefx.Module(),
-				createandfetchimpl.Module(),
 
 				fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 					return demuxInstance.Serializer()
@@ -249,7 +248,7 @@ func start(log log.Component,
 	settings settings.Component,
 	compression logscompression.Component,
 	datadogConfig config.Component,
-	authToken authtoken.Component,
+	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 	_ metadatarunner.Component,
@@ -317,7 +316,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, authToken, diagnoseComp, dcametadataComp); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

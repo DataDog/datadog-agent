@@ -32,10 +32,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -57,7 +57,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, authToken authtoken.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -90,7 +90,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// DCA client token
 	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
-	tlsConfig := authToken.GetTLSServerConfig()
+	tlsConfig := ipc.GetTLSServerConfig()
 
 	tlsConfig.MinVersion = tls.VersionTLS13
 

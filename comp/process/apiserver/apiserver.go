@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -37,7 +37,7 @@ type dependencies struct {
 
 	Log logComp.Component
 
-	At authtoken.Component
+	IPC ipc.Component
 
 	APIServerDeps api.APIServerDeps
 }
@@ -72,7 +72,7 @@ func newApiServer(deps dependencies) Component {
 				return err
 			}
 			go func() {
-				tlsListener := tls.NewListener(ln, deps.At.GetTLSServerConfig())
+				tlsListener := tls.NewListener(ln, deps.IPC.GetTLSServerConfig())
 				err = apiserver.server.Serve(tlsListener)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					_ = deps.Log.Error(err)

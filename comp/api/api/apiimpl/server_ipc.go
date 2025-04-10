@@ -38,7 +38,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
 		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
-		TLSConfig: server.authToken.GetTLSServerConfig(),
+		TLSConfig: server.ipc.GetTLSServerConfig(),
 	}
 
 	startServer(server.ipcListener, ipcServer, ipcServerName)

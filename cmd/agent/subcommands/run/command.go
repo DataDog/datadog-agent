@@ -52,7 +52,6 @@ import (
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -69,6 +68,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -198,6 +198,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
+				IPCParams:            ipc.ForDaemon(),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
@@ -393,7 +394,6 @@ func getSharedFxOption() fx.Option {
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
-		authtokenimpl.Module(),
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),

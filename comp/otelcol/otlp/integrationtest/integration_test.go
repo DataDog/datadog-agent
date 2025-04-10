@@ -36,10 +36,10 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -92,7 +92,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, t *
 			return statsd.NewOTelStatsd(client)
 		}),
 		sysprobeconfig.NoneModule(),
-		fx.Provide(func() authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.Mock(t) }),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),

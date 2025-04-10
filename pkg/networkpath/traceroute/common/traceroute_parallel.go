@@ -196,10 +196,10 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		return nil, ctx.Err()
 	}
 
+	// If we found the destination, trim the results array
 	destIdx := slices.IndexFunc(results, func(pr *ProbeResponse) bool {
 		return pr != nil && pr.IsDest
 	})
-	// trim off anything after the destination
 	if destIdx != -1 {
 		results = slices.Clip(results[:destIdx+1])
 	}

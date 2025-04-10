@@ -13,8 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
@@ -65,7 +65,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	return NewExtension(c, cfg, telemetry, info, true)
 }
 
-func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOverride string) *httptest.ResponseRecorder {
+func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
@@ -73,10 +73,7 @@ func getResponseToHandlerRequest(t *testing.T, at authtoken.Component, tokenOver
 		t.Fatal(err)
 	}
 
-	token, err := at.Get()
-	if err != nil {
-		t.Fatal(err)
-	}
+	token := ipc.GetAuthToken()
 	if tokenOverride != "" {
 		token = tokenOverride
 	}
@@ -123,9 +120,9 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	at := authtokenmock.New(t)
+	ipc := ipcmock.Mock(t)
 
-	rr := getResponseToHandlerRequest(t, at, "")
+	rr := getResponseToHandlerRequest(t, ipc, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -154,9 +151,9 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	at := authtokenmock.New(t)
+	ipc := ipcmock.Mock(t)
 
-	rr := getResponseToHandlerRequest(t, at, "badtoken")
+	rr := getResponseToHandlerRequest(t, ipc, "badtoken")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusForbidden, rr.Code,
