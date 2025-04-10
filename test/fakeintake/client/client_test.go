@@ -53,6 +53,9 @@ var apiV02APMStats []byte
 //go:embed fixtures/api_v1_metadata_response
 var apiV1Metadata []byte
 
+//go:embed fixtures/api_v2_ndm_response
+var apiV2NDM []byte
+
 //go:embed fixtures/api_v2_ndmflow_response
 var apiV2NDMFlow []byte
 
@@ -514,6 +517,56 @@ func TestClient(t *testing.T) {
 		for _, p := range payloads {
 			assert.Equal(t, expectedHostname, p.Hostname)
 		}
+	})
+
+	t.Run("getNDMPayloads", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2NDM)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getNDMPayloads()
+		require.NoError(t, err)
+		assert.True(t, client.ndmAggregator.ContainsPayloadName("default: integration:snmp"))
+	})
+
+	t.Run("GetNDMPayloads", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2NDM)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		ndmPayloads, err := client.GetNDMPayloads()
+		require.NoError(t, err)
+		fmt.Println(len(ndmPayloads))
+		assert.Equal(t, 61, len(ndmPayloads))
+
+		ndmPayload := ndmPayloads[0]
+		assert.Equal(t, "default", ndmPayload.Namespace)
+		assert.Equal(t, "snmp", ndmPayload.Integration)
+		assert.Equal(t, "default:127.0.0.1", ndmPayload.Devices[0].ID)
+		assert.Contains(t, ndmPayload.Devices[0].IDTags, "snmp_device:127.0.0.1")
+		assert.Contains(t, ndmPayload.Devices[0].IDTags, "device_namespace:default")
+		assert.Contains(t, ndmPayload.Devices[0].Tags, "snmp_profile:cisco-nexus")
+		assert.Contains(t, ndmPayload.Devices[0].Tags, "device_vendor:cisco")
+		assert.Contains(t, ndmPayload.Devices[0].Tags, "snmp_device:127.0.0.1")
+		assert.Contains(t, ndmPayload.Devices[0].Tags, "device_namespace:default")
+		assert.Equal(t, "127.0.0.1", ndmPayload.Devices[0].IPAddress)
+		assert.Equal(t, int32(1), ndmPayload.Devices[0].Status)
+		assert.Equal(t, "Nexus-eu1.companyname.managed", ndmPayload.Devices[0].Name)
+		assert.Equal(t, "oxen acted but acted kept", ndmPayload.Devices[0].Description)
+		assert.Equal(t, "1.3.6.1.4.1.9.12.3.1.3.1.2", ndmPayload.Devices[0].SysObjectID)
+		assert.Equal(t, "but kept Jaded their but kept quaintly driving their", ndmPayload.Devices[0].Location)
+		assert.Equal(t, "cisco-nexus", ndmPayload.Devices[0].Profile)
+		assert.Equal(t, "cisco", ndmPayload.Devices[0].Vendor)
+		assert.Equal(t, "switch", ndmPayload.Devices[0].DeviceType)
+		assert.Equal(t, 8, len(ndmPayload.Interfaces))
+		assert.Equal(t, "default:127.0.0.1", ndmPayload.Diagnoses[0].ResourceID)
+		assert.Equal(t, "device", ndmPayload.Diagnoses[0].ResourceType)
+		assert.Equal(t, int64(1743497402), ndmPayload.CollectTimestamp)
+		assert.Empty(t, ndmPayload.Subnet)
 	})
 
 	t.Run("getNDMFlows", func(t *testing.T) {

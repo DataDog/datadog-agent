@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.64.2:
+
+7.64.2
+======
+
+.. _Release Notes_7.64.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-04-02
+
+- Please refer to the `7.64.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7642>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.64.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Process Agent files are added to the flare archive instead of
+  displaying "no session token provided".
+
+
 .. _Release Notes_7.64.1:
 
 7.64.1
@@ -101,7 +125,7 @@ Enhancement Notes
 
 - Enable IMDSv2 by default for all EC2 instance hosts if IMDSv2 usage was not explicitly enabled.
 
-- Added capability to generate profiling data in a flare 
+- Added capability to generate profiling data in a flare
   requested via Remote Config
 
 - Image layer digests will no longer report as "<missing>" from Docker runtimes.
@@ -166,7 +190,7 @@ Bug Fixes
 - version-manifest.json and version-manifest.txt files now correctly reflect the packages content.
 
 - Prevent journald and windows event logs from being errantly marked as
-  truncated in specific circumstances. 
+  truncated in specific circumstances.
 
 - Obfuscation Cache Size Calculation:
   Resolved an issue where the cache item size was underestimated by not accounting for the Go struct overhead (including struct fields and headers for strings and slices).
@@ -186,7 +210,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- Add multi line log aggregation telemetry. 
+- Add multi line log aggregation telemetry.
 
 
 .. _Release Notes_7.63.3:
