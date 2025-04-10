@@ -225,7 +225,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			fmt.Printf("%#v\n", c)
 			fmt.Println("=====================")
 			fmt.Println("CONFIC C STRING")
-			fmt.Println(c.String())
+			if c != nil {
+				fmt.Println(c.String())
+			} else {
+				fmt.Println("c is nil")
+			}
 			fmt.Println("=====================")
 			fmt.Println("SELECTED LOADER")
 			fmt.Println(selectedInstanceLoader)
