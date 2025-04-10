@@ -11,7 +11,7 @@ BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
 BIN_DIR = os.path.join(".", "bin", "otel-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("otel-agent"))
-DDOT_DEV_AGENT_IMAGE = "nightly-full-main-jmx"
+DDOT_DEV_AGENT_TAG = "nightly-full-main-jmx"
 DDOT_DEV_AGENT_BRANCH = "main"
 DDOT_AGENT_IMAGE_NAME = "datadog/agent"
 DDOT_AGENT_TAG = "main-ddot"
@@ -19,7 +19,7 @@ DDOT_BYOC_DOCKERFILE = os.path.join("Dockerfiles", "agent-ddot", "Dockerfile.age
 
 
 @task
-def byoc_release(ctx, image=DDOT_DEV_AGENT_IMAGE, branch=DDOT_DEV_AGENT_BRANCH):
+def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, repo=DDOT_AGENT_IMAGE_NAME):
     """
     Modify dockerfile
     """
@@ -31,11 +31,11 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_IMAGE, branch=DDOT_DEV_AGENT_BRANCH):
 
         for line in contents:
             if re.search("^ARG AGENT_VERSION=.*$", line):
+                line = f"ARG AGENT_REPO={repo}\n"
+            elif re.search("^ARG AGENT_VERSION=.*$", line):
                 line = f"ARG AGENT_VERSION={image}\n"
-                print(line)
             elif re.search("^ARG AGENT_BRANCH=.*$", line):
                 line = f"ARG AGENT_BRANCH={branch}\n"
-                print(line)
 
             file.write(line)
 
