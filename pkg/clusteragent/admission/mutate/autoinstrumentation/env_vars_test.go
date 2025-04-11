@@ -21,8 +21,9 @@ func TestEnvVars(t *testing.T) {
 	}
 	testdata := []struct {
 		name     string
-		mutator  envVar
+		mutator  containerMutator
 		expected []corev1.EnvVar
+		err      bool
 	}{
 		{
 			name: "raw env var works as prepend",
@@ -48,8 +49,9 @@ func TestEnvVars(t *testing.T) {
 		{
 			name: "prefer initial values",
 			mutator: envVar{
-				key:     "INITIAL",
-				valFunc: useExistingEnvValOr("new"),
+				key:           "INITIAL",
+				valFunc:       identityValFunc("new"),
+				dontOverwrite: true,
 			},
 			expected: []corev1.EnvVar{
 				initial,
@@ -65,6 +67,56 @@ func TestEnvVars(t *testing.T) {
 				{Name: "INITIAL", Value: "new"},
 			},
 		},
+		{
+			name: "we can do the default behavior",
+			mutator: containerMutators{
+				envVarMutator(corev1.EnvVar{
+					Name:  "INITIAL",
+					Value: "updated",
+				}),
+				envVarMutator(corev1.EnvVar{
+					Name:  "PREPENDED",
+					Value: "new",
+				}),
+			},
+			expected: []corev1.EnvVar{
+				{Name: "PREPENDED", Value: "new"},
+				initial,
+			},
+		},
+		{
+			name: "rawEnvVar can overwrite",
+			mutator: envVar{
+				key: "INITIAL",
+				rawEnvVar: &corev1.EnvVar{
+					Name: "INITIAL",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "banana",
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{
+					Name: "INITIAL",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "banana",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "empty mutation",
+			mutator: envVar{
+				key: "INITIAL",
+			},
+			expected: []corev1.EnvVar{
+				initial,
+			},
+		},
 	}
 
 	for _, tt := range testdata {
@@ -73,7 +125,9 @@ func TestEnvVars(t *testing.T) {
 				Name: "container",
 				Env:  []corev1.EnvVar{initial},
 			}
-			require.NoError(t, tt.mutator.mutateContainer(&c))
+
+			err := tt.mutator.mutateContainer(&c)
+			require.NoError(t, err)
 			require.Equal(t, tt.expected, c.Env)
 		})
 	}

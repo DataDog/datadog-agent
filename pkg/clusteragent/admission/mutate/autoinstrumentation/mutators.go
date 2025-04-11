@@ -181,19 +181,17 @@ func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {
 }
 
 func newConfigEnvVarFromBoolMutator(key string, val *bool) envVar {
-	value := strconv.FormatBool(valueOrZero(val))
-	return envVar{
-		key:     key,
-		valFunc: useExistingEnvValOr(value),
-	}
+	return envVarMutator(corev1.EnvVar{
+		Name:  key,
+		Value: strconv.FormatBool(valueOrZero(val)),
+	})
 }
 
 func newConfigEnvVarFromStringMutator(key string, val *string) envVar {
-	value := valueOrZero(val)
-	return envVar{
-		key:     key,
-		valFunc: useExistingEnvValOr(value),
-	}
+	return envVarMutator(corev1.EnvVar{
+		Name:  key,
+		Value: valueOrZero(val),
+	})
 }
 
 // containerFilter is a predicate function that evaluates
@@ -216,12 +214,16 @@ func filteredContainerMutator(f containerFilter, m containerMutator) containerMu
 // envVarMutator uses the envVar containerMutator to set the
 // raw EnvVar as given.
 //
-// It will prepend the environment variable for parity with mutate.InjectEnv.
+// It will prepend the environment variable and if the variable already
+// is in the container it will not add it.
+//
+// This is for parity for common.InjectEnv.
 func envVarMutator(env corev1.EnvVar) envVar {
 	return envVar{
-		key:       env.Name,
-		rawEnvVar: &env,
-		prepend:   true,
+		key:           env.Name,
+		rawEnvVar:     &env,
+		prepend:       true,
+		dontOverwrite: true,
 	}
 }
 
