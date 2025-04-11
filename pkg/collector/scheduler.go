@@ -66,6 +66,7 @@ type CheckScheduler struct {
 
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
+	fmt.Println("CALL INIT CHECK SCHEDULER")
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
@@ -73,9 +74,11 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
 	}
 	// add the check loaders
+	fmt.Println("CALLING LOADERS CATALOG")
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
+		fmt.Printf("Adding %s to Check Scheduler\n", loader)
 		checkScheduler.addLoader(loader)
-		log.Debugf("Added %s to Check Scheduler", loader)
+		fmt.Printf("Added %s to Check Scheduler\n", loader)
 	}
 	return checkScheduler
 }
