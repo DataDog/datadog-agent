@@ -33,7 +33,7 @@ func (c *Check) LazyInitObfuscator() *obfuscate.Obfuscator {
 			obfuscaterConfig = obfuscate.Config{}
 		}
 		obfuscaterConfig.SQL = c.config.ObfuscatorOptions
-
+		obfuscaterConfig.Cache.Purpose = "oracle"
 		c.obfuscator = obfuscate.NewObfuscator(obfuscaterConfig)
 	}
 

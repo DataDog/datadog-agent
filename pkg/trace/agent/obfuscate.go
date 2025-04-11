@@ -184,6 +184,7 @@ func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
 
 	if a.obfuscator == nil {
 		if a.obfuscatorConf != nil {
+			a.obfuscatorConf.Cache.Purpose = "trace-agent"
 			a.obfuscator = obfuscate.NewObfuscator(*a.obfuscatorConf)
 		} else {
 			a.obfuscator = obfuscate.NewObfuscator(obfuscate.Config{})

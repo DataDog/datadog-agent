@@ -269,6 +269,7 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		if len(obfuscaterConfig.Mongo.ObfuscateSQLValues) == 0 {
 			obfuscaterConfig.Mongo.ObfuscateSQLValues = defaultMongoObfuscateSettings.ObfuscateSQLValues
 		}
+		obfuscaterConfig.Cache.Purpose = "python"
 		obfuscator = obfuscate.NewObfuscator(obfuscaterConfig)
 	})
 	return obfuscator
