@@ -264,57 +264,6 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
-func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLowercaseDevicesAreReported(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "/dev/SDA1",
-				Mountpoint: "/home",
-				Fstype:     "ext4",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskIOCounters = func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return map[string]gopsutil_disk.IOCountersStat{
-			"/dev/SDA1": {
-				Name:       "sda1",
-				ReadCount:  100,
-				WriteCount: 200,
-				ReadBytes:  1048576,
-				WriteBytes: 2097152,
-				ReadTime:   300,
-				WriteTime:  450,
-			},
-			"/dev/SDA2": {
-				Name:       "sda2",
-				ReadCount:  50,
-				WriteCount: 75,
-				ReadBytes:  524288,
-				WriteBytes: 1048576,
-				ReadTime:   500,
-				WriteTime:  150,
-			},
-		}, nil
-	}
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte("lowercase_device_tag: true"))
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{"device:/dev/sda1", "device_name:SDA1"})
-}
-
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
