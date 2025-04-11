@@ -84,12 +84,8 @@ def running_in_gitlab_ci():
     return os.environ.get("GITLAB_CI") == "true"
 
 
-def running_in_circleci():
-    return os.environ.get("CIRCLECI") == "true"
-
-
 def running_in_ci():
-    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+    return running_in_github_actions() or running_in_gitlab_ci()
 
 
 def running_in_pyapp():
@@ -439,10 +435,6 @@ def get_git_pretty_ref():
     # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
     if running_in_github_actions():
         return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    # https://circleci.com/docs/variables/#built-in-environment-variables
-    if running_in_circleci():
-        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
 
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":
