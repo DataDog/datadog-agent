@@ -102,9 +102,10 @@ func TestSNMPListenerSubnets(t *testing.T) {
 
 	services := map[string]*SNMPService{}
 	l := &SNMPListener{
-		services: services,
-		stop:     make(chan bool),
-		config:   snmpListenerConfig,
+		services:   services,
+		stop:       make(chan bool),
+		config:     snmpListenerConfig,
+		ipsCounter: newMockIPCounter(),
 	}
 
 	l.Listen(newSvc, delSvc)
@@ -394,4 +395,43 @@ func TestExtraConfigPingEmpty(t *testing.T) {
 	info, err := svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}`, info)
+}
+
+// mockIPCounter is a simple mock implementation of IPCounter for testing
+type mockIPCounter struct {
+	Counter map[string]int
+}
+
+func newMockIPCounter() *mockIPCounter {
+	return &mockIPCounter{
+		Counter: make(map[string]int),
+	}
+}
+
+func (m *mockIPCounter) Inc(ip string) {
+	m.Counter[ip]++
+}
+
+func (m *mockIPCounter) Dec(ip string) {
+	m.Counter[ip]--
+}
+
+func (m *mockIPCounter) Get(ip string) int {
+	return m.Counter[ip]
+}
+
+func (m *mockIPCounter) Set(ip string, count int) {
+	m.Counter[ip] = count
+}
+
+func (m *mockIPCounter) GetAll() map[string]int {
+	result := make(map[string]int)
+	for ip, count := range m.Counter {
+		result[ip] = count
+	}
+	return result
+}
+
+func (m *mockIPCounter) Len() int {
+	return len(m.Counter)
 }
