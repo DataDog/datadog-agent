@@ -18,7 +18,7 @@ func ensureMapKey(m map[string]interface{}, key string) map[string]interface{} {
 	return m[key].(map[string]interface{})
 }
 
-func enableOTELAgentonfig(valueYaml string) string {
+func enableOTELAgentConfig(valueYaml string) string {
 	var config map[string]interface{}
 	if valueYaml == "" {
 		config = make(map[string]interface{})
