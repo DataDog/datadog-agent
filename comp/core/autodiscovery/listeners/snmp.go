@@ -619,7 +619,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	if !previousIPsDiscovered {
 		log.Debugf("Previous IPs not all scanned for device %s, adding to pending", deviceIP)
 
-		
+
 		log.Debugf("Checking hashes %v", l.fullDeviceHashByBasicDeviceHash)
 		// check all devices with the same fuzzy hash (aka same name and description)
 		for _, fullHash := range l.fullDeviceHashByBasicDeviceHash[basicDeviceHash] {
@@ -643,7 +643,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		}
 
 		l.pendingServicesByFullDeviceHash[fullDeviceHash] = pendingSvc
-		l.fullDeviceHashByBasicDeviceHash[basicDeviceHash] = append(l.fullDeviceHashByBasicDeviceHash[basicDeviceHash], basicDeviceHash)
+		l.fullDeviceHashByBasicDeviceHash[basicDeviceHash] = append(l.fullDeviceHashByBasicDeviceHash[basicDeviceHash], fullDeviceHash)
 
 		return
 	}
