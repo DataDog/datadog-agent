@@ -50,27 +50,27 @@ func (v *baseCheckSuite) TestCustomCheck() {
 
 func (v *baseCheckSuite) TestCheckRate() {
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-rate", "--json"}))
-	data := parseCheckOutput(v.T(), []byte(check))
+	data := ParseCheckOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 
 	assert.Equal(v.T(), len(metrics), 2)
 	assert.Equal(v.T(), metrics[0].Metric, "hello.world")
-	assert.Equal(v.T(), metrics[0].Points[0][1], 123)
+	assert.EqualValues(v.T(), metrics[0].Points[0][1], 123)
 	assert.Equal(v.T(), metrics[1].Metric, "hello.world")
-	assert.Equal(v.T(), metrics[1].Points[0][1], 133)
+	assert.EqualValues(v.T(), metrics[1].Points[0][1], 133)
 }
 
 func (v *baseCheckSuite) TestCheckTimes() {
 	times := 10
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-times", fmt.Sprint(times), "--json"}))
 
-	data := parseCheckOutput(v.T(), []byte(check))
+	data := ParseCheckOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 
 	assert.Equal(v.T(), len(metrics), times)
-	for idx := 0; idx < times; idx++ {
-		assert.Equal(v.T(), metrics[idx].Points[0][1], 123+idx*10) // see fixtures/hello.py
+	for idx := range times {
+		assert.EqualValues(v.T(), metrics[idx].Points[0][1], 123+idx*10) // see fixtures/hello.py
 	}
 }
