@@ -9,6 +9,7 @@ package collector
 import (
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"slices"
 	"strings"
 	"sync"
@@ -65,6 +66,7 @@ type CheckScheduler struct {
 
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
+	fmt.Println("CALL INIT CHECK SCHEDULER")
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
@@ -72,15 +74,18 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
 	}
 	// add the check loaders
+	fmt.Println("CALLING LOADERS CATALOG")
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
+		fmt.Printf("Adding %s to Check Scheduler\n", loader)
 		checkScheduler.addLoader(loader)
-		log.Debugf("Added %s to Check Scheduler", loader)
+		fmt.Printf("Added %s to Check Scheduler\n", loader)
 	}
 	return checkScheduler
 }
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
+	fmt.Println("SCHEDULER")
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
@@ -155,6 +160,8 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
+	fmt.Println("GET CHECKS")
+
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
 
@@ -167,7 +174,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 	for _, instance := range config.Instances {
 		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			fmt.Printf("skip loading jmx check '%s', it is handled elsewhere\n", config.Name)
 			continue
 		}
 
@@ -177,7 +184,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 
 		err := yaml.Unmarshal(instance, &instanceConfig)
 		if err != nil {
-			log.Warnf("Unable to parse instance config for check `%s`: %v", config.Name, instance)
+			fmt.Printf("Unable to parse instance config for check `%s`: %v\n", config.Name, instance)
 			continue
 		}
 
@@ -185,20 +192,77 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			selectedInstanceLoader = instanceConfig.LoaderName
 		}
 		if selectedInstanceLoader != "" {
-			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
+			fmt.Printf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)\n", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
 		} else {
-			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+			fmt.Printf("Loading check instance for check '%s' using default loaders\n", config.Name)
 		}
 
+		fmt.Println("LEN OF LOADERS")
+		fmt.Println(len(s.loaders))
+		var pythonLoader check.Loader
 		for _, loader := range s.loaders {
+			if loader.Name() == "python" {
+				pythonLoader = loader
+			}
+
 			// the loader is skipped if the loader name is set and does not match
+			fmt.Printf("SELECTED INSTANCE LOADER %s VS LOADER.NAME %s\n", selectedInstanceLoader, loader.Name())
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
-				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
+				fmt.Printf("Loader name %v does not match, skip loader %v for check %v\n", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
+
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println(config)
+			fmt.Println("=====================")
+			fmt.Println("CONFIG NAME")
+			fmt.Println(config.Name)
+			fmt.Println("=====================")
+			fmt.Println("CONFIG INSTANCE")
+			fmt.Println(instance)
+			fmt.Println("=====================")
 			c, err := loader.Load(s.senderManager, config, instance)
+			fmt.Println("CONFIG C STRING")
+			fmt.Println(c)
+			fmt.Println("=====================")
+			fmt.Printf("%#v\n", c)
+			fmt.Println("=====================")
+			fmt.Println("CONFIC C STRING")
+			if c != nil {
+				fmt.Println(c.String())
+			} else {
+				fmt.Println("c is nil")
+			}
+			fmt.Println("=====================")
+			fmt.Println("SELECTED LOADER")
+			fmt.Println(selectedInstanceLoader)
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+			fmt.Println("=====================")
+
+			if selectedInstanceLoader == "core" && c != nil && c.String() == "snmp" {
+				if pythonLoader != nil {
+					fmt.Println("ENTERING IN THE IF CONDITION TO SET PYTHON CHECK")
+					pythonC, err := pythonLoader.Load(s.senderManager, config, instance)
+					fmt.Println("PYTHON CHECK STRING IN IF CONDITION")
+					fmt.Println(pythonC)
+					fmt.Println("PYTHON CHECK IN IF CONDITION")
+					fmt.Printf("%#v\n", pythonC)
+					fmt.Println("PYTHON CHECK ERROR IN IF CONDITION")
+					fmt.Println(err)
+					c.(*snmp.Check).PythonCheck = pythonC
+				} else {
+					fmt.Println("PYTHON LOADER IS NIL IN IF CONDITION")
+				}
+			}
+
+			if err != nil {
+				fmt.Printf("Unable to load check '%s' using loader %s: %v\n", config.Name, loader.Name(), err)
+			}
 			if err == nil {
-				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				fmt.Printf("%v: successfully loaded check '%s'\n", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
@@ -208,15 +272,19 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		}
 
 		if len(errors) == numLoaders {
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+			fmt.Printf("Unable to load a check from instance of config '%s': %s\n", config.Name, strings.Join(errors, "; "))
 		}
 	}
+
+	fmt.Println("LEN DE CHECK")
+	fmt.Println(len(checks))
 
 	return checks, nil
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs
 func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
+	fmt.Println("GET CHECKS BY NAME FOR CONFIGS")
 	var checks []check.Check
 	if checkScheduler == nil {
 		return checks

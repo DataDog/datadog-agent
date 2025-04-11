@@ -49,18 +49,62 @@ type Check struct {
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
 	agentConfig                config.Component
+	PythonCheck                check.Check
 }
 
 // Run executes the check
 func (c *Check) Run() error {
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println(c.config)
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Printf("%#v\n", c)
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	if c.PythonCheck != nil {
+		fmt.Println("PYTHON CHECK STRING IN SNMP GO CHECK RUN")
+		fmt.Println(c.PythonCheck.String())
+		fmt.Println("PYTHON CHECK IN SNMP GO CHECK RUN")
+		fmt.Printf("%#v\n", c.PythonCheck)
+	} else {
+		fmt.Println("PYTHON CHECK IS NIL IN THE CONFIG")
+	}
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+
+	//if c.PythonCheck != nil {
+	//	fmt.Println("RUNNING PYTHON CHECK IN CORE CHECK RUN")
+	//	return c.PythonCheck.Run()
+	//}
+
 	var checkErr error
 	sender, err := c.GetSender()
 	if err != nil {
-		return err
+		// TODO: ERR HERE
+		return c.PythonCheck.Run()
+		//return err
 	}
 
 	if c.config.IsDiscovery() {
+		fmt.Println("CONFIG IS DISCOVERY")
 		discoveredDevices := c.discovery.GetDiscoveredDeviceConfigs()
+
+		fmt.Println("NUMBER OF DEVICES DISCOVERED")
+		fmt.Println(len(discoveredDevices))
+
+		var hostnames []string
+		for _, deviceCk := range discoveredDevices {
+			fmt.Println("GETTING HOSTNAME FOR DEVICE")
+			hostname, err := deviceCk.GetDeviceHostname()
+			fmt.Println("FINISHED GETTING HOSTNAME FOR DEVICE:")
+			fmt.Println(hostname)
+			if err != nil {
+				fmt.Printf("error getting hostname for device %s: %s\n", deviceCk.GetIPAddress(), err)
+				continue
+			}
+			hostnames = append(hostnames, hostname)
+		}
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
@@ -73,13 +117,9 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			hostname, err := deviceCk.GetDeviceHostname()
-			if err != nil {
-				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
-				continue
-			}
+
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostnames[i], nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -89,12 +129,23 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
+		fmt.Println("CONFIG IS NOT DISCOVERY")
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
 		if err != nil {
-			return err
+			// TODO: ERR HERE
+			return c.PythonCheck.Run()
+			//return err
 		}
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
+		if checkErr != nil {
+			fmt.Println("CHECK ERROR IN NOT DISCOVERY")
+			fmt.Println(checkErr.Error())
+			if c.PythonCheck != nil {
+				return c.PythonCheck.Run()
+			}
+		}
+		// TODO: ERR HERE
 	}
 
 	// Commit
@@ -206,6 +257,7 @@ func (c *Check) IsHASupported() bool {
 
 // Factory creates a new check factory
 func Factory(agentConfig config.Component, rcClient rcclient.Component) option.Option[func() check.Check] {
+	fmt.Println("FACTORY OF SNMP IS CALLED INSIDE")
 	return option.New(func() check.Check {
 		return newCheck(agentConfig, rcClient)
 	})

@@ -43,7 +43,7 @@ func Run(
 	tagger tagger.Component,
 	config config.Component,
 ) (*diagnose.Result, error) {
-
+	fmt.Println("LOCAL DIAGNOSE")
 	localSuite := diagnose.Suites{
 		diagnose.PortConflict: func(_ diagnose.Config) []diagnose.Diagnosis {
 			return ports.DiagnosePortSuite()

@@ -520,6 +520,17 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 	case "autodiscovery_subnet":
 		return s.config.Network, nil
 	case "loader":
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println(s.config)
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println(s.config.Loader)
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println(len(s.config.Loader))
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println("+++++++++++++++++++++++++++++++")
+		fmt.Println("+++++++++++++++++++++++++++++++")
 		return s.config.Loader, nil
 	case "namespace":
 		return s.config.Namespace, nil
