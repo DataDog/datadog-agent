@@ -558,10 +558,22 @@ namespace Datadog.CustomActions
                 // NOTE: This is a difference in behavior between the Fleet Installer and the Agent installer.
                 //       The Agent installer allows upgrades without re-providing the password. However
                 //       the Fleet Installer must require the password always be provided.
-                _nativeMethods.RemoveSecret(keyName);
+                _session.Log("Agent user is a service account, removing password from LSA secret store");
+                try
+                {
+                    _nativeMethods.RemoveSecret(keyName);
+                }
+                catch (Exception e)
+                {
+                    // Don't fail if we fail to remove the secret.
+                    // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
+                    // so it being left behind shouldn't affect anything.
+                    _session.Log($"Failed to remove agent secret: {e}");
+                }
             }
             else if (!string.IsNullOrEmpty(ddagentuserPassword))
             {
+                _session.Log("Agent user has a password, storing in LSA secret store");
                 _nativeMethods.StoreSecret(keyName, ddagentuserPassword);
             }
         }
@@ -767,6 +779,9 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
+                        // Don't fail if we fail to remove the secret.
+                        // ProcessDDAgentUserCredentials will appropriately clear the password property for service accounts
+                        // so it being left behind shouldn't affect anything.
                         _session.Log($"Failed to remove agent secret: {e}");
                     }
                 }
