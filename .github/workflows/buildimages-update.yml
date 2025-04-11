@@ -92,9 +92,13 @@ jobs:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
           # INCLUDE_OTEL_MODULES must be used without quotes to be ignored when empty
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
+          # INPUT_TEST_VERSION must be used without quotes to be ignored when empty
+          INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
           INPUT_GO_VERSION: ${{ inputs.go_version }}
+          CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
           IMAGES_ID: ${{ inputs.images_id }}
+          TMP_PR_BODY_PATH: /tmp/pr_body
         run: |
           if [ "$CURRENT_GO_VERSION" = "$INPUT_GO_VERSION" ]; then
             dda inv -- -e buildimages.update --tag "$IMAGES_ID" "$TEST_VERSION_FLAG"
@@ -103,54 +107,6 @@ jobs:
             dda inv -- -e update-go --image-tag "$IMAGES_ID" "$TEST_VERSION_FLAG" $INCLUDE_OTEL_MODULES -v "$INPUT_GO_VERSION"
             echo "MESSAGE=Update Go version to $INPUT_GO_VERSION" >> $GITHUB_OUTPUT
           fi
-
-      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
-        id: autocommit
-        with:
-          commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
-          branch: ${{ inputs.branch }}
-          create_branch: true
-          # allow empty commits, so that the branch always exists if the workflow succeeds
-          commit_options: '--allow-empty'
-          skip_dirty_check: true # prevents pushing an empty commit if false
-          # the action fetches all branches and tags, in our case the branches we care about are already fetched
-          # if they exist, so we can skip the fetch
-          skip_fetch: true
-
-      - name: Check if PR exists
-        id: check_pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE_BRANCH: ${{ github.ref_name }}
-          INPUT_BRANCH: ${{ inputs.branch }}
-        run: |
-          # prs variable contains the number of PRs already created that match head and base branches
-          prs=$(gh pr list \
-              --repo "$GITHUB_REPOSITORY" \
-              --head "$INPUT_BRANCH" \
-              --base "$BASE_BRANCH" \
-              --json title \
-              --jq 'length')
-          if [ $prs -eq 0 ]; then
-            echo "CREATE_PR=true" >> $GITHUB_OUTPUT
-          fi
-
-      # Create PR only if there is no pre-existing PR on the branch
-      - name: Create PR
-        if: ${{ steps.check_pr.outputs.CREATE_PR == 'true' }}
-        env:
-          TMP_PR_BODY_PATH: /tmp/pr_body
-          GH_TOKEN: ${{ github.token }}
-          PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
-          PR_LABELS: "go-update,team/agent-runtimes"
-          CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
-          IMAGES_ID: ${{ inputs.images_id }}
-          CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
-          INPUT_GO_VERSION: ${{ inputs.go_version }}
-          # INPUT_TEST_VERSION must be used without quotes to be ignored when empty
-          INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
-          GITHUB_REF: ${{ github.ref }}
-        run: |
           # Generate the PR description
           dda inv -- -e buildimages.generate-pr-body \
           "$CURRENT_BUILDIMAGE_TAG" \
@@ -158,11 +114,15 @@ jobs:
           "$CURRENT_GO_VERSION" \
           "$INPUT_GO_VERSION" \
           $INPUT_TEST_VERSION > $TMP_PR_BODY_PATH
+          echo "BODY<<EOF"$'\n'"$(cat $TMP_PR_BODY_PATH)"$'\n'EOF >> $GITHUB_OUTPUT
 
-          # Create the PR
-          gh pr create \
-          --base "$GITHUB_REF" \
-          --title "$PR_TITLE" \
-          --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS" \
-          --draft \
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        with:
+          commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          branch: ${{ inputs.branch }}
+          sign-commits: true
+          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          body: ${{ steps.update_build_images.outputs.BODY }}
+          draft: true
+          labels: go-update,team/agent-runtimes

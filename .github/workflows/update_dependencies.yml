@@ -28,7 +28,6 @@ jobs:
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
-          token: ${{ steps.app-token.outputs.token }}
       - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
           go-version-file: ".go-version"
@@ -52,37 +51,22 @@ jobs:
           # depending on module order
           dda inv -- -e tidy
           dda inv -- -e tidy
-      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
-        id: autocommit
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
         with:
-          commit_message: "chore(deps): update all golang.org/x/... dependencies"
+          commit-message: "chore(deps): update all golang.org/x/... dependencies"
           branch: update-golang-org-x-${{ github.run_id }}-${{ github.run_attempt }}
-          create_branch: true
-          skip_fetch: true
-      - name: Create PR
-        env:
-          TMP_PR_BODY_PATH: /tmp/pr_body
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          PR_TITLE: "[automated] Update golang.org/x/... dependencies"
-          PR_LABELS: "team/agent-runtimes,qa/done,changelog/no-changelog,ask-review"
-          GITHUB_REF: ${{ github.ref }}
-        run: |
-          # Generate the PR description
-          cat > $TMP_PR_BODY_PATH <<- EOM
-          ### What does this PR do?
-          Update all \`golang.org/x/...\` dependencies.
+          token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
+          title: "[automated] Update golang.org/x/... dependencies"
+          body: |
+            ### What does this PR do?
+            Update all \`golang.org/x/...\` dependencies.
 
-          ### Motivation
-          Keep dependencies up-to-date, benefit from bug fixes and new features.
+            ### Motivation
+            Keep dependencies up-to-date, benefit from bug fixes and new features.
 
-          ### Describe how you validated your changes
-          CI is considered enough to validate changes.
-          EOM
-
-          # Create the PR
-          gh pr create \
-          --base "$GITHUB_REF" \
-          --title "$PR_TITLE" \
-          --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS" \
-          --reviewer "DataDog/agent-runtimes"
+            ### Describe how you validated your changes
+            CI is considered enough to validate changes.
+          reviewers: DataDog/agent-runtimes
+          labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review
