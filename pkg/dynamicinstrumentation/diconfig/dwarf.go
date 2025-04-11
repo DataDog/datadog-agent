@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/kr/pretty"
 )
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
@@ -237,9 +238,10 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 	}
 
 	v, typeParsedAlready := seenTypes[typeHeader.Type]
-	if typeParsedAlready {
+	if typeParsedAlready && typeHeader.Kind != uint(reflect.Pointer) {
 		v.count++
 		if v.count > ditypes.MaxReferenceDepth {
+			fmt.Println("MAX REFERENCE DEPTH REACHED!! SEEN TYPES:", pretty.Sprint(seenTypes))
 			return &ditypes.Parameter{}, nil
 		}
 	} else {
