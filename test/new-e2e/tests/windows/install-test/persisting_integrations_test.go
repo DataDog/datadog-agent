@@ -175,10 +175,10 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	// check that version is different post upgrade
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
-	// check that the third party integration is still installed
+	// check that the third party integration is not installed
 	s.checkIntegrationNotInstalled(vm, "datadog-ping==1.0.2")
 
-	// check that the pip package is still installed
+	// check that the pip package is not installed
 	s.checkPipPackageNotInstalled(vm, "grpcio")
 
 	s.uninstallAgentAndRunUninstallTests(t)
@@ -291,7 +291,9 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 
 	logFilePath := filepath.Join(s.SessionOutputDir(), "upgrade.log")
 
-	// upgrade to the new version, should fail due to folder permissions
+	// upgrade to the new version
+	// now we are ignoring the results of the custom action, which means that the install will pass
+	// but the integrations will not be installed as the folder permissions are incorrect
 	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
