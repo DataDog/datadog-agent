@@ -10,6 +10,7 @@ package datadogagent
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +40,7 @@ func PostInstall(ctx context.Context, installPath string, caller string, _ ...st
 	if err := setupFilesystem(ctx, installPath, caller); err != nil {
 		return err
 	}
-	if err := restoreCustomIntegrations(ctx, installPath); err != nil {
+	if err := integrations.RestoreCustomIntegrations(ctx, installPath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
 	if caller == installerCaller {
@@ -68,17 +69,17 @@ func PreRemove(ctx context.Context, installPath string, caller string, upgrade b
 	}
 
 	if upgrade {
-		if err := saveCustomIntegrations(ctx, installPath); err != nil {
+		if err := integrations.SaveCustomIntegrations(ctx, installPath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 	}
 
-	if err := removeCustomIntegrations(ctx, installPath); err != nil {
+	if err := integrations.RemoveCustomIntegrations(ctx, installPath); err != nil {
 		log.Warnf("failed to remove custom integrations: %s\n", err.Error())
 	}
 
 	// Delete all the .pyc files. This MUST be done after using pip or any python, because executing python might generate .pyc files
-	removeCompiledPythonFiles(installPath)
+	integrations.RemoveCompiledFiles(installPath)
 
 	if !upgrade {
 		// Remove files not tracked by the package manager
@@ -96,7 +97,7 @@ func PreStartExperiment(ctx context.Context) (err error) {
 		span.Finish(err)
 	}()
 
-	if err = saveCustomIntegrations(ctx, StablePath); err != nil {
+	if err = integrations.SaveCustomIntegrations(ctx, StablePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 
@@ -115,7 +116,7 @@ func PostStartExperiment(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := restoreCustomIntegrations(ctx, ExperimentPath); err != nil {
+	if err := integrations.RestoreCustomIntegrations(ctx, ExperimentPath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
 
