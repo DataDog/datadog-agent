@@ -516,8 +516,13 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 	// Secure mounts might look like this: '/mypath (deleted)', we should
 	// ignore all the bits not part of the mountpoint name. Take also into
 	// account a space might be in the mountpoint.
-	mountpoint := strings.Split(partition.Mountpoint, " ")[0]
-	exclude := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountpoint) || !c.includeDevice(device) || !c.includeFileSystem(partition.Fstype) || !c.includeMountPoint(mountpoint)
+	mountPoint := partition.Mountpoint
+	index := strings.LastIndex(mountPoint, " ")
+	// If a space is found, update mountPoint to be everything before the last space.
+	if index != -1 {
+		mountPoint = mountPoint[:index]
+	}
+	exclude := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint) || !c.includeDevice(device) || !c.includeFileSystem(partition.Fstype) || !c.includeMountPoint(mountPoint)
 	return exclude
 }
 
