@@ -25,9 +25,15 @@ import (
 )
 
 func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
-	produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+	supportedVersion := true
+	if produceVersion < kafka.ClassificationMinSupportedProduceRequestApiVersion || produceVersion > kafka.ClassificationMaxSupportedProduceRequestApiVersion {
+		supportedVersion = false
+	}
 
-	if produceVersion < kafka.MinSupportedProduceRequestApiVersion || produceVersion > kafka.MaxSupportedProduceRequestApiVersion {
+	supportedStr := "supported"
+	produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+	if !supportedVersion {
+		supportedStr = "unsupported"
 		produceExpectedStack.Application = protocols.Unknown
 	}
 
@@ -35,7 +41,7 @@ func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, t
 	version.SetMaxKeyVersion(produceAPIKey, produceVersion)
 
 	return protocolClassificationAttributes{
-		name: fmt.Sprintf("produce v%d", produceVersion),
+		name: fmt.Sprintf("produce v%d - should be %s", produceVersion, supportedStr),
 		context: testContext{
 			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
@@ -66,9 +72,15 @@ func getProduceVersionTest(produceVersion int16, targetAddress, serverAddress, t
 }
 
 func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topicName string, dialer *net.Dialer) protocolClassificationAttributes {
-	fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+	supportedVersion := true
+	if fetchVersion < kafka.ClassificationMinSupportedFetchRequestApiVersion || fetchVersion > kafka.ClassificationMaxSupportedFetchRequestApiVersion {
+		supportedVersion = false
+	}
 
-	if fetchVersion < kafka.MinSupportedFetchRequestApiVersion || fetchVersion > kafka.MaxSupportedFetchRequestApiVersion {
+	supportedStr := "supported"
+	fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+	if !supportedVersion {
+		supportedStr = "unsupported"
 		fetchExpectedStack.Application = protocols.Unknown
 	}
 
@@ -76,7 +88,7 @@ func getFetchVersionTest(fetchVersion int16, targetAddress, serverAddress, topic
 	version.SetMaxKeyVersion(fetchAPIKey, fetchVersion)
 
 	return protocolClassificationAttributes{
-		name: fmt.Sprintf("fetch v%d", fetchVersion),
+		name: fmt.Sprintf("fetch v%d should be %s", fetchVersion, supportedStr),
 		context: testContext{
 			serverPort:    kafkaPort,
 			targetAddress: targetAddress,
@@ -270,13 +282,15 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	for produceVersion := kafka.MinSupportedProduceRequestApiVersion; produceVersion <= kafka.MaxSupportedProduceRequestApiVersion; produceVersion++ {
+	// Generate tests for all support Produce versions + 1 unsupported version
+	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion+1; produceVersion++ {
 		currentTest := getProduceVersionTest(int16(produceVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
 	}
 
-	for fetchVersion := kafka.MinSupportedFetchRequestApiVersion; fetchVersion <= kafka.MaxSupportedFetchRequestApiVersion; fetchVersion++ {
+	// Generate tests for all support Fetch versions + 1 unsupported version
+	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion+1; fetchVersion++ {
 		currentTest := getFetchVersionTest(int16(fetchVersion), targetAddress, serverAddress, getTopicName(), defaultDialer)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
