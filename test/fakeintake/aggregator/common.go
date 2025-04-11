@@ -89,26 +89,30 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 		aggName = strings.ReplaceAll(aggName, "aggregator.", "")
 		aggName = strings.ReplaceAll(aggName, "Payload", "")
 		aggName = strings.ToLower(aggName)
-		fmt.Println("ANDREWQIAN UnmarshallPayloads", filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)))
-		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+		fmt.Println("ANDREWQIAN WFKAEOOEWFOAWEOFKEWAOK", filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)))
+		wack := os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+		fmt.Println("ANDREWQIAN WACKTEST3?????", wack)
+		return wack
 	}
 	fmt.Println("ANDREWQIAN WACKTEST2")
 	fmt.Println("ANDREWQIAN UnmarshallPayloads", reflect.TypeOf(agg).Name())
 	// build new map
 	payloadsByName := map[string][]P{}
 	for _, p := range payloads {
-		fmt.Println("ANDREWQIAN UnmarshallPayloads", p)
+		fmt.Println("ANDREWQIAN for _, p := range payloads", p)
 		payloads, err := agg.parse(p)
 		if err != nil {
 			return err
 		}
-		fmt.Println("ANDREWQIAN UnmarshallPayloads", payloads)
+		fmt.Println("ANDREWQIAN payloads, err", payloads)
 
 		for _, item := range payloads {
+			fmt.Println("ANDREWQIAN for _, item := range payloads", item)
 			if _, found := payloadsByName[item.name()]; !found {
 				payloadsByName[item.name()] = []P{}
 			}
 			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
+			fmt.Println("ANDREWQIAN payloadsByName[item.name()]", payloadsByName[item.name()])
 		}
 	}
 	agg.replace(payloadsByName)
