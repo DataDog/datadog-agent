@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -158,19 +159,21 @@ func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwa
 
 // checkAndCastConfig checks the configuration type and its warnings, and casts it to
 // the Datadog Config struct.
-func checkAndCastConfig(c component.Config, logger *zap.Logger) *ExporterConfig {
+func checkAndCastConfig(c component.Config, logger *zap.Logger) (*ExporterConfig, error) {
 	cfg, ok := c.(*ExporterConfig)
 	if !ok {
-		panic("programming error: config structure is not of type *ExporterConfig")
+		return nil, errors.New("programming error: config structure is not of type *ExporterConfig")
 	}
 	cfg.LogWarnings(logger)
-	return cfg
+	return cfg, nil
 }
 
 // createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
-	var err error
-	cfg := checkAndCastConfig(c, params.Logger)
+	cfg, err := checkAndCastConfig(c, params.Logger)
+	if err != nil {
+		return nil, err
+	}
 	var forwarder *defaultforwarder.DefaultForwarder
 	if f.s == nil {
 		f.s, forwarder, err = initSerializer(params.Logger, cfg, f.hostProvider)
