@@ -400,8 +400,8 @@ func (sh *StreamHandler) markEnd() error {
 	return nil
 }
 
-func (sh *StreamHandler) isInactive(now int64, maxInactivitySeconds int) bool {
+func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool {
 	// If the stream has no events, it's considered active, we don't want to
 	// delete a stream that has just been created
-	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > int64(maxInactivitySeconds)*1e9
+	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > maxInactivity.Nanoseconds()
 }

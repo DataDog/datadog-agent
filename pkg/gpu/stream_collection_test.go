@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -90,7 +91,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
-	cfg.MaxStreamInactivitySeconds = 1 // Set inactivity threshold to 1 second
+	cfg.MaxStreamInactivity = 1 * time.Second // Set inactivity threshold to 1 second
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 
 	// Create two streams
@@ -147,7 +148,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	stream2.handleKernelLaunch(launch2)
 
 	// Clean at a time when stream2 should still be active but stream1 should be inactive
-	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivitySeconds*1e9+1)
+	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivity.Nanoseconds()+1)
 	handlers.clean(int64(endTime))
 
 	// Verify stream1 is not present (inactive)
