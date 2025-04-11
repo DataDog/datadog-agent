@@ -10,6 +10,7 @@ package tests
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -18,6 +19,7 @@ import (
 
 func TestChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -48,6 +50,7 @@ func TestChdir(t *testing.T) {
 
 	t.Run("chdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 
 		test.WaitSignal(t, func() error {
 			return os.Chdir(testFolder)
@@ -56,10 +59,15 @@ func TestChdir(t *testing.T) {
 
 			validateSyscallContext(t, event, "$.syscall.chdir.path")
 		})
+
+		if slices.Contains(runnerTags, "test_set:cws_el_ns") {
+			t.Fatalf("artificially failing test %s on cws_el_ns", t.Name())
+		}
 	})
 
 	t.Run("fchdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(testFolder)
@@ -76,6 +84,7 @@ func TestChdir(t *testing.T) {
 
 	t.Run("syscall-context", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 
 		testFolder, _, err := test.Path("test-chdir-ctx")
 		if err != nil {

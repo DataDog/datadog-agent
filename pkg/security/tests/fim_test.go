@@ -22,6 +22,7 @@ import (
 
 func TestFIMOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -80,6 +81,7 @@ func TestFIMOpen(t *testing.T) {
 
 func TestFIMPermError(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -178,6 +180,7 @@ func TestFIMPermError(t *testing.T) {
 	}
 
 	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"open", testFile,
@@ -195,6 +198,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
@@ -212,6 +216,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chmod", testFile, "0600",
@@ -229,6 +234,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chown", testFile, "0", "0",
@@ -246,6 +252,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"rename", renameFile, testFile,
@@ -263,6 +270,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"utimes", testFile,
@@ -280,6 +288,7 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		CheckFlakyTest(t)
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"link", testFile, linkFile,

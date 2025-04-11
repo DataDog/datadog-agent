@@ -101,6 +101,7 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 
 func TestKworker(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
@@ -155,6 +156,7 @@ func TestKworker(t *testing.T) {
 
 func TestLoadModule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if os.Getenv("CI") == "true" {
 		t.Skip("TestLoadModule is known to be flaky")
@@ -211,6 +213,7 @@ func TestLoadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("init_module", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
@@ -238,6 +241,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("finit_module", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
@@ -258,6 +262,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_params", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
@@ -279,6 +284,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_params_from_memory", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
@@ -301,6 +307,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		CheckFlakyTest(t)
 		var args []string
 		for i := 0; i != 10; i++ {
 			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
@@ -330,6 +337,7 @@ func TestLoadModule(t *testing.T) {
 
 func TestUnloadModule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
@@ -366,6 +374,7 @@ func TestUnloadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("delete_module", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {

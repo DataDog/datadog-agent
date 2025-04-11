@@ -19,6 +19,7 @@ import (
 
 func TestLoginUID(t *testing.T) {
 	SkipIfNotAvailable(t)
+	CheckFlakyTest(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -56,6 +57,7 @@ func TestLoginUID(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("open", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{
 				"-login-uid-test",
@@ -74,6 +76,7 @@ func TestLoginUID(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		CheckFlakyTest(t)
 		test.WaitSignal(t, func() error {
 			args := []string{
 				"-login-uid-test",

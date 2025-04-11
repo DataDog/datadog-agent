@@ -47,6 +47,7 @@ type testConfig struct {
 	verbose      bool
 	testDirRoot  string
 	testingTools string
+	testSet      string
 	extraParams  string
 	extraEnv     string
 }
@@ -148,6 +149,11 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
+
+	if pkg == "pkg/security" {
+		args = append(args, "-flake-matrix", filepath.Join(testConfig.testingTools, "security-agent-flakes.yaml"))
+		args = append(args, "-runner-tag", fmt.Sprintf("test_set:%s", testConfig.testSet))
+	}
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -326,6 +332,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
+	testSet := flag.String("test-set", "", "test set name currently running")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
@@ -364,6 +371,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		retryCount:         *retryPtr,
 		testDirRoot:        root,
 		testingTools:       tools,
+		testSet:            *testSet,
 		extraParams:        *extraParams,
 		extraEnv:           *extraEnv,
 	}, nil

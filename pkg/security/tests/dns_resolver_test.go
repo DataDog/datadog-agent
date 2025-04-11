@@ -10,19 +10,22 @@ package tests
 
 // Package tests holds tests related files
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"net/netip"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 )
 
 func TestDNSResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
+	CheckFlakyTest(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
@@ -41,6 +44,7 @@ func TestDNSResolver(t *testing.T) {
 	// Makes a DNS query for a couple hostnames on a list and checks
 	// if the resolver saved all of them on the cache
 	t.Run("saves-hostname-for-all-ips", func(t *testing.T) {
+		CheckFlakyTest(t)
 		// This test contains a 1 second backoff, and tries 10 times until it fails
 		attempts := 10
 
