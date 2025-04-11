@@ -38,13 +38,13 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection,
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(sysCtx, testutil.GetTelemetryMock(t), config.New())
-	statsGen := newStatsGenerator(sysCtx, handlers, testutil.GetTelemetryMock(t))
+	streamHandlers := newStreamCollection(sysCtx, testutil.GetTelemetryMock(t), config.New())
+	statsGen := newStatsGenerator(sysCtx, streamHandlers, testutil.GetTelemetryMock(t))
 	statsGen.lastGenerationKTime = ktime
 	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)
 
-	return statsGen, handlers, ktime
+	return statsGen, streamHandlers, ktime
 }
 
 func addStream(t *testing.T, streamHandlers *streamCollection, pid uint32, streamID uint64, gpuUUID string, containerID string) *StreamHandler {
