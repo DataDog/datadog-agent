@@ -92,6 +92,19 @@ func (c *Check) Run() error {
 		fmt.Println("NUMBER OF DEVICES DISCOVERED")
 		fmt.Println(len(discoveredDevices))
 
+		var hostnames []string
+		for _, deviceCk := range discoveredDevices {
+			fmt.Println("GETTING HOSTNAME FOR DEVICE")
+			hostname, err := deviceCk.GetDeviceHostname()
+			fmt.Println("FINISHED GETTING HOSTNAME FOR DEVICE:")
+			fmt.Println(hostname)
+			if err != nil {
+				fmt.Printf("error getting hostname for device %s: %s\n", deviceCk.GetIPAddress(), err)
+				continue
+			}
+			hostnames = append(hostnames, hostname)
+		}
+
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
 		var wg sync.WaitGroup
@@ -103,14 +116,9 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			hostname, err := deviceCk.GetDeviceHostname()
-			if err != nil {
-				// TODO: ERR HERE
-				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
-				continue
-			}
+
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostnames[i], nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
