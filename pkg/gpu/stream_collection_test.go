@@ -114,12 +114,13 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream2)
 
-	// Add an event to stream1 to make it active
+	// Add an events to both streams to make them active
+	ktimeLaunch1 := uint64(1000)
 	launch := &gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
 			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 			Pid_tgid:  header1.Pid_tgid,
-			Ktime_ns:  1000,
+			Ktime_ns:  ktimeLaunch1,
 			Stream_id: streamID1,
 		},
 		Kernel_addr:     42,
@@ -129,20 +130,37 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	}
 	stream1.handleKernelLaunch(launch)
 
-	// Clean at a time when stream2 should be inactive (3 seconds later)
-	handlers.clean(3000000000) // 3 seconds in nanoseconds
+	// Add an event to stream1 to make it active
+	ktimeLaunch2 := uint64(2000)
+	launch2 := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  header1.Pid_tgid,
+			Ktime_ns:  ktimeLaunch2,
+			Stream_id: streamID1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream2.handleKernelLaunch(launch2)
 
-	// Verify stream1 is still present (active)
+	// Clean at a time when stream2 should still be active but stream1 should be inactive
+	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivitySeconds*1e9+1)
+	handlers.clean(int64(endTime))
+
+	// Verify stream1 is not present (inactive)
 	streamKey1 := streamKey{
 		pid:    pid1,
 		stream: streamID1,
 	}
-	require.Contains(t, handlers.streams, streamKey1)
+	require.NotContains(t, handlers.streams, streamKey1)
 
-	// Verify stream2 was removed (inactive)
+	// Verify stream2 is still present (active)
 	streamKey2 := streamKey{
 		pid:    pid2,
 		stream: streamID2,
 	}
-	require.NotContains(t, handlers.streams, streamKey2)
+	require.Contains(t, handlers.streams, streamKey2)
 }
