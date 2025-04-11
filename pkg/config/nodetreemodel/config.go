@@ -38,6 +38,8 @@ var sources = []model.Source{
 	model.SourceCLI,
 }
 
+var splitKeyFunc = splitKey
+
 // ntmConfig implements Config
 // - wraps a tree of node that represent config data
 // - uses a lock to synchronize all methods
@@ -126,7 +128,7 @@ type ntmConfig struct {
 	// yamlWarnings contains a list of warnings about loaded YAML file.
 	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
 	// them from ReadConfig and ReadInConfig.
-	warnings []string
+	warnings []error
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -463,11 +465,13 @@ func (c *ntmConfig) BuildSchema() {
 
 func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
+	log.Debug(c.warnings)
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
-		c.warnings = append(c.warnings, err.Error())
+		c.warnings = append(c.warnings, err)
 	}
 	c.allSettings = c.computeAllSettings(c.schema, "")
+	log.Debug(c.warnings)
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -488,13 +492,13 @@ func (c *ntmConfig) isReady() bool {
 
 func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
-	envWarnings := []string{}
+	envWarnings := []error{}
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
-					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+					envWarnings = append(envWarnings, err)
 				} else {
 					// Stop looping since we set the config key with the value of the highest precedence env var
 					break
@@ -513,7 +517,7 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
 	}
-	parts := splitKey(key)
+	parts := splitKeyFunc(key)
 	_, err := curr.SetAt(parts, actualValue, model.SourceEnvVar)
 	return err
 }
@@ -896,8 +900,8 @@ func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ..
 }
 
 // Warnings just returns nil
-func (c *ntmConfig) Warnings() *model.Warnings {
-	return nil
+func (c *ntmConfig) Warnings() []error {
+	return c.warnings
 }
 
 // Object returns the config as a Reader interface
