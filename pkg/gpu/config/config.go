@@ -42,6 +42,8 @@ type Config struct {
 	MaxMemAllocEventsPerStream int
 	// MaxStreams is the maximum number of streams that can be processed concurrently.
 	MaxStreams int
+	// MaxStreamInactivitySeconds is the maximum number of seconds to wait for a stream to be inactive before flushing it.
+	MaxStreamInactivitySeconds int
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -59,5 +61,6 @@ func New() *Config {
 		MaxKernelLaunchesPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_kernel_launches_per_stream")),
 		MaxMemAllocEventsPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_mem_alloc_events_per_stream")),
 		MaxStreams:                   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_streams")),
+		MaxStreamInactivitySeconds:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_stream_inactivity_seconds")),
 	}
 }
