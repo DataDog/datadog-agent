@@ -361,6 +361,11 @@ namespace Datadog.CustomActions.Native
             IntPtr policyHandle,
             ref LSA_UNICODE_STRING keyName,
             IntPtr privateData);
+        [DllImport("advapi32.dll", SetLastError = true, PreserveSig = true)]
+        private static extern uint LsaRetrievePrivateData(
+            IntPtr policyHandle,
+            ref LSA_UNICODE_STRING keyName,
+            out IntPtr privateData);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct LSA_UNICODE_STRING
@@ -698,6 +703,66 @@ namespace Datadog.CustomActions.Native
                 FreeLsaString(lsaKeyName);
                 FreeLsaString(lsaSecret);
             }
+        }
+
+        /// <summary>
+        /// PInvoke wrapper for LsaOpenPolicy+LsaRetrievePrivateData
+        /// </summary>
+        /// <remarks>
+        /// https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaretrieveprivatedata
+        ///
+        /// https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
+        /// </remarks>
+        private string RetrievePrivateData(string keyName)
+        {
+            IntPtr policyHandle = IntPtr.Zero;
+            var lsaKeyName = new LSA_UNICODE_STRING();
+            IntPtr lsaSecretPtr = IntPtr.Zero;
+            try
+            {
+                var systemName = new LSA_UNICODE_STRING();
+                var objectAttributes = new LSA_OBJECT_ATTRIBUTES();
+                var status = LsaOpenPolicy(ref systemName, ref objectAttributes,
+                    (int)LSA_AccessPolicy.POLICY_GET_PRIVATE_INFORMATION, out policyHandle);
+                var winErrorCode = LsaNtStatusToWinError(status);
+                if (winErrorCode != 0)
+                {
+                    throw new Exception("LsaOpenPolicy failed", new Win32Exception((int)winErrorCode));
+                }
+                lsaKeyName = InitLsaString(keyName);
+                status = LsaRetrievePrivateData(policyHandle, ref lsaKeyName, out lsaSecretPtr);
+                winErrorCode = LsaNtStatusToWinError(status);
+                if (winErrorCode != 0)
+                {
+                    throw new Exception("LsaRetrievePrivateData failed", new Win32Exception((int)winErrorCode));
+                }
+                var lsaSecret = (LSA_UNICODE_STRING)Marshal.PtrToStructure(lsaSecretPtr, typeof(LSA_UNICODE_STRING));
+                if (lsaSecret.Buffer == IntPtr.Zero)
+                {
+                    throw new Exception("LSA secret Buffer is NULL");
+                }
+                return Marshal.PtrToStringUni(lsaSecret.Buffer, lsaSecret.Length / UnicodeEncoding.CharSize);
+            }
+            finally
+            {
+                if (policyHandle != IntPtr.Zero)
+                {
+                    LsaClose(policyHandle);
+                }
+                FreeLsaString(lsaKeyName);
+                if (lsaSecretPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(lsaSecretPtr);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fetch LSA secret
+        /// </summary>
+        public string FetchSecret(string keyName)
+        {
+            return RetrievePrivateData(keyName);
         }
 
         /// <summary>

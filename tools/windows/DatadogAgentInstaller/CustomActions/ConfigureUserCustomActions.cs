@@ -506,7 +506,10 @@ namespace Datadog.CustomActions
             }
         }
 
-        private string AgentPasswordPrivateDataKey()
+        /// <summary>
+        /// Returns the name (key) of the secret used to store the Agent password in the LSA secret store
+        /// </summary>
+        public static string AgentPasswordPrivateDataKey()
         {
             // use L$ prefix to indicate the secret is "Local" level secret, this prevents
             // the secret from being accessed remotely.
@@ -518,7 +521,7 @@ namespace Datadog.CustomActions
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/policy-object-access-rights
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/policy-object-protection
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object-initial-protection
-            // Machine private data objects, 'M$', are not even readable (through the API) by LocalSystem.
+            // Machine private data objects, 'M$', are not readable (through the API) even by LocalSystem.
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object
             var secretType = "L$";
             return $"{secretType}datadog_ddagentuser_password";
@@ -546,7 +549,7 @@ namespace Datadog.CustomActions
             // https://docs.microsoft.com/en-us/windows/win32/services/service-accounts
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
             var keyName = AgentPasswordPrivateDataKey();
-            var isServiceAccount = _session.Property("DDAGENTUSER_IS_SERVICE_ACCOUNT") == "1";
+            var isServiceAccount = _session.Property("DDAGENTUSER_IS_SERVICE_ACCOUNT") == "true";
             if (isServiceAccount)
             {
                 // If ddagentuser is a service account, it has no password, so remove any previous entries from the LSA
@@ -741,14 +744,31 @@ namespace Datadog.CustomActions
                 }
 
                 // Remove password from LSA secret store
-                try
+                var upgrading = !string.IsNullOrEmpty(_session.Property("UPGRADINGPRODUCTCODE"));
+                var fleetAutomation = _session.Property("FLEET_INSTALL") == "1";
+                if (upgrading || fleetAutomation)
                 {
-                    var keyName = AgentPasswordPrivateDataKey();
-                    _nativeMethods.RemoveSecret(keyName);
+                    // If this is an upgrade, we don't want to remove the password from the LSA secret store
+                    // because the new version of the Agent will need it. Technically it should already have it
+                    // because it's fetched in ProcessDDAgentUserCredentials, which runs before the existing
+                    // products are removed, but we don't want to lose it on rollback.
+                    // TODO(WINA-1357): rollback the password if the upgrade fails
+                    // If this is a Fleet Automation upgrade (uninstall->install workflow), we don't want to remove
+                    // the password from the LSA secret store because the new version of the Agent will need it.
+                    _session.Log($"Upgrade detected, not removing password from LSA secret store");
                 }
-                catch (Exception e)
+                else
                 {
-                    _session.Log($"Failed to remove agent secret: {e}");
+                    _session.Log("Uninstall detected, removing password from LSA secret store");
+                    try
+                    {
+                        var keyName = AgentPasswordPrivateDataKey();
+                        _nativeMethods.RemoveSecret(keyName);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to remove agent secret: {e}");
+                    }
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.

@@ -18,6 +18,8 @@ namespace Datadog.CustomActions.Interfaces
 
         void StoreSecret(string keyName, string secret);
 
+        string FetchSecret(string keyName);
+
         void RemoveSecret(string keyName);
 
         bool LookupAccountName(

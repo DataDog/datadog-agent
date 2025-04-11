@@ -591,6 +591,10 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRevertsExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC/TestUpgradeAgentPackage$"
+
+
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
