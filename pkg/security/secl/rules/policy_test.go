@@ -379,6 +379,16 @@ func TestActionSetVariableTTL(t *testing.T) {
 						},
 					},
 				},
+				{
+					Set: &SetDefinition{
+						Name:  "simplevarwithttl",
+						Value: 456,
+						Scope: "container",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
 			},
 		}},
 	}
@@ -404,6 +414,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
+	event.ContainerContext = &model.ContainerContext{
+		ContainerID: "0123456789abcdef",
+	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
@@ -454,6 +467,17 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
 
+	existingContainerScopedVariable := opts.VariableStore.Get("container.simplevarwithttl")
+	assert.NotNil(t, existingContainerScopedVariable)
+	intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intVarScopedVar)
+	assert.True(t, ok)
+	value, isSet := intVarScopedVar.GetValue(ctx)
+	assert.True(t, isSet)
+	assert.NotNil(t, value)
+	assert.Equal(t, 456, value)
+	assert.IsType(t, int(0), value)
+
 	time.Sleep(time.Second + 100*time.Millisecond)
 
 	value, _ = stringArrayVar.GetValue()
@@ -471,6 +495,10 @@ func TestActionSetVariableTTL(t *testing.T) {
 	value, _ = intArrayScopedVar.GetValue(ctx)
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
+
+	value, isSet = intVarScopedVar.GetValue(ctx)
+	assert.False(t, isSet)
+	assert.Equal(t, 0, value)
 }
 
 func TestActionSetVariableSize(t *testing.T) {

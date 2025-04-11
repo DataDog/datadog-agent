@@ -341,40 +341,52 @@ func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setF
 
 // IntVariable describes a global integer variable
 type IntVariable struct {
-	isSet bool
-	Value int
+	*IntArrayVariable
 }
 
 // GetValue returns the variable value
 func (m *IntVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.isSet
+	values, isSet := m.IntArrayVariable.GetValue()
+	if intValues, ok := values.([]int); ok && len(intValues) > 0 {
+		return intValues[0], isSet
+	}
+	var defaultValue int
+	return defaultValue, isSet
 }
 
 // Set the variable with the specified value
-func (m *IntVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(int)
-	m.isSet = true
-	return nil
+func (m *IntVariable) Set(ctx *Context, value interface{}) error {
+	return m.IntArrayVariable.Set(ctx, value)
 }
 
 // Append a value to the integer
-func (m *IntVariable) Append(_ *Context, value interface{}) error {
+func (m *IntVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
-		m.Value += value
-		m.isSet = true
+		prevValue, isSet := m.GetValue()
+		if isSet {
+			value += prevValue.(int)
+		}
+		return m.Set(ctx, value)
 	default:
 		return errAppendNotSupported
 	}
-	return nil
 }
 
 // GetEvaluator returns the variable SECL evaluator
 func (m *IntVariable) GetEvaluator() interface{} {
 	return &IntEvaluator{
 		EvalFnc: func(*Context) int {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(int)
 		},
+	}
+}
+
+// NewIntVariable returns a new mutable integer variable
+func NewIntVariable(value int, ttl time.Duration) *IntVariable {
+	return &IntVariable{
+		IntArrayVariable: NewIntArrayVariable([]int{value}, 1, ttl),
 	}
 }
 
@@ -391,11 +403,6 @@ func (m *BoolVariable) GetEvaluator() interface{} {
 			return m.Value
 		},
 	}
-}
-
-// NewIntVariable returns a new mutable integer variable
-func NewIntVariable(value int) *IntVariable {
-	return &IntVariable{Value: value}
 }
 
 // GetValue returns the variable value
@@ -422,8 +429,7 @@ func NewBoolVariable(value bool) *BoolVariable {
 
 // StringVariable describes a mutable string variable
 type StringVariable struct {
-	Value string
-	isSet bool
+	*StringArrayVariable
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -431,56 +437,66 @@ func (m *StringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
 		ValueType: VariableValueType,
 		EvalFnc: func(_ *Context) string {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(string)
 		},
 	}
 }
 
 // GetValue returns the variable value
 func (m *StringVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.isSet
+	values, isSet := m.StringArrayVariable.GetValue()
+	if stringValues, ok := values.([]string); ok && len(stringValues) > 0 {
+		return stringValues[0], isSet
+	}
+	var defaultValue string
+	return defaultValue, isSet
 }
 
 // Append a value to the string
-func (m *StringVariable) Append(_ *Context, value interface{}) error {
+func (m *StringVariable) Append(ctx *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		m.Value += value
-		m.isSet = true
+		prevValue, isSet := m.GetValue()
+		if isSet {
+			value = prevValue.(string) + value
+		}
+		return m.Set(ctx, value)
 	default:
 		return errAppendNotSupported
 	}
-	return nil
 }
 
 // Set the variable with the specified value
-func (m *StringVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(string)
-	m.isSet = true
-	return nil
+func (m *StringVariable) Set(ctx *Context, value interface{}) error {
+	return m.StringArrayVariable.Set(ctx, value)
 }
 
 // NewStringVariable returns a new mutable string variable
-func NewStringVariable(value string) *StringVariable {
-	return &StringVariable{Value: value}
+func NewStringVariable(value string, ttl time.Duration) *StringVariable {
+	return &StringVariable{
+		StringArrayVariable: NewStringArrayVariable([]string{value}, 1, ttl),
+	}
 }
 
 // IPVariable describes a global IP variable
 type IPVariable struct {
-	Value net.IPNet
-	isSet bool
+	*IPArrayVariable
 }
 
 // GetValue returns the variable value
 func (m *IPVariable) GetValue() (interface{}, bool) {
-	return m.Value, m.isSet
+	values, isSet := m.IPArrayVariable.GetValue()
+	if ipValues, ok := values.([]net.IPNet); ok && len(ipValues) > 0 {
+		return ipValues[0], isSet
+	}
+	var defaultValue net.IPNet
+	return defaultValue, isSet
 }
 
 // Set the variable with the specified value
-func (m *IPVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(net.IPNet)
-	m.isSet = true
-	return nil
+func (m *IPVariable) Set(ctx *Context, value interface{}) error {
+	return m.IPArrayVariable.Set(ctx, value)
 }
 
 // Append a value to the IP
@@ -492,14 +508,17 @@ func (m *IPVariable) Append(_ *Context, _ interface{}) error {
 func (m *IPVariable) GetEvaluator() interface{} {
 	return &CIDREvaluator{
 		EvalFnc: func(*Context) net.IPNet {
-			return m.Value
+			value, _ := m.GetValue()
+			return value.(net.IPNet)
 		},
 	}
 }
 
 // NewIPVariable returns a new mutable IP variable
-func NewIPVariable(value net.IPNet) *IPVariable {
-	return &IPVariable{Value: value}
+func NewIPVariable(value net.IPNet, ttl time.Duration) *IPVariable {
+	return &IPVariable{
+		IPArrayVariable: NewIPArrayVariable([]net.IPNet{value}, 1, ttl),
+	}
 }
 
 // StringArrayVariable describes a mutable string array variable
@@ -764,11 +783,11 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 	case bool:
 		return NewBoolVariable(value), nil
 	case int:
-		return NewIntVariable(value), nil
+		return NewIntVariable(value, opts.TTL), nil
 	case string:
-		return NewStringVariable(value), nil
+		return NewStringVariable(value, opts.TTL), nil
 	case net.IPNet:
-		return NewIPVariable(value), nil
+		return NewIPVariable(value, opts.TTL), nil
 	case []string:
 		return NewStringArrayVariable(value, opts.Size, opts.TTL), nil
 	case []int:
