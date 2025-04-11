@@ -18,6 +18,7 @@ require (
 	go.opentelemetry.io/collector/component v1.28.1
 	go.opentelemetry.io/collector/config/confignet v1.28.1 // indirect
 	go.opentelemetry.io/collector/confmap v1.28.1
+	go.opentelemetry.io/collector/confmap/xconfmap v0.122.1
 	go.opentelemetry.io/collector/consumer v1.28.1
 	go.opentelemetry.io/collector/exporter v0.122.1
 	go.opentelemetry.io/collector/extension v1.28.1 // indirect
@@ -166,6 +167,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.122.0
 	go.opentelemetry.io/collector/component/componenttest v0.122.1
+	go.opentelemetry.io/collector/config/configopaque v1.28.1
 	go.opentelemetry.io/collector/exporter/exportertest v0.122.1
 )
 
@@ -203,7 +205,6 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.122.1 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.28.1 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.122.1 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.28.1 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.28.1 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.122.1 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.122.1 // indirect
