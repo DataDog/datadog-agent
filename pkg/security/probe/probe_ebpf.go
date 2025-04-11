@@ -920,7 +920,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// no need to dispatch events
 	switch eventType {
