@@ -12,11 +12,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func baseDeviceName(device string) string {
+	return filepath.Base(device)
+}
 
 func compileRegExp(expr string) (*regexp.Regexp, error) {
 	return regexp.Compile(expr)

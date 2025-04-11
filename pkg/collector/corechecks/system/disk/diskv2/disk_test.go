@@ -333,10 +333,10 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:SDA1"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:SDA1"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:SDA1"})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{"device:/dev/sda1", "device_name:/dev/SDA1"})
-	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{"device:/dev/sda1", "device_name:/dev/SDA1"})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{"device:/dev/sda1", "device_name:/dev/SDA1"})
-	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{"device:/dev/sda1", "device_name:/dev/SDA1"})
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.read_time", []string{"device:/dev/sda1", "device_name:SDA1"})
+	m.AssertMetricTaggedWith(t, "MonotonicCount", "system.disk.write_time", []string{"device:/dev/sda1", "device_name:SDA1"})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.read_time_pct", []string{"device:/dev/sda1", "device_name:SDA1"})
+	m.AssertMetricTaggedWith(t, "Rate", "system.disk.write_time_pct", []string{"device:/dev/sda1", "device_name:SDA1"})
 }
 
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {

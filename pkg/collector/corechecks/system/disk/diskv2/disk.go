@@ -9,7 +9,6 @@ package diskv2
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -432,18 +431,7 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
-		tags := []string{}
-		if c.instanceConfig.LowercaseDeviceTag {
-			tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
-		} else {
-			tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		}
-		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
-		tags = append(tags, c.getDeviceTags(deviceName)...)
-		label, ok := c.deviceLabels[deviceName]
-		if ok {
-			tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
-		}
+		tags := c.getDeviceNameTags(deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
 
@@ -491,9 +479,25 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 	}
-	tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
+	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(partition.Device)))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
+	if ok {
+		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+	}
+	return tags
+}
+
+func (c *Check) getDeviceNameTags(deviceName string) []string {
+	tags := []string{}
+	if c.instanceConfig.LowercaseDeviceTag {
+		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+	} else {
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+	}
+	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(deviceName)))
+	tags = append(tags, c.getDeviceTags(deviceName)...)
+	label, ok := c.deviceLabels[deviceName]
 	if ok {
 		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
 	}

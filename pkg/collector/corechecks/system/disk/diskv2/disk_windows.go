@@ -16,6 +16,10 @@ import (
 	"unsafe"
 )
 
+func baseDeviceName(device string) string {
+	return strings.ToLower(strings.Trim(device, "\\"))
+}
+
 func compileRegExp(expr string) (*regexp.Regexp, error) {
 	iExpr := fmt.Sprintf("(?i)%s", expr)
 	return regexp.Compile(iExpr)
