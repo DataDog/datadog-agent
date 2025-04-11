@@ -9,6 +9,7 @@
 package codegen
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -33,7 +34,10 @@ func pruneDoNotCaptureParams(params []*ditypes.Parameter) []*ditypes.Parameter {
 
 	result := []*ditypes.Parameter{}
 	for _, param := range params {
-		if param == nil || param.DoNotCapture {
+		if param == nil {
+			continue
+		}
+		if param.DoNotCapture && param.Kind != uint(reflect.Pointer) {
 			continue
 		}
 
@@ -241,4 +245,49 @@ func correctStructSize(param *ditypes.Parameter) {
 	for i := range param.ParameterPieces {
 		correctStructSize(param.ParameterPieces[i])
 	}
+}
+
+// correctPointersWithoutPieces checks recursively if any parameter of kind Pointer in the given slice
+// has no parameter pieces (i.e., empty ParameterPieces) and corrects it accordingly
+func correctPointersWithoutPieces(params []*ditypes.Parameter) {
+	if len(params) == 0 {
+		return
+	}
+
+	// Create a queue to process parameters breadth-first
+	queue := make([]*ditypes.Parameter, 0, len(params))
+
+	// Initialize queue with top-level parameters
+	for _, param := range params {
+		if param != nil {
+			queue = append(queue, param)
+		}
+	}
+
+	// Process parameters until queue is empty
+	for len(queue) > 0 {
+		// Dequeue the next parameter
+		param := queue[0]
+		queue = queue[1:]
+
+		if param == nil {
+			continue
+		}
+
+		// Check if parameter is a pointer with no parameter pieces
+		if reflect.Kind(param.Kind) == reflect.Pointer && len(param.ParameterPieces) == 0 {
+			fmt.Println("Found a pointer with no parameter pieces!", param.Type)
+			param.ParameterPieces = []*ditypes.Parameter{{}}
+			return
+		}
+
+		// Add child parameters to the queue for processing
+		for _, childParam := range param.ParameterPieces {
+			if childParam != nil {
+				queue = append(queue, childParam)
+			}
+		}
+	}
+
+	return
 }
