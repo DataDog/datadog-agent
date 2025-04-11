@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/pkg/orchestrator/model
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/log v0.65.0-rc.10
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.65.0-rc.10 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.65.0-rc.10 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
