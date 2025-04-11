@@ -647,6 +647,8 @@ func startAgent(
 	})
 
 	// start dependent services
+	// must run in background go command because the agent might be in service start pending
+	// and not service running yet, and as such, the call will block or fail
 	go startDependentServices()
 
 	return nil
@@ -676,6 +678,9 @@ func stopAgent() {
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
+
+	// shutdown depentent services
+	stopDependentServices()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
