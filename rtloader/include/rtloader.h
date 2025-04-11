@@ -35,7 +35,7 @@ public:
     RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
-    virtual ~RtLoader(){};
+    virtual ~RtLoader() {};
 
     // Public API
     //! Pure virtual init member.

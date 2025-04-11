@@ -84,7 +84,7 @@ bool Three::init()
 
     // Set Python home
     if (!checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome.c_str()),
-                     "Failed to set python home")) {
+                           "Failed to set python home")) {
         PyConfig_Clear(&_config);
         return false;
     }
@@ -92,9 +92,9 @@ bool Three::init()
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
         if (!checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str()),
-                         "Failed to set executable path")
+                               "Failed to set executable path")
             || !checkConfigStatus(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str()),
-                            "Failed to set program name")) {
+                                  "Failed to set program name")) {
             PyConfig_Clear(&_config);
             return false;
         }
