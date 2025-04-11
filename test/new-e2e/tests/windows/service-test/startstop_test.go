@@ -473,6 +473,41 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return s.getInstalledServices()
 	}
 
+	// TODO(WINA-1320): log the system memory to help debug
+	cmdline := `Get-CimInstance win32_ComputerSystem | foreach {[math]::round($_.TotalPhysicalMemory /1GB)}`
+	out, err := host.Execute(cmdline)
+	if err != nil {
+		s.T().Logf("Failed to get system memory: %v", err)
+	} else {
+		s.T().Logf("Total system memory: %s GB", out)
+	}
+	// write our command to a file so the code doesn't clutter the log file/screen every time it's run
+	host.WriteFile(`C:\logmemory.ps1`, []byte(`
+function ConvertTo-RoundMB {
+		param (
+				$bytes
+		)
+		$val = [int64][math]::Round($bytes/1Mb)
+		Write-Output $val
+}
+
+function Get-ProcessMemoryUsage {
+	# https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process?view=net-8.0
+	# TODO: This might be wrongly including shared memory via the PagedMemorySize64 property
+	Get-Process |
+		Sort -Property {$_.PagedMemorySize64-$_.WorkingSet64} -Desc |
+		Select Name, PagedMemorySize64, WorkingSet64 -First 10  |
+		foreach-object {[PSCustomObject]@{
+				Name=$_.Name;
+				PagedMemorySize64_MB=ConvertTo-RoundMB($_.PagedMemorySize64);
+				WorkingSet64_MB=ConvertTo-RoundMB($_.WorkingSet64);
+				Diff=ConvertTo-RoundMB($_.PagedMemorySize64-$_.WorkingSet64);
+		}}
+}
+
+Get-ProcessMemoryUsage
+`))
+	s.logMemory(host)
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -601,9 +636,21 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 	}
 }
 
+func (s *baseStartStopSuite) logMemory(host *components.RemoteHost) {
+	// TODO(WINA-1320): log the system memory to help debug
+	out, err := host.Execute(`C:\logmemory.ps1`)
+	if err != nil {
+		s.T().Logf("failed to get process memory usage: %s", err)
+	} else {
+		s.T().Logf("Process memory usage:\n%s", out)
+	}
+}
+
 func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
 	host := s.Env().RemoteHost
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+		// TODO(WINA-1320): log the system memory to help debug
+		s.logMemory(host)
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
 		if !assert.NoError(c, err) {
 			return
@@ -626,6 +673,8 @@ func (s *baseStartStopSuite) stopAllServices() {
 	// ensure all services are stopped
 	for _, serviceName := range s.getInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+			// TODO(WINA-1320): log the system memory to help debug
+			s.logMemory(host)
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
 				return
