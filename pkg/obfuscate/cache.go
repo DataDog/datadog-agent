@@ -20,6 +20,7 @@ type measuredCache struct {
 	// close allows sending shutdown notification.
 	close  chan struct{}
 	statsd StatsClient
+	Tags   []string
 }
 
 // Close gracefully closes the cache when active.
@@ -41,8 +42,8 @@ func (c *measuredCache) statsLoop() {
 	for {
 		select {
 		case <-tick.C:
-			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)     //nolint:errcheck
-			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.misses", float64(mx.Misses()), nil, 1) //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.hits", float64(mx.Hits()), c.Tags, 1)     //nolint:errcheck
+			_ = c.statsd.Gauge("datadog.trace_agent.obfuscation.sql_cache.misses", float64(mx.Misses()), c.Tags, 1) //nolint:errcheck
 		case <-c.close:
 			c.Cache.Close()
 			return
@@ -54,6 +55,7 @@ type cacheOptions struct {
 	On      bool
 	Statsd  StatsClient
 	MaxSize int64
+	Tags    []string
 }
 
 // newMeasuredCache returns a new measuredCache.
@@ -80,6 +82,7 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 		close:  make(chan struct{}),
 		statsd: opts.Statsd,
 		Cache:  cache,
+		Tags:   opts.Tags,
 	}
 	go c.statsLoop()
 	return &c

@@ -6,11 +6,12 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 import (
 	"context"
 	"fmt"
+	"time"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -124,6 +125,7 @@ func newTraceToMetricConnector(set component.TelemetrySettings, cfg component.Co
 	oconf := tcfg.Obfuscation.Export(tcfg)
 	oconf.Statsd = metricsClient
 	oconf.Redis.Enabled = true
+	oconf.Cache.Purpose = "datadogconnector"
 
 	// TODO(IbraheemA): When creating datadogconnector in otel-agent, use components (e.g. concentrator) from trace-agent instead of creating new ones
 	return &traceToMetricConnector{
