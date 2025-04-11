@@ -228,9 +228,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameRemappings overrides it
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
@@ -268,7 +266,6 @@ func TestOTLPSpanNameV2(t *testing.T) {
 
 func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
@@ -1653,8 +1650,8 @@ func TestOTelSpanToDDSpan(t *testing.T) {
 func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
-	if enableOperationAndResourceNameV2 {
-		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	for i, tt := range []struct {
 		rattr                      map[string]string
@@ -2030,7 +2027,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "READ",
-			operationNameV2: "READ",
+			operationNameV2: "read",
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
@@ -2597,8 +2594,8 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
-	if enableOperationAndResourceNameV2 {
-		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
@@ -2954,7 +2951,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "READ",
-			operationNameV2: "READ",
+			operationNameV2: "read",
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
@@ -3228,8 +3225,8 @@ func TestOTelSpanToDDSpanSetPeerService(t *testing.T) {
 func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	if enableOperationAndResourceNameV2 {
-		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
@@ -3598,8 +3595,8 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	if enableOperationAndResourceNameV2 {
-		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
