@@ -43,6 +43,12 @@ func (b *BoundPort) PID() int {
 	return b.pid
 }
 
+type NetIPAddress struct {
+	IPAddress      string
+	InterfaceAlias string
+	InterfaceIndex int
+}
+
 // ListBoundPorts returns a list of bound ports
 func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 	out, err := host.Execute(`Get-NetTCPConnection -State Listen | Foreach-Object {
@@ -128,4 +134,52 @@ func DownloadFile(host *components.RemoteHost, url string, destination string) e
 	}
 
 	return nil
+}
+
+// GetInterfaceForIPAddress returns network interface information for the interface
+// associated with the given IP address.
+//
+// https://learn.microsoft.com/en-us/powershell/module/nettcpip/get-netipaddress
+func GetInterfaceForIPAddress(host *components.RemoteHost, ip string) (NetIPAddress, error) {
+	var netIP NetIPAddress
+
+	cmd := fmt.Sprintf(`Get-NetIPAddress -IPAddress %s | Select-Object IPAddress, InterfaceAlias, InterfaceIndex | ConvertTo-JSON`, ip)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return netIP, err
+	}
+
+	err = json.Unmarshal([]byte(out), &netIP)
+	if err != nil {
+		return netIP, err
+	}
+
+	return netIP, nil
+}
+
+// SetDNSServerForInterface sets the DNS server for the given network interface
+//
+// https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientserveraddress
+func SetDNSServerForInterface(host *components.RemoteHost, netif NetIPAddress, dnsServers []string) error {
+	// format as powershell list
+	pslist := fmt.Sprintf("@('%s')", strings.Join(dnsServers, "','"))
+	cmd := fmt.Sprintf(`Set-DnsClientServerAddress -InterfaceIndex "%d" -ServerAddresses %s`, netif.InterfaceIndex, pslist)
+	_, err := host.Execute(cmd)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SetDNSServerForConnectionInterface sets the DNS server for the interface used for the host connection
+func SetDNSServerForConnectionInterface(host *components.RemoteHost, dnsServers []string) error {
+	// Get the index of the connection interface
+	ip := host.Address
+	netif, err := GetInterfaceForIPAddress(host, ip)
+	if err != nil {
+		return err
+	}
+	// Set the DNS server for the interface
+	return SetDNSServerForInterface(host, netif, dnsServers)
 }

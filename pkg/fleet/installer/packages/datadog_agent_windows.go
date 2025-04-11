@@ -337,7 +337,9 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct(product)
+		err := msi.RemoveProduct(product,
+			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
+		)
 		if err != nil {
 			return err
 		}

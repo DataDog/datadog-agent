@@ -384,7 +384,8 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
-                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
+                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
+                               "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
 
             ConfigureUserRollback = new CustomAction<CustomActions>(
@@ -414,7 +415,9 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
+                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
 
             UninstallUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUserRollback)),
