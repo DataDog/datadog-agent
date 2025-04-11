@@ -56,7 +56,7 @@ func TestStatus(t *testing.T) {
 	var statusBuilder strings.Builder
 	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
 
-	expectedOutput := string([]byte(`
+	expectedOutput := string(`
 	{
 		"date": 0,
 		"core": {
@@ -132,7 +132,7 @@ func TestStatus(t *testing.T) {
 			}
 		}
 	}
-	`))
+	`)
 	assert.JSONEq(t, expectedOutput, statusBuilder.String())
 }
 
