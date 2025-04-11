@@ -593,14 +593,18 @@ func TestLoadBalancing(s OTelTestSuite) {
 func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	fmt.Println("ANDREWQIAN TestCalendarApp flushServerAndResetAggregators", err)
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting calendar app:", service)
 	createCalendarApp(ctx, s, ust, service)
+	fmt.Println("ANDREWQIAN TestCalendarApp createCalendarApp")
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(log2Body))
+		fmt.Println("ANDREWQIAN TestCalendarApp FilterLogs", err)
+		fmt.Println("ANDREWQIAN TestCalendarApp FilterLogs", logs)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 30*time.Minute, 10*time.Second)
