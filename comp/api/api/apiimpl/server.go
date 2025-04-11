@@ -7,6 +7,7 @@ package apiimpl
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -48,7 +49,13 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
+	ipcCert, err := getx509Certificate(server.authToken.GetTLSServerConfig())
+	if err != nil {
+		return fmt.Errorf("unable to load the IPC certificate: %v", err)
+	}
+
+	// create the telemetry middleware
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, ipcCert)
 
 	// start the CMD server
 	if err := server.startCMDServer(
@@ -77,4 +84,18 @@ func (server *apiServer) startServers() error {
 func (server *apiServer) stopServers() {
 	stopServer(server.cmdListener, cmdServerName)
 	stopServer(server.ipcListener, ipcServerName)
+}
+
+// getx509Certificate returns the x509.Certificate from the server TLS config
+func getx509Certificate(serverTLSConfig *tls.Config) (*x509.Certificate, error) {
+	// Read the IPC certificate from the server TLS config
+	if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
+		return nil, fmt.Errorf("no certificates found in server TLS config")
+	}
+
+	cert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])
+	if err != nil {
+		return nil, fmt.Errorf("error parsing IPC certificate: %v", err)
+	}
+	return cert, nil
 }
