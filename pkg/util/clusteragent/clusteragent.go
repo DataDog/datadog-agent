@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,7 +61,7 @@ type DCAClientInterface interface {
 	ClusterAgentAPIEndpoint() string
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
-	GetNodeAnnotations(nodeName string) (map[string]string, error)
+	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
@@ -357,9 +358,15 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 }
 
 // GetNodeAnnotations returns the node annotations from the Cluster Agent.
-func (c *DCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
+func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
-	err := c.doJSONQuery(context.TODO(), "api/v1/annotations/node/"+nodeName, "GET", nil, &result, false)
+
+	path := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	if len(filter) > 0 {
+		path = path + fmt.Sprintf("?filter=%s", strings.Join(filter, ","))
+	}
+
+	err := c.doJSONQuery(context.TODO(), path, "GET", nil, &result, false)
 	return result, err
 }
 

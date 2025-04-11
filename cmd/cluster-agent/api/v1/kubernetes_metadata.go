@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -108,7 +109,20 @@ func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Co
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+	// default filter includes host aliases
+	filter := pkgconfigsetup.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases")
+
+	// client can override filter by passing a comma delimited list query paramter
+	rawAnnotationsFilter := r.URL.Query().Get("filter")
+	if rawAnnotationsFilter != "" {
+		// sanitize input
+		filter = strings.Split(rawAnnotationsFilter, ",")
+		for i := range filter {
+			filter[i] = strings.TrimSpace(filter[i])
+		}
+	}
+
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", filter)
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
