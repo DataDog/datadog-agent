@@ -124,38 +124,6 @@ func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) err
 	return nil
 }
 
-func (m *installerMock) PostInstall(_ context.Context, _ string, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PreRemove(_ context.Context, _ string, _ string, _ bool) error {
-	return nil
-}
-
-func (m *installerMock) PreStartExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PostStartExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PreStopExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PostStopExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PrePromoteExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
-func (m *installerMock) PostPromoteExperiment(_ context.Context, _ string) error {
-	return nil
-}
-
 func (m *installerMock) Close() error {
 	return nil
 }

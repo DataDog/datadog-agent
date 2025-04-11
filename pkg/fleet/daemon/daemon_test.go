@@ -138,46 +138,6 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 	return args.Error(0)
 }
 
-func (m *testPackageManager) PostInstall(ctx context.Context, pkg string, caller string) error {
-	args := m.Called(ctx, pkg, caller)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PreRemove(ctx context.Context, pkg string, caller string, update bool) error {
-	args := m.Called(ctx, pkg, caller, update)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PreStartExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PostStartExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PreStopExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PostStopExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PrePromoteExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) PostPromoteExperiment(ctx context.Context, pkg string) error {
-	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
 func (m *testPackageManager) Close() error {
 	args := m.Called()
 	return args.Error(0)

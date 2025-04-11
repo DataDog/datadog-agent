@@ -71,15 +71,6 @@ type Installer interface {
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
-	PostInstall(ctx context.Context, pkg string, caller string) error
-	PreRemove(ctx context.Context, pkg string, caller string, update bool) error
-	PreStartExperiment(ctx context.Context, pkg string) error
-	PostStartExperiment(ctx context.Context, pkg string) error
-	PreStopExperiment(ctx context.Context, pkg string) error
-	PostStopExperiment(ctx context.Context, pkg string) error
-	PrePromoteExperiment(ctx context.Context, pkg string) error
-	PostPromoteExperiment(ctx context.Context, pkg string) error
-
 	Close() error
 }
 
@@ -97,23 +88,15 @@ type installerImpl struct {
 	userConfigsDir string
 }
 
-func newDB() (*db.PackagesDB, error) {
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
-	if err != nil {
-		return nil, fmt.Errorf("could not create packages db: %w", err)
-	}
-	return db, nil
-}
-
 // NewInstaller returns a new Package Manager.
 func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := newDB()
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	i := &installerImpl{
 		env:        env,
@@ -732,126 +715,6 @@ func (i *installerImpl) close() error {
 	return nil
 }
 
-// PostInstall runs the post-install command for a package.
-func (i *installerImpl) PostInstall(ctx context.Context, pkg string, caller string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	if caller != "deb" && caller != "rpm" && caller != "installer" {
-		return fmt.Errorf("invalid caller: %s", caller)
-	}
-
-	switch pkg {
-	case packageDatadogAgent:
-		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
-		if caller == "deb" || caller == "rpm" {
-			installPath = "/opt/datadog-agent"
-		}
-		return datadogagent.PostInstall(ctx, installPath, caller)
-	default:
-		return nil
-	}
-}
-
-// PreRemove runs the pre-rm command for a package.
-func (i *installerImpl) PreRemove(ctx context.Context, pkg string, caller string, upgrade bool) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	if caller != "deb" && caller != "rpm" && caller != "installer" {
-		return fmt.Errorf("invalid caller: %s", caller)
-	}
-
-	switch pkg {
-	case packageDatadogAgent:
-		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
-		if caller == "deb" || caller == "rpm" {
-			installPath = "/opt/datadog-agent"
-		}
-		return datadogagent.PreRemove(ctx, installPath, caller, upgrade)
-	default:
-		return nil
-	}
-}
-
-// PreStartExperiment runs the pre-start-experiment command for a package.
-func (i *installerImpl) PreStartExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreStartExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostStartExperiment runs the post-start-experiment command for a package.
-func (i *installerImpl) PostStartExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostStartExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PreStopExperiment runs the pre-stop-experiment command for a package.
-func (i *installerImpl) PreStopExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreStopExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostStopExperiment runs the post-stop-experiment command for a package.
-func (i *installerImpl) PostStopExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostStopExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PrePromoteExperiment runs the pre-promote-experiment command for a package.
-func (i *installerImpl) PrePromoteExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PrePromoteExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostPromoteExperiment runs the post-promote-experiment command for a package.
-func (i *installerImpl) PostPromoteExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostPromoteExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
 // Close cleans up the Installer's dependencies
 func (i *installerImpl) Close() error {
 	i.m.Lock()
@@ -865,14 +728,6 @@ func (i *installerImpl) preStartExperiment(ctx context.Context, pkg string) erro
 		if runtime.GOOS == "windows" {
 			return nil
 		}
-		defer func() {
-			db, err := newDB()
-			if err != nil {
-				log.Errorf("could not recreate packages db: %v", err)
-			}
-			i.db = db
-		}()
-		i.db.Close()
 		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
 		return installerExec.PreStartExperiment(ctx, pkg)
 	default:
@@ -914,14 +769,6 @@ func (i *installerImpl) postStopExperiment(ctx context.Context, pkg string) erro
 		if runtime.GOOS == "windows" {
 			return nil
 		}
-		defer func() {
-			db, err := newDB()
-			if err != nil {
-				log.Errorf("could not recreate packages db: %v", err)
-			}
-			i.db = db
-		}()
-		i.db.Close()
 		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
 		return installerExec.PostStopExperiment(ctx, pkg)
 	default:
@@ -935,14 +782,6 @@ func (i *installerImpl) prePromoteExperiment(ctx context.Context, pkg string) er
 		if runtime.GOOS == "windows" {
 			return nil
 		}
-		defer func() {
-			db, err := newDB()
-			if err != nil {
-				log.Errorf("could not recreate packages db: %v", err)
-			}
-			i.db = db
-		}()
-		i.db.Close()
 		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
 		return installerExec.PrePromoteExperiment(ctx, pkg)
 	default:
@@ -1043,6 +882,102 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not create %s repository: %w", pkg, err)
 	}
 	return nil
+}
+
+// PostInstall runs the post-install command for a package.
+func PostInstall(ctx context.Context, pkg string, caller string) error {
+	if caller != "deb" && caller != "rpm" && caller != "installer" {
+		return fmt.Errorf("invalid caller: %s", caller)
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
+		if caller == "deb" || caller == "rpm" {
+			installPath = "/opt/datadog-agent"
+		}
+		return datadogagent.PostInstall(ctx, installPath, caller)
+	default:
+		return nil
+	}
+}
+
+// PreRemove runs the pre-rm command for a package.
+func PreRemove(ctx context.Context, pkg string, caller string, upgrade bool) error {
+	if caller != "deb" && caller != "rpm" && caller != "installer" {
+		return fmt.Errorf("invalid caller: %s", caller)
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
+		if caller == "deb" || caller == "rpm" {
+			installPath = "/opt/datadog-agent"
+		}
+		return datadogagent.PreRemove(ctx, installPath, caller, upgrade)
+	default:
+		return nil
+	}
+}
+
+// PreStartExperiment runs the pre-start-experiment command for a package.
+func PreStartExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PreStartExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+// PostStartExperiment runs the post-start-experiment command for a package.
+func PostStartExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PostStartExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+// PreStopExperiment runs the pre-stop-experiment command for a package.
+func PreStopExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PreStopExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+// PostStopExperiment runs the post-stop-experiment command for a package.
+func PostStopExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PostStopExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+// PrePromoteExperiment runs the pre-promote-experiment command for a package.
+func PrePromoteExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PrePromoteExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+// PostPromoteExperiment runs the post-promote-experiment command for a package.
+func PostPromoteExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return datadogagent.PostPromoteExperiment(ctx)
+	default:
+		return nil
+	}
 }
 
 var (

@@ -8,6 +8,7 @@ package commands
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/spf13/cobra"
 )
 
@@ -19,12 +20,9 @@ func postinstCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("postinst")
-			if err != nil {
-				return err
-			}
+			i := newCmd("postinst")
 			defer i.stop(err)
-			return i.PostInstall(i.ctx, args[0], args[1])
+			return installer.PostInstall(i.ctx, args[0], args[1])
 		},
 	}
 	return cmd
@@ -39,17 +37,14 @@ func prermCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("prerm")
-			if err != nil {
-				return err
-			}
+			i := newCmd("prerm")
 			defer i.stop(err)
 
 			if args[1] == "installer" && update {
 				return errors.New("update flag is not supported for 'installer' caller; use other state transitions")
 			}
 
-			return i.PreRemove(i.ctx, args[0], args[1], update)
+			return installer.PreRemove(i.ctx, args[0], args[1], update)
 		},
 	}
 	cmd.Flags().BoolVar(&update, "update", false, "Set during updates, don't set during removes")
@@ -64,13 +59,10 @@ func preStartExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("pre-start-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("pre-start-experiment")
 			defer i.stop(err)
 
-			return i.PreStartExperiment(i.ctx, args[0])
+			return installer.PreStartExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -84,13 +76,10 @@ func postStartExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("post-start-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("post-start-experiment")
 			defer i.stop(err)
 
-			return i.PostStartExperiment(i.ctx, args[0])
+			return installer.PostStartExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -104,13 +93,10 @@ func preStopExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("pre-stop-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("pre-stop-experiment")
 			defer i.stop(err)
 
-			return i.PreStopExperiment(i.ctx, args[0])
+			return installer.PreStopExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -124,13 +110,10 @@ func postStopExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("post-stop-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("post-stop-experiment")
 			defer i.stop(err)
 
-			return i.PostStopExperiment(i.ctx, args[0])
+			return installer.PostStopExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -144,13 +127,10 @@ func prePromoteExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("pre-promote-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("pre-promote-experiment")
 			defer i.stop(err)
 
-			return i.PrePromoteExperiment(i.ctx, args[0])
+			return installer.PrePromoteExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -164,13 +144,10 @@ func postPromoteExpCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("post-promote-experiment")
-			if err != nil {
-				return err
-			}
+			i := newCmd("post-promote-experiment")
 			defer i.stop(err)
 
-			return i.PostPromoteExperiment(i.ctx, args[0])
+			return installer.PostPromoteExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
