@@ -14,6 +14,9 @@ import (
 	"regexp"
 	"strings"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
 func baseDeviceName(device string) string {
@@ -135,4 +138,7 @@ func wNetAddConnection2(localName, remoteName, password, username string) error 
 		return err
 	}
 	return nil
+}
+
+func (c *Check) sendInodesMetrics(_ sender.Sender, _ *gopsutil_disk.UsageStat, _ []string) {
 }

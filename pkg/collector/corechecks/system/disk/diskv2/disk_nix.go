@@ -9,6 +9,7 @@ package diskv2
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -16,7 +17,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
 func baseDeviceName(device string) string {
@@ -165,4 +168,14 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 		}
 	}
 	return nil
+}
+
+func (c *Check) sendInodesMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
+	// Inodes metrics
+	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "utilized"), usage.InodesUsedPercent, "", tags)
+	// FIXME(8.x): use percent, a lot more logical than in_use
+	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 }
