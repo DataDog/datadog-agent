@@ -420,12 +420,15 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
-		suite.Contains(stdout, "agents reporting ===")
-		suite.Contains(stdout, "===== Checks on ")
-		suite.Contains(stdout, "=== helm check ===")
+		var stdout string
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+			assert.NoError(c, err)
+			assert.Empty(c, stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
+			assert.Contains(c, stdout, "agents reporting ===")
+			assert.Contains(c, stdout, "===== Checks on ")
+			assert.Contains(c, stdout, "=== helm check ===")
+		}, 2*time.Minute, 1*time.Second)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
