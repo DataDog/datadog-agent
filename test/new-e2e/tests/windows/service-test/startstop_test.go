@@ -508,16 +508,7 @@ function Get-ProcessMemoryUsage {
 		}}
 }
 
-[PsCustomObject]@{
-	Procs=(Get-ProcessMemoryUsage);
-	System=[PsCustomObject]@{
-		CommittedBytes=(Get-Counter '\Memory\Committed Bytes').CounterSamples[0].CookedValue;
-		AvailableBytes=(Get-Counter '\Memory\Available Bytes').CounterSamples[0].CookedValue;
-		PoolNonpagedBytes=(Get-Counter '\Memory\Pool Nonpaged Bytes').CounterSamples[0].CookedValue;
-		PoolPagedBytes=(Get-Counter '\Memory\Pool Paged Bytes').CounterSamples[0].CookedValue;
-		PercentCommittedBytesInUse=[int64][math]::Round((Get-Counter '\Memory\% Committed Bytes In Use').CounterSamples[0].CookedValue);
-	};
-} | ConvertTo-JSON
+Get-ProcessMemoryUsage | ConvertTo-JSON
 `))
 	s.logMemory(host)
 }
@@ -722,122 +713,106 @@ func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommo
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
 }
 
-func (s *baseStartStopSuite) logMemory(host *components.RemoteHost) {
-	// TODO(WINA-1320): log the system memory to help debug
+func (s *baseStartStopSuite) getSystemMemoryMetrics(host *components.RemoteHost) ([]datadog.Metric, error) {
+	// Run agent check to get system memory usage
+	out, err := host.Execute(`& "C:/Program Files/Datadog/Datadog Agent/bin/agent.exe" check memory --json`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get system memory usage: %s", err)
+	}
+
+	// remove first 4 lines that contain a note
+	out = strings.Join(strings.Split(out, "\n")[4:], "\n")
+
+	// convert from JSON
+	type aggregatorValues struct {
+		Metrics []datadog.Metric `json:"metrics,omitempty"`
+	}
+	type checkOutput struct {
+		Aggregator aggregatorValues `json:"aggregator,omitempty"`
+	}
+	var checkruns []checkOutput
+	err = json.Unmarshal([]byte(out), &checkruns)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal system memory usage: %s", err)
+	}
+	return checkruns[0].Aggregator.Metrics, nil
+}
+
+func (s *baseStartStopSuite) getTopProcessMemoryMetrics(host *components.RemoteHost) ([]datadog.Metric, error) {
+	metrics := []datadog.Metric{}
+
+	// add a metric for each process memory usage
+	timestamp := (float64)(time.Now().Unix())
 	out, err := host.Execute(`C:\logmemory.ps1`)
 	if err != nil {
-		s.T().Logf("failed to get process memory usage: %s", err)
-	} else {
-		s.T().Logf("Process memory usage:\n%s", out)
+		return nil, fmt.Errorf("failed to get process memory usage: %s", err)
 	}
-	// convert from JSON
-	var memoryInfo map[string]any
+
+	// unmarshal JSON
+	type processMemory struct {
+		Name              string  `json:"Name"`
+		PagedMemorySize64 float64 `json:"PagedMemorySize64"`
+		WorkingSet64      float64 `json:"WorkingSet64"`
+	}
+	var memoryInfo []processMemory
 	err = json.Unmarshal([]byte(out), &memoryInfo)
 	if err != nil {
-		s.T().Logf("failed to unmarshal process memory usage: %s", err)
-		return
+		return nil, fmt.Errorf("failed to unmarshal process memory usage: %s", err)
 	}
-	// log the system memory
-	systemMemory, ok := memoryInfo["System"].(map[string]any)
-	if !ok {
-		s.T().Logf("failed to get system memory info from JSON: %s", out)
-		return
+
+	for _, proc := range memoryInfo {
+		proctags := []string{fmt.Sprintf("process_name:%s", proc.Name)}
+		metrics = append(metrics, datadog.Metric{
+			Metric: datadog.String("system.processes.mem.rss"),
+			Points: []datadog.DataPoint{
+				{&timestamp, datadog.Float64(proc.WorkingSet64)},
+			},
+			Type: datadog.String("gauge"),
+			Tags: proctags,
+			Host: datadog.String(host.Address),
+		})
+		metrics = append(metrics, datadog.Metric{
+			Metric: datadog.String("system.processes.mem.vms"),
+			Points: []datadog.DataPoint{
+				{&timestamp, datadog.Float64(proc.PagedMemorySize64)},
+			},
+			Type: datadog.String("gauge"),
+			Tags: proctags,
+			Host: datadog.String(host.Address),
+		})
+	}
+
+	return metrics, nil
+}
+
+func (s *baseStartStopSuite) logMemory(host *components.RemoteHost) {
+	// TODO(WINA-1320): log the system memory to help debug
+	metrics := []datadog.Metric{}
+
+	systemMetrics, err := s.getSystemMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get system memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, systemMetrics...)
+	}
+	processMetrics, err := s.getTopProcessMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get process memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, processMetrics...)
 	}
 	tags := []string{
 		// test info
 		"testname:" + s.T().Name(),
 		// pipeline info
-		"project" + os.Getenv("CI_PROJECT_NAME"),
+		"project:datadog-agent",
 		"job:" + os.Getenv("CI_JOB_ID"),
 		"pipeline:" + s.Env().Environment.PipelineID(),
 	}
-	timestamp := (float64)(time.Now().Unix())
-	const mbSize float64 = 1024 * 1024
-	metrics := []datadog.Metric{
-		{
-			Metric: datadog.String("system.mem.usable"),
-			Points: []datadog.DataPoint{{
-				datadog.Float64(timestamp),
-				datadog.Float64(systemMemory["AvailableBytes"].(float64) / mbSize),
-			}},
-			Type: datadog.String("gauge"),
-			Tags: tags,
-			Host: datadog.String(host.Address),
-		},
-		{
-			Metric: datadog.String("system.mem.committed"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64(systemMemory["CommittedBytes"].(float64) / mbSize)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: tags,
-			Host: datadog.String(host.Address),
-		},
-		{
-			Metric: datadog.String("system.mem.nonpaged"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64(systemMemory["PoolNonpagedBytes"].(float64) / mbSize)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: tags,
-			Host: datadog.String(host.Address),
-		},
-		{
-			Metric: datadog.String("system.mem.paged"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64(systemMemory["PoolPagedBytes"].(float64) / mbSize)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: tags,
-			Host: datadog.String(host.Address),
-		},
-		{
-			Metric: datadog.String("system.mem.pagefile.pct_free"),
-			Points: []datadog.DataPoint{
-				{&timestamp, datadog.Float64((float64)(100-systemMemory["PercentCommittedBytesInUse"].(float64)) / 100)},
-			},
-			Type: datadog.String("gauge"),
-			Tags: tags,
-			Host: datadog.String(host.Address),
-		},
-	}
-	// add a metric for each process memory usage
-	procs, ok := memoryInfo["Procs"].([]any)
-	if !ok {
-		s.T().Logf("failed to get process memory info from JSON: %s", out)
-	} else {
-		for _, proc := range procs {
-			procMap, ok := proc.(map[string]any)
-			if !ok {
-				s.T().Logf("failed to get process memory info from JSON: %s", out)
-				continue
-			}
-			name, ok := procMap["Name"].(string)
-			if !ok {
-				s.T().Logf("failed to get process name from JSON: %s", out)
-				continue
-			}
-			proctags := tags
-			proctags = append(proctags, fmt.Sprintf("process_name:%s", name))
-			metrics = append(metrics, datadog.Metric{
-				Metric: datadog.String("system.processes.mem.rss"),
-				Points: []datadog.DataPoint{
-					{&timestamp, datadog.Float64(procMap["WorkingSet64"].(float64))},
-				},
-				Type: datadog.String("gauge"),
-				Tags: proctags,
-				Host: datadog.String(host.Address),
-			})
-			metrics = append(metrics, datadog.Metric{
-				Metric: datadog.String("system.processes.mem.vms"),
-				Points: []datadog.DataPoint{
-					{&timestamp, datadog.Float64(procMap["PagedMemorySize64"].(float64))},
-				},
-				Type: datadog.String("gauge"),
-				Tags: proctags,
-				Host: datadog.String(host.Address),
-			})
-		}
+	// update Host and Tags in each metric
+	for i := range metrics {
+		metrics[i].Host = datadog.String(host.Address)
+		metrics[i].Tags = append(metrics[i].Tags, tags...)
 	}
 
 	// submit the metrics to dddev
