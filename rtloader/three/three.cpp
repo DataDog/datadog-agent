@@ -19,6 +19,7 @@
 #include "util.h"
 
 #include <algorithm>
+#include <functional>
 #include <sstream>
 
 extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
@@ -34,18 +35,16 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
-    , _pythonExe(NULL)
+    , _pythonHome("")
+    , _pythonExe("")
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    _pythonHome = (python_home && strlen(python_home) > 0) ? strdup(python_home) : strdup(_defaultPythonHome);
-    if (python_exe && strlen(python_exe) > 0) {
-        _pythonExe = strdup(python_exe);
-    }
+    _pythonHome = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
+    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : "";
 }
 
 Three::~Three()
@@ -58,25 +57,13 @@ Three::~Three()
 
 bool Three::init()
 {
-    class StatusHandler
-    {
-    public:
-        explicit StatusHandler(Three *ctx)
-            : context(ctx)
-        {
+    std::function<bool(const PyStatus &, const std::string &)> checkStatus
+        = [this](const PyStatus &status, const std::string &message) -> bool {
+        if (PyStatus_Exception(status)) {
+            setError(message + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+            return false;
         }
-
-        bool check(const PyStatus &status, const std::string &message)
-        {
-            if (PyStatus_Exception(status)) {
-                context->setError(message + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
-                return false;
-            }
-            return true;
-        }
-
-    private:
-        Three *context;
+        return true;
     };
 
     // Initialize UTF-8 mode
@@ -85,31 +72,29 @@ bool Three::init()
         PyPreConfig_InitPythonConfig(&preconfig);
         preconfig.utf8_mode = 1;
 
-        StatusHandler status(this);
-        if (!status.check(Py_PreInitialize(&preconfig), "Failed to pre-initialize Python")) {
+        if (!checkStatus(Py_PreInitialize(&preconfig), "Failed to pre-initialize Python")) {
             return false;
         }
     }
 
     // Configure Python environment
-    StatusHandler status(this);
-
     // Initialize the configuration with default values
     PyConfig_InitPythonConfig(&_config);
     _config.install_signal_handlers = 1;
 
     // Set Python home
-    if (!status.check(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome), "Failed to set python home")) {
+    if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome.c_str()),
+                     "Failed to set python home")) {
         PyConfig_Clear(&_config);
         return false;
     }
 
     // Configure Python executable if provided
-    if (_pythonExe) {
-        if (!status.check(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe),
-                          "Failed to set executable path")
-            || !status.check(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe),
-                             "Failed to set program name")) {
+    if (!_pythonExe.empty()) {
+        if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str()),
+                         "Failed to set executable path")
+            || !checkStatus(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str()),
+                            "Failed to set program name")) {
             PyConfig_Clear(&_config);
             return false;
         }
@@ -126,7 +111,7 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
     // Initialize Python with our configuration
-    if (!status.check(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
+    if (!checkStatus(Py_InitializeFromConfig(&_config), "Failed to initialize Python")) {
         PyConfig_Clear(&_config);
         return false;
     }
