@@ -35,8 +35,8 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
 
 Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
-    , _pythonHome(NULL)
-    , _pythonExe(NULL)
+    , _pythonHome("")
+    , _pythonExe("")
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
@@ -44,7 +44,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemAlloc(0)
 {
     _pythonHome = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : NULL;
+    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : "";
 }
 
 Three::~Three()
