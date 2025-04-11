@@ -105,7 +105,7 @@ func generateRandomTagInfo() *types.TagInfo {
 	id := ids[rand.Intn(nEntities)]
 	source := sources[rand.Intn(nSources)]
 	return &types.TagInfo{
-		EntityID:             types.NewEntityID("", id),
+		EntityID:             types.NewEntityID(types.ContainerID, id),
 		Source:               source,
 		LowCardTags:          generateRandomTags(),
 		OrchestratorCardTags: generateRandomTags(),

@@ -20,7 +20,7 @@ import (
 
 func TestSubscriptionManager(t *testing.T) {
 
-	entityID := types.NewEntityID("foo", "bar")
+	entityID := types.NewEntityID(types.ContainerID, "bar")
 
 	events := map[string]types.EntityEvent{
 		"added": {
@@ -55,7 +55,7 @@ func TestSubscriptionManager(t *testing.T) {
 		"added-with-unmatched-prefix": {
 			EventType: types.EventTypeAdded,
 			Entity: types.Entity{
-				ID: types.NewEntityID("gee", "goo"),
+				ID: types.NewEntityID(types.ContainerID, "goo"),
 			},
 		},
 	}

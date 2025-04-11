@@ -55,7 +55,7 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 }
 
 func TestAccumulateTagsFor(t *testing.T) {
-	entityID := types.NewEntityID("", "entity_name")
+	entityID := types.NewEntityID(types.ContainerID, "entity_name")
 
 	mockReq := MockRequires{
 		Config:    configmock.New(t),
