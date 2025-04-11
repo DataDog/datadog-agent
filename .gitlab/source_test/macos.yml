@@ -4,15 +4,16 @@ include:
 
 .tests_macos_gitlab:
   stage: source_test
-  extends: 
+  extends:
     - .unit_test_base
     - .macos_gitlab
-  rules:
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
+  # rules:
+  #   - !reference [.except_disable_unit_tests]
+  #   - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
+    FAST_TESTS: false
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
