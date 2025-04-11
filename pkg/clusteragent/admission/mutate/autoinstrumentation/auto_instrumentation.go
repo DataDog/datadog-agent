@@ -26,7 +26,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -427,29 +426,6 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 		decision.message = insufficientResourcesMessage
 	}
 	return requirements, decision
-}
-
-// Returns the name of Kubernetes resource that owns the pod
-func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
-	ownerReferences := pod.ObjectMeta.OwnerReferences
-	if len(ownerReferences) != 1 {
-		return "", fmt.Errorf("pod should be owned by one resource; current owners: %v+", ownerReferences)
-	}
-
-	switch owner := ownerReferences[0]; owner.Kind {
-	case "StatefulSet":
-		fallthrough
-	case "Job":
-		fallthrough
-	case "CronJob":
-		fallthrough
-	case "DaemonSet":
-		return owner.Name, nil
-	case "ReplicaSet":
-		return kubernetes.ParseDeploymentForReplicaSet(owner.Name), nil
-	}
-
-	return "", nil
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
