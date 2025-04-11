@@ -813,8 +813,8 @@ new-e2e-cspm:
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestGPUHostSuite --gpu-system $GPU_SYSTEM"
-      - EXTRA_PARAMS: "--run TestGPUK8sSuite --gpu-system $GPU_SYSTEM"
+      - EXTRA_PARAMS: "--run TestGPUHostSuite --extra-flags \"--gpu-system $GPU_SYSTEM\""
+      - EXTRA_PARAMS: "--run TestGPUK8sSuite --extra-flags \"--gpu-system $GPU_SYSTEM\""
 
 new-e2e-gpu:
   extends: .new-e2e-gpu
