@@ -52,7 +52,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 
 	b.Run("none", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			enrichMetricSample(out, sample, "", 0, "", conf)
+			enrichMetricSample(out, sample, "", 0, "", conf, nil)
 		}
 	})
 
@@ -66,7 +66,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					enrichMetricSample(out, sample, "", 0, "", conf)
+					enrichMetricSample(out, sample, "", 0, "", conf, &conf.metricBlocklist)
 				}
 			})
 	}
