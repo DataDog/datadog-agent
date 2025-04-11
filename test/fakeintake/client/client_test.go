@@ -7,6 +7,7 @@ package client
 
 import (
 	_ "embed"
+	"time"
 
 	"encoding/base64"
 	"encoding/json"
@@ -115,7 +116,8 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		// Reduce backoff values to not spend 20s waiting in the test
+		client := NewClient(ts.URL, WithGetBackoffRetries(1), WithGetBackoffDelay(10*time.Millisecond))
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.Error(t, err, "Expecting error")
 		assert.Nil(t, payloads)
