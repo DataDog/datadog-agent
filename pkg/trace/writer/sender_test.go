@@ -213,6 +213,34 @@ func TestSender(t *testing.T) {
 		wg.Wait()
 	})
 
+	t.Run("primary-sender", func(t *testing.T) {
+		assert := assert.New(t)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		primaryServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			assert.Equal("true", req.Header.Get(headerPrimaryEndpoint))
+			wg.Done()
+		}))
+		defer primaryServer.Close()
+		secondaryServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			assert.Equal("", req.Header.Get(headerPrimaryEndpoint))
+			wg.Done()
+		}))
+		defer secondaryServer.Close()
+
+		primaryCfg := testSenderConfig(primaryServer.URL)
+		primaryCfg.isPrimaryEndpoint = true
+		primarySender := newSender(primaryCfg, statsd)
+		primarySender.Push(expectResponses(http.StatusOK))
+		primarySender.Stop()
+
+		secondarySender := newSender(testSenderConfig(secondaryServer.URL), statsd)
+		secondarySender.Push(expectResponses(http.StatusOK))
+		secondarySender.Stop()
+
+		wg.Wait()
+	})
+
 	t.Run("events", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()

@@ -56,7 +56,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			userAgent:         fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 			isMRF:             endpoint.IsMRF,
 			isMRFEnabled:      cfg.IsMRFEnabled,
-			isPrimaryEndpoint: i == 0,
+			isPrimaryEndpoint: i == 0, // the first endpoint is the primary one
 		}, statsd)
 	}
 	return senders
@@ -394,15 +394,16 @@ type retriableError struct{ err error }
 func (e retriableError) Error() string { return e.err.Error() }
 
 const (
-	headerAPIKey    = "DD-Api-Key"
-	headerUserAgent = "User-Agent"
+	headerAPIKey          = "DD-Api-Key"
+	headerUserAgent       = "User-Agent"
+	headerPrimaryEndpoint = "DD-Primary-Endpoint"
 )
 
 func (s *sender) do(req *http.Request) error {
 	req.Header.Set(headerAPIKey, s.cfg.apiKey)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	if s.isPrimarySender() {
-		req.Header.Set("DD-Primary-Endpoint", "true")
+		req.Header.Set(headerPrimaryEndpoint, "true")
 	}
 
 	resp, err := s.cfg.client.Do(req)
