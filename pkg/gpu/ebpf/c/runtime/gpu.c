@@ -332,7 +332,7 @@ SEC("uprobe/cudaMemcpy")
 int BPF_UPROBE(uprobe__cudaMemcpy, void *dst, const void *src, size_t count, int kind) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    log_debug("cudaMemcpy: pid=%llu, dst=%llx, src=%llx, count=%lu, kind=%d", pid_tgid, (__u64)dst, (__u64)src, count, kind);
+    log_debug("cudaMemcpy: pid_tgid=%llu", pid_tgid);
     bpf_map_update_with_telemetry(cuda_memcpy_cache, &pid_tgid, &count, BPF_ANY);
 
     return 0;
@@ -344,7 +344,7 @@ int BPF_URETPROBE(uretprobe__cudaMemcpy) {
     __u64 *count = NULL;
     cuda_sync_t event = { 0 };
 
-    log_debug("cudaMemcpy[ret]: pid=%llx\n", pid_tgid);
+    log_debug("cudaMemcpy[ret]: pid_tgid=%llu\n", pid_tgid);
 
     count = bpf_map_lookup_elem(&cuda_memcpy_cache, &pid_tgid);
     if (!count) {
