@@ -73,9 +73,10 @@ func (c *Check) Run() error {
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 	fmt.Println("&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 
-	if c.PythonCheck != nil {
-		return c.PythonCheck.Run()
-	}
+	//if c.PythonCheck != nil {
+	//	fmt.Println("RUNNING PYTHON CHECK IN CORE CHECK RUN")
+	//	return c.PythonCheck.Run()
+	//}
 
 	var checkErr error
 	sender, err := c.GetSender()
