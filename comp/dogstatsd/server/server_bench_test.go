@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 
@@ -32,10 +32,11 @@ func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
 }
 
 func benchParsePackets(b *testing.B, rawPacket []byte) {
+	cfg := mock.New(b)
 	deps := fulfillDeps(b)
 	s := deps.Server.(*server)
 	// our logger will log dogstatsd packet by default if nothing is setup
-	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, pkgconfigsetup.Datadog())
+	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)
 
 	histogram := deps.Telemetry.NewHistogram("test-dogstatsd",
 		"channel_latency",
@@ -85,10 +86,11 @@ func BenchmarkParsePacketsMultiple(b *testing.B) {
 var samplesBench []metrics.MetricSample
 
 func BenchmarkPbarseMetricMessage(b *testing.B) {
+	cfg := mock.New(b)
 	deps := fulfillDeps(b)
 	s := deps.Server.(*server)
 	// our logger will log dogstatsd packet by default if nothing is setup
-	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, pkgconfigsetup.Datadog())
+	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)
 
 	demux := deps.Demultiplexer
 
@@ -137,10 +139,11 @@ dogstatsd_mapper_profiles:
 
 func benchmarkMapperControl(b *testing.B, yaml string) {
 	deps := fulfillDepsWithConfigYaml(b, yaml)
+	cfg := mock.New(b)
 	s := deps.Server.(*server)
 
 	// our logger will log dogstatsd packet by default if nothing is setup
-	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, pkgconfigsetup.Datadog())
+	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)
 
 	demux := deps.Demultiplexer
 

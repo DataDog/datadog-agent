@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetInstanceID(t *testing.T) {
+	cfg := configmock.New(t)
 	ctx := context.Background()
-	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	holdValue := cfg.Get("cloud_provider_metadata")
+	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -41,10 +42,11 @@ func TestGetInstanceID(t *testing.T) {
 }
 
 func TestGetHostAliases(t *testing.T) {
+	cfg := configmock.New(t)
 	ctx := context.Background()
-	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	holdValue := cfg.Get("cloud_provider_metadata")
+	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -64,9 +66,10 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	cfg := configmock.New(t)
+	holdValue := cfg.Get("cloud_provider_metadata")
+	defer cfg.SetWithoutSource("cloud_provider_metadata", holdValue)
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}
