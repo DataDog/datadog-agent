@@ -13,7 +13,7 @@ include:
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
-  tags: ["macos:ventura-amd64", "specific:true"]
+  tags: ["macos:ventura-amd64-test", "specific:true"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
