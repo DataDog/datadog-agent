@@ -110,15 +110,12 @@ func (agg *aggregator) getAverageCoreUsage() float64 {
 	return agg.totalThreadSecondsUsed / intervalSecs // Compute the average thread usage over the interval
 }
 
-// getStats returns the aggregated stats for the process
-// utilizationNormFactor is the factor to normalize the utilization by, to
-// account for the fact that we might have more kernels enqueued than the
-// GPU can run in parallel. This factor allows distributing the utilization
-// over all the streams that were active during the interval.
-func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
+// getUnnormalizedStats returns the aggregated stats for the process, without any normalization
+// Normalization to avoid over-reporting is done at the device level by the caller of this function.
+// This function flushes the data after processing it.
+func (agg *aggregator) getUnnormalizedStats() model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
-
-	stats.UsedCores = agg.getAverageCoreUsage() / utilizationNormFactor
+	stats.UsedCores = agg.getAverageCoreUsage()
 
 	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
 	for i := memAllocType(0); i < memAllocTypeCount; i++ {
