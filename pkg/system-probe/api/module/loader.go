@@ -61,8 +61,8 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, deps FactoryDependencies) error {
-	var enabledModulesFactories []Factory
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Factory, deps FactoryDependencies) error {
+	var enabledModulesFactories []*Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
@@ -137,12 +137,12 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory, deps FactoryDependencies) error {
+func RestartModule(factory *Factory, deps FactoryDependencies) error {
 	l.Lock()
 	defer l.Unlock()
 
 	if l.closed {
-		return fmt.Errorf("can't restart module because system-probe is shutting down")
+		return errors.New("can't restart module because system-probe is shutting down")
 	}
 
 	currentModule := l.modules[factory.Name]

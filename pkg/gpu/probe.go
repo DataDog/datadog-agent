@@ -92,15 +92,6 @@ type ProbeDependencies struct {
 	WorkloadMeta workloadmeta.Component
 }
 
-// NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	return ProbeDependencies{
-		Telemetry:      telemetry,
-		ProcessMonitor: processMonitor,
-		WorkloadMeta:   workloadMeta,
-	}, nil
-}
-
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	m                *ddebpf.Manager

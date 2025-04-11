@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func isEBPFRequired(factories []Factory) bool {
+func isEBPFRequired(factories []*Factory) bool {
 	for _, f := range factories {
 		if f.NeedsEBPF() {
 			return true
@@ -22,7 +22,7 @@ func isEBPFRequired(factories []Factory) bool {
 	return false
 }
 
-func isEBPFOptional(factories []Factory) bool {
+func isEBPFOptional(factories []*Factory) bool {
 	for _, f := range factories {
 		if f.OptionalEBPF {
 			return true
@@ -31,7 +31,7 @@ func isEBPFOptional(factories []Factory) bool {
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
+func preRegister(_ *sysconfigtypes.Config, moduleFactories []*Factory) error {
 	needed := isEBPFRequired(moduleFactories)
 	if needed || isEBPFOptional(moduleFactories) {
 		err := ebpf.Setup(ebpf.NewConfig())
@@ -45,7 +45,7 @@ func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
 	return nil
 }
 
-func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
+func postRegister(cfg *sysconfigtypes.Config, moduleFactories []*Factory) error {
 	if isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories) {
 		ebpf.FlushBTF()
 	}
