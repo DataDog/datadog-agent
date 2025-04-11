@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package check contains the code to parse the check command output
 package check
 
 import (
@@ -34,8 +35,8 @@ type Metric struct {
 	Type           string      `json:"type"`
 }
 
-// ParseCheckOutput parses the check command json output
-func ParseCheckOutput(t *testing.T, check []byte) []Root {
+// ParseJSONOutput parses the check command json output
+func ParseJSONOutput(t *testing.T, check []byte) []Root {
 	// On Windows a warning is printed when running the check command with the wrong user
 	// This warning is not part of the JSON output and needs to be ignored when parsing
 	startIdx := bytes.IndexAny(check, "[{")
