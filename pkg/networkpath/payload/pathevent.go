@@ -6,7 +6,11 @@
 // Package payload contains Network Path payload
 package payload
 
-import "github.com/DataDog/datadog-agent/pkg/network/payload"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/payload"
+)
 
 // Protocol defines supported network protocols
 // Please define new protocols based on the Keyword from:
@@ -19,6 +23,26 @@ const (
 	// ProtocolUDP is the UDP protocol.
 	ProtocolUDP Protocol = "UDP"
 )
+
+// TCPMethod is the method used to run a TCP traceroute.
+type TCPMethod string
+
+const (
+	// TCPConfigSYN means to only perform SYN traceroutes
+	TCPConfigSYN TCPMethod = "syn"
+	// TCPConfigSACK means to only perform SACK traceroutes
+	TCPConfigSACK TCPMethod = "sack"
+	// TCPConfigPreferSACK means to try SACK, and fall back to SYN if the remote doesn't support SACK
+	TCPConfigPreferSACK TCPMethod = "prefer_sack"
+)
+
+// TCPDefaultMethod is what method to use when nothing is specified
+const TCPDefaultMethod TCPMethod = TCPConfigSYN
+
+// MakeTCPMethod converts a TCP traceroute method from config into a TCPMethod
+func MakeTCPMethod(method string) TCPMethod {
+	return TCPMethod(strings.ToLower(method))
+}
 
 // PathOrigin origin of the path e.g. network_traffic, network_path_integration
 type PathOrigin string
