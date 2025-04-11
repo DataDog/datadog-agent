@@ -10,8 +10,6 @@ import (
 	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // UnmarshalSpanList unmarshals a list of InternalSpans from a byte stream, updating the strings slice with new strings
@@ -182,7 +180,6 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			}
 			span.Kind = SpanKind(kind)
 		default:
-			log.Warn("Unknown span field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
@@ -250,7 +247,6 @@ func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err erro
 			}
 			spanEvent.Attributes = kvl
 		default:
-			log.Warn("Unknown span event field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
@@ -405,8 +401,6 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		}
 		value.Value = &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: kvl}}
 	default:
-		log.Warn("Unknown attribute field number %d, are you running the latest agent version?\n", valueType)
-		return
 	}
 	return
 }
@@ -544,7 +538,6 @@ func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		default:
-			log.Warn("Unknown span link field number %d, are you running the latest agent version?\n", fieldNum)
 		}
 	}
 	return
