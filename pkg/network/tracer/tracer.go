@@ -64,18 +64,12 @@ const tracerModuleName = "network_tracer"
 //
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
-var tracerTelemetry = struct {
+type tracerTelemetry struct {
 	skippedConns         telemetry.Counter
 	expiredTCPConns      telemetry.Counter
 	closedConns          *telemetry.StatCounterWrapper
 	connStatsMapSize     telemetry.Gauge
 	payloadSizePerClient telemetry.Gauge
-}{
-	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
-	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
-	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
-	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
-	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -107,6 +101,7 @@ type Tracer struct {
 
 	// Used for connection_protocol data expiration
 	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
+	tracerTelemetry              tracerTelemetry
 }
 
 // NewTracer creates a Tracer
@@ -152,13 +147,20 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 			log.Warnf("NPM is explicitly enabled, so system-probe will continue with only NPM features enabled")
 		}
 	}
-
+	tt := tracerTelemetry{
+		skippedConns:         telemetryComponent.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
+		expiredTCPConns:      telemetryComponent.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
+		closedConns:          telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
+		connStatsMapSize:     telemetryComponent.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+		payloadSizePerClient: telemetryComponent.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	}
 	tr := &Tracer{
 		config:                     cfg,
 		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
 		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		telemetryComp:              telemetryComponent,
+		tracerTelemetry:            tt,
 	}
 	defer func() {
 		if reterr != nil {
@@ -328,7 +330,7 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	cs.IsClosed = true
 	if t.shouldSkipConnection(cs) {
-		tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
+		t.tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
 		return
 	}
 
@@ -340,7 +342,7 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 
 	t.addProcessInfo(cs)
 
-	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
+	t.tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
 
 	t.state.StoreClosedConnection(cs)
 }
@@ -453,8 +455,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 		}
 	}
 
-	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
-	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
+	t.tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
+	t.tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
@@ -490,7 +492,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
 		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
 		network.ConnsBpfMapSize:           int64(mapSize),
-		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
+		network.MonotonicConnsClosed:      t.tracerTelemetry.closedConns.Load(),
 	}
 
 	stats, err := t.getStats(stateStats)
@@ -557,14 +559,14 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
 			if c.Type == network.TCP {
-				tracerTelemetry.expiredTCPConns.Inc()
+				t.tracerTelemetry.expiredTCPConns.Inc()
 			}
-			tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
+			t.tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			tracerTelemetry.skippedConns.IncWithTags(c.Type.Tags())
+			t.tracerTelemetry.skippedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 		return true
@@ -594,7 +596,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	tracerTelemetry.connStatsMapSize.Set(float64(entryCount))
+	t.tracerTelemetry.connStatsMapSize.Set(float64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)
