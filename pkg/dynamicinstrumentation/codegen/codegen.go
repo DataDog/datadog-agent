@@ -230,6 +230,10 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("comment").Parse(commentText)
 	case ditypes.OpSetParameterIndex:
 		return template.New("set_parameter_index").Parse(setParameterIndexText)
+	case ditypes.OpCompilerError:
+		return template.New("compiler_error").Parse(compilerErrorText)
+	case ditypes.OpVerifierError:
+		return template.New("verifier_error").Parse(verifierErrorText)
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
