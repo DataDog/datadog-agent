@@ -27,7 +27,6 @@ import (
 
 var (
 	bufferExpVars           = expvar.NewMap("orchestrator-manifest-buffer")
-	bufferedManifest        = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
 	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
@@ -175,11 +174,19 @@ func setManifestStats(manifests []interface{}) {
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
 		nodeType := pkgorchestratormodel.NodeType(m.(*model.Manifest).Type)
-		if _, ok := bufferedManifest[nodeType]; !ok {
-			bufferedManifest[nodeType] = &expvar.Int{}
-			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
+		nodeTypeStr := nodeType.String()
+
+		// Get the existing expvar.Int for this node type, or create a new one if it doesn't exist
+		var expvarInt *expvar.Int
+		if v := bufferExpVars.Get(nodeTypeStr); v == nil {
+			expvarInt = new(expvar.Int)
+			bufferExpVars.Set(nodeTypeStr, expvarInt)
+		} else {
+			expvarInt = v.(*expvar.Int)
 		}
-		bufferedManifest[nodeType].Add(1)
+
+		// Increment the counter
+		expvarInt.Add(1)
 		tlmBufferedManifest.Inc(nodeType.TelemetryTags()...)
 	}
 }
