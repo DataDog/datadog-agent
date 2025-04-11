@@ -68,12 +68,16 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 // It replaces the current payloads with the new ones
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	if *generateFixture {
+		fmt.Println("ANDREWQIAN WACKTEST1")
+		fmt.Println("ANDREWQIAN UnmarshallPayloads", payloads)
 		_, filename, _, ok := runtime.Caller(0)
 		if !ok {
+			fmt.Println("ANDREWQIAN UnmarshallPayloads", "error generating fixture: unable to get the current file")
 			return errors.New("error generating fixture: unable to get the current file")
 		}
 
 		if len(payloads) == 0 {
+			fmt.Println("ANDREWQIAN UnmarshallPayloads", "error generating fixture: no payloads")
 			return errors.New("error generating fixture: no payloads")
 		}
 
@@ -85,23 +89,30 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 		aggName = strings.ReplaceAll(aggName, "aggregator.", "")
 		aggName = strings.ReplaceAll(aggName, "Payload", "")
 		aggName = strings.ToLower(aggName)
-
-		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+		fmt.Println("ANDREWQIAN WFKAEOOEWFOAWEOFKEWAOK", filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)))
+		wack := os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+		fmt.Println("ANDREWQIAN WACKTEST3?????", wack)
+		return wack
 	}
-	fmt.Print(reflect.TypeOf(agg).Name())
+	fmt.Println("ANDREWQIAN WACKTEST2")
+	fmt.Println("ANDREWQIAN UnmarshallPayloads", reflect.TypeOf(agg).Name())
 	// build new map
 	payloadsByName := map[string][]P{}
 	for _, p := range payloads {
+		fmt.Println("ANDREWQIAN for _, p := range payloads", p)
 		payloads, err := agg.parse(p)
 		if err != nil {
 			return err
 		}
+		fmt.Println("ANDREWQIAN payloads, err", payloads)
 
 		for _, item := range payloads {
+			fmt.Println("ANDREWQIAN for _, item := range payloads", item)
 			if _, found := payloadsByName[item.name()]; !found {
 				payloadsByName[item.name()] = []P{}
 			}
 			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
+			fmt.Println("ANDREWQIAN payloadsByName[item.name()]", payloadsByName[item.name()])
 		}
 	}
 	agg.replace(payloadsByName)
@@ -173,9 +184,11 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 
 // GetPayloadsByName return the payloads for the resource name
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
+	fmt.Println("ANDREWQIAN GetPayloadsByName", name)
 	agg.mutex.RLock()
 	defer agg.mutex.RUnlock()
 	payloads := agg.payloadsByName[name]
+	fmt.Println("ANDREWQIAN GetPayloadsByName", payloads)
 	return payloads
 }
 

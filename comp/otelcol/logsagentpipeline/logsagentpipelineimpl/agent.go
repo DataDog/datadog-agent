@@ -15,10 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -47,6 +47,7 @@ type Dependencies struct {
 	Config      configComponent.Component
 	Hostname    hostnameinterface.Component
 	Compression compression.Component
+	Auditor     auditor.Component
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
@@ -55,9 +56,9 @@ type Agent struct {
 	config      pkgconfigmodel.Reader
 	hostname    hostnameinterface.Component
 	compression compression.Component
+	auditor     auditor.Component
 
 	endpoints        *config.Endpoints
-	auditor          auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
 	pipelineProvider pipeline.Provider
 	health           *health.Handle
@@ -84,6 +85,7 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 			config:      deps.Config,
 			hostname:    deps.Hostname,
 			compression: deps.Compression,
+			auditor:     deps.Auditor,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -206,17 +208,11 @@ func (a *Agent) SetupPipeline(
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
-	// setup the auditor
-	// We pass the health handle to the auditor because it's the end of the pipeline and the most
-	// critical part. Arguably it could also be plugged to the destination.
-	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
-	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
+	pipelineProvider := pipeline.NewProvider(a.config.GetInt("logs_config.pipelines"), a.auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compression)
 
-	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
 	a.health = health
