@@ -710,21 +710,21 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 
 // todo:raphael cleanup unused methods of extraction once implementation
 // in all tracers is completed
+// order of priority:
+// 1. tags in the v06 payload
+// 2. tags in the first span of the first chunk
+// 3. tags in the header
 func getProcessTags(h http.Header, p *pb.TracerPayload) string {
-	// Check if the process tags are not already set in the payload
 	if p.Tags != nil {
 		if ptags, ok := p.Tags[tagProcessTags]; ok {
 			return ptags
 		}
 	}
-	// Check if the process tags are set in the first span
-	span, ok := getFirstSpan(p)
-	if ok {
+	if span, ok := getFirstSpan(p); ok {
 		if ptags, ok := span.Meta[tagProcessTags]; ok {
 			return ptags
 		}
 	}
-	// Check if the process tags are set in the HTTP header
 	return h.Get(header.ProcessTags)
 }
 
