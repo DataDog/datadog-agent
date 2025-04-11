@@ -180,6 +180,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		}
 	}()
 
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		ruleSetCleanupTicker := time.NewTicker(5 * time.Minute)
+		defer ruleSetCleanupTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ruleSetCleanupTicker.C:
+				if ruleSet := e.GetRuleSet(); ruleSet != nil {
+					ruleSet.CleanupExpiredVariables()
+				}
+			}
+		}
+	}()
+
 	for _, provider := range e.policyProviders {
 		provider.Start()
 	}
