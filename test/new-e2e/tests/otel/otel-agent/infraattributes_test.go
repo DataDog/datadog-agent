@@ -35,9 +35,9 @@ datadog:
 agents:
   containers:
     otelAgent:
-	  env:
-		- name: DD_APM_FEATURES
-		  value: 'disable_operation_and_resource_name_logic_v2'
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `)
 	t.Parallel()
 	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))

@@ -33,9 +33,9 @@ datadog:
 agents:
   containers:
     otelAgent:
-	  env:
-		- name: DD_APM_FEATURES
-		  value: 'disable_operation_and_resource_name_logic_v2'
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `)
 	t.Parallel()
 	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
@@ -87,10 +87,10 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-    otelAgent:
-	  env:
-		- name: DD_APM_FEATURES
-		  value: 'disable_operation_and_resource_name_logic_v2'
+     otelAgent:
+       env:
+       - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `)
 	t.Parallel()
 	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
