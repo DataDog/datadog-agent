@@ -75,27 +75,37 @@ type installerStatusLegacy struct {
 	Packages map[string]packageStatusLegacy `json:"packages"`
 }
 
+type installerConfigFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
+type installerConfig struct {
+	ID    string                `json:"id"`
+	Files []installerConfigFile `json:"files"`
+}
+
 var testCatalog = catalog{
 	Packages: []packageEntry{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogAgent),
 			Version: previousAgentImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", previousAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/agent-package:%s", previousAgentImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: latestInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", latestInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/installer-package:%s", latestInstallerImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", previousInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com/installer-package:%s", previousInstallerImageVersion),
 		},
 		{
 			Package: string(datadogApmInject),
@@ -106,12 +116,13 @@ var testCatalog = catalog{
 }
 
 const (
-	unknownAgentImageVersion  = "7.52.1-1"
-	previousAgentImageVersion = "7.54.0-1"
-	latestAgentImageVersion   = "7.54.1-1"
+	unknownAgentImageVersion = "7.52.1-1"
 
-	latestInstallerImageVersion   = "7.56.0-installer-0.4.5-1"
-	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
+	// TODO: when 7.66 & the next version is out, use the latest prod images
+	previousAgentImageVersion     = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestAgentImageVersion       = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
+	previousInstallerImageVersion = "7.66.0-devel.git.303.1bd6794.pipeline.61143665-1"
+	latestInstallerImageVersion   = "7.66.0-devel.git.306.3f0687b.pipeline.61182744-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
@@ -401,16 +412,6 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 	s.TestUpgradeSuccessful()
 }
 
-type installerConfigFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
-}
-
-type installerConfig struct {
-	ID    string                `json:"id"`
-	Files []installerConfigFile `json:"files"`
-}
-
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
@@ -696,13 +697,6 @@ func (s *upgradeScenarioSuite) mustRemovePackage(pkg packageName) string {
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
-	s.T().Logf("Running start command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd)
-}
-
-func (s *upgradeScenarioSuite) startInstallerExperiment(pkg packageName, version string) (string, error) {
-	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo datadog-installer daemon start-installer-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
 	s.T().Logf("Running start command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
@@ -1070,7 +1064,7 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
 	// Can't check the error status of the command, because it gets terminated by design
 	// We check the unit history instead
-	s.startInstallerExperiment(datadogInstaller, previousInstallerImageVersion)
+	s.startExperiment(datadogInstaller, previousInstallerImageVersion)
 	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
 
 	// Change the catalog of the experiment installer

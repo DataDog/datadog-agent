@@ -26,14 +26,25 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`
+`)
 	t.Parallel()
-	e2e.Run(t, &loadBalancingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(loadBalancingConfig)))))
+	e2e.Run(t, &loadBalancingTestSuite{},
+		e2e.WithSkipDeleteOnFailure(), // DEBUG: Skip delete on failure to keep the cluster alive for investigation
+		e2e.WithProvisioner(
+			awskubernetes.KindProvisioner(
+				awskubernetes.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(loadBalancingConfig),
+				),
+			),
+		),
+	)
 }
 
 func (s *loadBalancingTestSuite) SetupSuite() {

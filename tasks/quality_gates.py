@@ -14,7 +14,7 @@ from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
 
-BUFFER_SIZE = 500000
+BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 
@@ -43,7 +43,7 @@ def display_pr_comment(
     :param metric_handler: Precise metrics of each quality gate
     :return:
     """
-    title = f"Static quality checks {SUCCESS_CHAR if final_state else FAIL_CHAR}"
+    title = "Static quality checks"
     body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
@@ -70,7 +70,7 @@ def display_pr_comment(
 
     body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
-    body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 

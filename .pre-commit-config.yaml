@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
+  rev: v0.11.4
   hooks:
     - id: ruff
       args: [ --fix ]
@@ -40,12 +40,12 @@ repos:
       args: [ "-w", "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.3
+  rev: v1.7.7
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]

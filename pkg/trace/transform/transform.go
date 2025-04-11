@@ -259,6 +259,10 @@ func OtelSpanToDDSpan(
 		return true
 	})
 
+	for k, v := range lib.Attributes().Range {
+		ddspan.Meta[k] = v.AsString()
+	}
+
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {

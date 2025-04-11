@@ -99,6 +99,9 @@ var (
 	// MetricEventApproved is the number of events approved
 	// Tags: approver_type, event_type
 	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
+	// MetricEventRejected is the number of events rejected
+	// Tags: event_type
+	MetricEventRejected = newRuntimeMetric(".approvers.event_rejected")
 
 	// syscalls metrics
 
