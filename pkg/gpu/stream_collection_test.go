@@ -85,3 +85,64 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 	require.Equal(t, testutil.GPUUUIDs[selectedDevice], globalStream.metadata.gpuUUID)
 }
+
+func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ctx := getTestSystemContext(t)
+	cfg := config.New()
+	cfg.MaxStreamInactivitySeconds = 1 // Set inactivity threshold to 1 second
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+
+	// Create two streams
+	pid1, pid2 := uint32(1), uint32(2)
+	streamID1, streamID2 := uint64(1), uint64(2)
+
+	header1 := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid1)<<32 + uint64(pid1),
+		Stream_id: streamID1,
+	}
+	header2 := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid2)<<32 + uint64(pid2),
+		Stream_id: streamID2,
+	}
+
+	// Create both streams
+	stream1, err := handlers.getStream(header1)
+	require.NoError(t, err)
+	require.NotNil(t, stream1)
+	stream2, err := handlers.getStream(header2)
+	require.NoError(t, err)
+	require.NotNil(t, stream2)
+
+	// Add an event to stream1 to make it active
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  header1.Pid_tgid,
+			Ktime_ns:  1000,
+			Stream_id: streamID1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream1.handleKernelLaunch(launch)
+
+	// Clean at a time when stream2 should be inactive (3 seconds later)
+	handlers.clean(3000000000) // 3 seconds in nanoseconds
+
+	// Verify stream1 is still present (active)
+	streamKey1 := streamKey{
+		pid:    pid1,
+		stream: streamID1,
+	}
+	require.Contains(t, handlers.streams, streamKey1)
+
+	// Verify stream2 was removed (inactive)
+	streamKey2 := streamKey{
+		pid:    pid2,
+		stream: streamID2,
+	}
+	require.NotContains(t, handlers.streams, streamKey2)
+}
