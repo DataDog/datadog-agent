@@ -35,7 +35,10 @@ func isScalar(v interface{}) bool {
 }
 
 func newLeafNode(v interface{}, source model.Source) Node {
-	return &leafNodeImpl{val: v, source: source}
+	alloc := allocateNewLeafNode()
+	alloc.val = v
+	alloc.source = source
+	return alloc
 }
 
 // Clone clones a LeafNode
