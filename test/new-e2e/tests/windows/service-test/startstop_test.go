@@ -479,7 +479,7 @@ func (s *baseStartStopSuite) SetupSuite() {
 	if err != nil {
 		s.T().Logf("Failed to get system memory: %v", err)
 	} else {
-		s.T().Logf("Total system memory: %s GB", out)
+		s.T().Logf("Total system memory: %s GB", strings.TrimSpace(out))
 	}
 	// write our command to a file so the code doesn't clutter the log file/screen every time it's run
 	host.WriteFile(`C:\logmemory.ps1`, []byte(`
