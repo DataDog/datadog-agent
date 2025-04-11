@@ -7,13 +7,15 @@
 package checkdisk
 
 import (
+	"cmp"
 	"fmt"
-	"math"
 	"os"
 	"slices"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	gocmp "github.com/google/go-cmp/cmp"
+	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +30,11 @@ type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-const metricCompareTolerance = 0.02
+// a relative diff considered acceptable when comparing metrics
+const metricCompareFraction = 0.02
+
+// an absolute diff considered acceptable when comparing metrics
+const metricCompareMargin = 0.001
 
 func TestLinuxDiskSuite(t *testing.T) {
 	agentOptions := []agentparams.Option{}
@@ -42,6 +48,7 @@ func TestLinuxDiskSuite(t *testing.T) {
 		)
 		// helpful for local runs
 		suiteOptions = append(suiteOptions, e2e.WithDevMode())
+		suiteOptions = append(suiteOptions, e2e.WithStackName("disk-check-test"))
 	}
 
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
@@ -82,49 +89,28 @@ instances:
 			goMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, true)
 
 			// assert the check output
-			elementsMatch(v.T(), pythonMetrics, goMetrics, metricPayloadCompare)
-			v.T().Logf("the check emitted %d metrics", len(pythonMetrics))
+			diff := gocmp.Diff(pythonMetrics, goMetrics,
+				gocmpopts.EquateApprox(metricCompareFraction, metricCompareMargin),
+				gocmpopts.SortSlices(cmp.Less[string]),     // sort tags
+				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
+			)
+			require.Empty(v.T(), diff)
 		})
 	}
 }
 
-func metricPayloadCompare(a, b check.Metric) bool {
-	return a.Host == b.Host &&
-		a.Interval == b.Interval &&
-		a.Metric == b.Metric &&
-		slices.EqualFunc(a.Points, b.Points, func(a, b []float64) bool {
-			return slices.EqualFunc(a, b, func(a, b float64) bool {
-				if a == 0 {
-					return b == 0
-				}
-				return math.Abs(a-b)/a <= metricCompareTolerance
-			})
-		}) &&
-		a.SourceTypeName == b.SourceTypeName &&
-		a.Type == b.Type &&
-		compareTags(a.Tags, b.Tags)
-}
-
-// compare the tags in both slices
-// not sure if there can be duplicates in the tags, but let's assume so
-// this is inefficient, but good enough for this test
-func compareTags(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	tagsA := make(map[string]int, len(a))
-	for _, tag := range a {
-		tagsA[tag]++
-	}
-	for _, tag := range b {
-		tagsA[tag]--
-	}
-	for _, count := range tagsA {
-		if count != 0 {
-			return false
-		}
-	}
-	return true
+func metricPayloadCompare(a, b check.Metric) int {
+	return cmp.Or(
+		cmp.Compare(a.Host, b.Host),
+		cmp.Compare(a.Metric, b.Metric),
+		cmp.Compare(a.Type, b.Type),
+		cmp.Compare(a.SourceTypeName, b.SourceTypeName),
+		cmp.Compare(a.Interval, b.Interval),
+		slices.Compare(a.Tags, b.Tags),
+		slices.CompareFunc(a.Points, b.Points, func(a, b []float64) int {
+			return slices.Compare(a, b)
+		}),
+	)
 }
 
 func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
@@ -158,7 +144,8 @@ func (v *baseCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 		metrics[i].Tags = slices.DeleteFunc(metrics[i].Tags, func(tag string) bool {
 			return tag == diskCheckVersionTag
 		})
-		if !assert.Equalf(v.T(), 1, tagLen-len(metrics[i].Tags), "expected tag %s once in metric %s, but found %d times", diskCheckVersion, metrics[i].Metric, tagLen-len(metrics[i].Tags)) {
+		removedElements := tagLen - len(metrics[i].Tags)
+		if !assert.Equalf(v.T(), 1, removedElements, "expected tag %s once in metric %s", diskCheckVersion, metrics[i].Metric) {
 			v.T().Logf("metric: %+v", metrics[i])
 		}
 	}
