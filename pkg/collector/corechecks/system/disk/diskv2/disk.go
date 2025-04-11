@@ -91,6 +91,7 @@ type diskInstanceConfig struct {
 	MountPointBlacklist  []string          `yaml:"mount_point_blacklist"`
 	ExcludedMountPointRe string            `yaml:"excluded_mountpoint_re"`
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
+	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -432,7 +433,11 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
 		tags := []string{}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		if c.instanceConfig.LowercaseDeviceTag {
+			tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		} else {
+			tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		}
 		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
 		tags = append(tags, c.getDeviceTags(deviceName)...)
 		label, ok := c.deviceLabels[deviceName]
@@ -481,7 +486,11 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		deviceName = partition.Device
 	}
-	tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+	if c.instanceConfig.LowercaseDeviceTag {
+		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+	} else {
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+	}
 	tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
@@ -616,6 +625,7 @@ func newCheck() check.Check {
 			MountPointBlacklist:  []string{},
 			ExcludedMountPointRe: "",
 			DeviceTagRe:          make(map[string]string),
+			LowercaseDeviceTag:   false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
