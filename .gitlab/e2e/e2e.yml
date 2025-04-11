@@ -798,7 +798,7 @@ new-e2e-cspm:
     ON_NIGHTLY_FIPS: "true"
   timeout: 35m
 
-new-e2e-gpu:
+.new-e2e-gpu:
   extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_gpu_or_e2e_changes]
@@ -813,8 +813,18 @@ new-e2e-gpu:
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestGPUHostSuite"
-      - EXTRA_PARAMS: "--run TestGPUK8sSuite"
+      - EXTRA_PARAMS: "--run TestGPUHostSuite --gpu-system $GPU_SYSTEM"
+      - EXTRA_PARAMS: "--run TestGPUK8sSuite --gpu-system $GPU_SYSTEM"
+
+new-e2e-gpu:
+  extends: .new-e2e-gpu
+  variables:
+    GPU_SYSTEM: "ubuntu2204"
+
+new-e2e-gpu-old-drivers:
+  extends: .new-e2e-gpu
+  variables:
+    GPU_SYSTEM: "ubuntu1804"
 
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
