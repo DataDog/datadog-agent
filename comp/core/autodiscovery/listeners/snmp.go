@@ -619,15 +619,20 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	if !previousIPsDiscovered {
 		log.Debugf("Previous IPs not all scanned for device %s, adding to pending", deviceIP)
 
+		
+		log.Debugf("Checking hashes %v", l.fullDeviceHashByBasicDeviceHash)
 		// check all devices with the same fuzzy hash (aka same name and description)
 		for _, fullHash := range l.fullDeviceHashByBasicDeviceHash[basicDeviceHash] {
 
 			if existingSvc, present := l.pendingServicesByFullDeviceHash[fullHash]; present {
+				log.Debugf("Found existing pending service for device %s while checking %s", existingSvc.svc.deviceIP, deviceIP)
+
 				// check time difference between the two devices
 				diff := math.Abs(float64(existingSvc.deviceHashInfo.BootTimeMs - deviceHashInfo.BootTimeMs))
 				if diff <= float64(uptimeDiffTolerance) {
 					// check which device has the lowest IP
 					minIP := minimumIP(existingSvc.svc.deviceIP, deviceIP)
+					log.Debugf("Minimum IP between %s and %s is %s", existingSvc.svc.deviceIP, deviceIP, minIP)
 					if minIP != deviceIP {
 						return
 					}
