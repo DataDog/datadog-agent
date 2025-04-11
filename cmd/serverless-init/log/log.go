@@ -67,6 +67,11 @@ func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component
 
 func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string) {
 	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
+
+		// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
+		// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective log files.
+		filePath = os.ExpandEnv(filePath)
+
 		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    filePath,
