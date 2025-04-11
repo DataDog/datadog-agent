@@ -36,6 +36,8 @@ type Config struct {
 	KernelCacheQueueSize int
 	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
 	RingBufferSizePagesPerDevice int
+	// MaxStreamInactivity is the maximum time to wait for a stream to be inactive before flushing it.
+	MaxStreamInactivity time.Duration
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -50,5 +52,6 @@ func New() *Config {
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
+		MaxStreamInactivity:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_stream_inactivity_seconds"))) * time.Second,
 	}
 }

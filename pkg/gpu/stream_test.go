@@ -438,3 +438,30 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 		})
 	}
 }
+
+func TestStreamHandlerIsInactive(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	stream := newStreamHandler(streamMetadata{}, getTestSystemContext(t))
+
+	// Test case 1: Stream with no events should be considered active
+	require.False(t, stream.isInactive(1000, 1))
+
+	// Test case 2: Stream with recent events should be considered active
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  1,
+			Ktime_ns:  1000,
+			Stream_id: 1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream.handleKernelLaunch(launch)
+	require.False(t, stream.isInactive(2000, 1))
+
+	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
+	require.True(t, stream.isInactive(3000000000, 1)) // 3 seconds later with 1 second threshold
+}

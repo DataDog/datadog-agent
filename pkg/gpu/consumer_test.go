@@ -29,7 +29,7 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
 
 	consumer.Start()
@@ -42,8 +42,9 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
+	cfg := config.New()
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -130,9 +131,10 @@ func BenchmarkConsumer(b *testing.B) {
 				withFatbinParsingEnabled(fatbinParsingEnabled),
 			)
 			require.NoError(b, err)
-			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
 
 			cfg := config.New()
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
+
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
 			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
 

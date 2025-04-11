@@ -24,13 +24,14 @@ const noSmVersion uint32 = 0
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata       streamMetadata
-	kernelLaunches []enrichedKernelLaunch
-	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
-	kernelSpans    []*kernelSpan
-	allocations    []*memoryAllocation
-	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
-	sysCtx         *systemContext
+	metadata         streamMetadata
+	kernelLaunches   []enrichedKernelLaunch
+	memAllocEvents   map[uint64]gpuebpf.CudaMemEvent
+	kernelSpans      []*kernelSpan
+	allocations      []*memoryAllocation
+	processEnded     bool // A marker to indicate that the process has ended, and this handler should be flushed
+	sysCtx           *systemContext
+	lastEventKtimeNs uint64 // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -154,6 +155,8 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext) *StreamHan
 var logLimitErrorAttach = log.NewLogLimit(10, 10*time.Minute)
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
+	sh.lastEventKtimeNs = event.Header.Ktime_ns
+
 	enrichedLaunch := &enrichedKernelLaunch{
 		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
 		stream:           sh,
@@ -171,6 +174,8 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 }
 
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
+	sh.lastEventKtimeNs = event.Header.Ktime_ns
+
 	if event.Type == gpuebpf.CudaMemAlloc {
 		sh.memAllocEvents[event.Addr] = *event
 		return
@@ -214,6 +219,8 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 }
 
 func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
+	sh.lastEventKtimeNs = event.Header.Ktime_ns
+
 	// TODO: Worry about concurrent calls to this?
 	sh.markSynchronization(event.Header.Ktime_ns)
 }
@@ -358,4 +365,10 @@ func (sh *StreamHandler) markEnd() error {
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))
 
 	return nil
+}
+
+func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool {
+	// If the stream has no events, it's considered active, we don't want to
+	// delete a stream that has just been created
+	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > maxInactivity.Nanoseconds()
 }

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
@@ -42,6 +43,7 @@ type streamCollection struct {
 	globalStreams map[globalStreamKey]*StreamHandler
 	sysCtx        *systemContext
 	telemetry     *streamCollectionTelemetry
+	cfg           *config.Config
 }
 
 type streamCollectionTelemetry struct {
@@ -52,12 +54,13 @@ type streamCollectionTelemetry struct {
 	removedHandlers    telemetry.Counter
 }
 
-func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component) *streamCollection {
+func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, cfg *config.Config) *streamCollection {
 	return &streamCollection{
 		streams:       make(map[streamKey]*StreamHandler),
 		globalStreams: make(map[globalStreamKey]*StreamHandler),
 		sysCtx:        sysCtx,
 		telemetry:     newStreamCollectionTelemetry(telemetry),
+		cfg:           cfg,
 	}
 }
 
@@ -69,7 +72,7 @@ func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelem
 		missingDevices:     tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
 		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
-		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
+		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device", "reason"}, "Number of removed stream handlers and why"),
 	}
 }
 
@@ -205,20 +208,29 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 	}
 }
 
-func (sc *streamCollection) clean() {
-	for key, handler := range sc.streams {
-		if handler.processEnded {
-			delete(sc.streams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
-		}
-	}
+// cleanHandlerMap cleans the handler map for a given stream collection, using generics to avoid code duplication.
+func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*StreamHandler, nowKtime int64) {
+	for key, handler := range handlerMap {
+		deleteReason := ""
 
-	for key, handler := range sc.globalStreams {
 		if handler.processEnded {
-			delete(sc.globalStreams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+			deleteReason = "process_ended"
+		} else if handler.isInactive(nowKtime, sc.cfg.MaxStreamInactivity) {
+			deleteReason = "inactive"
+		}
+
+		if deleteReason != "" {
+			delete(handlerMap, key)
+			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
 		}
 	}
+}
+
+// clean cleans the stream collection, removing inactive streams and marking processes as ended.
+// nowKtime is the current kernel time, used to check if streams are inactive.
+func (sc *streamCollection) clean(nowKtime int64) {
+	cleanHandlerMap(sc, sc.streams, nowKtime)
+	cleanHandlerMap(sc, sc.globalStreams, nowKtime)
 
 	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
 }
