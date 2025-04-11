@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -163,7 +164,8 @@ func testLoadCustomCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	agentTelemetry := option.None[agenttelemetry.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, agentTelemetry)
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -201,7 +203,8 @@ func testLoadWheelCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	agentTelemetry := option.None[agenttelemetry.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, agentTelemetry)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
@@ -238,7 +241,8 @@ func testLoadHACheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	agentTelemetry := option.None[agenttelemetry.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, agentTelemetry)
 	assert.Nil(t, err)
 
 	testCases := []struct {
@@ -311,4 +315,14 @@ func testLoadHACheck(t *testing.T) {
 			assert.Equal(t, tc.expectedHaSupported, check.(*PythonCheck).haSupported)
 		})
 	}
+}
+
+func TestNewPythonCheckLoader(t *testing.T) {
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	agentTelemetry := option.None[agenttelemetry.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, agentTelemetry)
+	assert.Nil(t, err)
+	assert.NotNil(t, loader)
 }
