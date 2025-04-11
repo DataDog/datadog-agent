@@ -288,8 +288,6 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
     PyObject *agent_config = NULL;
     PyObject *init_config = NULL;
-    PyObject *instance = NULL;
-    PyObject *instances = NULL;
     PyObject *py_check = NULL;
     PyObject *args = NULL;
     PyObject *kwargs = NULL;
@@ -318,31 +316,6 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         goto done;
     }
 
-    // call `AgentCheck.load_config(instance)`
-    instance = PyObject_CallMethod(klass, load_config, format, instance_str);
-    if (instance == NULL) {
-        setError("error parsing instance: " + _fetchPythonError());
-        goto done;
-    } else if (!PyDict_Check(instance)) {
-        setError("error instance is not a dict");
-        Py_XDECREF(instance); // we still own the reference to instance, so we need to decref it here
-        goto done;
-    }
-
-    instances = PyTuple_New(1);
-    if (instances == NULL) {
-        setError("could not create tuple for instances: " + _fetchPythonError());
-        Py_XDECREF(instance); // we still own the reference to instance, so we need to decref it here
-        goto done;
-    }
-    // As stated in the Python C-API documentation
-    // https://github.com/python/cpython/blob/2.7/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
-    // over ownership of the given item (instance in this case). This means that we should NOT DECREF it
-    if (PyTuple_SetItem(instances, 0, instance) != 0) {
-        setError("could not set instance item on instances: " + _fetchPythonError());
-        goto done;
-    }
-
     // create `args` and `kwargs` to invoke `AgentCheck` constructor
     args = PyTuple_New(0);
     if (args == NULL) {
@@ -367,10 +340,6 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         setError("error 'init_config' key can't be set: " + _fetchPythonError());
         goto done;
     }
-    if (PyDict_SetItemString(kwargs, "instances", instances) == -1) {
-        setError("error 'instances' key can't be set: " + _fetchPythonError());
-        goto done;
-    }
 
     if (agent_config_str != NULL) {
         agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
@@ -392,6 +361,13 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     py_check = PyObject_Call(klass, args, kwargs);
     if (py_check == NULL) {
         setError(_fetchPythonError());
+        goto done;
+    }
+
+    // Set the instance using our new method
+    if (!setInstance(reinterpret_cast<RtLoaderPyObject *>(py_check), instance_str)) {
+        Py_XDECREF(py_check);
+        py_check = NULL;
         goto done;
     }
 
@@ -421,7 +397,6 @@ done:
     Py_XDECREF(name);
     Py_XDECREF(check_id);
     Py_XDECREF(init_config);
-    Py_XDECREF(instances);
     Py_XDECREF(agent_config);
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
@@ -464,6 +439,56 @@ char *Three::runCheck(RtLoaderPyObject *check)
 done:
     Py_XDECREF(result);
     return ret;
+}
+
+bool Three::setInstance(RtLoaderPyObject *check, const char *instance_str)
+{
+    if (check == NULL || instance_str == NULL) {
+        return false;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+    PyObject *instance = NULL;
+    PyObject *instances = NULL;
+    char load_config[] = "load_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
+
+    // Load the new instance configuration
+    instance = PyObject_CallMethod(py_check, load_config, format, instance_str);
+    if (instance == NULL) {
+        setError("error parsing instance: " + _fetchPythonError());
+        goto done;
+    } else if (!PyDict_Check(instance)) {
+        setError("error instance is not a dict");
+        Py_XDECREF(instance);
+        goto done;
+    }
+
+    // Create a tuple with the new instance
+    instances = PyTuple_New(1);
+    if (instances == NULL) {
+        setError("could not create tuple for instances: " + _fetchPythonError());
+        Py_XDECREF(instance);
+        goto done;
+    }
+
+    // PyTuple_SetItem takes ownership of instance
+    if (PyTuple_SetItem(instances, 0, instance) != 0) {
+        setError("could not set instance item on instances: " + _fetchPythonError());
+        goto done;
+    }
+
+    // Set the new instances on the check
+    if (PyObject_SetAttrString(py_check, "instances", instances) != 0) {
+        setError("could not set instances attribute: " + _fetchPythonError());
+        goto done;
+    }
+
+    return true;
+
+done:
+    Py_XDECREF(instances);
+    return false;
 }
 
 void Three::cancelCheck(RtLoaderPyObject *check)
