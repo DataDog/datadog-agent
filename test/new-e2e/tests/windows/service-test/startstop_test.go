@@ -40,6 +40,9 @@ var agentConfigPADisabled string
 //go:embed fixtures/datadog-ta-disabled.yaml
 var agentConfigTADisabled string
 
+//go:embed fixtures/datadog-di-disabled.yaml
+var agentConfigDIDisabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -283,6 +286,18 @@ func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 }
 
 type agentServiceDisabledTraceAgentSuite struct {
+	agentServiceDisabledSuite
+}
+
+func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	s := &agentServiceDisabledInstallerSuite{}
+	s.disabledServices = []string{
+		"Datadog Installer",
+	}
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledInstallerSuite struct {
 	agentServiceDisabledSuite
 }
 
@@ -645,6 +660,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"Datadog Installer",
 	}
 }
 
@@ -666,6 +682,11 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
+	// remove the Datadog Installer service from the list of provider names
+	// we do not have an event log for it
+	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
+		return s == "Datadog Installer"
+	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)

@@ -10,3 +10,7 @@ process_config:
 # trace-agent is running by default
 apm_config:
   enabled: false
+
+# enable the datadog-installer, needs an API KEY
+remote_upgrades: true
+api_key: aaaaaaaaa
