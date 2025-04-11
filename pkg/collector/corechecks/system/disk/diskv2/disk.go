@@ -444,6 +444,7 @@ func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.
 	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usage.UsedPercent, "", tags)
 	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
 
@@ -451,6 +452,7 @@ func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.
 	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
 	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "utilized"), usage.InodesUsedPercent, "", tags)
 	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 }
