@@ -5,4 +5,5 @@
 include:
   - .gitlab/container_build/docker_linux.yml
   - .gitlab/container_build/docker_windows.yml
+  - .gitlab/container_build/docker_windows_agent6.yml
   - .gitlab/container_build/fakeintake.yml
