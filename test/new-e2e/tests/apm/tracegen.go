@@ -98,6 +98,6 @@ func traceWithProcessTags(h *components.RemoteHost, processTags, service string)
 -H 'User-Agent: Go-http-client/1.1' \
 -H 'Datadog-Meta-Lang: go' \
 --data-binary @- <<EOF
-[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"_dd.tags.process":%s,"http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
-EOF`, processTags, service))
+[[{"trace_id":1234567890123456789,"span_id":9876543210987654321,"parent_id":0,"name":"http.request","resource":"GET /api/users","service":"%s","type":"web","start":0,"duration":200000000,"meta":{"_dd.tags.process":"%s","http.method":"GET","http.url":"/api/users","http.status_code":"200","env":"dev","version":"1.0.0"},"metrics":{"_sampling_priority_v1":1}}]]
+EOF`, service, processTags))
 }
