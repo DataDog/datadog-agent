@@ -335,7 +335,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform.startswith('linux') or windows_sysprobe:
+    if sys.platform != 'win32' or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 

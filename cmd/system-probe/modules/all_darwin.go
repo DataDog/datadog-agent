@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows && !darwin
+//go:build darwin
 
 // Package modules is all the module definitions for system-probe
 package modules
@@ -13,4 +13,6 @@ import (
 )
 
 // All System Probe modules should register their factories here
-var All = []module.Factory{}
+var All = []module.Factory{
+	Traceroute,
+}
