@@ -218,11 +218,12 @@ func (c *Check) IsHASupported() bool {
 	return true
 }
 
-// SetPythonCheck sets the python check to use as a fallback
+// SetPythonCheck sets the Python check to use as a fallback
 func (c *Check) SetPythonCheck(pythonCheck check.Check) {
 	c.pythonCheck = pythonCheck
 }
 
+// RunPythonCheck runs the Python check if the Core check failed
 func (c *Check) RunPythonCheck(coreCheckErr error) error {
 	if c.pythonCheck == nil {
 		return coreCheckErr
