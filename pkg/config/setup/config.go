@@ -259,6 +259,7 @@ func init() {
 	initConfig()
 
 	datadog.BuildSchema()
+	systemProbe.BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
