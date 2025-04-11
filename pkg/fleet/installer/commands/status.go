@@ -11,14 +11,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"os"
 	"os/exec"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func statusCommand() *cobra.Command {

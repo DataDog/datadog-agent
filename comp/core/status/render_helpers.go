@@ -22,7 +22,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
-
 	"golang.org/x/text/unicode/norm"
 )
 
