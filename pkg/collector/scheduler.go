@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -188,6 +189,45 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using loader %s (init_config loader: %s, instance loader: %s)", config.Name, selectedInstanceLoader, initConfig.LoaderName, instanceConfig.LoaderName)
 		} else {
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
+		}
+
+		// Special case to use Core loader by default for SNMP integration
+		if config.Name == "snmp" && selectedInstanceLoader == "" {
+			var coreLoader check.Loader
+			var pythonLoader check.Loader
+
+			for _, loader := range s.loaders {
+				if loader.Name() == "core" {
+					coreLoader = loader
+				}
+				if loader.Name() == "python" {
+					pythonLoader = loader
+				}
+			}
+
+			if coreLoader != nil && pythonLoader != nil {
+				coreCheck, coreErr := coreLoader.Load(s.senderManager, config, instance)
+				pythonCheck, pythonErr := pythonLoader.Load(s.senderManager, config, instance)
+
+				if coreErr != nil {
+					if pythonErr != nil {
+						errors = append(errors,
+							fmt.Sprintf("%v: %s", pythonLoader, pythonErr),
+							fmt.Sprintf("%v: %s", coreLoader, coreErr))
+						log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+					} else {
+						checks = append(checks, pythonCheck)
+					}
+					continue
+				}
+
+				if pythonErr == nil {
+					coreCheck.(*snmp.Check).SetPythonCheck(pythonCheck)
+				}
+
+				checks = append(checks, coreCheck)
+				continue
+			}
 		}
 
 		for _, loader := range s.loaders {

@@ -49,6 +49,7 @@ type Check struct {
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
 	agentConfig                config.Component
+	pythonCheck                check.Check
 }
 
 // Run executes the check
@@ -56,11 +57,25 @@ func (c *Check) Run() error {
 	var checkErr error
 	sender, err := c.GetSender()
 	if err != nil {
-		return err
+		return c.RunPythonCheck(err)
 	}
 
 	if c.config.IsDiscovery() {
 		discoveredDevices := c.discovery.GetDiscoveredDeviceConfigs()
+
+		var hostnames []string
+		for _, deviceCk := range discoveredDevices {
+			hostname, err := deviceCk.GetDeviceHostname()
+			if err != nil {
+				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
+				continue
+			}
+			hostnames = append(hostnames, hostname)
+		}
+
+		if len(hostnames) == 0 {
+			return c.RunPythonCheck(nil)
+		}
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
@@ -73,13 +88,9 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			hostname, err := deviceCk.GetDeviceHostname()
-			if err != nil {
-				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
-				continue
-			}
+
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostnames[i], nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -91,10 +102,13 @@ func (c *Check) Run() error {
 	} else {
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
 		if err != nil {
-			return err
+			return c.RunPythonCheck(err)
 		}
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
+		if checkErr != nil {
+			return c.RunPythonCheck(checkErr)
+		}
 	}
 
 	// Commit
@@ -202,6 +216,20 @@ func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported returns true if the check supports HA
 func (c *Check) IsHASupported() bool {
 	return true
+}
+
+// SetPythonCheck sets the python check to use as a fallback
+func (c *Check) SetPythonCheck(pythonCheck check.Check) {
+	c.pythonCheck = pythonCheck
+}
+
+func (c *Check) RunPythonCheck(coreCheckErr error) error {
+	if c.pythonCheck == nil {
+		return coreCheckErr
+	}
+
+	log.Infof("Core check failed, falling back to Python check: %s", coreCheckErr)
+	return c.pythonCheck.Run()
 }
 
 // Factory creates a new check factory
