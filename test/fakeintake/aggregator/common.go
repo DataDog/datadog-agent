@@ -68,6 +68,7 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 // It replaces the current payloads with the new ones
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	if *generateFixture {
+		fmt.Println("ANDREWQIAN WACKTEST1")
 		fmt.Println("ANDREWQIAN UnmarshallPayloads", payloads)
 		_, filename, _, ok := runtime.Caller(0)
 		if !ok {
@@ -91,6 +92,7 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 		fmt.Println("ANDREWQIAN UnmarshallPayloads", filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)))
 		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
 	}
+	fmt.Println("ANDREWQIAN WACKTEST2")
 	fmt.Println("ANDREWQIAN UnmarshallPayloads", reflect.TypeOf(agg).Name())
 	// build new map
 	payloadsByName := map[string][]P{}
