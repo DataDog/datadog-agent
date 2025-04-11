@@ -35,9 +35,6 @@ type aggregator struct {
 	// pastAllocs is the list of past (freed) memory allocations
 	pastAllocs []*memoryAllocation
 
-	// processTerminated is true if the process has ended and this aggregator should be deleted
-	processTerminated bool
-
 	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
 	deviceMaxThreads uint64
 }

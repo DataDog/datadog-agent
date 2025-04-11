@@ -24,6 +24,7 @@ type statsGenerator struct {
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
 	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
+	isAggregatorActive  map[model.StatsKey]bool        // isAggregatorActive contains the map of aggregators that are active in the last check, used to remove inactive ones
 }
 
 type statsGeneratorTelemetry struct {
@@ -54,6 +55,8 @@ func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry
 // TODO: consider removing this parameter and encapsulate it inside the function (will affect UTs as they rely on precise time intervals)
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
+	// reset the active aggregators map
+	g.isAggregatorActive = make(map[model.StatsKey]bool)
 
 	for handler := range g.streamHandlers.allStreams() {
 		aggr, err := g.getOrCreateAggregator(handler.metadata)
@@ -71,10 +74,6 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 		if pastData != nil {
 			aggr.processPastData(pastData)
-		}
-
-		if handler.processEnded {
-			aggr.processTerminated = true
 		}
 	}
 
@@ -118,6 +117,10 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator
 	// Update the last check time and the measured interval, as these change between check runs
 	g.aggregators[aggKey].lastCheckKtime = uint64(g.lastGenerationKTime)
 	g.aggregators[aggKey].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
+
+	// mark the aggregator as active
+	g.isAggregatorActive[aggKey] = true
+
 	return g.aggregators[aggKey], nil
 }
 
@@ -149,10 +152,25 @@ func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
 	return normFactors
 }
 
+// cleanupFinishedAggregators cleans up the aggregators that are no longer
+// active. An aggregator is no longer needed if it was not active in the last
+// check, in other words, if all the corresponding streams have been removed.
+// This allows us to centralize the logic of "termination" in the streams
+// themselves.
+//
+// The downside is that we will cleanup the aggregators one getStats() cycle
+// after all the streams have finished. That is, all the streams need to be
+// deleted, then getStats() needs to be called to update the activity map, and
+// then cleanupFinishedAggregators will actually remove the aggregators. This
+// should not affect functionality, as the reported values from those
+// aggregators without streams will be zero.
+//
+// TODO: Test this behavior and remove the corresponding logic in the core
+// check.
 func (g *statsGenerator) cleanupFinishedAggregators() {
-	for pid, aggr := range g.aggregators {
-		if aggr.processTerminated {
-			delete(g.aggregators, pid)
+	for key := range g.aggregators {
+		if !g.isAggregatorActive[key] {
+			delete(g.aggregators, key)
 		}
 	}
 

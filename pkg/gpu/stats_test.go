@@ -292,3 +292,42 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		require.InDelta(t, expectedCores, metrics.UsedCores, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
 	}
 }
+
+func TestCleanupInactiveAggregators(t *testing.T) {
+	statsGen, streamHandlers, ktime := getStatsGeneratorForTest(t)
+
+	// Add a stream and get stats to create an aggregator
+	pid := uint32(1)
+	streamID := uint64(120)
+	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream.kernelLaunches = []enrichedKernelLaunch{
+		{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(ktime), Pid_tgid: uint64(pid)<<32 + uint64(pid), Stream_id: streamID},
+				Kernel_addr:     0,
+				Shared_mem_size: 10,
+				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+			},
+			stream: stream,
+		},
+	}
+
+	// First getStats call should create an aggregator
+	stats := statsGen.getStats(ktime + int64(10*time.Second))
+	require.NotNil(t, stats)
+	require.Len(t, statsGen.aggregators, 1)
+
+	// We should not cleanup the aggregator yet, as it is still active
+	statsGen.cleanupFinishedAggregators()
+	require.Len(t, statsGen.aggregators, 1)
+
+	// If we remove the stream, the aggregator should be marked as inactive in the next getStats call
+	streamHandlers.streams = make(map[streamKey]*StreamHandler)
+	stats = statsGen.getStats(ktime + int64(20*time.Second))
+	require.NotNil(t, stats)
+	require.Len(t, statsGen.aggregators, 1) // no cleanup done yet, here we just mark the aggregator as inactive
+
+	statsGen.cleanupFinishedAggregators()
+	require.Len(t, statsGen.aggregators, 0)
+}
