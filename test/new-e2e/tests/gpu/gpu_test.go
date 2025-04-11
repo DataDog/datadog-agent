@@ -61,7 +61,17 @@ type gpuHostSuite struct {
 
 // TestGPUHostSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
-func TestGPUHostSuite(t *testing.T) {
+func TestGPUHostSuiteUbuntu2204(t *testing.T) {
+	runGpuHostSuite(t, gpuSystemUbuntu2204)
+}
+
+// TestGPUHostSuiteUbuntu1804 runs tests for the VM interface
+// on Ubuntu 18.04 with an older driver version
+func TestGPUHostSuiteUbuntu1804(t *testing.T) {
+	runGpuHostSuite(t, gpuSystemUbuntu1804)
+}
+
+func runGpuHostSuite(t *testing.T, gpuSystem systemName) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
@@ -70,6 +80,7 @@ func TestGPUHostSuite(t *testing.T) {
 	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
 
 	provParams := getDefaultProvisionerParams()
+	provParams.systemName = gpuSystem
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
@@ -98,7 +109,17 @@ type gpuK8sSuite struct {
 
 // TestGPUK8sSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
-func TestGPUK8sSuite(t *testing.T) {
+func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
+	runGpuK8sSuite(t, gpuSystemUbuntu2204)
+}
+
+// TestGPUK8sSuiteUbuntu1804 runs tests for the Kubernetes interface
+// on Ubuntu 18.04 with an older driver version
+func TestGPUK8sSuiteUbuntu1804(t *testing.T) {
+	runGpuK8sSuite(t, gpuSystemUbuntu1804)
+}
+
+func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
 	// we are not able to debug from the logs. We mark the test as flaky in that case only.
 	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
@@ -113,6 +134,7 @@ func TestGPUK8sSuite(t *testing.T) {
 	// we're not breaking main if we get rate limited
 	flake.MarkOnLog(t, "rate limit")
 	provParams := getDefaultProvisionerParams()
+	provParams.systemName = gpuSystem
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
