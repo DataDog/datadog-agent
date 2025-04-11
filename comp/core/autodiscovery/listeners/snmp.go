@@ -353,8 +353,6 @@ func (l *SNMPListener) getDeviceHash(authentication snmp.Authentication, subnet 
 	sysUptime := value.Variables[2].Value.(uint32)
 	sysObjectID := value.Variables[3].Value.(string)
 
-	log.Debugf("SNMP get sys infos to %s success: %s, %s, %d, %s", deviceIP, sysName, sysDescr, sysUptime, sysObjectID)
-
 	// sysUptime is in hundredths of a second, convert it to milliseconds
 	uptime := time.Duration(sysUptime*10) * time.Millisecond
 
@@ -435,8 +433,6 @@ func (l *SNMPListener) initializeIPAuthenticationCounter() {
 			return true
 		})
 	}
-
-	log.Debugf("Initialized authentication counter with %d IP addresses", l.ipsCounter.Len())
 }
 
 func (l *SNMPListener) checkPreviousIPs(deviceIP string) bool {
@@ -620,19 +616,15 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		log.Debugf("Previous IPs not all scanned for device %s, adding to pending", deviceIP)
 
 
-		log.Debugf("Checking hashes %v", l.fullDeviceHashByBasicDeviceHash)
 		// check all devices with the same fuzzy hash (aka same name and description)
 		for _, fullHash := range l.fullDeviceHashByBasicDeviceHash[basicDeviceHash] {
 
 			if existingSvc, present := l.pendingServicesByFullDeviceHash[fullHash]; present {
-				log.Debugf("Found existing pending service for device %s while checking %s", existingSvc.svc.deviceIP, deviceIP)
-
 				// check time difference between the two devices
 				diff := math.Abs(float64(existingSvc.deviceHashInfo.BootTimeMs - deviceHashInfo.BootTimeMs))
 				if diff <= float64(uptimeDiffTolerance) {
 					// check which device has the lowest IP
 					minIP := minimumIP(existingSvc.svc.deviceIP, deviceIP)
-					log.Debugf("Minimum IP between %s and %s is %s", existingSvc.svc.deviceIP, deviceIP, minIP)
 					if minIP != deviceIP {
 						return
 					}
