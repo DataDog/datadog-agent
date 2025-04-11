@@ -711,7 +711,7 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 // todo:raphael cleanup unused methods of extraction once implementation
 // in all tracers is completed
 // order of priority:
-// 1. tags in the v06 payload
+// 1. tags in the v07 payload
 // 2. tags in the first span of the first chunk
 // 3. tags in the header
 func getProcessTags(h http.Header, p *pb.TracerPayload) string {
