@@ -56,8 +56,9 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
     "./pkg/gpu/...",
-    "./cmd/system-probe/config/...",
+    "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/networkpath/traceroute/filter/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here

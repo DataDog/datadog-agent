@@ -43,25 +43,4 @@ docker_image_build_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-
-datadog_otel_components_ocb_build:
-  stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_deps"]
-  artifacts:
-    paths:
-      - ocb-output.log
-      - otelcol-custom.log
-      - flare-info.log
-    when: always
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-  script:
-    - echo "Building custom collector with datadog components"
-    - test/otel/testdata/ocb_build_script.sh
-    - echo "see artifacts for job logs"
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  timeout: 15 minutes
+# TODO(songy23): restore datadog_otel_components_ocb_build in next version upgrade

@@ -27,6 +27,7 @@ type Device struct {
 
 	SMVersion uint32
 	UUID      string
+	Name      string
 	CoreCount int
 	Index     int
 	Memory    uint64
@@ -43,6 +44,11 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	uuid, ret := dev.GetUUID()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
+	}
+
+	name, ret := dev.GetName()
+	if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("error getting name: %s", nvml.ErrorString(ret))
 	}
 
 	cores, ret := dev.GetNumGpuCores()
@@ -64,6 +70,7 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 		NVMLDevice: dev,
 		SMVersion:  smVersion,
 		UUID:       uuid,
+		Name:       name,
 		CoreCount:  cores,
 		Index:      index,
 		Memory:     memInfo.Total,

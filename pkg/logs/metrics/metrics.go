@@ -45,7 +45,7 @@ var (
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		nil, "Total number of bytes send before encoding if any")
+		[]string{"source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCountis the total number of times we have retried payloads that failed to send
@@ -57,7 +57,7 @@ var (
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
-		nil, "Total number of sent bytes after encoding if any")
+		[]string{"source"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
