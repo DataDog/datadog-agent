@@ -463,10 +463,10 @@ var structCaptures = fixtures{
 					Fields: fieldMap{
 						"x": capturedValue("int", "9"),
 						"slice": {
-							Type:     "[]int",
+							Type:     "[]uint8",
 							Elements: []ditypes.CapturedValue{},
 						},
-						"z": capturedValue("int", "5"),
+						"z": capturedValue("uint64", "5"),
 					},
 				},
 			},
@@ -696,10 +696,15 @@ var structCaptures = fixtures{
 							Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.anotherStruct",
 							Fields: fieldMap{
 								"nested": {
-									Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+									Type: "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
 									Fields: fieldMap{
-										"anotherInt":    capturedValue("int", "42"),
-										"anotherString": capturedValue("string", "xyz"),
+										"arg_0": {
+											Type: "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
+											Fields: fieldMap{
+												"anotherInt":    capturedValue("int", "42"),
+												"anotherString": capturedValue("string", "xyz"),
+											},
+										},
 									},
 								},
 							},
