@@ -43,6 +43,7 @@ func (b *BoundPort) PID() int {
 	return b.pid
 }
 
+// NetIPAddress contains network interface information for the interface
 type NetIPAddress struct {
 	IPAddress      string
 	InterfaceAlias string
