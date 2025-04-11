@@ -22,6 +22,8 @@ import (
 type KillActionStatus string
 
 const (
+	// KillActionStatusError indicates the kill action failed
+	KillActionStatusError KillActionStatus = "error"
 	// KillActionStatusPerformed indicates the kill action was performed
 	KillActionStatusPerformed KillActionStatus = "performed"
 	// KillActionStatusRuleDisarmed indicates the kill action was skipped because the rule was disarmed
