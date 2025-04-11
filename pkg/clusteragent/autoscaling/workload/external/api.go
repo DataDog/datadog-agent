@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -115,6 +116,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, dpa mo
 
 // buildWorkloadRecommendationRequest builds a WorkloadRecommendationRequest from DPA and recommender config
 func (r *recommenderClient) buildWorkloadRecommendationRequest(dpa model.PodAutoscalerInternal, recommenderConfig *model.RecommenderConfiguration) (*kubeAutoscaling.WorkloadRecommendationRequest, error) {
+	log.Debugf("Building workload recommendation request for pod autoscaler %s", dpa.ID())
 	objectives := dpa.Spec().Objectives
 	if len(objectives) == 0 {
 		return nil, fmt.Errorf("no objectives found")
@@ -199,30 +201,13 @@ func (r *recommenderClient) buildReplicaRecommendationResponse(reply *kubeAutosc
 		return nil, err
 	}
 
-	ret := &model.HorizontalScalingValues{
+	recommendedReplicas := &model.HorizontalScalingValues{
 		Replicas:  int32(reply.GetTargetReplicas()),
 		Timestamp: reply.GetTimestamp().AsTime(),
 		Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 	}
 
-	return ret, nil
-}
-
-func (r *recommenderClient) getClient() *http.Client {
-	if r.client.Transport == nil {
-		r.client.Transport = http.DefaultTransport
-	}
-
-	// TODO: TLS support
-	// if transport, ok := client.Transport.(*http.Transport); ok && tlsConfig != nil {
-	// 	tlsTransport, err := NewCertificateReloadingTransport(tlsConfig, r.certificateCache, transport)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("impossible to setup TLS config: %w", err)
-	// 	}
-	// 	client.Transport = tlsTransport
-	// }
-
-	return r.client
+	return recommendedReplicas, nil
 }
 
 func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *int32 {
@@ -241,4 +226,13 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 		}
 	}
 	return &readyReplicas
+}
+
+func (r *recommenderClient) getClient() *http.Client {
+	// TODO: Add TLS support
+	if r.client.Transport == nil {
+		r.client.Transport = http.DefaultTransport
+	}
+
+	return r.client
 }
