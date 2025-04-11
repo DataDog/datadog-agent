@@ -2027,7 +2027,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "READ",
-			operationNameV2: "READ",
+			operationNameV2: "read",
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
@@ -2951,7 +2951,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "READ",
-			operationNameV2: "READ",
+			operationNameV2: "read",
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
