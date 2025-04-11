@@ -33,7 +33,7 @@ func compileRegExp(expr string) (*regexp.Regexp, error) {
 func (c *Check) configureCreateMounts() {
 }
 
-func (c *Check) excludePartitionInPlatform(partition gopsutil_disk.PartitionStat) bool {
+func (c *Check) excludePartitionInPlatform(_ gopsutil_disk.PartitionStat) bool {
 	return false
 }
 
