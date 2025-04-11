@@ -13,25 +13,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type root struct {
-	Aggregator aggregator `json:"aggregator"`
+// Root is the root object of the check command output
+type Root struct {
+	Aggregator Aggregator `json:"aggregator"`
 }
 
-type aggregator struct {
-	Metrics []metric `json:"metrics"`
+// Aggregator contains the metrics emitted by a check
+type Aggregator struct {
+	Metrics []Metric `json:"metrics"`
 }
 
-type metric struct {
-	Host           string   `json:"host"`
-	Interval       int      `json:"interval"`
-	Metric         string   `json:"metric"`
-	Points         [][]int  `json:"points"`
-	SourceTypeName string   `json:"source_type_name"`
-	Tags           []string `json:"tags"`
-	Type           string   `json:"type"`
+// Metric represents a metric emitted by a check
+type Metric struct {
+	Host           string      `json:"host"`
+	Interval       int         `json:"interval"`
+	Metric         string      `json:"metric"`
+	Points         [][]float64 `json:"points"`
+	SourceTypeName string      `json:"source_type_name"`
+	Tags           []string    `json:"tags"`
+	Type           string      `json:"type"`
 }
 
-func parseCheckOutput(t *testing.T, check []byte) []root {
+// ParseCheckOutput parses the check command output
+func ParseCheckOutput(t *testing.T, check []byte) []Root {
 	// On Windows a warning is printed when running the check command with the wrong user
 	// This warning is not part of the JSON output and needs to be ignored when parsing
 	startIdx := bytes.IndexAny(check, "[{")
@@ -39,7 +43,7 @@ func parseCheckOutput(t *testing.T, check []byte) []root {
 
 	check = check[startIdx:]
 
-	var data []root
+	var data []Root
 	err := json.Unmarshal([]byte(check), &data)
 	require.NoErrorf(t, err, "Failed to unmarshal check output: %v", string(check))
 

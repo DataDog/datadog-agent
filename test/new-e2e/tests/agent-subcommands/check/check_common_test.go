@@ -50,7 +50,7 @@ func (v *baseCheckSuite) TestCustomCheck() {
 
 func (v *baseCheckSuite) TestCheckRate() {
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-rate", "--json"}))
-	data := parseCheckOutput(v.T(), []byte(check))
+	data := ParseCheckOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 
@@ -65,7 +65,7 @@ func (v *baseCheckSuite) TestCheckTimes() {
 	times := 10
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-times", fmt.Sprint(times), "--json"}))
 
-	data := parseCheckOutput(v.T(), []byte(check))
+	data := ParseCheckOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 

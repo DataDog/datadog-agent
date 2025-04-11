@@ -805,6 +805,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - release.json
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
