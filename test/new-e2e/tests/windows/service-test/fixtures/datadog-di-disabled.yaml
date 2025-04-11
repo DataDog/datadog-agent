@@ -7,8 +7,8 @@ process_config:
   process_collection:
     enabled: true
 
-# enable the datadog-installer, needs an API KEY
-remote_upgrades: true
+# disable the datadog-installer, needs an API KEY
+remote_upgrades: false
 api_key: aaaaaaaaa
 
 # trace-agent is running by default

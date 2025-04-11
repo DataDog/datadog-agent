@@ -11,4 +11,8 @@ process_config:
   process_discovery:
     enabled: false 
 
+# enable the datadog-installer, needs an API KEY
+remote_upgrades: true
+api_key: aaaaaaaaa
+
 # trace-agent is running by default
