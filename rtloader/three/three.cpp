@@ -44,7 +44,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemAlloc(0)
 {
     _pythonHome = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    _pythonExe = python_exe;
+    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : NULL;
 }
 
 Three::~Three()
