@@ -8,11 +8,13 @@
 package gpu
 
 import (
+	"fmt"
 	"iter"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
@@ -38,10 +40,13 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams       map[streamKey]*StreamHandler
-	globalStreams map[globalStreamKey]*StreamHandler
-	sysCtx        *systemContext
-	telemetry     *streamCollectionTelemetry
+	streams             map[streamKey]*StreamHandler
+	globalStreams       map[globalStreamKey]*StreamHandler
+	sysCtx              *systemContext
+	collectionTelemetry *streamCollectionTelemetry // telemetry for the stream collection
+	streamTelemetry     *streamTelemetry           // telemetry for the stream handlers. We hold a single reference that we pass to all the stream handlers
+	streamLimits        streamLimits
+	maxStreams          int
 }
 
 type streamCollectionTelemetry struct {
@@ -50,14 +55,41 @@ type streamCollectionTelemetry struct {
 	finalizedProcesses telemetry.Counter
 	activeHandlers     telemetry.Gauge
 	removedHandlers    telemetry.Counter
+	rejectedStreams    telemetry.Counter
 }
 
-func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component) *streamCollection {
+type streamTelemetry struct {
+	forcedSyncOnKernelLaunch telemetry.Counter
+	allocEvicted             telemetry.Counter
+	invalidFreeEvents        telemetry.Counter
+}
+
+func getStreamLimits(config *config.Config) streamLimits {
+	return streamLimits{
+		maxKernelLaunches: config.MaxKernelLaunchesPerStream,
+		maxAllocEvents:    config.MaxMemAllocEventsPerStream,
+	}
+}
+
+func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
-		streams:       make(map[streamKey]*StreamHandler),
-		globalStreams: make(map[globalStreamKey]*StreamHandler),
-		sysCtx:        sysCtx,
-		telemetry:     newStreamCollectionTelemetry(telemetry),
+		streams:             make(map[streamKey]*StreamHandler),
+		globalStreams:       make(map[globalStreamKey]*StreamHandler),
+		sysCtx:              sysCtx,
+		collectionTelemetry: newStreamCollectionTelemetry(telemetry),
+		streamTelemetry:     newStreamTelemetry(telemetry),
+		streamLimits:        getStreamLimits(config),
+		maxStreams:          config.MaxStreams,
+	}
+}
+
+func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
+	subsystem := consts.GpuTelemetryModule + "__streams"
+
+	return &streamTelemetry{
+		forcedSyncOnKernelLaunch: tm.NewCounter(subsystem, "forced_sync_on_kernel_launch", nil, "Number of forced syncs on kernel launch"),
+		allocEvicted:             tm.NewCounter(subsystem, "alloc_evicted", nil, "Number of allocations evicted from the cache"),
+		invalidFreeEvents:        tm.NewCounter(subsystem, "invalid_free_events", nil, "Number of invalid free events"),
 	}
 }
 
@@ -70,6 +102,7 @@ func newStreamCollectionTelemetry(tm telemetry.Component) *streamCollectionTelem
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of processes that have ended"),
 		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
 		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", []string{"device"}, "Number of removed stream handlers"),
+		rejectedStreams:    tm.NewCounter(subsystem, "rejected_streams_due_to_limit", nil, "Number of rejected streams due to the max stream limit"),
 	}
 }
 
@@ -91,7 +124,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	// that can be called to retrieve it only when needed
 	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), memoizedContainerID)
 	if err != nil {
-		sc.telemetry.missingDevices.Inc()
+		sc.collectionTelemetry.missingDevices.Inc()
 		return nil, err
 	}
 
@@ -102,9 +135,13 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 
 	stream, ok := sc.globalStreams[key]
 	if !ok {
-		stream = sc.createStreamHandler(header, device, memoizedContainerID)
+		stream, err = sc.createStreamHandler(header, device, memoizedContainerID)
+		if err != nil {
+			return nil, fmt.Errorf("error creating global stream: %w", err)
+		}
+
 		sc.globalStreams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+		sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
 	return stream, nil
@@ -120,9 +157,14 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 
 	stream, ok := sc.streams[key]
 	if !ok {
-		stream = sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
+		var err error
+		stream, err = sc.createStreamHandler(header, nil, sc.memoizedContainerID(header))
+		if err != nil {
+			return nil, fmt.Errorf("error creating non-global stream: %w", err)
+		}
+
 		sc.streams[key] = stream
-		sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+		sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 	}
 
 	return stream, nil
@@ -130,7 +172,12 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the device not provided (it's nil), it will be retrieved from the system context.
-func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) *StreamHandler {
+func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device *ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
+	if sc.streamCount() >= sc.maxStreams {
+		sc.collectionTelemetry.rejectedStreams.Inc()
+		return nil, fmt.Errorf("max streams reached")
+	}
+
 	pid, tid := getPidTidFromHeader(header)
 	metadata := streamMetadata{
 		pid:         pid,
@@ -143,15 +190,15 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 		device, err = sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
 		if err != nil {
 			log.Warnf("error getting GPU device for process %d: %s", pid, err)
-			sc.telemetry.missingDevices.Inc()
-			return nil
+			sc.collectionTelemetry.missingDevices.Inc()
+			return nil, err
 		}
 	}
 
 	metadata.gpuUUID = device.UUID
 	metadata.smVersion = device.SMVersion
 
-	return newStreamHandler(metadata, sc.sysCtx)
+	return newStreamHandler(metadata, sc.sysCtx, sc.streamLimits, sc.streamTelemetry)
 }
 
 // memoizedContainerID returns a function that memoizes the container ID for a given CUDA stream.
@@ -163,12 +210,12 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 		if err != nil {
 			log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
 
-			sc.telemetry.missingContainers.Inc("error")
+			sc.collectionTelemetry.missingContainers.Inc("error")
 			return ""
 		}
 
 		if containerID == "" {
-			sc.telemetry.missingContainers.Inc("missing")
+			sc.collectionTelemetry.missingContainers.Inc("missing")
 		}
 
 		return containerID
@@ -200,7 +247,7 @@ func (sc *streamCollection) markProcessStreamsAsEnded(pid uint32) {
 		if handler.metadata.pid == pid {
 			log.Debugf("Process %d ended, marking stream %d as ended", pid, handler.metadata.streamID)
 			_ = handler.markEnd()
-			sc.telemetry.finalizedProcesses.Inc()
+			sc.collectionTelemetry.finalizedProcesses.Inc()
 		}
 	}
 }
@@ -209,16 +256,16 @@ func (sc *streamCollection) clean() {
 	for key, handler := range sc.streams {
 		if handler.processEnded {
 			delete(sc.streams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+			sc.collectionTelemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
 	for key, handler := range sc.globalStreams {
 		if handler.processEnded {
 			delete(sc.globalStreams, key)
-			sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
+			sc.collectionTelemetry.removedHandlers.Inc(handler.metadata.gpuUUID)
 		}
 	}
 
-	sc.telemetry.activeHandlers.Set(float64(sc.streamCount()))
+	sc.collectionTelemetry.activeHandlers.Set(float64(sc.streamCount()))
 }

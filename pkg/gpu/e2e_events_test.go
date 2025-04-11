@@ -54,7 +54,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(ctx, telemetryMock)
+	handlers := newStreamCollection(ctx, telemetryMock, config.New())
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
