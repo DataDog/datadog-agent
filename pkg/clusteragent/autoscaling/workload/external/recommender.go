@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,10 +66,19 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 	podAutoscalers := r.store.GetFiltered(externalRecommendationFilter)
 
+	log.Debugf("Found %d pod autoscalers with external recommender enabled", len(podAutoscalers))
+
 	for _, podAutoscaler := range podAutoscalers {
 		// Fetch external recommendations
 		recommendation, err := r.recommenderClient.GetReplicaRecommendation(ctx, podAutoscaler)
-
+		telemetryHorizontalExternalRecommendations.Set(
+			float64(recommendation.Replicas),
+			podAutoscaler.Namespace(),
+			podAutoscaler.Spec().TargetRef.Name,
+			podAutoscaler.Name(),
+			string(recommendation.Source),
+			le.JoinLeaderValue,
+		)
 		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), recommendation, err)
 		if err != nil {
 			log.Debugf("Got error fetching external recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
