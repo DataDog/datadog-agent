@@ -527,7 +527,7 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 }
 
 func (c *Check) excludeDevice(device string) bool {
-	if device == "" || (len(c.excludedDevices) == 0) {
+	if device == "" || len(c.excludedDevices) == 0 {
 		return false
 	}
 	return sliceMatchesExpression(c.excludedDevices, device)
