@@ -32,9 +32,37 @@ import (
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
-// gpuEnabledAMI is an AMI that has GPU drivers pre-installed. In this case it's
-// an Ubuntu 22.04 with NVIDIA drivers
-const gpuEnabledAMI = "ami-03ee78da2beb5b622"
+type systemData struct {
+	ami string
+	os  os.Descriptor
+
+	// cudaSanityCheckImage is a Docker image that contains a CUDA sample to
+	// validate the GPU setup with the default CUDA installation. Note that the CUDA
+	// version in this image must be equal or less than the one installed in the
+	// AMI.
+	cudaSanityCheckImage string
+}
+
+type systemName string
+
+const (
+	defaultGpuSystem    systemName = "ubuntu2204"
+	gpuSystemUbuntu2204 systemName = "ubuntu2204"
+	gpuSystemUbuntu1804 systemName = "ubuntu1804"
+)
+
+// gpuSystems is a map of AMIs for different Ubuntu versions
+var gpuSystems = map[systemName]systemData{
+	gpuSystemUbuntu2204: {
+		ami:                  "ami-03ee78da2beb5b622",
+		os:                   os.Ubuntu2204,
+		cudaSanityCheckImage: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04",
+	},
+	gpuSystemUbuntu1804: {
+		ami: "ami-0d4cd594d60c8d668",
+		os:  os.Ubuntu2004, // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
+	},
+}
 
 // gpuInstanceType is the instance type to use. By default we use g4dn.xlarge,
 // which is the cheapest GPU instance type
@@ -43,12 +71,6 @@ const gpuInstanceType = "g4dn.xlarge"
 // nvidiaPCIVendorID is the PCI vendor ID for NVIDIA GPUs, used to identify the
 // GPU devices with lspci
 const nvidiaPCIVendorID = "10de"
-
-// cudaSanityCheckImage is a Docker image that contains a CUDA sample to
-// validate the GPU setup with the default CUDA installation. Note that the CUDA
-// version in this image must be equal or less than the one installed in the
-// AMI.
-const cudaSanityCheckImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
 
 // nvidiaSMIValidationCmd is a command that checks if the nvidia-smi command is
 // available and can list the GPUs
@@ -102,8 +124,7 @@ const dockerPullMaxRetries = 3
 type provisionerParams struct {
 	agentOptions           []agentparams.Option
 	kubernetesAgentOptions []kubernetesagentparams.Option
-	ami                    string
-	amiOS                  os.Descriptor
+	systemName             systemName
 	instanceType           string
 	dockerImages           []string
 }
@@ -115,10 +136,8 @@ func getDefaultProvisionerParams() *provisionerParams {
 			agentparams.WithAgentConfig("enable_nvml_detection: true"),
 		},
 		kubernetesAgentOptions: nil,
-		ami:                    gpuEnabledAMI,
-		amiOS:                  os.Ubuntu2204,
+		systemName:             defaultGpuSystem,
 		instanceType:           gpuInstanceType,
-		dockerImages:           []string{cudaSanityCheckImage},
 	}
 }
 
@@ -131,10 +150,15 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
+		systemData, ok := gpuSystems[params.systemName]
+		if !ok {
+			return fmt.Errorf("invalid system name: %s", params.systemName)
+		}
+
 		// Create the EC2 instance
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.ami, params.amiOS, os.AMD64Arch),
+			ec2.WithAMI(systemData.ami, systemData.os, os.AMD64Arch),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -181,7 +205,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		// Validate that Docker can run CUDA samples
 		dockerCudaDeps := append(dockerPullCmds, validateGPUDevicesCmd...)
-		dockerCudaValidateCmd, err := validateDockerCuda(&awsEnv, host, dockerCudaDeps...)
+		dockerCudaValidateCmd, err := validateDockerCuda(&awsEnv, host, systemData.cudaSanityCheckImage, dockerCudaDeps...)
 		if err != nil {
 			return fmt.Errorf("validateDockerCuda failed: %w", err)
 		}
@@ -219,9 +243,14 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
+		systemData, ok := gpuSystems[params.systemName]
+		if !ok {
+			return fmt.Errorf("invalid system name: %s", params.systemName)
+		}
+
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.ami, params.amiOS, os.AMD64Arch),
+			ec2.WithAMI(systemData.ami, systemData.os, os.AMD64Arch),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -241,7 +270,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 		clusterOpts := nvidia.NewKindClusterOptions(
 			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),
-			nvidia.WithCudaSanityCheckImage(cudaSanityCheckImage),
+			nvidia.WithCudaSanityCheckImage(systemData.cudaSanityCheckImage),
 		)
 
 		kindCluster, err := nvidia.NewKindCluster(&awsEnv, host, name, clusterOpts, utils.PulumiDependsOn(deps...))
@@ -364,7 +393,7 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 	return cmds, nil
 }
 
-func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, dependsOn ...pulumi.Resource) (command.Command, error) {
+func validateDockerCuda(e *aws.Environment, vm *componentsremote.Host, cudaSanityCheckImage string, dependsOn ...pulumi.Resource) (command.Command, error) {
 	return vm.OS.Runner().Command(
 		e.CommonNamer().ResourceName("docker-cuda-validate"),
 		&command.Args{

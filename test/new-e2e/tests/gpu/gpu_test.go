@@ -32,6 +32,7 @@ import (
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
+var gpuSystem = flag.String("gpu-system", string(defaultGpuSystem), "GPU system to use")
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
@@ -70,6 +71,7 @@ func TestGPUHostSuite(t *testing.T) {
 	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
 
 	provParams := getDefaultProvisionerParams()
+	provParams.systemName = systemName(*gpuSystem)
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
@@ -113,6 +115,7 @@ func TestGPUK8sSuite(t *testing.T) {
 	// we're not breaking main if we get rate limited
 	flake.MarkOnLog(t, "rate limit")
 	provParams := getDefaultProvisionerParams()
+	provParams.systemName = systemName(*gpuSystem)
 
 	// Append our vectorAdd image for testing
 	provParams.dockerImages = append(provParams.dockerImages, dockerImageName())
