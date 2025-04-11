@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    added new expvar "submission_error_count" to be shown during routine status checks
+    added new expvar "submission_error_count" on process endpoint to be shown during user status checks

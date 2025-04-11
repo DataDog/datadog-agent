@@ -513,14 +513,14 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 		case model.TypeResCollector:
 			rm := r.Body.(*model.ResCollector)
 			if len(rm.Message) > 0 {
-				submissionErrors++
 				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
+				submissionErrors++
 			} else {
 				statuses = append(statuses, rm.Status)
 			}
 		default:
-			submissionErrors++
 			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
+			submissionErrors++
 		}
 	}
 
