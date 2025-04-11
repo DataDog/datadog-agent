@@ -50,6 +50,8 @@ func (i tracerDetector) DetectLanguage(proc model.Process) (model.Language, erro
 		name = model.Node
 	case "ruby":
 		name = model.Ruby
+	case "jvm":
+		name = model.Java
 	default:
 		return model.Language{}, fmt.Errorf("unknown language detected %s", trMeta.TracerLanguage)
 	}
