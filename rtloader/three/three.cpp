@@ -44,9 +44,7 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _pymemAlloc(0)
 {
     _pythonHome = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    if (python_exe && strlen(python_exe) > 0) {
-        _pythonExe = python_exe;
-    }
+    _pythonExe = python_exe;
 }
 
 Three::~Three()
@@ -85,16 +83,17 @@ bool Three::init()
     _config.install_signal_handlers = 1;
 
     // Set Python home
-    if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome), "Failed to set python home")) {
+    if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.home, _pythonHome.c_str()),
+                     "Failed to set python home")) {
         PyConfig_Clear(&_config);
         return false;
     }
 
     // Configure Python executable if provided
-    if (_pythonExe) {
-        if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe),
+    if (!_pythonExe.empty()) {
+        if (!checkStatus(PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str()),
                          "Failed to set executable path")
-            || !checkStatus(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe),
+            || !checkStatus(PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str()),
                             "Failed to set program name")) {
             PyConfig_Clear(&_config);
             return false;
