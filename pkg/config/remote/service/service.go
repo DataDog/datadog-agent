@@ -186,6 +186,9 @@ type CoreAgentService struct {
 	agentVersion string
 
 	disableConfigPollLoop bool
+
+	// set the interval for which we will poll the org status
+	orgStatusRefreshInterval time.Duration
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -247,6 +250,7 @@ type options struct {
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
+	orgStatusRefreshInterval       time.Duration
 }
 
 var defaultOptions = options{
@@ -264,6 +268,7 @@ var defaultOptions = options{
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
 	disableConfigPollLoop:          false,
+	orgStatusRefreshInterval:       defaultRefreshInterval,
 }
 
 // Option is a service option
@@ -312,6 +317,21 @@ func WithRefreshInterval(interval time.Duration, cfgPath string) func(s *options
 	return func(s *options) {
 		s.refresh = interval
 		s.refreshIntervalOverrideAllowed = false
+	}
+}
+
+// WithOrgStatusRefreshInterval validates and sets the service org status refresh interval
+func WithOrgStatusRefreshInterval(interval time.Duration, cfgPath string) func(s *options) {
+	if interval < minimalRefreshInterval {
+		log.Warnf("%s is set to %v which is below the minimum of %v - using default org status refresh interval %v",
+			cfgPath, interval, minimalRefreshInterval, defaultRefreshInterval)
+		return func(s *options) {
+			s.orgStatusRefreshInterval = defaultRefreshInterval
+		}
+	}
+
+	return func(s *options) {
+		s.orgStatusRefreshInterval = interval
 	}
 }
 
@@ -485,11 +505,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter:     telemetryReporter,
-		agentVersion:          agentVersion,
-		stopOrgPoller:         make(chan struct{}),
-		stopConfigPoller:      make(chan struct{}),
-		disableConfigPollLoop: options.disableConfigPollLoop,
+		telemetryReporter:        telemetryReporter,
+		agentVersion:             agentVersion,
+		stopOrgPoller:            make(chan struct{}),
+		stopConfigPoller:         make(chan struct{}),
+		disableConfigPollLoop:    options.disableConfigPollLoop,
+		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -511,7 +532,7 @@ func (s *CoreAgentService) Start() {
 		s.pollOrgStatus()
 		for {
 			select {
-			case <-s.clock.After(orgStatusPollInterval):
+			case <-s.clock.After(s.orgStatusRefreshInterval):
 				s.pollOrgStatus()
 			case <-s.stopOrgPoller:
 				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)

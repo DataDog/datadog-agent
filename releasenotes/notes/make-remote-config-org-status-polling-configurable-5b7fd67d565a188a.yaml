@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    This PR allows users to make the remote config org status
+    polling interval that is defined here to be configurable.
+    A user can pass a remote_configuration.org_status_refresh_interval
+    config to configure the value as they wish, with a default of 1m if
+    they do not provide this value (note: previous polling interval was
+    also 1m, so no change in terms of default behavior). 
