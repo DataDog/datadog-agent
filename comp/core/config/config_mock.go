@@ -35,7 +35,7 @@ func (m mockDependencies) getSecretResolver() (secrets.Component, bool) {
 }
 
 // newMock exported mock builder to allow modifying mocks that might be
-// supplied in tests and used for dep injection.
+// supplied in tests and used for dep injection
 func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	var mockConf model.Config
 
