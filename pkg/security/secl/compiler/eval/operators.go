@@ -60,17 +60,19 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			va, vb := ea(ctx), eb(ctx)
-			res := va || vb
-			if res {
+			if ea(ctx) {
 				if a.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{})
+					ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: true, Offset: a.Offset}, MatchingValue{})
 				}
-				if b.Field != "" {
-					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: eb, Offset: b.Offset})
-				}
+				return true
 			}
-			return res
+			if eb(ctx) {
+				if b.Field != "" {
+					ctx.AddMatchingSubExpr(MatchingValue{}, MatchingValue{Field: b.Field, Value: true, Offset: b.Offset})
+				}
+				return true
+			}
+			return false
 		}
 
 		return &BoolEvaluator{

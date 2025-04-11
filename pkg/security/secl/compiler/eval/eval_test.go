@@ -1518,7 +1518,15 @@ func decorateRuleExpr(m *MatchingSubExpr, expr string, before, after string) (st
 
 func decorateRuleExprs(m *MatchingSubExprs, expr string, before, after string) (string, error) {
 	var err error
+
+	dejavu := make(map[int]bool)
+
 	for _, mse := range *m {
+		if dejavu[mse.Offset] {
+			return "", errors.New("duplicate offset")
+		}
+		dejavu[mse.Offset] = true
+
 		expr, err = decorateRuleExpr(&mse, expr, before, after)
 		if err != nil {
 			return expr, err
