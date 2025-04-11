@@ -502,6 +502,9 @@ func (c *Check) getDeviceNameTags(deviceName string) []string {
 }
 
 func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
+	if c.excludePartitionInPlatform(partition) {
+		return true
+	}
 	device := partition.Device
 	if device == "" || device == "none" {
 		device = ""

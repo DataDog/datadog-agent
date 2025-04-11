@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	win "golang.org/x/sys/windows"
 	"regexp"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -38,6 +39,14 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 
 func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	return nil
+}
+
+func (c *Check) excludePartitionInPlatform(partition gopsutil_disk.PartitionStat) bool {
+	/* skip cd-rom drives with no disk in it; they may raise
+	ENOENT, pop-up a Windows GUI error for a non-ready
+	partition or just hang;
+	and all the other excluded disks */
+	return slices.Contains(partition.Opts, "cdrom") || partition.Fstype == ""
 }
 
 var mpr = win.NewLazySystemDLL("mpr.dll")
