@@ -4,13 +4,14 @@ generator:
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
       headers:
         content-type: "application/x-protobuf"
-      target_uri: "http://127.0.0.1:4318/v1/logs"
-      bytes_per_second: "2 Mb"
-      parallel_connections: 5
+      target_uri: "http://127.0.0.1:4318/v1/traces"
+      maximum_block_size: "25 KiB"
+      parallel_connections: 1
+      bytes_per_second: "1 Mb"
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "16 Mb"
-          variant: "opentelemetry_logs"
+          maximum_prebuild_cache_size_bytes: "5 Mb"
+          variant: "opentelemetry_traces"
 
 blackhole:
   - http:
@@ -25,3 +26,6 @@ blackhole:
   - http:
       binding_addr: "127.0.0.1:9094"
       body_variant: "nothing"
+target_metrics:
+  - prometheus:
+      uri: "http://0.0.0.0:8888/metrics"
