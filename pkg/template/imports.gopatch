@@ -6,14 +6,6 @@
 @@
 var x identifier
 @@
--import "text/template/parse"
-+import "github.com/DataDog/datadog-agent/pkg/template/text/parse"
-
-parse.x
-
-@@
-var x identifier
-@@
 -import "text/template"
 +import template "github.com/DataDog/datadog-agent/pkg/template/text"
 

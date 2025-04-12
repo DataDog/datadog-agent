@@ -22,9 +22,10 @@ fi
 rm -rf text html internal
 
 # Copy the code from the Go standard library
-cp -r "$GOROOT/src/text/template" text
-cp -r "$GOROOT/src/html/template" html
-mkdir internal
+mkdir -p internal text html
+# avoid copying text/template/parse
+cp "$GOROOT"/src/text/template/*.go text/
+cp "$GOROOT"/src/html/template/*.go html/
 cp -r "$GOROOT/src/internal/fmtsort" internal/fmtsort
 
 echo "Removing test files..."
@@ -36,6 +37,8 @@ echo "Applying patches..."
 # remove the piece of code executing methods (which disables dead code elimination)
 git apply no-method.patch
 # change the imports to use the local package
-gopatch -p imports.patch ./...
+gopatch -p imports.gopatch ./...
 # remove a godebug variable
-gopatch -p godebug.patch ./...
+gopatch -p godebug.gopatch ./...
+# use type aliases instead of declaring new ones
+git apply types.patch
