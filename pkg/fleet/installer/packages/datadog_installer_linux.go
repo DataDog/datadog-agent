@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-// Package packages contains the install/upgrades/uninstall logic for packages
 package packages
 
 import (
@@ -19,6 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var datadogInstallerPackage = Package{
+	name:                  "datadog-installer",
+	preInstall:            preInstallDatadogInstaller,
+	postInstall:           postInstallDatadogInstaller,
+	preRemove:             preRemoveDatadogInstaller,
+	postStartExperiment:   postStartExperimentDatadogInstaller,
+	preStopExperiment:     preStopExperimentDatadogInstaller,
+	postPromoteExperiment: postPromoteExperimentDatadogInstaller,
+}
 
 const (
 	installerUnit    = "datadog-installer.service"
@@ -40,8 +49,8 @@ var (
 	}
 )
 
-// PrepareInstaller prepares the installer
-func PrepareInstaller(ctx context.Context) error {
+// preInstallDatadogInstaller prepares the installer
+func preInstallDatadogInstaller(ctx PackageContext) error {
 	if err := systemd.StopUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
 	}
@@ -51,12 +60,12 @@ func PrepareInstaller(ctx context.Context) error {
 	return nil
 }
 
-// SetupInstaller installs and starts the installer systemd units
-func SetupInstaller(ctx context.Context) (err error) {
+// postInstallDatadogInstaller installs and starts the installer systemd units
+func postInstallDatadogInstaller(ctx PackageContext) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer, reverting: %s", err)
-			err = RemoveInstaller(ctx)
+			err = preRemoveDatadogInstaller(ctx)
 		}
 	}()
 
@@ -115,8 +124,8 @@ func startInstallerStable(ctx context.Context) (err error) {
 	return systemd.StartUnit(ctx, installerUnit)
 }
 
-// RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) error {
+// preRemoveDatadogInstaller removes the installer systemd units
+func preRemoveDatadogInstaller(ctx PackageContext) error {
 	for _, unit := range installerUnits {
 		if err := systemd.StopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -144,17 +153,17 @@ func RemoveInstaller(ctx context.Context) error {
 	return nil
 }
 
-// StartInstallerExperiment installs the experimental systemd units for the installer
-func StartInstallerExperiment(ctx context.Context) error {
+// postStartExperimentDatadogInstaller starts the experimental systemd units for the installer
+func postStartExperimentDatadogInstaller(ctx PackageContext) error {
 	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }
 
-// StopInstallerExperiment starts the stable systemd units for the installer
-func StopInstallerExperiment(ctx context.Context) error {
-	return systemd.StartUnit(ctx, installerUnit)
+// preStopExperimentDatadogInstaller stops the stable systemd units for the installer
+func preStopExperimentDatadogInstaller(ctx PackageContext) error {
+	return systemd.StopUnit(ctx, installerUnit)
 }
 
-// PromoteInstallerExperiment promotes the installer experiment
-func PromoteInstallerExperiment(ctx context.Context) error {
-	return StopInstallerExperiment(ctx)
+// postPromoteExperimentDatadogInstaller promotes the installer experiment
+func postPromoteExperimentDatadogInstaller(ctx PackageContext) error {
+	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }

@@ -5,11 +5,10 @@
 
 package packages
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+var (
+	// Packages is a map of package names to their implementations
+	Packages = map[string]Package{
+		datadogInstallerPackage.name: datadogInstallerPackage,
+		apmInjectPackage.name:        apmInjectPackage,
+	}
 )
-
-// PreRemoveHooks contains the mapping between packages and their pre-remove hooks
-var PreRemoveHooks = map[string]repository.PreRemoveHook{
-	packageAPMLibraryDotnet: PreRemoveHookDotnet,
-}
