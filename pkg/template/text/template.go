@@ -7,8 +7,7 @@ package template
 import (
 	"reflect"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
+	"text/template/parse"
 )
 
 // common holds the information shared by related templates.

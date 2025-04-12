@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"text/template/parse"
 
 	"github.com/DataDog/datadog-agent/pkg/template/internal/fmtsort"
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
 )
 
 // maxExecDepth specifies the maximum stack depth of templates within

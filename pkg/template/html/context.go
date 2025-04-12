@@ -6,8 +6,7 @@ package template
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
+	"text/template/parse"
 )
 
 // context describes the state an HTML parser must be in when it reaches the

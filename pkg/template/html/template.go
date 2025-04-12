@@ -12,9 +12,9 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"text/template/parse"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
 )
 
 // Template is a specialized Template from "text/template" that produces a safe

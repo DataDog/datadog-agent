@@ -10,9 +10,9 @@ import (
 	"html"
 	"io"
 	"regexp"
+	"text/template/parse"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
 )
 
 // escapeTemplate rewrites the named template, which must be

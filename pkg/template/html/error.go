@@ -6,8 +6,7 @@ package template
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/template/text/parse"
+	"text/template/parse"
 )
 
 // Error describes a problem encountered during template Escaping.
