@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
-// Package datadogagent implements the datadog agent install methods
-package datadogagent
+package packages
 
 import (
 	"context"
@@ -28,25 +25,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
+// datadogAgentPackage is the package for the Datadog Agent
+var datadogAgentPackage = &Package{
+	name:                  "datadog-agent",
+	postInstall:           postInstallDatadogAgent,
+	preRemove:             preRemoveDatadogAgent,
+	postStartExperiment:   postStartExperimentDatadogAgent,
+	postStopExperiment:    postStopExperimentDatadogAgent,
+	postPromoteExperiment: postPromoteExperimentDatadogAgent,
+}
+
 const (
 	datadogAgent          = "datadog-agent"
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
-// PreInstall performs pre-installation steps for the agent
-func PreInstall(_ context.Context) error {
-	return nil
-}
-
-// PostInstall runs post install scripts for a given package.
-func PostInstall(ctx context.Context, _, _ string, args ...string) (err error) {
+// postInstallDatadogAgent runs post install scripts for a given package.
+func postInstallDatadogAgent(ctx PackageContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
 	// remove the installer if it is installed
 	// if nothing is installed this will return without an error
-	err = removeInstallerIfInstalled(ctx)
+	err := removeInstallerIfInstalled(ctx)
 	if err != nil {
 		// failed to remove the installer
 		return fmt.Errorf("Failed to remove installer: %w", err)
@@ -61,27 +63,22 @@ func PostInstall(ctx context.Context, _, _ string, args ...string) (err error) {
 	}
 
 	// install the new stable Agent
-	err = installAgentPackage(env, "stable", args, "setup_agent.log")
+	err = installAgentPackage(env, "stable", ctx.Args, "setup_agent.log")
 	return err
 }
 
-// PreRemove runs pre remove scripts for a given package.
-func PreRemove(ctx context.Context, _ string, _ string, upgrade bool) error {
+// preRemoveDatadogAgent runs pre remove scripts for a given package.
+func preRemoveDatadogAgent(ctx PackageContext) (err error) {
 	// Don't return an error if the Agent is already not installed.
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
-	if !upgrade {
+	if !ctx.Upgrade {
 		return removeAgentIfInstalled(ctx)
 	}
 	return nil
 }
 
-// PreStartExperiment runs pre start scripts for a given package.
-func PreStartExperiment(_ context.Context) error {
-	return nil // Noop on Windows
-}
-
-// PostStartExperiment runs post start scripts for a given package.
+// postStartExperimentDatadogAgent runs post start scripts for a given package.
 //
 // Function requirements:
 //   - be its own process, not run within the daemon
@@ -101,15 +98,7 @@ func PreStartExperiment(_ context.Context) error {
 //   - If the new daemon fails to start, then after a timeout the watchdog will
 //     restore the previous version, which should start and then receive
 //     "stop experiment" from the backend.
-func PostStartExperiment(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "start_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to start agent experiment: %s", err)
-		}
-		span.Finish(err)
-	}()
-
+func postStartExperimentDatadogAgent(ctx PackageContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
@@ -120,7 +109,7 @@ func PostStartExperiment(ctx context.Context) (err error) {
 
 	timeout := getWatchdogTimeout()
 
-	err = removeAgentIfInstalled(ctx)
+	err := removeAgentIfInstalled(ctx)
 	if err != nil {
 		return err
 	}
@@ -158,13 +147,13 @@ func PostStartExperiment(ctx context.Context) (err error) {
 	return nil
 }
 
-// PreStopExperiment runs post stop scripts for a given package.
+// postStopExperimentDatadogAgent runs post stop scripts for a given package.
 //
 // Function requirements:
 //   - be its own process, not run within the daemon
 //   - be run from a copy of the installer, not from the install path,
 //     to avoid locking the executable
-func PreStopExperiment(ctx context.Context) error {
+func postStopExperimentDatadogAgent(ctx PackageContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
 	// this will just stop a watchdog that is running
@@ -174,7 +163,7 @@ func PreStopExperiment(ctx context.Context) error {
 	env := getenv()
 
 	// remove the Agent
-	err := removeAgentIfInstalled(ctx)
+	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		// we failed to remove the Agent
 		// we can't do much here
@@ -192,18 +181,8 @@ func PreStopExperiment(ctx context.Context) error {
 	return nil
 }
 
-// PostStopExperiment runs pre stop scripts for a given package.
-func PostStopExperiment(_ context.Context) error {
-	return nil
-}
-
-// PrePromoteExperiment runs pre promote scripts for a given package.
-func PrePromoteExperiment(_ context.Context) error {
-	return nil // Noop on Windows
-}
-
-// PostPromoteExperiment runs post promote scripts for a given package.
-func PostPromoteExperiment(_ context.Context) error {
+// postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
+func postPromoteExperimentDatadogAgent(_ PackageContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed

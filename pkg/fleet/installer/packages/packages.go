@@ -31,11 +31,11 @@ type Package struct {
 	prePromoteExperiment  packageHook
 	postPromoteExperiment packageHook
 
-	// PreRemoveHook is called before a package is removed from the disk.
+	// AsyncPreRemoveHook is called before a package is removed from the disk.
 	// It can block the removal of the package files until a condition is met without blocking
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
-	PreRemoveHook repository.PreRemoveHook
+	AsyncPreRemoveHook repository.PreRemoveHook
 }
 
 // PackageHook is the interface for package hooks.

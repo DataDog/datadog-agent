@@ -23,7 +23,7 @@ var apmLibraryDotnetPackage = Package{
 	postStartExperiment: postStartExperimentAPMLibraryDotnet,
 	preStopExperiment:   preStopExperimentAPMLibraryDotnet,
 
-	PreRemoveHook: preRemoveHookAPMLibraryDotnet,
+	AsyncPreRemoveHook: asyncPreRemoveHookAPMLibraryDotnet,
 }
 
 const (
@@ -136,9 +136,9 @@ func preRemoveAPMLibraryDotnet(ctx PackageContext) (err error) {
 	return nil
 }
 
-// preRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
+// asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
 // It checks that it's safe to delete it and cleans up the external dependencies of the package.
-func preRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
+func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
 	exitCode, err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
 	if err != nil {
