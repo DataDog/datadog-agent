@@ -9,7 +9,6 @@
 package codegen
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -276,7 +275,6 @@ func correctPointersWithoutPieces(params []*ditypes.Parameter) {
 
 		// Check if parameter is a pointer with no parameter pieces
 		if reflect.Kind(param.Kind) == reflect.Pointer && len(param.ParameterPieces) == 0 {
-			fmt.Println("Found a pointer with no parameter pieces!", param.Type)
 			param.ParameterPieces = []*ditypes.Parameter{{}}
 			return
 		}
