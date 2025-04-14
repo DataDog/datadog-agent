@@ -107,6 +107,40 @@ func installerInit() error {
 	return nil
 }
 
+// getServiceHandle returns a service handle and manager for the given service name
+func (s *Servicedef) getServiceHandle() (*mgr.Mgr, *mgr.Service, error) {
+	/*
+	 * default go implementations of mgr.Connect and mgr.OpenService use way too
+	 * open permissions by default.  Use those structures so the other methods
+	 * work properly, but initialize them here using restrictive enough permissions
+	 * that we can actually open/start the service when running as non-root.
+	 */
+	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		log.Warnf("Failed to connect to scm %v", err)
+		return nil, nil, err
+	}
+	m := &mgr.Mgr{Handle: h}
+
+	snptr, err := syscall.UTF16PtrFromString(s.serviceName)
+	if err != nil {
+		log.Warnf("Failed to get service name %v", err)
+		m.Disconnect()
+		return nil, nil, fmt.Errorf("could not create service name pointer: %s", err)
+	}
+
+	hSvc, err := windows.OpenService(m.Handle, snptr,
+		windows.SERVICE_START|windows.SERVICE_STOP)
+	if err != nil {
+		log.Warnf("Failed to open service %v", err)
+		m.Disconnect()
+		return nil, nil, fmt.Errorf("could not access service: %v", err)
+	}
+	scm := &mgr.Service{Name: s.serviceName, Handle: hSvc}
+
+	return m, scm, nil
+}
+
 // Start starts the service
 func (s *Servicedef) Start() error {
 	if s.serviceInit != nil {
@@ -117,34 +151,13 @@ func (s *Servicedef) Start() error {
 		}
 	}
 
-	/*
-	 * default go implementations of mgr.Connect and mgr.OpenService use way too
-	 * open permissions by default.  Use those structures so the other methods
-	 * work properly, but initialize them here using restrictive enough permissions
-	 * that we can actually open/start the service when running as non-root.
-	 */
-	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	m, scm, err := s.getServiceHandle()
 	if err != nil {
-		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
-	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-
-	snptr, err := syscall.UTF16PtrFromString(s.serviceName)
-	if err != nil {
-		log.Warnf("Failed to get service name %v", err)
-		return fmt.Errorf("could not create service name pointer: %s", err)
-	}
-
-	hSvc, err := windows.OpenService(m.Handle, snptr,
-		windows.SERVICE_START|windows.SERVICE_STOP)
-	if err != nil {
-		log.Warnf("Failed to open service %v", err)
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	scm := &mgr.Service{Name: s.serviceName, Handle: hSvc}
 	defer scm.Close()
+
 	err = scm.Start("is", "manual-started")
 	if err != nil {
 		log.Warnf("Failed to start service %v", err)
@@ -156,34 +169,13 @@ func (s *Servicedef) Start() error {
 
 // Stop stops the service
 func (s *Servicedef) Stop() error {
-	/*
-	 * default go implementations of mgr.Connect and mgr.OpenService use way too
-	 * open permissions by default.  Use those structures so the other methods
-	 * work properly, but initialize them here using restrictive enough permissions
-	 * that we can actually open/start the service when running as non-root.
-	 */
-	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	m, scm, err := s.getServiceHandle()
 	if err != nil {
-		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
-	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-
-	snptr, err := syscall.UTF16PtrFromString(s.serviceName)
-	if err != nil {
-		log.Warnf("Failed to get service name %v", err)
-		return fmt.Errorf("could not create service name pointer: %s", err)
-	}
-
-	hSvc, err := windows.OpenService(m.Handle, snptr,
-		windows.SERVICE_START|windows.SERVICE_STOP)
-	if err != nil {
-		log.Warnf("Failed to open service %v", err)
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	scm := &mgr.Service{Name: s.serviceName, Handle: hSvc}
 	defer scm.Close()
+
 	status, err := scm.Control(svc.Stop)
 	if err != nil {
 		log.Warnf("Failed to stop service %v", err)

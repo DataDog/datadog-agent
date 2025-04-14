@@ -679,7 +679,7 @@ func stopAgent() {
 	_, cancel := pkgcommon.GetMainCtxCancel()
 	cancel()
 
-	// shutdown depentent services
+	// shutdown dependent services
 	stopDependentServices()
 
 	pkglog.Info("See ya!")

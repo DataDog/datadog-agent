@@ -52,6 +52,8 @@ func stopDependentServices() {
 			} else {
 				log.Debugf("Stopped service %s", svc.name)
 			}
+		} else if svc.IsEnabled() {
+			log.Infof("Service %s is enabled and doesn't need to be stopped", svc.name)
 		} else {
 			log.Infof("Service %s is disabled, not stopping", svc.name)
 		}
