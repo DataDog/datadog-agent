@@ -172,15 +172,15 @@ func (r *SingleDomainResolver) GetAPIKeys() []string {
 // will only have a very small number of API keys specified.
 // NOTE, this scrubs the API key to avoid leaking the key when logging.
 func missing(a []string, b []string) []string {
-	added := []string{}
+	missing := []string{}
 
 	for _, key := range a {
 		if !slices.Contains(b, key) {
-			added = append(added, scrubber.HideKeyExceptLastFiveChars(key))
+			missing = append(missing, scrubber.HideKeyExceptLastFiveChars(key))
 		}
 	}
 
-	return added
+	return missing
 }
 
 // SetAPIKeys updates the deduped list of API keys associated with this `DomainResolver`
