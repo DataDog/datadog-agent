@@ -234,7 +234,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 	stats, err := p.statsGenerator.getStats(now)
 	if err != nil {
-		return nil, fmt.Errorf("error getting stats: %w", err)
+		return nil, err
 	}
 
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
