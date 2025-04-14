@@ -14,7 +14,7 @@ import (
 var (
 	// packagesHooks is a map of package names to their hooks
 	packagesHooks = map[string]hooks{
-		apmLibraryDotnetPackage.name: apmLibraryDotnetPackage,
+		"datadog-apm-library-dotnet": apmLibraryDotnetPackage,
 	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
@@ -22,7 +22,7 @@ var (
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{
-		apmLibraryDotnetPackage.name: asyncPreRemoveHookAPMLibraryDotnet,
+		"datadog-apm-library-dotnet": asyncPreRemoveHookAPMLibraryDotnet,
 	}
 )
 

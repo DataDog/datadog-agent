@@ -18,7 +18,6 @@ import (
 )
 
 var datadogInstallerPackage = hooks{
-	name:                  "datadog-installer",
 	preInstall:            preInstallDatadogInstaller,
 	postInstall:           postInstallDatadogInstaller,
 	preRemove:             preRemoveDatadogInstaller,

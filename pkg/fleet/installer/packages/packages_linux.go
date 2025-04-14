@@ -10,8 +10,8 @@ import "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 var (
 	// packagesHooks is a map of package names to their hooks
 	packagesHooks = map[string]hooks{
-		datadogInstallerPackage.name: datadogInstallerPackage,
-		apmInjectPackage.name:        apmInjectPackage,
+		"datadog-installer":    datadogInstallerPackage,
+		"datadog-apm-injector": apmInjectPackage,
 	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.

@@ -17,7 +17,6 @@ import (
 )
 
 var apmLibraryDotnetPackage = hooks{
-	name:                "datadog-apm-library-dotnet",
 	postInstall:         postInstallAPMLibraryDotnet,
 	preRemove:           preRemoveAPMLibraryDotnet,
 	postStartExperiment: postStartExperimentAPMLibraryDotnet,

@@ -14,7 +14,6 @@ import (
 
 var (
 	apmInjectPackage = hooks{
-		name:        "apm-inject",
 		postInstall: postInstallAPMInjector,
 		preRemove:   preRemoveAPMInjector,
 	}

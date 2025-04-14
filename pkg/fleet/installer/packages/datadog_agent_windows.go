@@ -27,7 +27,6 @@ import (
 
 // datadogAgentPackage is the package for the Datadog Agent
 var datadogAgentPackage = hooks{
-	name:                  "datadog-agent",
 	postInstall:           postInstallDatadogAgent,
 	preRemove:             preRemoveDatadogAgent,
 	postStartExperiment:   postStartExperimentDatadogAgent,
@@ -63,7 +62,7 @@ func postInstallDatadogAgent(ctx hookContext) error {
 	}
 
 	// install the new stable Agent
-	err = installAgentPackage(env, "stable", ctx.Args, "setup_agent.log")
+	err = installAgentPackage(env, "stable", ctx.WindowsArgs, "setup_agent.log")
 	return err
 }
 
