@@ -23,7 +23,7 @@ type debugVariable struct {
 	ParseErr string      `json:"parse_err,omitempty"`
 }
 
-var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
+var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true, 00: true}
 
 // IsStringPrintable returns true if the provided byte array is only composed of printable characeters
 func IsStringPrintable(bytesValue []byte) bool {
