@@ -104,6 +104,10 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			return DefaultGPUAttributes, nvml.SUCCESS
 		},
+		GetMigModeFunc: func() (int, int, nvml.Return) {
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
 		},
