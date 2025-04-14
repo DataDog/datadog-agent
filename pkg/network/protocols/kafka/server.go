@@ -43,7 +43,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 		return err
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*started \(kafka.server.KafkaRaftServer\).*`), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 	dockerCfg := dockerutils.NewComposeConfig("kafka",
 		dockerutils.DefaultTimeout,

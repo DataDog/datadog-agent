@@ -47,8 +47,6 @@
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
 /go.work                                @DataDog/agent-runtimes
 
-/.circleci/                             @DataDog/agent-devx-infra
-
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
 /.github/dependabot.yaml                             @DataDog/agent-devx-infra
@@ -652,6 +650,7 @@
 /test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/new-e2e/pkg/components/datadog-installer @DataDog/windows-agent
+/test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
