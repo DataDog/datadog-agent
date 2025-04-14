@@ -21,7 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -204,7 +203,7 @@ func (r *recommenderClient) buildReplicaRecommendationResponse(reply *kubeAutosc
 	recommendedReplicas := &model.HorizontalScalingValues{
 		Replicas:  int32(reply.GetTargetReplicas()),
 		Timestamp: reply.GetTimestamp().AsTime(),
-		Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		Source:    common.DatadogPodAutoscalerAutoscalingValueSource,
 	}
 
 	return recommendedReplicas, nil
