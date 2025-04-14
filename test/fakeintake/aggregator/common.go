@@ -101,6 +101,7 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	for _, p := range payloads {
 		fmt.Println("ANDREWQIAN for _, p := range payloads", p)
 		payloads, err := agg.parse(p)
+		fmt.Println("ANDREWQIAN payloads, err := agg.parse(p)", payloads, err)
 		if err != nil {
 			return err
 		}
