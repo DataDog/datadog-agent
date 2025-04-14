@@ -196,6 +196,7 @@ func (c *Client) getEvents() error {
 
 func (c *Client) getLogs() error {
 	fmt.Println("ANDREWQIAN getLogs")
+	// logsEndpoint = "/api/v2/logs"
 	payloads, err := c.getFakePayloads(logsEndpoint)
 	fmt.Println("ANDREWQIAN getLogs", payloads)
 	if err != nil {
@@ -402,17 +403,19 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
 	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
 	fmt.Println("ANDREWQIAN getFakePayloads", body, err)
+	//ANDREWQIAN getFakePayloads [123 34 112 97 121 108 111 97 100 115 34 58 91 93 125] <nil>
 	if err != nil {
 		return nil, err
 	}
 	var response api.APIFakeIntakePayloadsRawGETResponse
 	err = json.Unmarshal(body, &response)
 	fmt.Println("ANDREWQIAN getFakePayloads", response, err)
+	//ANDREWQIAN getFakePayloads {[]} <nil>
 	if err != nil {
 		return nil, err
 	}
 	fmt.Println("ANDREWQIAN getFakePayloads", response.Payloads, err)
-	fmt.Println("ANDREWQIAN getFakePayloads WACKTEST???? .data?", response.Payloads[0].Data, err)
+	//ANDREWQIAN getFakePayloads [] <nil>
 	return response.Payloads, nil
 }
 
