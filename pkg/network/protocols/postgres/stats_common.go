@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,17 +19,8 @@ import (
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
 	Operation  Operation
-	Parameters string
+	Parameters *intern.StringValue
 	types.ConnectionKey
-}
-
-// NewKey creates a new postgres key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, operation Operation, parameters string) Key {
-	return Key{
-		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
-		Operation:     operation,
-		Parameters:    parameters,
-	}
 }
 
 // RequestStat represents a group of Postgres transactions that has a shared key.
