@@ -354,6 +354,10 @@ int BPF_URETPROBE(uretprobe__cudaMemcpy) {
 
     fill_header(&event.header, 0, cuda_sync);
 
+    // According to https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#concurrent-execution-between-host-and-device
+    // most memory transfers force a synchronization on the global stream. Note that other streams might or might not sync,
+    // but for now we don't have fine-grained synchronization data for streams.
+
     log_debug("cudaMemcpy[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
 
     bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
