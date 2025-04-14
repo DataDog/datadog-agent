@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	defaultFlushTimeout = 5 * time.Second
-	logEnabledEnvVar    = "DD_LOGS_ENABLED"
-	envVarTailFilePath  = "DD_SERVERLESS_LOG_PATH"
-	sourceEnvVar        = "DD_SOURCE"
-	sourceName          = "Datadog Agent"
+	defaultFlushTimeout  = 5 * time.Second
+	logEnabledEnvVar     = "DD_LOGS_ENABLED"
+	envVarTailFilePath   = "DD_SERVERLESS_LOG_PATH"
+	aasLogTailingEnabled = "DD_AAS_INSTANCE_LOGGING_ENABLED"
+	sourceEnvVar         = "DD_SOURCE"
+	sourceName           = "Datadog Agent"
 )
 
 // Config holds the log configuration
@@ -54,24 +55,37 @@ func CreateConfig(origin string) *Config {
 }
 
 // SetupLogAgent creates the log agent and sets the base tags
-func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component) logsAgent.ServerlessLogsAgent {
+func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, origin string) logsAgent.ServerlessLogsAgent {
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression)
 
 	tagsArray := serverlessTag.MapToArray(tags)
 
-	addFileTailing(logsAgent, conf.source, tagsArray)
+	addFileTailing(logsAgent, conf.source, tagsArray, origin)
 
 	serverlessLogs.SetLogsTags(tagsArray)
 	return logsAgent
 }
 
-func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string) {
+func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string, origin string) {
+	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
+	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
+	if origin == "appservice" {
+		// For AAS, we have a sepearate env var for disabling defaut log tailing.
+		if isEnabled(os.Getenv(aasLogTailingEnabled)) == false {
+			return
+		}
+
+		src := sources.NewLogSource("aas-system-file-tail", &logConfig.LogsConfig{
+			Type:    logConfig.FileType,
+			Path:    os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log"),
+			Service: os.Getenv("DD_SERVICE"),
+			Tags:    tags,
+			Source:  source,
+		})
+		logsAgent.GetSources().AddSource(src)
+	}
+
 	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
-
-		// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
-		// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective log files.
-		filePath = os.ExpandEnv(filePath)
-
 		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    filePath,
