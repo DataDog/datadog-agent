@@ -570,6 +570,8 @@ func (d *AgentDemultiplexer) GetSender(id checkid.ID) (sender.Sender, error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
+	fmt.Println("CALLING GET SENDER OF DEMULTIPLEXER AGENT")
+
 	if d.senders == nil {
 		return nil, errors.New("demultiplexer is stopped")
 	}

@@ -79,7 +79,9 @@ func (c *Check) Run() error {
 	//}
 
 	var checkErr error
+	fmt.Println("CALLING GET SENDER IN SNMP CHECK RUN FUNCTION")
 	sender, err := c.GetSender()
+	fmt.Println("FINISHED CALLING GET SENDER IN SNMP CHECK RUN FUNCTION")
 	if err != nil {
 		// TODO: ERR HERE
 		return c.PythonCheck.Run()
