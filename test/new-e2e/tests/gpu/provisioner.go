@@ -46,9 +46,9 @@ type systemData struct {
 type systemName string
 
 const (
-	defaultGpuSystem    systemName = "ubuntu2204"
 	gpuSystemUbuntu2204 systemName = "ubuntu2204"
 	gpuSystemUbuntu1804 systemName = "ubuntu1804"
+	defaultGpuSystem    systemName = gpuSystemUbuntu2204
 )
 
 // gpuSystems is a map of AMIs for different Ubuntu versions
