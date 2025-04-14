@@ -1,0 +1,13 @@
+generator: []
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9092"
+  - http:
+      binding_addr: "127.0.0.1:9095"
+  - http:
+      binding_addr: "127.0.0.1:9096"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
