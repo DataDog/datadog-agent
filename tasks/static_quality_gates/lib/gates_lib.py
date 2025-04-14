@@ -136,6 +136,32 @@ class GateMetricHandler:
             )
         return None
 
+    def generate_relative_size(self, ctx, filename="static_gate_report.json", ancestor=None):
+        if ancestor:
+            out = ctx.run(
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
+                hide="stdout",
+                warn=True,
+            )
+            if out.exited == 0:
+                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
+                for gate in self.metrics:
+                    ancestor_gate = ancestor_metric_handler.metrics.get(gate)
+                    if not ancestor_gate:
+                        continue
+                    for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
+                        if self.metrics.get(metric_key) and ancestor_gate.get(metric_key):
+                            relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
+                            self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
+            else:
+                print(
+                    color_message(
+                        f"[ERROR] Unable to fetch quality gates {filename} from {ancestor} !",
+                        "red",
+                    )
+                )
+                raise Exit(code=1)
+
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
             return None
@@ -176,7 +202,7 @@ class GateMetricHandler:
             send_metrics(series=series)
         print(color_message("Metric sending finished !", "blue"))
 
-    def generate_metric_reports(self, filename="static_gate_report.json"):
+    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None):
         if not self.series_is_complete:
             print(
                 color_message(
@@ -187,3 +213,10 @@ class GateMetricHandler:
 
         with open(filename, "w") as f:
             json.dump(self.metrics, f)
+
+        CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
+        if branch == "main" and CI_COMMIT_SHA:
+            ctx.run(
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{CI_COMMIT_SHA}/{filename}",
+                hide="stdout",
+            )

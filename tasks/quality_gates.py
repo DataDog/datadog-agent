@@ -13,9 +13,15 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
+from tasks.static_quality_gates.lib.gates_lib import (
+    GateMetricHandler,
+    byte_to_string,
+    is_first_commit_of_the_day,
+    string_to_byte,
+)
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -23,7 +29,7 @@ SUCCESS_CHAR = "✅"
 
 body_pattern = """### {}
 
-|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|
+|Result|Quality gate|Relative disk size|On disk size|On disk size limit|Relative wire size|On wire size|On wire size limit|
 |----|----|----|----|----|----|
 """
 
@@ -33,6 +39,17 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+
+def get_formated_relative_size(relative_disk_size, relative_wire_size):
+    if relative_disk_size == "DataNotFound" or relative_wire_size == "DataNotFound":
+        return "N/A", "N/A"
+
+    if string_to_byte(relative_disk_size) > 0:
+        relative_disk_size = f"+{relative_disk_size}"
+    if string_to_byte(relative_wire_size) > 0:
+        relative_wire_size = f"+{relative_wire_size}"
+    return relative_disk_size, relative_wire_size
 
 
 def display_pr_comment(
@@ -62,11 +79,15 @@ def display_pr_comment(
             except KeyError:
                 return "DataNotFound"
 
+        relative_disk_size, relative_wire_size = get_formated_relative_size(
+            getMetric("relative_on_disk_size"), getMetric("relative_on_wire_size")
+        )
+
         if gate["error_type"] is None:
-            body_info += f"|{SUCCESS_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
+            body_info += f"|{SUCCESS_CHAR}|{gate['name']}|{relative_disk_size}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
             with_info = True
         else:
-            body_error += f"|{FAIL_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
+            body_error += f"|{FAIL_CHAR}|{gate['name']}|{relative_disk_size}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{relative_wire_size}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate['name']}|{gate['error_type']}|{error_message}|\n"
             with_error = True
@@ -163,10 +184,11 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
     metric_handler.send_metrics_to_datadog()
 
-    metric_handler.generate_metric_reports()
+    metric_handler.generate_metric_reports(ctx, branch=branch)
 
     github = GithubAPI()
     if github.get_pr_for_branch(branch).totalCount > 0:
+        metric_handler.generate_relative_size(ctx, ancestor=get_common_ancestor(ctx, "HEAD"))
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
@@ -179,29 +201,34 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         raise Exit(code=1)
 
 
-def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, bump_size=False):
+def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
     # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
+    # unless it is an exception bump where we will bump gates by the amount increased
     curr_size = metric_handler.metrics[current_gate][current_key]
+    if exception_bump:
+        bump_amount = max(0, metric_handler.metrics[current_gate][current_key.replace("current", "relative")])
+        return curr_size + bump_amount, -bump_amount
+
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     saved_amount = 0
-    if bump_size or remaining_allowed_size > BUFFER_SIZE:
+    if remaining_allowed_size > BUFFER_SIZE:
         saved_amount = remaining_allowed_size - BUFFER_SIZE
         gate_limit -= saved_amount
     return gate_limit, saved_amount
 
 
-def generate_new_quality_gate_config(file_descriptor, metric_handler, bump_size=False):
+def generate_new_quality_gate_config(file_descriptor, metric_handler, exception_bump=False):
     config_content = yaml.safe_load(file_descriptor)
     total_saved_amount = 0
     for gate in config_content.keys():
         on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(
-            gate, "current_on_wire_size", "max_on_wire_size", metric_handler, bump_size
+            gate, "current_on_wire_size", "max_on_wire_size", metric_handler, exception_bump
         )
         config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
         on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(
-            gate, "current_on_disk_size", "max_on_disk_size", metric_handler, bump_size
+            gate, "current_on_disk_size", "max_on_disk_size", metric_handler, exception_bump
         )
         config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
         total_saved_amount += wire_saved_amount + disk_saved_amount
@@ -263,6 +290,7 @@ def exception_threshold_bump(ctx):
     :return:
     """
     current_branch_name = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
         with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
@@ -281,6 +309,7 @@ def exception_threshold_bump(ctx):
             metric_handler = GateMetricHandler(
                 git_ref=current_branch_name, bucket_branch="dev", filename=f"{extract_dir}/static_gate_report.json"
             )
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 
