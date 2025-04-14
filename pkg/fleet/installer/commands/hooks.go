@@ -13,10 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// func (i *InstallerExec) RunHook(ctx context.Context, pkg string, hook string, packageType string, upgrade bool, windowsArgs []string) (err error) {
-// 	serializedWindowsArgs, err := json.Marshal(windowsArgs)
-// 	cmd := i.newInstallerCmd(ctx, "hooks", hook, pkg, packageType, strconv.FormatBool(upgrade), string(serializedWindowsArgs))
-
 func hooksCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:             true,
