@@ -1207,21 +1207,6 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
 
 
 @task
-def create_qa_cards(ctx, tag):
-    """
-    Automate the call to ddqa
-    """
-    from tasks.libs.releasing.qa import get_labels, setup_ddqa
-
-    version = _create_version_from_match(VERSION_RE.match(tag))
-    if not version.rc:
-        print(f"{tag} is not a release candidate, skipping")
-        return
-    setup_ddqa(ctx)
-    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
-
-
-@task
 def create_github_release(ctx, release_branch, draft=True):
     """
     Create a GitHub release for the given tag.

@@ -920,7 +920,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// no need to dispatch events
 	switch eventType {
@@ -2221,6 +2221,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "tracing_helpers_in_cgroup_sysctl",
 			Value: utils.BoolTouint64(p.kernelVersion.HasTracingHelpersInCgroupSysctlPrograms()),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_limiter_rate",
+			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2814,12 +2818,22 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					return fmt.Errorf("failed to kill process %d, incorrect inode %d vs %d", pid, stat.Ino, inode)
 				}
 
+				var errBPF error
 				if p.supportsBPFSendSignal {
-					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
-						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
+					errBPF = p.killListMap.Put(uint32(pid), uint32(sig))
+					if errBPF != nil {
+						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, errBPF)
 					}
 				}
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				errKill := p.processKiller.KillFromUserspace(pid, sig, ev)
+
+				// report the error only if both kill methods failed
+				if p.supportsBPFSendSignal && (errBPF == nil || errKill == nil) {
+					return nil
+				}
+
+				return multierror.Append(errKill, errBPF).ErrorOrNil()
 			}) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}

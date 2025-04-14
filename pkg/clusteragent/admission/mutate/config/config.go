@@ -59,13 +59,13 @@ const (
 	webhookName = "agent_config"
 )
 
-// csiInjectionMode defines the mode of the injected csi volume
-// mode can be either 'socket' or 'local'
-type csiInjectionMode string
+// csiInjectionType defines the type CSI volume to be injected by the CSI driver
+type csiInjectionType string
 
 const (
-	csiModeSocket csiInjectionMode = "socket"
-	csiModeLocal  csiInjectionMode = "local"
+	csiAPMSocket               csiInjectionType = "APMSocket"
+	csiDSDSocket               csiInjectionType = "DSDSocket"
+	csiDatadogSocketsDirectory csiInjectionType = "DatadogSocketsDirectory"
 )
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
