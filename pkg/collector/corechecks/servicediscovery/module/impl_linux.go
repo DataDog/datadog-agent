@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	pathServices = "/services"
+	pathCheck = "/check"
 
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
@@ -246,7 +246,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
-	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
 
@@ -359,19 +359,19 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 	utils.WriteAsJSON(w, services)
 }
 
-// handleServers is the handler for the /services endpoint.
-// Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+// handleCheck is the handler for the /check endpoint.
+// Returns the list of service discovery events.
+func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	params, err := parseParams(req.URL.Query())
 	if err != nil {
-		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	services, err := s.getServices(params)
 	if err != nil {
-		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
