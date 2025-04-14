@@ -18,9 +18,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 )
 
 type tcpTestCase struct {
@@ -34,8 +36,10 @@ func doTestCase(t *testing.T, tc tcpTestCase) {
 
 	server := testutil.NewTCPServerOnAddress("127.0.0.42:0", func(c net.Conn) {
 		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write([]byte("foo\n"))
+		_, err := r.ReadBytes(byte('\n'))
+		require.NoError(t, err)
+		_, err = c.Write([]byte("foo\n"))
+		require.NoError(t, err)
 		testutil.GracefulCloseTCP(c)
 	})
 	t.Cleanup(server.Shutdown)
@@ -73,7 +77,8 @@ func doTestCase(t *testing.T, tc tcpTestCase) {
 	rawConn, err := MakeRawConn(context.Background(), lc, "ip:tcp", clientAddrPort.Addr())
 	require.NoError(t, err)
 
-	conn.Write([]byte("bar\n"))
+	_, err = conn.Write([]byte("bar\n"))
+	require.NoError(t, err)
 
 	buffer := make([]byte, 1024)
 
@@ -146,4 +151,101 @@ func TestTCPFilterBadClientPort(t *testing.T) {
 		},
 		shouldCapture: false,
 	})
+}
+
+func TestSynackFilter(t *testing.T) {
+	// we use bound ports on the server and the client so this should be safe to parallelize
+	t.Parallel()
+
+	filter, err := GenerateSynack4Filter()
+	require.NoError(t, err)
+
+	lc := &net.ListenConfig{
+		Control: func(_network, _address string, c syscall.RawConn) error {
+			err := SetBPFAndDrain(c, filter)
+			require.NoError(t, err)
+			return err
+		},
+	}
+
+	rawConn, err := MakeRawConn(context.Background(), lc, "ip:tcp", netip.MustParseAddr("127.0.0.43"))
+	require.NoError(t, err)
+
+	server := testutil.NewTCPServerOnAddress("127.0.0.42:0", func(c net.Conn) {
+		r := bufio.NewReader(c)
+		_, err := r.ReadBytes(byte('\n'))
+		require.NoError(t, err)
+		_, err = c.Write([]byte("foo\n"))
+		require.NoError(t, err)
+		testutil.GracefulCloseTCP(c)
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	dialer := net.Dialer{
+		Timeout: time.Minute,
+		LocalAddr: &net.TCPAddr{
+			// make it different from the server IP
+			IP: net.ParseIP("127.0.0.43"),
+		},
+	}
+
+	conn, err := dialer.Dial("tcp", server.Address())
+	require.NoError(t, err)
+	defer testutil.GracefulCloseTCP(conn)
+
+	_, err = conn.Write([]byte("bar\n"))
+	require.NoError(t, err)
+
+	parser := common.NewFrameParser()
+
+	serverAddrPort, err := netip.ParseAddrPort(server.Address())
+	require.NoError(t, err)
+	clientAddrPort, err := netip.ParseAddrPort(conn.LocalAddr().String())
+	require.NoError(t, err)
+
+	t.Logf("expecting src=%s, dst=%s", serverAddrPort, clientAddrPort)
+
+	expectedIPPair := common.IPPair{SrcAddr: serverAddrPort.Addr(), DstAddr: clientAddrPort.Addr()}
+
+	sawSynack := false
+
+	buffer := make([]byte, 1024)
+	start := time.Now()
+	rawConn.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	for {
+		n, err := rawConn.Read(buffer)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Logf("breaking out after %s", time.Since(start))
+			break
+		}
+
+		err = parser.ParseIPv4(buffer[:n])
+		if err != nil {
+			t.Logf("captured bad packet: %s", err)
+			continue
+		}
+		pair, err := parser.GetIPPair()
+		require.NoError(t, err)
+
+		t.Logf("found packet src=%s:%d dst=%s:%d", pair.SrcAddr, parser.TCP.SrcPort, pair.DstAddr, parser.TCP.DstPort)
+
+		require.Equal(t, layers.LayerTypeTCP, parser.GetTransportLayer())
+		require.True(t, parser.TCP.SYN, "expected packet to have SYN")
+		require.True(t, parser.TCP.ACK, "expected packet to have ACK")
+
+		if pair != expectedIPPair {
+			t.Logf("skipping packet because of IPPair")
+			continue
+		}
+		if parser.TCP.SrcPort != layers.TCPPort(serverAddrPort.Port()) ||
+			parser.TCP.DstPort != layers.TCPPort(clientAddrPort.Port()) {
+			t.Logf("skipping packet becasue of ports")
+			continue
+		}
+		t.Logf("found synack")
+		sawSynack = true
+	}
+
+	require.True(t, sawSynack, "expected to see a matching synack")
 }
