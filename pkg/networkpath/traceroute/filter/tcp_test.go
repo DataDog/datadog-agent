@@ -240,7 +240,7 @@ func TestSynackFilter(t *testing.T) {
 		}
 		if parser.TCP.SrcPort != layers.TCPPort(serverAddrPort.Port()) ||
 			parser.TCP.DstPort != layers.TCPPort(clientAddrPort.Port()) {
-			t.Logf("skipping packet becasue of ports")
+			t.Logf("skipping packet because of ports")
 			continue
 		}
 		t.Logf("found synack")
