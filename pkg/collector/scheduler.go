@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -222,7 +221,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				}
 
 				if pythonErr == nil {
-					coreCheck.(*snmp.Check).SetPythonCheck(pythonCheck)
+					coreCheck.(interface{ SetPythonCheck(check2 check.Check) }).SetPythonCheck(pythonCheck)
 				}
 
 				checks = append(checks, coreCheck)
