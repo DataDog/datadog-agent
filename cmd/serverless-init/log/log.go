@@ -9,6 +9,7 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -23,12 +24,12 @@ import (
 )
 
 const (
-	defaultFlushTimeout  = 5 * time.Second
-	logEnabledEnvVar     = "DD_LOGS_ENABLED"
-	envVarTailFilePath   = "DD_SERVERLESS_LOG_PATH"
-	aasLogTailingEnabled = "DD_AAS_INSTANCE_LOGGING_ENABLED"
-	sourceEnvVar         = "DD_SOURCE"
-	sourceName           = "Datadog Agent"
+	defaultFlushTimeout = 5 * time.Second
+	logEnabledEnvVar    = "DD_LOGS_ENABLED"
+	envVarTailFilePath  = "DD_SERVERLESS_LOG_PATH"
+	aasInstanceTailing  = "DD_AAS_INSTANCE_LOGGING_ENABLED"
+	sourceEnvVar        = "DD_SOURCE"
+	sourceName          = "Datadog Agent"
 )
 
 // Config holds the log configuration
@@ -69,13 +70,10 @@ func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component
 func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string, origin string) {
 	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
-	if origin == "appservice" {
-		// For AAS, we have a sepearate env var for disabling defaut log tailing.
-		if isEnabled(os.Getenv(aasLogTailingEnabled)) == false {
-			return
-		}
+	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
 
-		src := sources.NewLogSource("aas-system-file-tail", &logConfig.LogsConfig{
+	if appServiceDefaultLoggingEnabled {
+		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    os.ExpandEnv("/home/LogFiles/*$COMPUTERNAME*.log"),
 			Service: os.Getenv("DD_SERVICE"),
@@ -85,18 +83,33 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 		logsAgent.GetSources().AddSource(src)
 	}
 
-	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
-		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
-			Type:    logConfig.FileType,
-			Path:    filePath,
-			Service: os.Getenv("DD_SERVICE"),
-			Tags:    tags,
-			Source:  source,
-		})
-		logsAgent.GetSources().AddSource(src)
+	if filePaths, set := os.LookupEnv(envVarTailFilePath); set {
+		// The user can specify multiple file paths separated by commas
+		paths := strings.Split(filePaths, ",")
+		for i, filePath := range paths {
+			// Skip the default log path if instance tailing is already enabled
+			if appServiceDefaultLoggingEnabled && filePath == "/home/LogFiles/*.log" {
+				continue
+			}
+			name := fmt.Sprintf("serverless-file-tail-%d", i)
+			src := sources.NewLogSource(name, &logConfig.LogsConfig{
+				Type:    logConfig.FileType,
+				Path:    filePath,
+				Service: os.Getenv("DD_SERVICE"),
+				Tags:    tags,
+				Source:  source,
+			})
+			logsAgent.GetSources().AddSource(src)
+		}
 	}
 }
 
 func isEnabled(envValue string) bool {
 	return strings.ToLower(envValue) == "true"
+}
+
+// enabled by default
+func isInstanceTailingEnabled() bool {
+	val := os.Getenv(aasInstanceTailing)
+	return val == "" || val == "true"
 }
