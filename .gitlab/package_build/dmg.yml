@@ -253,8 +253,10 @@ new-agent_dmg-x64-a7:
       fi
     - |
       export RELEASE_VERSION=$RELEASE_VERSION_7
-      export INSTALL_DIR="$PWD/datadog-agent-build/bin"
-      export CONFIG_DIR="$PWD/datadog-agent-build/config"
+      # export INSTALL_DIR="$PWD/datadog-agent-build/bin"
+      # export CONFIG_DIR="$PWD/datadog-agent-build/config"
+      export INSTALL_DIR="/tmp/datadog-agent-build/bin"
+      export CONFIG_DIR="/tmp/datadog-agent-build/config"
       export OMNIBUS_DIR="$PWD/omnibus_build"
       unset OMNIBUS_BASE_DIR
       export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
