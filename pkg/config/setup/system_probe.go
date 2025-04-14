@@ -394,10 +394,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.limiter_rate"), 10)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.cache_size"), 4096)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
@@ -438,6 +441,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
 
 	initCWSSystemProbeConfig(cfg)
 }

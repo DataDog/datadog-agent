@@ -65,6 +65,11 @@ def read_byte_input(byte_input):
         return byte_input
 
 
+def is_first_commit_of_the_day(ctx) -> bool:
+    out = ctx.run("git log --since=today.midnight | grep -E \"commit [a-z0-9]+\" | wc -l ")
+    return out.stdout.strip() == "1"
+
+
 def find_package_path(flavor, package_os, arch, extension=None):
     package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
     separator = '_' if package_os == 'debian' else '-'
@@ -157,9 +162,6 @@ class GateMetricHandler:
     def send_metrics_to_datadog(self):
         series = self._generate_series()
 
-        print(color_message("Data collected:", "blue"))
-        print(series)
         if series:
-            print(color_message("Sending metrics to Datadog", "blue"))
             send_metrics(series=series)
-            print(color_message("Done", "green"))
+        print(color_message("Metric sending finished !", "blue"))

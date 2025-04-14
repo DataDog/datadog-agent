@@ -26,7 +26,7 @@ type completeTestSuite struct {
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
-	values := `
+	values := enableOTELAgentonfig(`
 datadog:
   logs:
     containerCollectAll: false
@@ -39,13 +39,16 @@ agents:
           value: 'false'
         - name: DD_APM_FEATURES
           value: 'disable_receive_resource_spans_v2'
-`
+`)
 	t.Parallel()
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))
 }
 
 func (s *completeTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 

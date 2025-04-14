@@ -920,3 +920,10 @@ func activityDumpToSeccompProfile(_ log.Component, _ config.Component, _ secrets
 
 	return nil
 }
+
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
+}

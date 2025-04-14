@@ -11,9 +11,10 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
+from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string, is_first_commit_of_the_day
 
-BUFFER_SIZE = 500000
+BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 
@@ -42,7 +43,7 @@ def display_pr_comment(
     :param metric_handler: Precise metrics of each quality gate
     :return:
     """
-    title = f"Static quality checks {SUCCESS_CHAR if final_state else FAIL_CHAR}"
+    title = "Static quality checks"
     body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
@@ -69,7 +70,7 @@ def display_pr_comment(
 
     body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
-    body = f"Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{body_error+body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -117,8 +118,14 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     final_state = "success"
     gate_states = []
 
+    threshold_update_run = False
     nightly_run = False
     branch = os.environ["CI_COMMIT_BRANCH"]
+    bucket_branch = os.environ["BUCKET_BRANCH"]
+    # we avoid nightly pipelines because they have different package size than the main branch
+    if branch == "main" and bucket_branch != "nightly" and is_first_commit_of_the_day(ctx):
+        threshold_update_run = True
+
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
     if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
         nightly_run = True
@@ -137,6 +144,10 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
             print(f"Gate {gate} failed ! (AssertionError)")
             final_state = "failure"
             gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
+        except InfraError as e:
+            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
+            raise Exit(code=42) from e
         except Exception:
             print(f"Gate {gate} failed ! (StackTrace)")
             final_state = "failure"
@@ -154,11 +165,12 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
 
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
-    if nightly_run:
+    if threshold_update_run:
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
 
-    if final_state != "success":
+    # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
+    if final_state != "success" and not nightly_run:
         raise Exit(code=1)
 
 

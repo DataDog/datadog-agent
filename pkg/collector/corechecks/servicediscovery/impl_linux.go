@@ -8,14 +8,12 @@
 package servicediscovery
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_linux_mock.go
@@ -37,27 +35,11 @@ func newLinuxImpl() (osImpl, error) {
 }
 
 func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) {
-	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/services")
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	resp, err := sysprobeclient.GetCheck[model.ServicesResponse](client, sysconfig.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("got non-success status code: url: %s, status_code: %d", req.URL, resp.StatusCode)
-	}
-
-	res := &model.ServicesResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
-		return nil, err
-	}
-	return res, nil
+	return &resp, nil
 }
 
 func (li *linuxImpl) DiscoverServices() (*model.ServicesResponse, error) {

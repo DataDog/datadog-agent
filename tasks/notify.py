@@ -24,7 +24,7 @@ from tasks.libs.notify.utils import PROJECT_NAME, should_notify
 from tasks.libs.pipeline.notifications import (
     check_for_missing_owners_slack_and_jira,
 )
-from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
+from tasks.libs.pipeline.stats import compute_failed_jobs_series
 
 
 @task
@@ -65,7 +65,6 @@ def send_stats(_, dry_run=False):
         raise Exit(code=1)
 
     series = compute_failed_jobs_series(PROJECT_NAME)
-    series.extend(compute_required_jobs_max_duration(PROJECT_NAME))
 
     if not dry_run:
         send_metrics(series)

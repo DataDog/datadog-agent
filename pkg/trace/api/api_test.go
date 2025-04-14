@@ -1205,6 +1205,81 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 	}
 }
 
+func TestGetProcessTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		header   http.Header
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "process tags in payload tags",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagProcessTags: "payload-tag-value",
+				},
+			},
+			expected: "payload-tag-value",
+		},
+		{
+			name:   "process tags in first span meta",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Meta: map[string]string{
+									tagProcessTags: "span-meta-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: "span-meta-value",
+		},
+		{
+			name: "process tags in header only",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload:  &pb.TracerPayload{},
+			expected: "header-value",
+		},
+		{
+			name:     "no tags anywhere",
+			header:   http.Header{},
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name:   "chunks but no spans",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					nil,
+					{},
+					{Spans: []*pb.Span{nil}},
+				},
+			},
+			expected: "header-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getProcessTags(tc.header, tc.payload)
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 

@@ -84,6 +84,7 @@ entryLoop:
 			if cuLineReader != nil {
 				for _, file := range cuLineReader.Files() {
 					if file == nil {
+						files = append(files, &dwarf.LineFile{Name: "no file", Mtime: 0, Length: 0})
 						continue
 					}
 
@@ -270,6 +271,12 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		// pointers have a unique ID so we only capture the address once when generating
 		// location expressions
 		typeHeader.ID = randomLabel()
+	}
+
+	for k := range seenTypes {
+		if seenTypes[k].count > 0 {
+			seenTypes[k].count--
+		}
 	}
 
 	return &typeHeader, nil

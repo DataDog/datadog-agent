@@ -14,21 +14,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultAgentVersion    = "7.60.1-1"
-	defaultInjectorVersion = "0.26.0-1"
+	defaultInjectorVersion = "0.35.0-1"
 )
 
 var (
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.44.1-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.8.0-1",
-		common.DatadogAPMLibraryJSPackage:     "5.30.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.7.0-1",
-		common.DatadogAPMLibraryPythonPackage: "2.9.2-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.5.1-1",
+		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
+		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
+		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
+		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
+		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
+		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -157,7 +157,7 @@ func setConfigTags(s *common.Setup) {
 func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
-		s.Packages.Install(common.DatadogAgentPackage, agentVersion(s.Env))
+		s.Packages.Install(common.DatadogAgentPackage, agentVersion())
 	}
 }
 
@@ -229,13 +229,15 @@ func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	}
 }
 
-func agentVersion(e *env.Env) string {
-	minorVersion := e.AgentMinorVersion
-	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
-		minorVersion = minorVersion + "-1"
+func agentVersion() string {
+	v := version.AgentVersion
+	if !strings.HasSuffix(v, "-1") {
+		v = v + "-1"
 	}
-	if minorVersion != "" {
-		return "7." + minorVersion
-	}
-	return defaultAgentVersion
+
+	// Adapt version to OCI registry tags
+	v = strings.ReplaceAll(v, "+", ".")
+	v = strings.ReplaceAll(v, "~", "-")
+
+	return v
 }

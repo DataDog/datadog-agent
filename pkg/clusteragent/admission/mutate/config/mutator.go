@@ -26,26 +26,26 @@ import (
 
 // MutatorConfig contains the settings for the config injector.
 type MutatorConfig struct {
+	csiEnabled        bool
 	mode              string
 	localServiceName  string
 	traceAgentSocket  string
 	dogStatsDSocket   string
 	socketPath        string
 	typeSocketVolumes bool
-	csiEnabled        bool
 	csiDriver         string
 }
 
 // NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
 func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
 	return &MutatorConfig{
+		csiEnabled:        datadogConfig.GetBool("csi.enabled"),
 		mode:              datadogConfig.GetString("admission_controller.inject_config.mode"),
 		localServiceName:  datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
 		traceAgentSocket:  datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
 		dogStatsDSocket:   datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
 		socketPath:        datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 		typeSocketVolumes: datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes"),
-		csiEnabled:        datadogConfig.GetBool("csi.enabled"),
 		csiDriver:         datadogConfig.GetString("csi.driver"),
 	}
 }
@@ -117,13 +117,15 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 	}
 
 	// Inject DD_AGENT_HOST
-	switch injectionMode(pod, i.config.mode) {
+	mode := injectionMode(pod, i.config.mode, i.config.csiEnabled)
+	switch mode {
 	case hostIP:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostIPEnvVar)
 	case service:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostServiceEnvVar)
-	case socket:
-		injectedVolumes := i.injectSocketVolumes(pod)
+	case socket, csi:
+		useCSI := (mode == csi)
+		injectedVolumes := i.injectSocketVolumes(pod, useCSI)
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumes || injectedEnv
@@ -148,27 +150,40 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 // socket ensures no lost traces or dogstatsd metrics but can cause the pod to
 // wait if the agent has issues that prevent it from creating the sockets.
 //
+// If withCSI is true, a CSI volume is injected. Otherwise, a normal hostpath
+// volume is injected.
+//
 // This function returns true if at least one volume was injected.
-func (i *Mutator) injectSocketVolumes(pod *corev1.Pod) bool {
+func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 	var injectedVolNames []string
 
 	if i.config.typeSocketVolumes {
-		volumes := map[string]string{
-			DogstatsdSocketVolumeName: strings.TrimPrefix(
-				i.config.dogStatsDSocket, "unix://",
-			),
-			TraceAgentSocketVolumeName: strings.TrimPrefix(
-				i.config.traceAgentSocket, "unix://",
-			),
+		volumes := map[string]struct {
+			socketpath    string
+			csiVolumeType csiInjectionType
+		}{
+			DogstatsdSocketVolumeName: {
+				socketpath: strings.TrimPrefix(
+					i.config.dogStatsDSocket, "unix://",
+				),
+				csiVolumeType: csiDSDSocket,
+			},
+			TraceAgentSocketVolumeName: {
+				socketpath: strings.TrimPrefix(
+					i.config.traceAgentSocket, "unix://",
+				),
+				csiVolumeType: csiAPMSocket,
+			},
 		}
 
-		for volumeName, volumePath := range volumes {
+		for volumeName, volumeProps := range volumes {
 			var volume corev1.Volume
 			var volumeMount corev1.VolumeMount
-			if i.config.csiEnabled {
-				volume, volumeMount = buildCSIVolume(volumeName, volumePath, csiModeSocket, true, i.config.csiDriver)
+
+			if withCSI {
+				volume, volumeMount = buildCSIVolume(volumeName, volumeProps.socketpath, volumeProps.csiVolumeType, true, i.config.csiDriver)
 			} else {
-				volume, volumeMount = buildHostPathVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+				volume, volumeMount = buildHostPathVolume(volumeName, volumeProps.socketpath, corev1.HostPathSocket, true)
 			}
 			injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 			if injectedVol {
@@ -178,8 +193,8 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod) bool {
 	} else {
 		var volume corev1.Volume
 		var volumeMount corev1.VolumeMount
-		if i.config.csiEnabled {
-			volume, volumeMount = buildCSIVolume(DatadogVolumeName, i.config.socketPath, csiModeLocal, true, i.config.csiDriver)
+		if withCSI {
+			volume, volumeMount = buildCSIVolume(DatadogVolumeName, i.config.socketPath, csiDatadogSocketsDirectory, true, i.config.csiDriver)
 		} else {
 			volume, volumeMount = buildHostPathVolume(
 				DatadogVolumeName,
@@ -202,19 +217,26 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod) bool {
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
-func injectionMode(pod *corev1.Pod, globalMode string) string {
+func injectionMode(pod *corev1.Pod, globalMode string, csiEnabled bool) string {
+	decidedMode := globalMode
+
 	if val, found := pod.GetLabels()[common.InjectionModeLabelKey]; found {
 		mode := strings.ToLower(val)
 		switch mode {
-		case hostIP, service, socket:
-			return mode
+		case hostIP, service, socket, csi:
+			decidedMode = mode
 		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service' or 'socket', defaulting to %q", common.InjectionModeLabelKey, val, mutatecommon.PodString(pod), globalMode)
-			return globalMode
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service', 'socket' or 'csi', defaulting to %q", common.InjectionModeLabelKey, val, mutatecommon.PodString(pod), globalMode)
+			decidedMode = globalMode
 		}
 	}
 
-	return globalMode
+	if decidedMode == csi && !csiEnabled {
+		log.Warnf("Unable to use CSI mode because CSI is disabled, defaulting to 'socket'")
+		decidedMode = socket
+	}
+
+	return decidedMode
 }
 
 // buildExternalEnv generate an External Data environment variable.
@@ -264,7 +286,7 @@ func buildHostPathVolume(volumeName, path string, hostpathType corev1.HostPathTy
 	return volume, volumeMount
 }
 
-func buildCSIVolume(volumeName, path string, injectionMode csiInjectionMode, readOnly bool, csiDriver string) (corev1.Volume, corev1.VolumeMount) {
+func buildCSIVolume(volumeName, path string, csiVolumeType csiInjectionType, readOnly bool, csiDriver string) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -272,8 +294,7 @@ func buildCSIVolume(volumeName, path string, injectionMode csiInjectionMode, rea
 				Driver:   csiDriver,
 				ReadOnly: pointer.Ptr(readOnly),
 				VolumeAttributes: map[string]string{
-					"mode": string(injectionMode),
-					"path": path,
+					"type": string(csiVolumeType),
 				},
 			},
 		},
