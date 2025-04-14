@@ -81,29 +81,31 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 	}
 
 	// Compute unnormalized stats first for each aggregator
-	unnormalizedStats := make([]model.StatsTuple, 0, len(g.aggregators))
+	rawStats := make([]model.StatsTuple, 0, len(g.aggregators))
 
 	for aggKey, aggr := range g.aggregators {
 		entry := model.StatsTuple{
 			Key:                aggKey,
-			UtilizationMetrics: aggr.getUnnormalizedStats(),
+			UtilizationMetrics: aggr.getRawStats(),
 		}
-		unnormalizedStats = append(unnormalizedStats, entry)
+		rawStats = append(rawStats, entry)
 	}
 
 	// Now get the normalization factors for each device
-	normFactors, err := g.getNormalizationFactors(unnormalizedStats)
+	normFactors, err := g.getNormalizationFactors(rawStats)
 	if err != nil {
 		return nil, err
 	}
 
 	// Apply normalization to each stats entry
 	stats := &model.GPUStats{
-		Metrics: make([]model.StatsTuple, 0, len(unnormalizedStats)),
+		Metrics: make([]model.StatsTuple, 0, len(rawStats)),
 	}
-	for _, entry := range unnormalizedStats {
+	for _, entry := range rawStats {
 		factors, ok := normFactors[entry.Key.DeviceUUID]
 		if !ok {
+			// Shouldn't happen, as the normalization factors are computed based
+			// on the device UUIDs present in rawStats.
 			return nil, fmt.Errorf("cannot find normalization factors for device %s", entry.Key.DeviceUUID)
 		}
 

@@ -110,10 +110,10 @@ func (agg *aggregator) getAverageCoreUsage() float64 {
 	return agg.totalThreadSecondsUsed / intervalSecs // Compute the average thread usage over the interval
 }
 
-// getUnnormalizedStats returns the aggregated stats for the process, without any normalization
+// getRawStats returns the aggregated stats for the process, without any normalization
 // Normalization to avoid over-reporting is done at the device level by the caller of this function.
 // This function flushes the data after processing it.
-func (agg *aggregator) getUnnormalizedStats() model.UtilizationMetrics {
+func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
 	stats.UsedCores = agg.getAverageCoreUsage()
 
