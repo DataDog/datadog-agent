@@ -87,9 +87,9 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
-     otelAgent:
-       env:
-       - name: DD_APM_FEATURES
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
           value: 'disable_operation_and_resource_name_logic_v2'
 `)
 	t.Parallel()
