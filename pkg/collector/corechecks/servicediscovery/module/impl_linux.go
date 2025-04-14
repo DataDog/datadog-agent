@@ -192,6 +192,8 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
+
+	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -226,6 +228,7 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
+		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -815,7 +818,9 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 			err := s.network.addPid(uint32(pid))
 			if err == nil {
 				info.addedToMap = true
-			} else {
+			} else if s.networkErrorLimit.ShouldLog() {
+				// This error can occur if the eBPF map used by the network
+				// collector is full.
 				log.Warnf("unable to add to network collector %v: %v", pid, err)
 			}
 			continue
