@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"text/template"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -98,7 +98,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(template.FuncMap(compStatus.TextFmap())).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}

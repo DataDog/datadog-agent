@@ -7,14 +7,12 @@ package statusimpl
 
 import (
 	"fmt"
-	htmlTemplate "html/template"
 	"io"
 	"maps"
 	"os"
 	"path"
 	"runtime"
 	"strings"
-	textTemplate "text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,6 +20,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	htmlTemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	textTemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -95,8 +95,8 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	return &headerProvider{
 		constdata:              data,
 		name:                   fmt.Sprintf("%s (v%s)", flavor.GetHumanReadableFlavor(), data["version"]),
-		textTemplatesFunctions: status.TextFmap(),
-		htmlTemplatesFunctions: status.HTMLFmap(),
+		textTemplatesFunctions: textTemplate.FuncMap(status.TextFmap()),
+		htmlTemplatesFunctions: htmlTemplate.FuncMap(status.HTMLFmap()),
 		config:                 config,
 		params:                 params,
 	}
