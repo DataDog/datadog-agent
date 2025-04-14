@@ -246,29 +246,24 @@ func correctStructSize(param *ditypes.Parameter) {
 	}
 }
 
-// correctPointersWithoutPieces checks recursively if any parameter of kind Pointer in the given slice
-// has no parameter pieces (i.e., empty ParameterPieces) and corrects it accordingly
+// correctPointersWithoutPieces checks recursively if any parameter of kind Pointer in the parameter tree
+// has no parameter pieces and corrects it accordingly. This can occur for various reasons, such as
+// when capture depth is enforced.
 func correctPointersWithoutPieces(params []*ditypes.Parameter) {
 	if len(params) == 0 {
 		return
 	}
 
-	// Create a queue to process parameters breadth-first
 	queue := make([]*ditypes.Parameter, 0, len(params))
-
-	// Initialize queue with top-level parameters
 	for _, param := range params {
 		if param != nil {
 			queue = append(queue, param)
 		}
 	}
 
-	// Process parameters until queue is empty
 	for len(queue) > 0 {
-		// Dequeue the next parameter
 		param := queue[0]
 		queue = queue[1:]
-
 		if param == nil {
 			continue
 		}
@@ -278,14 +273,11 @@ func correctPointersWithoutPieces(params []*ditypes.Parameter) {
 			param.ParameterPieces = []*ditypes.Parameter{{}}
 			return
 		}
-
-		// Add child parameters to the queue for processing
 		for _, childParam := range param.ParameterPieces {
 			if childParam != nil {
 				queue = append(queue, childParam)
 			}
 		}
 	}
-
 	return
 }
