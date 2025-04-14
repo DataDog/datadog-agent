@@ -81,6 +81,7 @@ type installerImpl struct {
 	downloader *oci.Downloader
 	packages   *repository.Repositories
 	configs    *repository.Repositories
+	hooks      packages.Hooks
 
 	packagesDir    string
 	userConfigsDir string
@@ -276,7 +277,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	err = packages.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, false)
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, false)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
@@ -310,7 +311,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = packages.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, false, args)
+	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, false, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -367,7 +368,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 
-	err = packages.PreStartExperiment(ctx, pkg.Name)
+	err = i.hooks.PreStartExperiment(ctx, pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -379,7 +380,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-	err = packages.PostStartExperiment(ctx, pkg.Name)
+	err = i.hooks.PostStartExperiment(ctx, pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -411,12 +412,12 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 				fmt.Errorf("could not delete experiment: %w", err),
 			)
 		}
-		err = packages.PreStopExperiment(ctx, pkg)
+		err = i.hooks.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
 	} else {
-		err = packages.PreStopExperiment(ctx, pkg)
+		err = i.hooks.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
@@ -428,7 +429,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 			)
 		}
 	}
-	err = packages.PostStopExperiment(ctx, pkg)
+	err = i.hooks.PostStopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -450,7 +451,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("no experiment to promote")
 	}
 
-	err = packages.PrePromoteExperiment(ctx, pkg)
+	err = i.hooks.PrePromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -460,7 +461,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 
-	err = packages.PostPromoteExperiment(ctx, pkg)
+	err = i.hooks.PostPromoteExperiment(ctx, pkg)
 	if err != nil {
 		return err
 	}
@@ -512,7 +513,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	case "windows":
 		return nil // TODO: start config experiment for Windows
 	default:
-		return packages.PostStartExperiment(ctx, pkg)
+		return i.hooks.PostStartExperiment(ctx, pkg)
 	}
 }
 
@@ -521,7 +522,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := packages.PreStopExperiment(ctx, pkg)
+	err := i.hooks.PreStopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -553,7 +554,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
-	return packages.PostPromoteExperiment(ctx, pkg)
+	return i.hooks.PostPromoteExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -574,7 +575,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg.Name == packageDatadogAgent {
 			continue
 		}
-		err := packages.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
+		err := i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
@@ -587,14 +588,14 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = packages.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
 	if err != nil {
 		log.Warnf("could not remove agent: %v", err)
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
 		// on windows the installer package has been merged with the agent package
-		err = packages.PreRemove(ctx, packageDatadogInstaller, packages.PackageTypeOCI, false)
+		err = i.hooks.PreRemove(ctx, packageDatadogInstaller, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove installer: %v", err)
 		}
@@ -633,7 +634,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := packages.PreRemove(ctx, pkg, packages.PackageTypeOCI, false)
+	err := i.hooks.PreRemove(ctx, pkg, packages.PackageTypeOCI, false)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}

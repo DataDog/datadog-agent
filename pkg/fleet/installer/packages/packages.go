@@ -35,49 +35,74 @@ type hooks struct {
 	postPromoteExperiment packageHook
 }
 
+// Hooks is the interface for the hooks.
+type Hooks interface {
+	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
+	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
+	PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error
+
+	PreStartExperiment(ctx context.Context, pkg string) error
+	PostStartExperiment(ctx context.Context, pkg string) error
+	PreStopExperiment(ctx context.Context, pkg string) error
+	PostStopExperiment(ctx context.Context, pkg string) error
+	PrePromoteExperiment(ctx context.Context, pkg string) error
+	PostPromoteExperiment(ctx context.Context, pkg string) error
+}
+
+// NewHooks creates a new Hooks instance.
+func NewHooks(env *env.Env) Hooks {
+	return &hooksCLI{
+		env: env,
+	}
+}
+
+type hooksCLI struct {
+	env *env.Env
+}
+
 // PreInstall calls the pre-install hook for the package.
-func PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "preInstall", pkgType, upgrade, nil)
+func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
+	return h.callHook(ctx, false, pkg, "preInstall", pkgType, upgrade, nil)
 }
 
 // PreRemove calls the pre-remove hook for the package.
-func PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "preRemove", pkgType, upgrade, nil)
+func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
+	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil)
 }
 
 // PostInstall calls the post-install hook for the package.
-func PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "postInstall", pkgType, upgrade, winArgs)
+func (h *hooksCLI) PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error {
+	return h.callHook(ctx, false, pkg, "postInstall", pkgType, upgrade, winArgs)
 }
 
 // PreStartExperiment calls the pre-start-experiment hook for the package.
-func PreStartExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "preStartExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PreStartExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "preStartExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostStartExperiment calls the post-start-experiment hook for the package.
-func PostStartExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), true, pkg, "postStartExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PostStartExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "postStartExperiment", PackageTypeOCI, false, nil)
 }
 
 // PreStopExperiment calls the pre-stop-experiment hook for the package.
-func PreStopExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), true, pkg, "preStopExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PreStopExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "preStopExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostStopExperiment calls the post-stop-experiment hook for the package.
-func PostStopExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "postStopExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PostStopExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postStopExperiment", PackageTypeOCI, false, nil)
 }
 
 // PrePromoteExperiment calls the pre-promote-experiment hook for the package.
-func PrePromoteExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), true, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
-func PostPromoteExperiment(ctx context.Context, pkg string) error {
-	return callHook(ctx, env.FromEnv(), false, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
+func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
@@ -130,7 +155,7 @@ func getPath(pkg string, pkgType PackageType, experiment bool) string {
 	panic(fmt.Sprintf("unknown package type with package: %s, %s", pkgType, pkg))
 }
 
-func callHook(ctx context.Context, env *env.Env, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) error {
+func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) error {
 	hooksCLIPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -141,7 +166,7 @@ func callHook(ctx context.Context, env *env.Env, experiment bool, pkg string, na
 			return fmt.Errorf("failed to find installer to run hooks at (%s): %w", hooksCLIPath, err)
 		}
 	}
-	i := exec.NewInstallerExec(env, hooksCLIPath)
+	i := exec.NewInstallerExec(h.env, hooksCLIPath)
 	err = i.RunHook(ctx, pkg, name, string(packageType), upgrade, windowsArgs)
 	if err != nil {
 		return fmt.Errorf("failed to run hook (%s): %w", name, err)
