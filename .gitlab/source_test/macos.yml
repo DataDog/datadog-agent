@@ -48,6 +48,7 @@ tests_macos_gitlab_arm64:
   rules:
     !reference [.manual]
   tags: ["macos:ventura-arm64-test", "specific:true"]
+  parallel: 4
   allow_failure: true
   after_script:
     - !reference [.vault_login]
