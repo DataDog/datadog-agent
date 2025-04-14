@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -602,10 +601,10 @@ func TestMemoryAllocationEviction(t *testing.T) {
 	require.Equal(t, limits.maxAllocEvents, stream.memAllocEvents.Len())
 
 	// Check that we got an allocation evicted
-	require.Len(t, stream.allocations, 1)
-	alloc := stream.allocations[0]
-	require.Equal(t, uint64(100), alloc.startKtime)
-	require.Equal(t, uint64(1024), alloc.size)
+	evictionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "alloc_evicted")
+	require.NoError(t, err)
+	require.Len(t, evictionCounter, 1)
+	require.Equal(t, float64(1), evictionCounter[0].Value())
 }
 
 func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
@@ -617,10 +616,6 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 		maxAllocEvents:    5,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
-	require.NoError(t, err)
-
-	// Get the current time in nanoseconds, to compare with the time set in evicted allocations
-	testBeginKtimeNs, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 
 	totalEvents := 200 * limits.maxAllocEvents
@@ -662,23 +657,17 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 
 	// We should have
 	// - 100 allocations from the corresponding frees on every even iteration
-	// - 95 allocations from the evictions on every odd iteration (last ones are not evicted yet)
-	expectedAllocations := totalEvents/2 + (totalEvents/2 - limits.maxAllocEvents)
+	expectedAllocations := totalEvents / 2
 	require.Len(t, stream.allocations, expectedAllocations)
 
 	seenIndexes := make(map[uint64]bool)
 
 	// Check that the allocations are correct
 	for _, alloc := range stream.allocations {
-		if alloc.startKtime%2 == 0 {
-			// This allocation should come from the corresponding free event, so the time
-			// is deterministic, the one that we set in the free event
-			require.Equal(t, alloc.startKtime+1, alloc.endKtime)
-		} else {
-			// This allocation should come from the eviction, so the time comes from NowNanoseconds
-			// The sanity check here is that the end time (eviction time) is after the test started
-			require.Greater(t, alloc.endKtime, uint64(testBeginKtimeNs))
-		}
+		// Only even allocations should have a corresponding free event
+		require.True(t, alloc.startKtime%2 == 0, "allocation startKtime should be even")
+		// The timeis deterministic, the one that we set in the free event
+		require.Equal(t, alloc.startKtime+1, alloc.endKtime)
 
 		require.Equal(t, uint64(alloc.startKtime*1024), alloc.size)
 		require.False(t, seenIndexes[alloc.startKtime], "already saw allocation with index %d", alloc.startKtime)
@@ -686,4 +675,10 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 	}
 
 	require.Len(t, seenIndexes, expectedAllocations)
+
+	// Check that we got the expected number of evictions
+	evictionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "alloc_evicted")
+	require.NoError(t, err)
+	require.Len(t, evictionCounter, 1)
+	require.Equal(t, float64(totalEvents/2-limits.maxAllocEvents), evictionCounter[0].Value())
 }
