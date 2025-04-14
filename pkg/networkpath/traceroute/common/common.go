@@ -27,7 +27,7 @@ type (
 		DstPort       uint16
 		Hops          []*Hop
 		E2EPacketLoss float32
-		E2ELatency    time.Duration
+		E2ERTT        time.Duration
 	}
 
 	// Hop encapsulates information about a single

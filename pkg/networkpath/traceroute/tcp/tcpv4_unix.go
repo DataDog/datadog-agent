@@ -137,7 +137,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		DstPort:       t.DestPort,
 		Hops:          hops,
 		E2EPacketLoss: packetLoss,
-		E2ELatency:    e2eRTTAvg,
+		E2ERTT:        e2eRTTAvg,
 	}, nil
 }
 
