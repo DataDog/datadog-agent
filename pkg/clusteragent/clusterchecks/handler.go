@@ -45,17 +45,17 @@ type pluggableAutoConfig interface {
 
 // Handler is the glue holding all components for cluster-checks management
 type Handler struct {
-	autoconfig               pluggableAutoConfig
-	dispatcher               *dispatcher
-	warmupDuration           time.Duration
-	leaderStatusCallback     types.LeaderIPCallback
-	leadershipStateNotifChan <-chan struct{} //from subscribing leader election engine (external)
-	leadershipChan           chan state      // for internal notification in handler class
-	leaderForwarder          *api.LeaderForwarder
-	m                        sync.RWMutex // Below fields protected by the mutex
-	state                    state
-	leaderIP                 string
-	errCount                 int
+	autoconfig           pluggableAutoConfig
+	dispatcher           *dispatcher
+	leaderStatusFreq     time.Duration
+	warmupDuration       time.Duration
+	leaderStatusCallback types.LeaderIPCallback
+	leadershipChan       chan state
+	leaderForwarder      *api.LeaderForwarder
+	m                    sync.RWMutex // Below fields protected by the mutex
+	state                state
+	leaderIP             string
+	errCount             int
 }
 
 // NewHandler returns a populated Handler
@@ -65,10 +65,11 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 		return nil, errors.New("empty autoconfig object")
 	}
 	h := &Handler{
-		autoconfig:     ac,
-		warmupDuration: pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
-		leadershipChan: make(chan state, 1),
-		dispatcher:     newDispatcher(tagger),
+		autoconfig:       ac,
+		leaderStatusFreq: 1 * time.Second,
+		warmupDuration:   pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
+		leadershipChan:   make(chan state, 1),
+		dispatcher:       newDispatcher(tagger),
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("leader_election") {
@@ -78,10 +79,6 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 			return nil, err
 		}
 		h.leaderStatusCallback = callback
-		h.leadershipStateNotifChan, err = getLeadershipStateNotifiChan()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// Cache a pointer to the handler for the agent status command
@@ -177,11 +174,14 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 	healthProbe := health.RegisterLiveness("clusterchecks-leadership")
 	defer health.Deregister(healthProbe) //nolint:errcheck
 
+	watchTicker := time.NewTicker(h.leaderStatusFreq)
+	defer watchTicker.Stop()
+
 	for {
 		select {
 		case <-healthProbe.C:
 			// This goroutine might hang if the leader election engine blocks
-		case <-h.leadershipStateNotifChan: // notification from leader election engine
+		case <-watchTicker.C:
 			err := h.updateLeaderIP()
 			h.m.Lock()
 			if err != nil {
@@ -195,8 +195,6 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 				if h.errCount > 0 {
 					log.Infof("Found leadership status after %d tries", h.errCount)
 					h.errCount = 0
-				} else {
-					log.Infof("Found leadership status change from leader election engine without errors")
 				}
 			}
 			h.m.Unlock()
