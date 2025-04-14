@@ -53,10 +53,16 @@ func newWorker(
 	auditor auditor.Auditor,
 	destinations *client.Destinations,
 	bufferSize int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 ) *worker {
+	var senderDoneChan chan *sync.WaitGroup
+	var flushWg *sync.WaitGroup
+
+	if serverlessMeta.IsEnabled() {
+		senderDoneChan = serverlessMeta.SenderDoneChan()
+		flushWg = serverlessMeta.WaitGroup()
+	}
 	return &worker{
 		auditor:        auditor,
 		config:         config,
