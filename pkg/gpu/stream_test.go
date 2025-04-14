@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -692,8 +693,10 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
 	require.NoError(t, err)
 
+	inactivityThreshold := 1 * time.Second
+
 	// Test case 1: Stream with no events should be considered active
-	require.False(t, stream.isInactive(1000, 1))
+	require.False(t, stream.isInactive(1000, inactivityThreshold))
 
 	// Test case 2: Stream with recent events should be considered active
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -709,8 +712,8 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 		Shared_mem_size: 100,
 	}
 	stream.handleKernelLaunch(launch)
-	require.False(t, stream.isInactive(2000, 1))
+	require.False(t, stream.isInactive(2000, inactivityThreshold))
 
 	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
-	require.True(t, stream.isInactive(3000000000, 1)) // 3 seconds later with 1 second threshold
+	require.True(t, stream.isInactive(3000000000, inactivityThreshold)) // 3 seconds later with 1 second threshold
 }
