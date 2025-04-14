@@ -497,7 +497,7 @@ func (t *teeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...str
 	t.compare.BindEnvAndSetDefault(key, val, env...)
 }
 
-func (t *teeConfig) Warnings() []error {
+func (t *teeConfig) Warnings() *model.Warnings {
 	return nil
 }
 

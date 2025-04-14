@@ -774,7 +774,7 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars .
 	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
-func (c *safeConfig) Warnings() []error {
+func (c *safeConfig) Warnings() *model.Warnings {
 	return nil
 }
 

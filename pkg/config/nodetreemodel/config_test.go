@@ -894,11 +894,11 @@ func TestWarningLogged(t *testing.T) {
 	cfg.BindEnv("bad_key", "DD_BAD_KEY")
 	os.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
-	splitKeyFunc = func(value string) []string {
+	splitKeyFunc = func(_ string) []string {
 		return []string{} // Override to return an empty slice
 	}
 	defer func() { splitKeyFunc = original }()
 	cfg.BuildSchema()
 	// Check that the warning was logged
-	assert.Equal(t, []error{errors.New("empty key given to Set")}, cfg.Warnings())
+	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
 }

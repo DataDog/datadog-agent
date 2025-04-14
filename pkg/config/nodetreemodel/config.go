@@ -465,13 +465,11 @@ func (c *ntmConfig) BuildSchema() {
 
 func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
-	log.Debug(c.warnings)
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
 	c.allSettings = c.computeAllSettings(c.schema, "")
-	log.Debug(c.warnings)
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -900,8 +898,8 @@ func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ..
 }
 
 // Warnings just returns nil
-func (c *ntmConfig) Warnings() []error {
-	return c.warnings
+func (c *ntmConfig) Warnings() *model.Warnings {
+	return &model.Warnings{Errors: c.warnings}
 }
 
 // Object returns the config as a Reader interface
