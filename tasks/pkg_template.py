@@ -76,3 +76,4 @@ def copy_go_files(src_dir, dest_dir):
             src_file = os.path.join(src_dir, file)
             dest_file = os.path.join(dest_dir, file)
             shutil.copy2(src_file, dest_file)
+            os.chmod(dest_file, 0o664)  # ensure the file is writable
