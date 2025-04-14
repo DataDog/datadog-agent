@@ -256,8 +256,8 @@ go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.28.1 h1:CpYoNbW5
 go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.28.1/go.mod h1:u/YEWkVSnQY0xhgXndJ3zIvCeyUPzqNtAUJdoF7xLUE=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.28.1 h1:PP5juX1pPCbo/Y35tOcFuChbHLa7A1/yoWDaGKwLPNc=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.28.1/go.mod h1:fUQ6nqIyVD7jjX5h+VFclVjJzHTg7Czozveph6ppFj4=
-go.opentelemetry.io/collector/featuregate v1.28.1 h1:ZpvRAAFxxi4RLr1G0Fju28wA7NhTA20MNT60Ftv+ToY=
-go.opentelemetry.io/collector/featuregate v1.28.1/go.mod h1:Y/KsHbvREENKvvN9RlpiWk/IGBK+CATBYzIIpU7nccc=
+go.opentelemetry.io/collector/featuregate v1.29.0 h1:DTDeaokT53AA+SiYBH8GC893cmppThU65b3XyFfLPWw=
+go.opentelemetry.io/collector/featuregate v1.29.0/go.mod h1:Y/KsHbvREENKvvN9RlpiWk/IGBK+CATBYzIIpU7nccc=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/atomic v1.5.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
 go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=
