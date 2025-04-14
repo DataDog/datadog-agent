@@ -218,11 +218,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"rate_limiters": {
+		"pid_rate_limiters": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-
 		"active_flows": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,

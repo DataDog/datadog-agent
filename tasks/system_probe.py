@@ -58,6 +58,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/networkpath/traceroute/filter/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -2095,3 +2096,23 @@ def build_gpu_event_viewer(ctx):
     ctx.run(cmd)
 
     print(f"Built {binary}")
+
+
+@task
+def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1000, namespace: str | None = None):
+    """
+    Collect GPU events from a node for a given duration.
+
+    Args:
+        output_dir (str): The directory to save the collected events.
+        duration (int): The duration of the collection in seconds.
+        node (str): The node to collect events from.
+        namespace (str | None): The namespace where the agent pod is running.
+    """
+    ns_arg = f"-n {namespace}" if namespace else ""
+    ctx.run(
+        f'kubectl {ns_arg} exec {pod_name} -c system-probe -- /bin/bash -c "curl --unix-socket \\$DD_SYSPROBE_SOCKET http://unix/gpu/debug/collect-events?count={event_count} > /tmp/gpu-events.ndjson"'
+    )
+
+    ctx.run(f"mkdir -p {output_dir}")
+    ctx.run(f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")

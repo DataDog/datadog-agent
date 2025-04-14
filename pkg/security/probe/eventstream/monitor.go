@@ -428,12 +428,18 @@ func (pbm *Monitor) CountLostEvent(count uint64, mapName string, cpu int) {
 }
 
 // CountEvent adds `count` to the counter of received events of the specified type
-func (pbm *Monitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, mapName string, cpu int) {
-	// check event order
-	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		pbm.sortingErrorStats[mapName][eventType].Inc()
-	} else {
-		pbm.lastTimestamp = timestamp
+func (pbm *Monitor) CountEvent(eventType model.EventType, event *model.Event, size uint64, cpu int, checkOrder bool) {
+	const mapName = EventStreamMap
+
+	if checkOrder {
+		timestamp := event.TimestampRaw
+
+		// check event order
+		if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
+			pbm.sortingErrorStats[mapName][eventType].Inc()
+		} else {
+			pbm.lastTimestamp = timestamp
+		}
 	}
 
 	// sanity check
@@ -441,7 +447,7 @@ func (pbm *Monitor) CountEvent(eventType model.EventType, timestamp uint64, coun
 		return
 	}
 
-	pbm.stats[mapName][cpu][eventType].Count.Add(count)
+	pbm.stats[mapName][cpu][eventType].Count.Add(1)
 	pbm.stats[mapName][cpu][eventType].Bytes.Add(size)
 }
 
