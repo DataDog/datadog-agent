@@ -233,6 +233,7 @@ modules:
   pkg/telemetry:
     used_by_otel: true
   pkg/template:
+    used_by_otel: true
     should_replace_internal_modules: false
     should_test_condition: never
   pkg/trace:
