@@ -44,7 +44,7 @@ func getLibraryPath(installDir string) string {
 }
 
 // postInstallAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
-func postInstallAPMLibraryDotnet(ctx hookContext) (err error) {
+func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
 	// Register GAC + set env variables
@@ -66,7 +66,7 @@ func postInstallAPMLibraryDotnet(ctx hookContext) (err error) {
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
-func postStartExperimentAPMLibraryDotnet(ctx hookContext) (err error) {
+func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("start_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
 	// Register GAC + set env variables new version
@@ -88,7 +88,7 @@ func postStartExperimentAPMLibraryDotnet(ctx hookContext) (err error) {
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
-func preStopExperimentAPMLibraryDotnet(ctx hookContext) (err error) {
+func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("stop_apm_library_dotnet_experiment")
 	defer func() { span.Finish(err) }()
 	// Re-register GAC + set env variables of stable version
@@ -111,7 +111,7 @@ func preStopExperimentAPMLibraryDotnet(ctx hookContext) (err error) {
 
 // preRemoveAPMLibraryDotnet uninstalls the .NET APM library
 // This function only disable injection, the cleanup for each version is done by the PreRemoveHook
-func preRemoveAPMLibraryDotnet(ctx hookContext) (err error) {
+func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
 	var installDir string

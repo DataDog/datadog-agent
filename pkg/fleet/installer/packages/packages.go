@@ -8,6 +8,7 @@ package packages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,11 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-type packageHook func(ctx hookContext) error
+type packageHook func(ctx HookContext) error
 
 // hooks represents the hooks for a package.
 type hooks struct {
@@ -49,15 +50,17 @@ type Hooks interface {
 	PostPromoteExperiment(ctx context.Context, pkg string) error
 }
 
-// NewHooks creates a new Hooks instance.
-func NewHooks(env *env.Env) Hooks {
+// NewHooks creates a new Hooks instance that will execute hooks via the CLI.
+func NewHooks(env *env.Env, packages *repository.Repositories) Hooks {
 	return &hooksCLI{
-		env: env,
+		env:      env,
+		packages: packages,
 	}
 }
 
 type hooksCLI struct {
-	env *env.Env
+	env      *env.Env
+	packages *repository.Repositories
 }
 
 // PreInstall calls the pre-install hook for the package.
@@ -117,36 +120,38 @@ const (
 	PackageTypeRPM PackageType = "rpm"
 )
 
-// hookContext is the context passed to hooks during install/upgrade/uninstall.
-type hookContext struct {
-	context.Context
-	Package     string
-	Type        PackageType
-	Upgrade     bool
-	Path        string
-	WindowsArgs []string
+// HookContext is the context passed to hooks during install/upgrade/uninstall.
+type HookContext struct {
+	context.Context `json:"-"`
+	Package         string      `json:"package"`
+	PackageType     PackageType `json:"package_type"`
+	PackagePath     string      `json:"package_path"`
+	Hook            string      `json:"hook"`
+	Upgrade         bool        `json:"upgrade"`
+	WindowsArgs     []string    `json:"windows_args"`
 }
 
 // StartSpan starts a new span with the given operation name.
-func (c hookContext) StartSpan(operationName string) (*telemetry.Span, hookContext) {
+func (c HookContext) StartSpan(operationName string) (*telemetry.Span, HookContext) {
 	span, newCtx := telemetry.StartSpanFromContext(c, operationName)
 	span.SetTag("package", c.Package)
-	span.SetTag("type", c.Type)
+	span.SetTag("package_type", c.PackageType)
+	span.SetTag("package_path", c.PackagePath)
 	span.SetTag("upgrade", c.Upgrade)
-	span.SetTag("path", c.Path)
 	span.SetTag("windows_args", c.WindowsArgs)
 	c.Context = newCtx
 	return span, c
 }
 
-func getPath(pkg string, pkgType PackageType, experiment bool) string {
+func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) string {
 	switch pkgType {
 	case PackageTypeOCI:
-		symlink := "stable"
-		if experiment {
-			symlink = "experiment"
+		switch experiment {
+		case false:
+			return h.packages.Get(pkg).StablePath()
+		case true:
+			return h.packages.Get(pkg).ExperimentPath()
 		}
-		return filepath.Join(paths.PackagesPath, pkg, symlink)
 	case PackageTypeDEB, PackageTypeRPM:
 		if pkg == "datadog-agent" {
 			return "/opt/datadog-agent"
@@ -160,14 +165,26 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
+	pkgPath := h.getPath(pkg, packageType, experiment)
 	if pkg == "datadog-agent" && runtime.GOOS == "linux" && name != "preInstall" {
-		hooksCLIPath = filepath.Join(getPath(pkg, packageType, experiment), "embedded", "bin", "installer")
+		hooksCLIPath = filepath.Join(pkgPath, "embedded", "bin", "installer")
 		if _, err := os.Stat(hooksCLIPath); os.IsNotExist(err) {
 			return fmt.Errorf("failed to find installer to run hooks at (%s): %w", hooksCLIPath, err)
 		}
 	}
+	hookCtx := HookContext{
+		Context:     ctx,
+		Package:     pkg,
+		PackageType: packageType,
+		Upgrade:     upgrade,
+		WindowsArgs: windowsArgs,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
 	i := exec.NewInstallerExec(h.env, hooksCLIPath)
-	err = i.RunHook(ctx, pkg, name, string(packageType), upgrade, windowsArgs)
+	err = i.RunHook(ctx, string(serializedHookCtx))
 	if err != nil {
 		return fmt.Errorf("failed to run hook (%s): %w", name, err)
 	}
@@ -175,19 +192,12 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 }
 
 // RunHook executes a hook for a package
-func RunHook(ctx context.Context, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) (err error) {
-	hook := getHook(pkg, name)
+func RunHook(ctx HookContext) (err error) {
+	hook := getHook(ctx.Package, ctx.Hook)
 	if hook == nil {
 		return nil
 	}
-	hookCtx := hookContext{
-		Context:     ctx,
-		Package:     pkg,
-		Type:        packageType,
-		Upgrade:     upgrade,
-		WindowsArgs: windowsArgs,
-	}
-	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.%s", pkg, name))
+	span, hookCtx := ctx.StartSpan(fmt.Sprintf("package.%s.%s", ctx.Package, ctx.Hook))
 	defer func() { span.Finish(err) }()
 	return hook(hookCtx)
 }

@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -329,9 +328,8 @@ func (iCmd *installerCmd) Run() error {
 }
 
 // RunHook runs a hook for a given package.
-func (i *InstallerExec) RunHook(ctx context.Context, pkg string, hook string, packageType string, upgrade bool, windowsArgs []string) (err error) {
-	serializedWindowsArgs, err := json.Marshal(windowsArgs)
-	cmd := i.newInstallerCmd(ctx, "hooks", hook, pkg, packageType, strconv.FormatBool(upgrade), string(serializedWindowsArgs))
+func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

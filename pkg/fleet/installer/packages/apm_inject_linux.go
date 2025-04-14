@@ -20,7 +20,7 @@ var (
 )
 
 // postInstallAPMInjector is called after the APM injector is installed
-func postInstallAPMInjector(ctx hookContext) (err error) {
+func postInstallAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
@@ -29,7 +29,7 @@ func postInstallAPMInjector(ctx hookContext) (err error) {
 }
 
 // preRemoveAPMInjector is called before the APM injector is removed
-func preRemoveAPMInjector(ctx hookContext) (err error) {
+func preRemoveAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()

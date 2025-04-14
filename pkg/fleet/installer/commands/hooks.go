@@ -16,28 +16,21 @@ import (
 func hooksCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:             true,
-		Use:                "hooks <hook> <package> <type:deb|rpm|oci> <upgrade:true|false> <windowsArgs:[json]>",
+		Use:                "hooks <hookContext>",
 		Short:              "Run hooks for a package",
 		GroupID:            "installer",
 		DisableFlagParsing: true,
-		Args:               cobra.MinimumNArgs(5),
+		Args:               cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd(fmt.Sprintf("hooks.%s.%s", args[1], args[0]))
+			i := newCmd(fmt.Sprintf("hooks"))
 			defer i.stop(err)
-			hook := args[0]
-			pkg := args[1]
-			rawPackageType := args[2]
-			packageType, err := parsePackageType(rawPackageType)
+			var hookContext packages.HookContext
+			err = json.Unmarshal([]byte(args[0]), &hookContext)
 			if err != nil {
 				return err
 			}
-			upgrade := args[3] == "true"
-			var windowsArgs []string
-			err = json.Unmarshal([]byte(args[4]), &windowsArgs)
-			if err != nil {
-				return err
-			}
-			return packages.RunHook(i.ctx, pkg, hook, packageType, upgrade, windowsArgs)
+			hookContext.Context = i.ctx
+			return packages.RunHook(hookContext)
 		},
 	}
 }
@@ -58,7 +51,14 @@ func postinstCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return packages.RunHook(i.ctx, pkg, "postinst", packageType, false, nil)
+			hookContext := packages.HookContext{
+				Context:     i.ctx,
+				Package:     pkg,
+				PackageType: packageType,
+				Upgrade:     false,
+				WindowsArgs: nil,
+			}
+			return packages.RunHook(hookContext)
 		},
 	}
 }

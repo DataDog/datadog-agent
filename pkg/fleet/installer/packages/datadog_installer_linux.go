@@ -42,7 +42,7 @@ var (
 )
 
 // preInstallDatadogInstaller prepares the installer
-func preInstallDatadogInstaller(ctx hookContext) error {
+func preInstallDatadogInstaller(ctx HookContext) error {
 	if err := systemd.StopUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
 	}
@@ -53,7 +53,7 @@ func preInstallDatadogInstaller(ctx hookContext) error {
 }
 
 // postInstallDatadogInstaller installs and starts the installer systemd units
-func postInstallDatadogInstaller(ctx hookContext) (err error) {
+func postInstallDatadogInstaller(ctx HookContext) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer, reverting: %s", err)
@@ -117,7 +117,7 @@ func startInstallerStable(ctx context.Context) (err error) {
 }
 
 // preRemoveDatadogInstaller removes the installer systemd units
-func preRemoveDatadogInstaller(ctx hookContext) error {
+func preRemoveDatadogInstaller(ctx HookContext) error {
 	for _, unit := range installerUnits {
 		if err := systemd.StopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -146,16 +146,16 @@ func preRemoveDatadogInstaller(ctx hookContext) error {
 }
 
 // postStartExperimentDatadogInstaller starts the experimental systemd units for the installer
-func postStartExperimentDatadogInstaller(ctx hookContext) error {
+func postStartExperimentDatadogInstaller(ctx HookContext) error {
 	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // preStopExperimentDatadogInstaller stops the stable systemd units for the installer
-func preStopExperimentDatadogInstaller(ctx hookContext) error {
+func preStopExperimentDatadogInstaller(ctx HookContext) error {
 	return systemd.StopUnit(ctx, installerUnit)
 }
 
 // postPromoteExperimentDatadogInstaller promotes the installer experiment
-func postPromoteExperimentDatadogInstaller(ctx hookContext) error {
+func postPromoteExperimentDatadogInstaller(ctx HookContext) error {
 	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }
