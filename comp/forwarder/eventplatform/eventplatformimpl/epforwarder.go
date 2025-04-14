@@ -423,15 +423,14 @@ func newHTTPPassthroughPipeline(
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 
 	a := auditor.NewNullAuditor()
+	serverlessMeta := sender.NewServerlessMeta(false)
 	senderImpl := httpsender.NewHTTPSender(
 		coreConfig,
 		a,
-		10,  // Buffer Size
-		nil, // senderDoneChan, required only for serverless
-		nil, // flushWg, required only for serverless
+		10, // Buffer Size
+		serverlessMeta,
 		endpoints,
 		destinationsContext,
-		false,
 		desc.eventType,
 		desc.contentType,
 		sender.DefaultQueuesCount,
@@ -447,14 +446,14 @@ func newHTTPPassthroughPipeline(
 	}
 
 	var strategy sender.Strategy
+
 	if desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
 		strategy = sender.NewBatchStrategy(inputChan,
 			senderImpl.In(),
 			make(chan struct{}),
-			false,
-			nil,
+			serverlessMeta,
 			sender.ArraySerializer,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,

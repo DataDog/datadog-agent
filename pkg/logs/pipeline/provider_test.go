@@ -6,7 +6,6 @@
 package pipeline
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,8 +30,7 @@ type mockSenderFactory struct {
 	workersPerQueue int
 	minConcurrency  int
 	maxConcurrency  int
-	senderDoneChan  chan *sync.WaitGroup
-	flushWg         *sync.WaitGroup
+	serverlessMeta  sender.ServerlessMeta
 	isHTTP          bool
 }
 
@@ -44,12 +42,10 @@ func (f *mockSenderFactory) NewTCPSender(
 	_ pkgconfigmodel.Reader,
 	_ auditor.Auditor,
 	_ int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	_ *config.Endpoints,
 	_ *client.DestinationsContext,
 	_ statusinterface.Status,
-	_ bool,
 	_ string,
 	queueCount int,
 	workersPerQueue int,
@@ -58,8 +54,7 @@ func (f *mockSenderFactory) NewTCPSender(
 	f.workersPerQueue = workersPerQueue
 	f.minConcurrency = 1
 	f.maxConcurrency = 1
-	f.senderDoneChan = senderDoneChan
-	f.flushWg = flushWg
+	f.serverlessMeta = serverlessMeta
 	f.isHTTP = false
 
 	return &sender.Sender{}
@@ -69,11 +64,9 @@ func (f *mockSenderFactory) NewHTTPSender(
 	_ pkgconfigmodel.Reader,
 	_ auditor.Auditor,
 	_ int,
-	senderDoneChan chan *sync.WaitGroup,
-	flushWg *sync.WaitGroup,
+	serverlessMeta sender.ServerlessMeta,
 	_ *config.Endpoints,
 	_ *client.DestinationsContext,
-	_ bool,
 	_ string,
 	_ string,
 	queueCount int,
@@ -85,8 +78,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	f.workersPerQueue = workersPerQueue
 	f.minConcurrency = minWorkerConcurrency
 	f.maxConcurrency = maxWorkerConcurrency
-	f.senderDoneChan = senderDoneChan
-	f.flushWg = flushWg
+	f.serverlessMeta = serverlessMeta
 	f.isHTTP = true
 
 	return &sender.Sender{}
@@ -253,11 +245,9 @@ func TestProviderConfigurations(t *testing.T) {
 			assert.Equal(t, tc.useHTTP, mockFactory.isHTTP, "incorrect sender type")
 
 			if tc.serverless {
-				assert.NotNil(t, mockFactory.senderDoneChan, "serverless should have senderDoneChan")
-				assert.NotNil(t, mockFactory.flushWg, "serverless should have flushWg")
+				assert.True(t, mockFactory.serverlessMeta.IsEnabled())
 			} else {
-				assert.Nil(t, mockFactory.senderDoneChan, "non-serverless should not have senderDoneChan")
-				assert.Nil(t, mockFactory.flushWg, "non-serverless should not have flushWg")
+				assert.False(t, mockFactory.serverlessMeta.IsEnabled())
 			}
 		})
 	}
