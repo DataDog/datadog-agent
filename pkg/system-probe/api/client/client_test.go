@@ -67,7 +67,7 @@ func TestGetCheck(t *testing.T) {
 	httpClient := &http.Client{Transport: &http.Transport{DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 		return net.Dial("tcp", server.Listener.Addr().String())
 	}}}
-	client := &CheckClient{client: httpClient}
+	client := &CheckClient{client: httpClient, startupClient: httpClient}
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -117,6 +117,7 @@ func TestGetCheckStartup(t *testing.T) {
 
 	client := &CheckClient{
 		client:         httpClient,
+		startupClient:  httpClient,
 		startTime:      time.Now(),
 		startupTimeout: 5 * time.Minute,
 	}
