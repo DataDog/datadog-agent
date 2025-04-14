@@ -553,11 +553,6 @@ namespace Datadog.CustomActions
             if (isServiceAccount)
             {
                 // If ddagentuser is a service account, it has no password, so remove any previous entries from the LSA
-                // NOTE: The Agent installer allows upgrades without re-providing the password, so the
-                //       password may be empty
-                // NOTE: This is a difference in behavior between the Fleet Installer and the Agent installer.
-                //       The Agent installer allows upgrades without re-providing the password. However
-                //       the Fleet Installer must require the password always be provided.
                 _session.Log("Agent user is a service account, removing password from LSA secret store");
                 try
                 {
@@ -573,6 +568,11 @@ namespace Datadog.CustomActions
             }
             else if (!string.IsNullOrEmpty(ddagentuserPassword))
             {
+                // NOTE: The Agent installer allows upgrades without re-providing the password, so the
+                //       password property may be empty and we don't want to overwrite the secret store
+                //       with an empty password.
+                //       ProcessDDAgentUserCredentials should read the password from the LSA secret store
+                //       if it wasn't provided on the command line so this may no longer be a possibility.
                 _session.Log("Agent user has a password, storing in LSA secret store");
                 _nativeMethods.StoreSecret(keyName, ddagentuserPassword);
             }
