@@ -45,9 +45,9 @@ def get_formated_relative_size(relative_disk_size, relative_wire_size):
     if relative_disk_size == "DataNotFound" or relative_wire_size == "DataNotFound":
         return "N/A", "N/A"
 
-    if string_to_byte(relative_disk_size) > 0:
+    if string_to_byte(relative_disk_size) >= 0:
         relative_disk_size = f"+{relative_disk_size}"
-    if string_to_byte(relative_wire_size) > 0:
+    if string_to_byte(relative_wire_size) >= 0:
         relative_wire_size = f"+{relative_wire_size}"
     return relative_disk_size, relative_wire_size
 

@@ -156,11 +156,10 @@ class GateMetricHandler:
             else:
                 print(
                     color_message(
-                        f"[ERROR] Unable to fetch quality gates {filename} from {ancestor} !",
-                        "red",
+                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !",
+                        "orange",
                     )
                 )
-                raise Exit(code=1)
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
