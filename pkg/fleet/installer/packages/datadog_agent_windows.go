@@ -26,7 +26,7 @@ import (
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
-var datadogAgentPackage = &Package{
+var datadogAgentPackage = &hooks{
 	name:                  "datadog-agent",
 	postInstall:           postInstallDatadogAgent,
 	preRemove:             preRemoveDatadogAgent,
@@ -42,7 +42,7 @@ const (
 )
 
 // postInstallDatadogAgent runs post install scripts for a given package.
-func postInstallDatadogAgent(ctx PackageContext) error {
+func postInstallDatadogAgent(ctx hookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
@@ -68,7 +68,7 @@ func postInstallDatadogAgent(ctx PackageContext) error {
 }
 
 // preRemoveDatadogAgent runs pre remove scripts for a given package.
-func preRemoveDatadogAgent(ctx PackageContext) (err error) {
+func preRemoveDatadogAgent(ctx hookContext) (err error) {
 	// Don't return an error if the Agent is already not installed.
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
@@ -98,7 +98,7 @@ func preRemoveDatadogAgent(ctx PackageContext) (err error) {
 //   - If the new daemon fails to start, then after a timeout the watchdog will
 //     restore the previous version, which should start and then receive
 //     "stop experiment" from the backend.
-func postStartExperimentDatadogAgent(ctx PackageContext) error {
+func postStartExperimentDatadogAgent(ctx hookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
@@ -153,7 +153,7 @@ func postStartExperimentDatadogAgent(ctx PackageContext) error {
 //   - be its own process, not run within the daemon
 //   - be run from a copy of the installer, not from the install path,
 //     to avoid locking the executable
-func postStopExperimentDatadogAgent(ctx PackageContext) (err error) {
+func postStopExperimentDatadogAgent(ctx hookContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
 	// this will just stop a watchdog that is running
@@ -182,7 +182,7 @@ func postStopExperimentDatadogAgent(ctx PackageContext) (err error) {
 }
 
 // postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
-func postPromoteExperimentDatadogAgent(_ PackageContext) error {
+func postPromoteExperimentDatadogAgent(_ hookContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package packages
 
 import (
@@ -19,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var datadogInstallerPackage = Package{
+var datadogInstallerPackage = &hooks{
 	name:                  "datadog-installer",
 	preInstall:            preInstallDatadogInstaller,
 	postInstall:           postInstallDatadogInstaller,
@@ -50,7 +48,7 @@ var (
 )
 
 // preInstallDatadogInstaller prepares the installer
-func preInstallDatadogInstaller(ctx PackageContext) error {
+func preInstallDatadogInstaller(ctx hookContext) error {
 	if err := systemd.StopUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
 	}
@@ -61,7 +59,7 @@ func preInstallDatadogInstaller(ctx PackageContext) error {
 }
 
 // postInstallDatadogInstaller installs and starts the installer systemd units
-func postInstallDatadogInstaller(ctx PackageContext) (err error) {
+func postInstallDatadogInstaller(ctx hookContext) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer, reverting: %s", err)
@@ -125,7 +123,7 @@ func startInstallerStable(ctx context.Context) (err error) {
 }
 
 // preRemoveDatadogInstaller removes the installer systemd units
-func preRemoveDatadogInstaller(ctx PackageContext) error {
+func preRemoveDatadogInstaller(ctx hookContext) error {
 	for _, unit := range installerUnits {
 		if err := systemd.StopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -154,16 +152,16 @@ func preRemoveDatadogInstaller(ctx PackageContext) error {
 }
 
 // postStartExperimentDatadogInstaller starts the experimental systemd units for the installer
-func postStartExperimentDatadogInstaller(ctx PackageContext) error {
+func postStartExperimentDatadogInstaller(ctx hookContext) error {
 	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // preStopExperimentDatadogInstaller stops the stable systemd units for the installer
-func preStopExperimentDatadogInstaller(ctx PackageContext) error {
+func preStopExperimentDatadogInstaller(ctx hookContext) error {
 	return systemd.StopUnit(ctx, installerUnit)
 }
 
 // postPromoteExperimentDatadogInstaller promotes the installer experiment
-func postPromoteExperimentDatadogInstaller(ctx PackageContext) error {
+func postPromoteExperimentDatadogInstaller(ctx hookContext) error {
 	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }

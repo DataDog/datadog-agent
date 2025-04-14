@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-type packageHook func(ctx PackageContext) error
+type packageHook func(ctx hookContext) error
 
-// Package represents a package that can be installed, upgraded, or removed.
-type Package struct {
+// hooks represents the hooks for a package.
+type hooks struct {
 	name string
 
 	preInstall  packageHook
@@ -31,114 +31,172 @@ type Package struct {
 	prePromoteExperiment  packageHook
 	postPromoteExperiment packageHook
 
-	// AsyncPreRemoveHook is called before a package is removed from the disk.
+	// asyncPreRemoveHook is called before a package is removed from the disk.
 	// It can block the removal of the package files until a condition is met without blocking
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
-	AsyncPreRemoveHook repository.PreRemoveHook
+	asyncPreRemoveHook repository.PreRemoveHook
 }
 
-// PackageHook is the interface for package hooks.
-type PackageHook interface {
-	PreInstall(ctx PackageContext) (err error)
-	PreRemove(ctx PackageContext) (err error)
-	PostInstall(ctx PackageContext) (err error)
-	PreStartExperiment(ctx PackageContext) (err error)
-	PostStartExperiment(ctx PackageContext) (err error)
-	PreStopExperiment(ctx PackageContext) (err error)
-	PostStopExperiment(ctx PackageContext) (err error)
-	PrePromoteExperiment(ctx PackageContext) (err error)
-	PostPromoteExperiment(ctx PackageContext) (err error)
+// Hooks is the interface for package hooks.
+type Hooks interface {
+	PreInstall(ctx context.Context, pkgType PackageType, upgrade bool) (err error)
+	PreRemove(ctx context.Context, pkgType PackageType, upgrade bool) (err error)
+	PostInstall(ctx context.Context, pkgType PackageType, upgrade bool, winArgs []string) (err error)
+	PreStartExperiment(ctx context.Context) (err error)
+	PostStartExperiment(ctx context.Context) (err error)
+	PreStopExperiment(ctx context.Context) (err error)
+	PostStopExperiment(ctx context.Context) (err error)
+	PrePromoteExperiment(ctx context.Context) (err error)
+	PostPromoteExperiment(ctx context.Context) (err error)
 }
 
 // PreInstall calls the pre-install hook for the package.
-func (p Package) PreInstall(ctx PackageContext) (err error) {
-	if p.preInstall == nil {
+func (h *hooks) PreInstall(ctx context.Context, pkgType PackageType, upgrade bool) (err error) {
+	if h.preInstall == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.preInstall", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Type:    pkgType,
+		Upgrade: upgrade,
+		Path:    path,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.preInstall", h.name))
 	defer func() { span.Finish(err) }()
-	return p.preInstall(ctx)
+	return h.preInstall(hookCtx)
 }
 
 // PreRemove calls the pre-remove hook for the package.
-func (p Package) PreRemove(ctx PackageContext) (err error) {
-	if p.preRemove == nil {
+func (h *hooks) PreRemove(ctx context.Context, pkgType PackageType, upgrade bool) (err error) {
+	if h.preRemove == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.preRemove", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Type:    pkgType,
+		Upgrade: upgrade,
+		Path:    path,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.preRemove", h.name))
 	defer func() { span.Finish(err) }()
-	return p.preRemove(ctx)
+	return h.preRemove(hookCtx)
 }
 
 // PostInstall calls the post-install hook for the package.
-func (p Package) PostInstall(ctx PackageContext) (err error) {
-	if p.postInstall == nil {
+func (h *hooks) PostInstall(ctx context.Context, pkgType PackageType, upgrade bool, winArgs []string) (err error) {
+	if h.postInstall == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.postInstall", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Type:    pkgType,
+		Upgrade: upgrade,
+		Path:    path,
+		Args:    winArgs,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.postInstall", h.name))
 	defer func() { span.Finish(err) }()
-	return p.postInstall(ctx)
+	return h.postInstall(hookCtx)
 }
 
 // PreStartExperiment calls the pre-start-experiment hook for the package.
-func (p Package) PreStartExperiment(ctx PackageContext) (err error) {
-	if p.preStartExperiment == nil {
+func (h *hooks) PreStartExperiment(ctx context.Context) (err error) {
+	if h.preStartExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.preStartExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.preStartExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.preStartExperiment(ctx)
+	return h.preStartExperiment(hookCtx)
 }
 
 // PostStartExperiment calls the post-start-experiment hook for the package.
-func (p Package) PostStartExperiment(ctx PackageContext) (err error) {
-	if p.postStartExperiment == nil {
+func (h *hooks) PostStartExperiment(ctx context.Context) (err error) {
+	if h.postStartExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.postStartExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.postStartExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.postStartExperiment(ctx)
+	return h.postStartExperiment(hookCtx)
 }
 
 // PreStopExperiment calls the pre-stop-experiment hook for the package.
-func (p Package) PreStopExperiment(ctx PackageContext) (err error) {
-	if p.preStopExperiment == nil {
+func (h *hooks) PreStopExperiment(ctx context.Context) (err error) {
+	if h.preStopExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.preStopExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.preStopExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.preStopExperiment(ctx)
+	return h.preStopExperiment(hookCtx)
 }
 
 // PostStopExperiment calls the post-stop-experiment hook for the package.
-func (p Package) PostStopExperiment(ctx PackageContext) (err error) {
-	if p.postStopExperiment == nil {
+func (h *hooks) PostStopExperiment(ctx context.Context) (err error) {
+	if h.postStopExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.postStopExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.postStopExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.postStopExperiment(ctx)
+	return h.postStopExperiment(hookCtx)
 }
 
 // PrePromoteExperiment calls the pre-promote-experiment hook for the package.
-func (p Package) PrePromoteExperiment(ctx PackageContext) (err error) {
-	if p.prePromoteExperiment == nil {
+func (h *hooks) PrePromoteExperiment(ctx context.Context) (err error) {
+	if h.prePromoteExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.prePromoteExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.prePromoteExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.prePromoteExperiment(ctx)
+	return h.prePromoteExperiment(hookCtx)
 }
 
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
-func (p Package) PostPromoteExperiment(ctx PackageContext) (err error) {
-	if p.postPromoteExperiment == nil {
+func (h *hooks) PostPromoteExperiment(ctx context.Context) (err error) {
+	if h.postPromoteExperiment == nil {
 		return nil
 	}
-	span, ctx := ctx.StartSpan(fmt.Sprintf("package.%s.postPromoteExperiment", p.name))
+	hookCtx := hookContext{
+		Context: ctx,
+		Package: h.name,
+		Path:    path,
+		Type:    PackageTypeOCI,
+	}
+	span, hookCtx := hookCtx.StartSpan(fmt.Sprintf("package.%s.postPromoteExperiment", h.name))
 	defer func() { span.Finish(err) }()
-	return p.postPromoteExperiment(ctx)
+	return h.postPromoteExperiment(hookCtx)
 }
 
 // PackageType is the type of package.
@@ -153,8 +211,8 @@ const (
 	PackageTypeRPM PackageType = "rpm"
 )
 
-// PackageContext is the context passed to hooks during install/upgrade/uninstall.
-type PackageContext struct {
+// hookContext is the context passed to hooks during install/upgrade/uninstall.
+type hookContext struct {
 	context.Context
 	Package string
 	Type    PackageType
@@ -164,7 +222,7 @@ type PackageContext struct {
 }
 
 // StartSpan starts a new span with the given operation name.
-func (c PackageContext) StartSpan(operationName string) (*telemetry.Span, PackageContext) {
+func (c hookContext) StartSpan(operationName string) (*telemetry.Span, hookContext) {
 	span, newCtx := telemetry.StartSpanFromContext(c, operationName)
 	span.SetTag("package", c.Package)
 	span.SetTag("type", c.Type)

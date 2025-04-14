@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	apmInjectPackage = Package{
+	apmInjectPackage = &hooks{
 		name:        "apm-inject",
 		postInstall: postInstallAPMInjector,
 		preRemove:   preRemoveAPMInjector,
@@ -21,7 +21,7 @@ var (
 )
 
 // postInstallAPMInjector is called after the APM injector is installed
-func postInstallAPMInjector(ctx PackageContext) (err error) {
+func postInstallAPMInjector(ctx hookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()
@@ -30,7 +30,7 @@ func postInstallAPMInjector(ctx PackageContext) (err error) {
 }
 
 // preRemoveAPMInjector is called before the APM injector is removed
-func preRemoveAPMInjector(ctx PackageContext) (err error) {
+func preRemoveAPMInjector(ctx hookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_injector")
 	defer func() { span.Finish(err) }()
 	installer := apminject.NewInstaller()

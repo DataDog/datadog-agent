@@ -29,7 +29,6 @@ import (
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/datadogagent"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -98,17 +97,11 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	asyncPreRemoveHooks := map[string]repository.PreRemoveHook{}
-	for name, pkg := range packages.Packages {
-		if pkg.AsyncPreRemoveHook != nil {
-			asyncPreRemoveHooks[name] = pkg.AsyncPreRemoveHook
-		}
-	}
 	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, asyncPreRemoveHooks),
+		packages:   repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks),
 		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
@@ -284,7 +277,12 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	pkgPath := i.packages.Get(pkg.Name).StablePath()
+	hooks, err := i.getHooks(pkg.Name, pkgPath)
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
+	}
+	err = hooks.PreInstall(ctx, packages.PackageTypeOCI, pkgPath, false)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
@@ -318,7 +316,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
+	err = hooks.PostInstall(ctx, packages.PackageTypeOCI, pkgPath, false, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -375,10 +373,15 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 
-	if err := i.preStartExperiment(ctx, pkg.Name); err != nil {
+	stablePkgPath := i.packages.Get(pkg.Name).StablePath()
+	stableHooks, err := i.getHooks(pkg.Name, stablePkgPath)
+	if err != nil {
+		return fmt.Errorf("could not get hooks: %w", err)
+	}
+	err = stableHooks.PreStartExperiment(ctx, stablePkgPath)
+	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
-
 	repository := i.packages.Get(pkg.Name)
 	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
 	if err != nil {
@@ -387,8 +390,16 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-
-	return i.postStartExperiment(ctx, pkg.Name)
+	experimentPkgPath := i.packages.Get(pkg.Name).ExperimentPath()
+	experimentHooks, err := i.getHooks(pkg.Name, experimentPkgPath)
+	if err != nil {
+		return fmt.Errorf("could not get hooks: %w", err)
+	}
+	err = experimentHooks.PostStartExperiment(ctx, experimentPkgPath)
+	if err != nil {
+		return fmt.Errorf("could not install experiment: %w", err)
+	}
+	return nil
 }
 
 // RemoveExperiment removes an experiment.
@@ -406,6 +417,11 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return nil
 	}
 
+	experimentPkgPath := i.packages.Get(pkg).ExperimentPath()
+	experimentHooks, err := i.getHooks(pkg, experimentPkgPath)
+	if err != nil {
+		return fmt.Errorf("could not get hooks: %w", err)
+	}
 	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
 		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
@@ -416,12 +432,12 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 				fmt.Errorf("could not delete experiment: %w", err),
 			)
 		}
-		err = i.preStopExperiment(ctx, pkg)
+		err = experimentHooks.PreStopExperiment(ctx, experimentPkgPath)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
 	} else {
-		err := i.preStopExperiment(ctx, pkg)
+		err = experimentHooks.PreStopExperiment(ctx, experimentPkgPath)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
@@ -433,7 +449,16 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 			)
 		}
 	}
-	return i.postStopExperiment(ctx, pkg)
+	stablePkgPath := i.packages.Get(pkg).StablePath()
+	stableHooks, err := i.getHooks(pkg, stablePkgPath)
+	if err != nil {
+		return fmt.Errorf("could not get hooks: %w", err)
+	}
+	err = stableHooks.PostStopExperiment(ctx, stablePkgPath)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
+	return nil
 }
 
 // PromoteExperiment promotes an experiment to stable.
@@ -634,7 +659,12 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.removePackage(ctx, pkg)
+	pkgPath := i.packages.Get(pkg).StablePath()
+	hooks, err := i.getHooks(pkg, pkgPath)
+	if err != nil {
+		return fmt.Errorf("could not get hooks: %w", err)
+	}
+	err = hooks.PreRemove(ctx, packages.PackageTypeOCI, pkgPath, false)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
@@ -728,125 +758,16 @@ func (i *installerImpl) Close() error {
 	return i.close()
 }
 
-func (i *installerImpl) preStartExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		if runtime.GOOS == "windows" {
-			return nil
-		}
-		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
-		return installerExec.PreStartExperiment(ctx, pkg)
-	default:
-		return nil
+func (i *installerImpl) getHooks(pkg string, pkgPath string) (packages.Hooks, error) {
+	hooksPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
+	_, err := os.Stat(hooksPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return packages.Hooks[pkg], nil
 	}
-}
-
-func (i *installerImpl) postStartExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		// close so package can be updated as watchdog runs
-		i.db.Close()
-		return datadogagent.PostStartExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.StartInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.StartAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
+	if err != nil {
+		return nil, fmt.Errorf("could not stat hooks path %s: %w", hooksPath, err)
 	}
-}
-
-func (i *installerImpl) preStopExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreStopExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.StopInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.StopAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) postStopExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		if runtime.GOOS == "windows" {
-			return nil
-		}
-		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
-		return installerExec.PostStopExperiment(ctx, pkg)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) prePromoteExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		if runtime.GOOS == "windows" {
-			return nil
-		}
-		installerExec := iexec.NewInstallerExec(i.env, filepath.Join(datadogagent.StablePath, "embedded", "bin", "installer"))
-		return installerExec.PrePromoteExperiment(ctx, pkg)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) postPromoteExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostPromoteExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.PromoteInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.PromoteAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
-	switch pkg {
-	case packageDatadogInstaller:
-		return packages.PrepareInstaller(ctx)
-	case packageDatadogAgent:
-		return datadogagent.PreInstall(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
-	switch pkg {
-	case packageDatadogInstaller:
-		return packages.SetupInstaller(ctx)
-	case packageDatadogAgent:
-		return datadogagent.PostInstall(ctx, datadogagent.StablePath, "installer", args...)
-	case packageAPMInjector:
-		return packages.SetupAPMInjector(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.SetupAPMLibraryDotnet(ctx, pkg)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreRemove(ctx, datadogagent.StablePath, "installer", false)
-	case packageAPMInjector:
-		return packages.RemoveAPMInjector(ctx)
-	case packageDatadogInstaller:
-		return packages.RemoveInstaller(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.RemoveAPMLibraryDotnet(ctx)
-	default:
-		return nil
-	}
+	return iexec.NewInstallerExec(i.env, hooksPath), nil
 }
 
 func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {
@@ -888,102 +809,6 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not create %s repository: %w", pkg, err)
 	}
 	return nil
-}
-
-// PostInstall runs the post-install command for a package.
-func PostInstall(ctx context.Context, pkg string, caller string) error {
-	if caller != "deb" && caller != "rpm" && caller != "installer" {
-		return fmt.Errorf("invalid caller: %s", caller)
-	}
-
-	switch pkg {
-	case packageDatadogAgent:
-		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
-		if caller == "deb" || caller == "rpm" {
-			installPath = "/opt/datadog-agent"
-		}
-		return datadogagent.PostInstall(ctx, installPath, caller)
-	default:
-		return nil
-	}
-}
-
-// PreRemove runs the pre-rm command for a package.
-func PreRemove(ctx context.Context, pkg string, caller string, upgrade bool) error {
-	if caller != "deb" && caller != "rpm" && caller != "installer" {
-		return fmt.Errorf("invalid caller: %s", caller)
-	}
-
-	switch pkg {
-	case packageDatadogAgent:
-		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
-		if caller == "deb" || caller == "rpm" {
-			installPath = "/opt/datadog-agent"
-		}
-		return datadogagent.PreRemove(ctx, installPath, caller, upgrade)
-	default:
-		return nil
-	}
-}
-
-// PreStartExperiment runs the pre-start-experiment command for a package.
-func PreStartExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreStartExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostStartExperiment runs the post-start-experiment command for a package.
-func PostStartExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostStartExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PreStopExperiment runs the pre-stop-experiment command for a package.
-func PreStopExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PreStopExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostStopExperiment runs the post-stop-experiment command for a package.
-func PostStopExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostStopExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PrePromoteExperiment runs the pre-promote-experiment command for a package.
-func PrePromoteExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PrePromoteExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-// PostPromoteExperiment runs the post-promote-experiment command for a package.
-func PostPromoteExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return datadogagent.PostPromoteExperiment(ctx)
-	default:
-		return nil
-	}
 }
 
 var (

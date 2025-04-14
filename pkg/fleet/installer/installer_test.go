@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -39,7 +38,7 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
-	packages := repository.NewRepositories(rootPath, packages.PreRemoveHooks)
+	packages := repository.NewRepositories(rootPath, nil)
 	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
