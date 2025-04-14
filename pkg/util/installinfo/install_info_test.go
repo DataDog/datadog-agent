@@ -272,12 +272,14 @@ install_method:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vh, _ := os.CreateTemp("", "version-history.json")
+			vh, err := os.CreateTemp("", "version-history.json")
+			assert.Equal(t, nil, err)
 			vh.WriteString(tt.versionHistoryFile)
 			defer os.Remove(vh.Name())
 			versionHistoryFilePath := vh.Name()
 
-			f, _ := os.CreateTemp("", "install_info")
+			f, err := os.CreateTemp("", "install_info")
+			assert.Equal(t, nil, err)
 			f.WriteString(tt.installInfoFile)
 			defer os.Remove(f.Name())
 			installInfoFilePath := f.Name()
