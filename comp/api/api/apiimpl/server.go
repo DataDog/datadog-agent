@@ -49,13 +49,13 @@ func (server *apiServer) startServers() error {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	ipcCert, err := getx509Certificate(server.authToken.GetTLSServerConfig())
+	authTagGetter, err := authTagGetter(server.authToken.GetTLSServerConfig())
 	if err != nil {
 		return fmt.Errorf("unable to load the IPC certificate: %v", err)
 	}
 
 	// create the telemetry middleware
-	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, ipcCert)
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry, authTagGetter)
 
 	// start the CMD server
 	if err := server.startCMDServer(
@@ -86,8 +86,9 @@ func (server *apiServer) stopServers() {
 	stopServer(server.ipcListener, ipcServerName)
 }
 
-// getx509Certificate returns the x509.Certificate from the server TLS config
-func getx509Certificate(serverTLSConfig *tls.Config) (*x509.Certificate, error) {
+// authTagGetter returns a function that returns the auth tag for the given request
+// It returns "mTLS" if the client provides a valid certificate, "token" otherwise
+func authTagGetter(serverTLSConfig *tls.Config) (func(r *http.Request) string, error) {
 	// Read the IPC certificate from the server TLS config
 	if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
 		return nil, fmt.Errorf("no certificates found in server TLS config")
@@ -97,5 +98,12 @@ func getx509Certificate(serverTLSConfig *tls.Config) (*x509.Certificate, error) 
 	if err != nil {
 		return nil, fmt.Errorf("error parsing IPC certificate: %v", err)
 	}
-	return cert, nil
+
+	return func(r *http.Request) string {
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && cert.Equal(r.TLS.PeerCertificates[0]) {
+			return "mTLS"
+		}
+		// We can assert that the auth is at least a token because it has been checked previously by the validateToken middleware
+		return "token"
+	}, nil
 }

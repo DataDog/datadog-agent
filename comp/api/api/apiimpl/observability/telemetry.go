@@ -6,7 +6,6 @@
 package observability
 
 import (
-	"crypto/x509"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,7 +27,7 @@ const (
 type telemetryMiddlewareFactory struct {
 	requestDuration telemetry.Histogram
 	clock           clock.Clock
-	cert            *x509.Certificate
+	authTagGetter   func(r *http.Request) string
 }
 
 // TelemetryMiddlewareFactory creates a telemetry middleware tagged with a given server name
@@ -54,18 +53,14 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 
 			durationSeconds := duration.Seconds()
 
-			// We can assert that the auth is at least a token because it has been checked previously by the validateToken middleware
-			auth := "token"
-			if th.cert != nil && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && th.cert.Equal(r.TLS.PeerCertificates[0]) {
-				auth = "mTLS"
-			}
+			auth := th.authTagGetter(r)
 
 			th.requestDuration.Observe(durationSeconds, serverName, strconv.Itoa(statusCode), r.Method, path, auth)
 		})
 	}
 }
 
-func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, cert *x509.Certificate) TelemetryMiddlewareFactory {
+func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
 	tags := []string{"servername", "status_code", "method", "path", "auth"}
 	var buckets []float64 // use default buckets
 	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets)
@@ -73,7 +68,7 @@ func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Cl
 	return &telemetryMiddlewareFactory{
 		requestDuration,
 		clock,
-		cert,
+		authTagGetter,
 	}
 }
 
@@ -81,6 +76,6 @@ func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Cl
 //
 // This function must be called only once for a given telemetry Component,
 // as it creates a new metric, and Prometheus panics if the same metric is registered twice.
-func NewTelemetryMiddlewareFactory(telemetry telemetry.Component, cert *x509.Certificate) TelemetryMiddlewareFactory {
-	return newTelemetryMiddlewareFactory(telemetry, clock.New(), cert)
+func NewTelemetryMiddlewareFactory(telemetry telemetry.Component, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
+	return newTelemetryMiddlewareFactory(telemetry, clock.New(), authTagGetter)
 }
