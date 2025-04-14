@@ -31,6 +31,11 @@ const (
 )
 
 var (
+	installerDirectories = file.Directories{
+		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+	}
+
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -88,6 +93,9 @@ func setupFilesystem(ctx context.Context, installPath string, caller string) (er
 	}
 
 	// 3. Ensure config/log/package directories are created and have the correct permissions
+	if err = installerDirectories.Ensure(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
+	}
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -102,12 +110,7 @@ func setupFilesystem(ctx context.Context, installPath string, caller string) (er
 	if err = file.EnsureSymlink(filepath.Join(installPath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	if installPath == StablePath {
-		if err = file.EnsureSymlink(installPath, legacyAgentSymlink); err != nil {
-			return fmt.Errorf("failed to create symlink: %v", err)
-		}
-	}
-	if err = file.EnsureSymlinkIfNotExists(filepath.Join(installPath, "embedded/bin/installer"), installerSymlink); err != nil {
+	if err = file.EnsureSymlink(filepath.Join(installPath, "embedded/bin/installer"), installerSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 

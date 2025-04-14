@@ -97,6 +97,13 @@ func setupAndStartAgentUnits(ctx context.Context, units []string, mainUnit strin
 		// the config is populated afterwards by the install method and the agent is restarted
 		return nil
 	}
+
+	// In case the binary called changed, we want to restart the unit. As using `restart` breaks
+	// the experiment we manually stop then start.
+	if err = systemd.StopUnit(ctx, mainUnit); err != nil {
+		return err
+	}
+
 	if err = systemd.StartUnit(ctx, mainUnit); err != nil {
 		return err
 	}
