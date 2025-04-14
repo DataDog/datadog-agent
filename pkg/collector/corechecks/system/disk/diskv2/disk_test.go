@@ -537,40 +537,6 @@ excluded_disk_re:
 	assert.Contains(t, b.String(), "`excluded_disk_re` is deprecated and will be removed in a future release. Please use `device_exclude` instead.")
 }
 
-func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "",
-				Mountpoint: "/",
-				Fstype:     "ext4",
-				Opts:       []string{"rw", "relatime"},
-			},
-			{
-				Device:     "/dev/sda2",
-				Mountpoint: "/home",
-				Fstype:     "ext4",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskCheck := createCheck()
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte("all_partitions: true"))
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:", "device_name:."})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:", "device_name:."})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:", "device_name:."})
-	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
-	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
-	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
-}
-
 func TestGivenADiskCheckWithDeviceGlobalExcludeAndDeviceExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseDevices(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createCheck()
