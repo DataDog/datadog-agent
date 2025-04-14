@@ -163,7 +163,7 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 
 		switch value := m.Value.(type) {
 		case string:
-			str = value
+			str = `"` + value + `"`
 		case int:
 			str = strconv.Itoa(value)
 		case bool:
@@ -211,10 +211,12 @@ func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingVa
 
 			return pos
 		case fmt.Stringer:
-			str = value.String()
+			str = `"` + value.String() + `"`
 		default:
 			return pos
 		}
+
+
 		if idx := strings.Index(expr[offset:], str); idx >= 0 {
 			pos.Offset = idx + offset
 			pos.Length = len(str)
